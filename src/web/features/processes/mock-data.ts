@@ -854,9 +854,20 @@ const rateValue = (
   return Math.max(0, Math.round(base * (1 + 0.55 * wave(pid + index, tick, period, 0.3))))
 }
 
-/** 采样一次进程列表；tick 递增时 CPU、内存与速率会随之变化。 */
-export const mockProcesses = (tick: number): ProcessInfo[] =>
-  PROCESSES.map((seed) => {
+export type ProcessSample = {
+  processes: ProcessInfo[]
+  overview: SystemOverview
+}
+
+/** 本次会话已经结束的进程，后续采样不再返回它们。 */
+const terminatedPids = new Set<number>()
+
+/** 采样计数，每次拉取推进一格，让 CPU、内存与速率持续抖动。 */
+let sampleTick = 0
+
+/** 采样一次进程列表；tick 递增时数值会随之变化。 */
+const sampleProcesses = (tick: number): ProcessInfo[] =>
+  PROCESSES.filter((seed) => !terminatedPids.has(seed.pid)).map((seed) => {
     const cpu = cpuValue(seed, tick)
     const memoryBytes = memoryValue(seed, tick)
     const threads = Math.max(
@@ -891,7 +902,7 @@ export const mockProcesses = (tick: number): ProcessInfo[] =>
   })
 
 /** 整机概览由进程列表汇总而来，保证卡片与表格数据自洽。 */
-export const mockOverview = (
+const buildOverview = (
   processes: ProcessInfo[],
   tick: number
 ): SystemOverview => {
@@ -950,4 +961,34 @@ export const mockOverview = (
     ],
     threadCount: processes.reduce((sum, item) => sum + item.threads, 0),
   }
+}
+
+/** 拉取一次采样；接后端时换成 `@shared/client-api` 的调用。 */
+export const fetchProcessSample = async (): Promise<ProcessSample> => {
+  const tick = (sampleTick += 1)
+  const processes = sampleProcesses(tick)
+  return { processes, overview: buildOverview(processes, tick) }
+}
+
+export type TerminateOutcome = {
+  succeeded: ProcessInfo[]
+  denied: ProcessInfo[]
+}
+
+/**
+ * 结束进程。
+ *
+ * 与真实系统一致：只能结束当前登录用户自己的进程，系统进程需要管理员权限，
+ * 一律拒绝。成功结束的进程不会再出现在后续采样里。
+ */
+export const terminateProcesses = async (
+  pids: number[]
+): Promise<TerminateOutcome> => {
+  const targets = sampleProcesses(sampleTick).filter((item) =>
+    pids.includes(item.pid)
+  )
+  const succeeded = targets.filter((item) => item.user === MACHINE.user)
+  const denied = targets.filter((item) => item.user !== MACHINE.user)
+  for (const item of succeeded) terminatedPids.add(item.pid)
+  return { succeeded, denied }
 }

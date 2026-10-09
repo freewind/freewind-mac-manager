@@ -1,25 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 import {
   MACHINE,
-  REFRESH_INTERVAL_SECONDS,
-  mockOverview,
-  mockProcesses,
   type ProcessInfo,
-  type SystemOverview,
 } from "@web/features/processes/mock-data"
-
-/** CPU 曲线保留的采样点数量。 */
-const HISTORY_SIZE = 28
-
-export type ProcessSortKey =
-  | "cpu"
-  | "memory"
-  | "name"
-  | "pid"
-  | "threads"
-  | "started"
-
-export type ProcessScope = "all" | "mine" | "system" | "ports"
+import {
+  useProcessSample,
+  useTerminateProcesses,
+} from "@web/features/processes/queries"
+import {
+  useProcessesLocalStore,
+  type ProcessScope,
+} from "@web/features/processes/store"
 
 const SCOPE_MATCHERS: Record<ProcessScope, (item: ProcessInfo) => boolean> = {
   all: () => true,
@@ -28,108 +20,46 @@ const SCOPE_MATCHERS: Record<ProcessScope, (item: ProcessInfo) => boolean> = {
   ports: (item) => item.ports.length > 0,
 }
 
+/**
+ * 进程管理的数据入口。
+ *
+ * - 远程状态：TanStack Query（进程采样）
+ * - 本地共享状态：Zustand（范围筛选、搜索、自动刷新、勾选、详情目标）
+ * - 页面级瞬时状态：React state（这里的时钟；表格排序与确认弹窗在各自组件内）
+ */
 export const useProcesses = () => {
-  const [tick, setTick] = useState(0)
-  const [processes, setProcesses] = useState<ProcessInfo[]>(() =>
-    mockProcesses(0)
-  )
-  const [overview, setOverview] = useState<SystemOverview>(() =>
-    mockOverview(mockProcesses(0), 0)
-  )
-  const [cpuHistory, setCpuHistory] = useState<number[]>([])
-  const [updatedAt, setUpdatedAt] = useState(() => Date.now())
+  const local = useProcessesLocalStore()
+  const sampleQuery = useProcessSample()
+  const terminateProcesses = useTerminateProcesses()
   const [nowMs, setNowMs] = useState(() => Date.now())
-  const [autoRefresh, setAutoRefresh] = useState(true)
-  const [scope, setScope] = useState<ProcessScope>("all")
-  const [keyword, setKeyword] = useState("")
-  const [sortKey, setSortKey] = useState<ProcessSortKey>("cpu")
-  const [descending, setDescending] = useState(true)
-  const [checked, setChecked] = useState<number[]>([])
-  const [selected, setSelected] = useState<ProcessInfo | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  /** 已经结束的进程，后续采样不再把它们带回来。 */
-  const killed = useRef<Set<number>>(new Set())
 
-  // 每次采样推进一个 tick，并把新数据覆盖到列表上。
+  // 运行时长与「上次更新几秒前」需要一个秒级时钟，与采样节奏解耦。
   useEffect(() => {
-    const list = mockProcesses(tick).filter((item) => !killed.current.has(item.pid))
-    const next = mockOverview(list, tick)
-    setProcesses(list)
-    setOverview(next)
-    setCpuHistory((previous) => [...previous, next.cpuTotal].slice(-HISTORY_SIZE))
-    setUpdatedAt(Date.now())
-  }, [tick])
-
-  useEffect(() => {
-    if (!autoRefresh) return
-    const timer = setInterval(() => setTick((value) => value + 1), REFRESH_INTERVAL_SECONDS * 1000)
-    return () => clearInterval(timer)
-  }, [autoRefresh])
-
-  // 单独走一个更快的时钟，用于「运行时长」与「上次更新」这类秒级文案。
-  useEffect(() => {
-    const timer = setInterval(() => setNowMs(Date.now()), 500)
+    const timer = setInterval(() => setNowMs(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
 
-  useEffect(() => {
-    if (notice === null) return
-    const timer = setTimeout(() => setNotice(null), 6000)
-    return () => clearTimeout(timer)
-  }, [notice])
-
-  const refresh = useCallback(() => setTick((value) => value + 1), [])
-
-  const compare = useCallback(
-    (left: ProcessInfo, right: ProcessInfo): number => {
-      const direction = descending ? -1 : 1
-      switch (sortKey) {
-        case "name":
-          return left.name.localeCompare(right.name) * direction
-        case "memory":
-          return (left.memoryBytes - right.memoryBytes) * direction
-        case "threads":
-          return (left.threads - right.threads) * direction
-        case "pid":
-          return (left.pid - right.pid) * direction
-        case "started":
-          return (left.startedAt - right.startedAt) * direction
-        case "cpu":
-          return (left.cpu - right.cpu) * direction
-      }
-    },
-    [sortKey, descending]
+  const processes = useMemo(
+    () => sampleQuery.data?.processes ?? [],
+    [sampleQuery.data]
   )
 
-  const toggleSort = useCallback(
-    (key: ProcessSortKey) => {
-      if (key === sortKey) {
-        setDescending((value) => !value)
-        return
-      }
-      setSortKey(key)
-      setDescending(key !== "name")
-    },
-    [sortKey]
-  )
-
-  const rows = useMemo(() => {
-    const keywordText = keyword.trim().toLowerCase()
-    const matches = SCOPE_MATCHERS[scope]
-    return processes
-      .filter((item) => {
-        if (!matches(item)) return false
-        if (keywordText === "") return true
-        return (
-          item.name.toLowerCase().includes(keywordText) ||
-          item.user.toLowerCase().includes(keywordText) ||
-          item.command.toLowerCase().includes(keywordText) ||
-          String(item.pid).includes(keywordText) ||
-          item.ports.some((port) => String(port).includes(keywordText))
-        )
-      })
-      .sort(compare)
-  }, [processes, scope, keyword, compare])
+  /** 按范围与关键词过滤；排序交给表格组件自己处理。 */
+  const filteredProcesses = useMemo(() => {
+    const keyword = local.search.trim().toLowerCase()
+    const matches = SCOPE_MATCHERS[local.scope]
+    return processes.filter((item) => {
+      if (!matches(item)) return false
+      if (keyword === "") return true
+      return (
+        item.name.toLowerCase().includes(keyword) ||
+        item.user.toLowerCase().includes(keyword) ||
+        item.command.toLowerCase().includes(keyword) ||
+        String(item.pid).includes(keyword) ||
+        item.ports.some((port) => String(port).includes(keyword))
+      )
+    })
+  }, [processes, local.scope, local.search])
 
   /** 单个进程占用的内存上限，用于把内存条画成相对长度。 */
   const peakMemoryBytes = useMemo(
@@ -137,97 +67,99 @@ export const useProcesses = () => {
     [processes]
   )
 
-  const terminate = useCallback((targets: ProcessInfo[], force: boolean) => {
+  const checkedProcesses = useMemo(
+    () => processes.filter((item) => local.checkedPids.includes(item.pid)),
+    [processes, local.checkedPids]
+  )
+
+  const checkedSummary = useMemo(() => {
+    const cpu = checkedProcesses.reduce((sum, item) => sum + item.cpu, 0)
+    const memory = checkedProcesses.reduce(
+      (sum, item) => sum + item.memoryBytes,
+      0
+    )
+    return { cpu, memory }
+  }, [checkedProcesses])
+
+  const threadCount = useMemo(
+    () => processes.reduce((sum, item) => sum + item.threads, 0),
+    [processes]
+  )
+
+  const refresh = () => {
+    void sampleQuery.refetch()
+    toast.info("已重新采样进程列表")
+  }
+
+  /** 结束进程：成功与失败都通过 toast 汇报。 */
+  const terminate = (targets: ProcessInfo[], force: boolean) => {
     if (targets.length === 0) return
-    const allowed = targets.filter(
-      (item) => item.user === MACHINE.user && item.kind !== "kernel"
+    terminateProcesses.mutate(
+      { pids: targets.map((item) => item.pid), force },
+      {
+        onSuccess: (outcome) => {
+          const label = force ? "强制结束" : "结束"
+          if (outcome.succeeded.length > 0) {
+            toast.success(
+              `已${label} ${outcome.succeeded
+                .map((item) => `${item.name}（${item.pid}）`)
+                .join("、")}`
+            )
+          }
+          if (outcome.denied.length > 0) {
+            toast.error(
+              `${outcome.denied
+                .map((item) => item.name)
+                .join("、")} 属于系统进程，需要管理员权限，已跳过`
+            )
+          }
+        },
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : String(error))
+        },
+      }
     )
-    const denied = targets.filter((item) => !allowed.includes(item))
-    for (const item of allowed) killed.current.add(item.pid)
-    if (allowed.length > 0) {
-      setProcesses((previous) =>
-        previous.filter((item) => !killed.current.has(item.pid))
-      )
-      setChecked((previous) =>
-        previous.filter((pid) => !killed.current.has(pid))
-      )
-      setSelected((previous) =>
-        previous && killed.current.has(previous.pid) ? null : previous
-      )
-    }
-    const parts: string[] = []
-    if (allowed.length > 0) {
-      parts.push(
-        `已${force ? "强制结束" : "结束"} ${allowed
-          .map((item) => `${item.name}（${item.pid}）`)
-          .join("、")}`
-      )
-    }
-    if (denied.length > 0) {
-      parts.push(
-        `${denied.map((item) => item.name).join("、")} 属于系统进程，需要管理员权限，已跳过`
-      )
-    }
-    setNotice(parts.join("；"))
-  }, [])
+  }
 
-  const toggleChecked = useCallback((pid: number, next: boolean) => {
-    setChecked((previous) =>
-      next
-        ? previous.includes(pid)
-          ? previous
-          : [...previous, pid]
-        : previous.filter((value) => value !== pid)
-    )
-  }, [])
-
-  const setAllChecked = useCallback(
-    (next: boolean) => setChecked(next ? rows.map((item) => item.pid) : []),
-    [rows]
-  )
-
-  const clearChecked = useCallback(() => setChecked([]), [])
-
-  const terminateChecked = useCallback(
-    (force: boolean) =>
-      terminate(
-        processes.filter((item) => checked.includes(item.pid)),
-        force
-      ),
-    [processes, checked, terminate]
-  )
+  const updatedAt = sampleQuery.dataUpdatedAt
 
   return {
+    // 数据
     machine: MACHINE,
-    all: processes,
-    rows,
-    overview,
-    cpuHistory,
-    /** 全列表的进程数（不受筛选影响）。 */
-    total: processes.length,
+    processes,
+    filteredProcesses,
+    overview: sampleQuery.data?.overview ?? null,
+    peakMemoryBytes,
+    threadCount,
+    isLoading: sampleQuery.isLoading,
+    isFetching: sampleQuery.isFetching,
+    error:
+      sampleQuery.error instanceof Error
+        ? sampleQuery.error.message
+        : sampleQuery.error === null
+          ? null
+          : String(sampleQuery.error),
     updatedAt,
     nowMs,
     secondsSinceUpdate: Math.max(0, Math.round((nowMs - updatedAt) / 1000)),
-    autoRefresh,
-    toggleAutoRefresh: () => setAutoRefresh((value) => !value),
+
+    // 本地共享状态
+    scope: local.scope,
+    setScope: local.setScope,
+    search: local.search,
+    setSearch: local.setSearch,
+    autoRefresh: local.autoRefresh,
+    setAutoRefresh: local.setAutoRefresh,
+    checkedPids: local.checkedPids,
+    toggleChecked: local.toggleChecked,
+    setChecked: local.setChecked,
+    selectedPid: local.selectedPid,
+    selectProcess: local.selectProcess,
+
+    // 动作与派生量
     refresh,
-    scope,
-    setScope,
-    keyword,
-    setKeyword,
-    sortKey,
-    descending,
-    toggleSort,
-    checked,
-    toggleChecked,
-    setAllChecked,
-    clearChecked,
-    terminateChecked,
     terminate,
-    peakMemoryBytes,
-    selected,
-    openDetail: setSelected,
-    closeDetail: () => setSelected(null),
-    notice,
+    checkedProcesses,
+    checkedSummary,
   }
 }
