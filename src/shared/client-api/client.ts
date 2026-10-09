@@ -1,6 +1,39 @@
 import { initClient } from "@ts-rest/core"
 import { contract } from "@shared/api-contract"
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null,
+    readonly responseBody?: unknown,
+    cause?: unknown
+  ) {
+    super(message, { cause })
+    this.name = "ApiRequestError"
+  }
+}
+
+const errorMessage = (body: unknown): string | null => {
+  if (typeof body === "string" && body.trim()) return body.trim()
+  if (body && typeof body === "object" && "message" in body) {
+    const message = body.message
+    return typeof message === "string" && message.trim() ? message : null
+  }
+  return null
+}
+
+export const unwrap = <T>(result: { status: number; body: unknown }): T => {
+  if (result.status >= 200 && result.status < 300) return result.body as T
+  const detail = errorMessage(result.body)
+  throw new ApiRequestError(
+    detail
+      ? `请求失败（HTTP ${result.status}）：${detail}`
+      : `请求失败（HTTP ${result.status}）`,
+    result.status,
+    result.body
+  )
+}
+
 export const dispatchUnauthorized = (): void => {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("mac-manager:unauthorized"))
@@ -22,12 +55,17 @@ export const apiClient = initClient(contract, {
       const csrfToken = readCsrfToken()
       if (csrfToken) requestHeaders.set("x-csrf-token", csrfToken)
     }
-    const response = await fetch(path, {
-      method,
-      headers: requestHeaders,
-      body: body as BodyInit | undefined,
-      credentials: "same-origin",
-    })
+    let response: Response
+    try {
+      response = await fetch(path, {
+        method,
+        headers: requestHeaders,
+        body: body as BodyInit | undefined,
+        credentials: "same-origin",
+      })
+    } catch (error) {
+      throw new ApiRequestError("网络请求失败", null, undefined, error)
+    }
     if (
       response.status === 401 &&
       !path.startsWith("/api/auth/") &&

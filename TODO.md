@@ -12,7 +12,6 @@
 
 ## 三、前端调用与反馈
 
-- [ ] **统一解包**（AGENTS 六）：核对各 `client-api` 中复制的 `unwrap`，提取到 `client-api/client.ts` 并迁移全部调用；覆盖成功、业务错误、非 JSON 响应和网络异常，避免丢失状态信息。
 - [ ] **统一错误呈现边界**（AGENTS 六）：各入口 hook 重复的 `error instanceof Error ? ... : String(error)` 提取成通用转换；与客户端解包、后端脱敏错误协同，不能把内部异常细节直接交给用户。
 - [ ] **按用途整改通知**（AGENTS 六）：ports、traffic、disk-growth、system-services 的短暂 `notice` + Alert 操作反馈改为 sonner；持续加载错误、离线、表单校验留在对应区域，不把所有 Alert 和业务状态都删除。
 - [ ] **本地 store 命名与内容**（AGENTS 六）：核对 `useDiskGrowthStore`、`useDashboardStore`；保留必要共享本地状态时改为 `useDiskGrowthLocalStore`、`useDashboardLocalStore` 并迁移引用，不因命名要求新建空 store。

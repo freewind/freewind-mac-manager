@@ -5,13 +5,7 @@ import type {
   FileEntry,
 } from "@shared/api-contract"
 import { ApiPath } from "@shared/api-path"
-import { apiClient, dispatchUnauthorized } from "./client"
-
-const unwrap = <T>(result: { status: number; body: unknown }): T => {
-  if (result.status >= 200 && result.status < 300) return result.body as T
-  const body = result.body as { message?: string } | undefined
-  throw new Error(body?.message ?? `请求失败（HTTP ${result.status}）`)
-}
+import { apiClient, dispatchUnauthorized, unwrap } from "./client"
 
 export const fetchDirectory = async (
   path: string

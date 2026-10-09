@@ -5,13 +5,7 @@ import type {
   TrafficSnapshotsResponse,
   TrafficStatus,
 } from "@shared/api-contract"
-import { apiClient } from "./client"
-
-const unwrap = <T>(result: { status: number; body: unknown }): T => {
-  if (result.status >= 200 && result.status < 300) return result.body as T
-  const body = result.body as { message?: string } | undefined
-  throw new Error(body?.message ?? `请求失败（HTTP ${result.status}）`)
-}
+import { apiClient, unwrap } from "./client"
 
 export const fetchTrafficStatus = async (): Promise<TrafficStatus> =>
   unwrap<TrafficStatus>(await apiClient.getTrafficStatus())
