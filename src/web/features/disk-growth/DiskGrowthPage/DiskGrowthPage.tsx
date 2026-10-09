@@ -15,7 +15,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { useMemo, useState, type ComponentType, type ReactNode } from "react"
 import type { GrowthEntry } from "@shared/api-contract/types"
-import { formatBytes, formatSignedBytes, formatTimestamp } from "@shared/format"
+import { formatBytes, formatSignedBytes, formatTimestamp, describeError } from "@shared/format"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -390,7 +390,7 @@ const BranchRow = ({
       await navigator.clipboard.writeText(text)
       onNotice(`已复制：${entry.path}`)
     } catch (error) {
-      onNotice(`复制失败：${String(error)}`)
+      onNotice(`复制失败：${describeError(error)}`)
     }
   }
 

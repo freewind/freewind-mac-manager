@@ -1,4 +1,5 @@
 import type { KillProcessesResponse } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 
 /**
  * 结束进程：只能结束当前用户有权限的进程。
@@ -20,7 +21,7 @@ export const killProcesses = (
       process.kill(pid, force ? "SIGKILL" : "SIGTERM")
       return { pid, succeeded: true, message: "已发送结束信号" }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = describeError(error)
       return { pid, succeeded: false, message }
     }
   })

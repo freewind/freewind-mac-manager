@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
 import type { ServiceDomain } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 
 const uid = (): string => String(process.getuid?.() ?? 0)
 
@@ -27,7 +28,7 @@ export const commandError = (
     const line = firstMeaningfulLine(value)
     if (line) return new Error(line)
   }
-  const message = error instanceof Error ? error.message : String(error)
+  const message = describeError(error)
   return new Error(firstMeaningfulLine(message) ?? message)
 }
 

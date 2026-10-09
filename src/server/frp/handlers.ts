@@ -1,5 +1,6 @@
 import { initServer } from "@ts-rest/express"
 import { contract } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import { probeFrpProxy, readFrpConfig, saveFrpConfig } from "./service"
 
 const s = initServer()
@@ -11,15 +12,12 @@ export const frpContract = {
   probeFrpProxy: contract.probeFrpProxy,
 }
 
-const toMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
-
 export const frpRouter = s.router(frpContract, {
   getFrpConfig: async () => {
     try {
       return { status: 200 as const, body: await readFrpConfig() }
     } catch (error) {
-      return { status: 500 as const, body: { message: toMessage(error) } }
+      return { status: 500 as const, body: { message: describeError(error) } }
     }
   },
 
@@ -30,7 +28,7 @@ export const frpRouter = s.router(frpContract, {
         body: { message: await saveFrpConfig(body) },
       }
     } catch (error) {
-      return { status: 400 as const, body: { message: toMessage(error) } }
+      return { status: 400 as const, body: { message: describeError(error) } }
     }
   },
 
@@ -38,7 +36,7 @@ export const frpRouter = s.router(frpContract, {
     try {
       return { status: 200 as const, body: await probeFrpProxy(body) }
     } catch (error) {
-      return { status: 400 as const, body: { message: toMessage(error) } }
+      return { status: 400 as const, body: { message: describeError(error) } }
     }
   },
 })

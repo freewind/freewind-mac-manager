@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useMemo } from "react"
 import { toast } from "sonner"
 import type { FrpProxy } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import { configSignature, serializeFrpcToml } from "@shared/frp-format"
 import {
   frpKeys,
@@ -147,10 +148,7 @@ export const useFrpPage = () => {
       { server: config.server, proxies: config.proxies },
       {
         onSuccess: (result) => toast.success(result.message),
-        onError: (error) =>
-          toast.error(
-            `保存失败：${error instanceof Error ? error.message : "未知错误"}`
-          ),
+        onError: (error) => toast.error(`保存失败：${describeError(error)}`),
       }
     )
   }

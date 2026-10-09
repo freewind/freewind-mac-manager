@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { formatBytes, formatSignedBytes, formatTimestamp } from "./format"
+import {
+  describeError,
+  formatBytes,
+  formatSignedBytes,
+  formatTimestamp,
+} from "./format"
 
 describe("formatBytes", () => {
   it("formats zero, bytes, and scaled values", () => {
@@ -23,6 +28,12 @@ describe("formatBytes", () => {
       "+1.5 KB",
       "-1.5 KB",
     ])
+  })
+
+  it("maps unknown thrown values to a stable user message", () => {
+    expect(describeError(new Error("读取失败"))).toBe("读取失败")
+    expect(describeError({ detail: "secret" })).toBe("操作失败")
+    expect(describeError(null)).toBe("操作失败")
   })
 
   it("formats timestamps in local time", () => {

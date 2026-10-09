@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
+import { describeError } from "@shared/format"
 import {
   useDeleteSnapshots,
   useKillProcesses,
@@ -16,9 +17,6 @@ import {
 } from "@web/features/traffic/store"
 
 export { REALTIME_SNAPSHOT_ID }
-
-const toMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
 
 export type TrafficTotals = {
   bytesIn: number
@@ -158,7 +156,7 @@ export const useTraffic = () => {
         local.setSelectedIds([data.snapshot.id])
         notify(`已保存快照 ${data.snapshot.rangeText}`)
       },
-      onError: (error) => notify(`保存快照失败：${toMessage(error)}`),
+      onError: (error) => notify(`保存快照失败：${describeError(error)}`),
     })
   }
 
@@ -169,7 +167,7 @@ export const useTraffic = () => {
         local.setSelectedIds(next.length > 0 ? next : [REALTIME_SNAPSHOT_ID])
         notify("已删除快照，其后一份已重新计算为合并区间")
       },
-      onError: (error) => notify(`删除快照失败：${toMessage(error)}`),
+      onError: (error) => notify(`删除快照失败：${describeError(error)}`),
     })
   }
 
@@ -182,7 +180,7 @@ export const useTraffic = () => {
           `已删除 ${selectedSnapshotIds.length} 份快照，受影响的后继快照已重新计算`
         )
       },
-      onError: (error) => notify(`删除快照失败：${toMessage(error)}`),
+      onError: (error) => notify(`删除快照失败：${describeError(error)}`),
     })
   }
 
@@ -192,7 +190,7 @@ export const useTraffic = () => {
         local.setSelectedIds([selectedSnapshotIds[0]])
         notify(`已把 ${selectedSnapshotIds.length} 份快照合并成一份`)
       },
-      onError: (error) => notify(`合并快照失败：${toMessage(error)}`),
+      onError: (error) => notify(`合并快照失败：${describeError(error)}`),
     })
   }
 
@@ -208,7 +206,7 @@ export const useTraffic = () => {
               : `结束「${label}」失败：${failed.map((item) => `PID ${item.pid} ${item.message}`).join("；")}`
           )
         },
-        onError: (error) => notify(`结束进程失败：${toMessage(error)}`),
+        onError: (error) => notify(`结束进程失败：${describeError(error)}`),
       }
     )
   }

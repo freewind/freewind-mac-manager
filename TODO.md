@@ -12,7 +12,6 @@
 
 ## 三、前端调用与反馈
 
-- [ ] **统一错误呈现边界**（AGENTS 六）：各入口 hook 重复的 `error instanceof Error ? ... : String(error)` 提取成通用转换；与客户端解包、后端脱敏错误协同，不能把内部异常细节直接交给用户。
 - [ ] **按用途整改通知**（AGENTS 六）：ports、traffic、disk-growth、system-services 的短暂 `notice` + Alert 操作反馈改为 sonner；持续加载错误、离线、表单校验留在对应区域，不把所有 Alert 和业务状态都删除。
 - [ ] **本地 store 命名与内容**（AGENTS 六）：核对 `useDiskGrowthStore`、`useDashboardStore`；保留必要共享本地状态时改为 `useDiskGrowthLocalStore`、`useDashboardLocalStore` 并迁移引用，不因命名要求新建空 store。
 - [ ] **FRP 入口 hook 命名**（AGENTS 六）：`useFrpPage` 改为 `useFrp`，同步文件名和引用，不扩展为其他无关结构重构。

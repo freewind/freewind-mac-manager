@@ -6,6 +6,7 @@ import {
   ensureCsrf,
   type AuthStatus,
 } from "@shared/client-api"
+import { describeError } from "@shared/format"
 import { AppSidebar, type FeatureKey } from "@web/components/app-sidebar"
 import { SidebarInset, SidebarProvider } from "@web/components/ui/sidebar"
 import { DashboardPage } from "@web/features/dashboard/DashboardPage"
@@ -31,7 +32,7 @@ export const App = () => {
         await ensureCsrf()
         setAuthStatus(await fetchAuthStatus())
       } catch (cause) {
-        setAuthError(cause instanceof Error ? cause.message : "无法连接服务")
+        setAuthError(describeError(cause))
       }
     }
     void load()

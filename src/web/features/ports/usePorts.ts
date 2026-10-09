@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
+import { describeError } from "@shared/format"
 import {
   buildPortGroups,
   type PortGroup,
@@ -154,7 +155,7 @@ export const usePorts = () => {
           )
         },
         onError: (error) =>
-          notify(error instanceof Error ? error.message : String(error)),
+          notify(describeError(error)),
       }
     )
   }

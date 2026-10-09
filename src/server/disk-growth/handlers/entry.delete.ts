@@ -1,4 +1,5 @@
 import { moveToTrash } from "../file-actions.ts"
+import { describeError } from "@shared/format"
 
 export const trashEntry = async ({ query }: { query: { path: string } }) => {
   try {
@@ -9,7 +10,7 @@ export const trashEntry = async ({ query }: { query: { path: string } }) => {
   } catch (error) {
     return {
       status: 400 as const,
-      body: { message: error instanceof Error ? error.message : String(error) },
+      body: { message: describeError(error) },
     }
   }
 }

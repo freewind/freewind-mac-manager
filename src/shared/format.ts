@@ -17,6 +17,11 @@ export const formatSignedBytes = (value: number): string => {
   return `${value > 0 ? "+" : "-"}${formatBytes(value)}`
 }
 
+export const describeError = (error: unknown): string => {
+  if (error instanceof Error && error.message.trim()) return error.message
+  return "操作失败"
+}
+
 export const formatTimestamp = (seconds: number): string => {
   const date = new Date(seconds * 1000)
   const pad = (input: number): string => String(input).padStart(2, "0")

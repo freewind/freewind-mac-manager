@@ -1,4 +1,5 @@
 import type { ScanStatus } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import { DATABASE_FILE } from "@server/env"
 import { DiskGrowthStore } from "./store"
 import { defaultScanConfig, scanFileSystem } from "./scanner"
@@ -66,7 +67,7 @@ const runScan = async (): Promise<void> => {
       running: false,
       phase: "扫描失败",
       finishedAt: Date.now() / 1000,
-      lastError: error instanceof Error ? error.message : String(error),
+      lastError: describeError(error),
     }
   }
 }

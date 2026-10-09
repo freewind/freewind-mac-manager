@@ -1,5 +1,6 @@
 import { initServer } from "@ts-rest/express"
 import { contract } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import {
   collectListeningPorts,
   collectMachineOverview,
@@ -18,15 +19,12 @@ export const dashboardContract = {
   listListeningPorts: contract.listListeningPorts,
 }
 
-const message = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
-
 export const dashboardRouter = s.router(dashboardContract, {
   dashboardOverview: async () => {
     try {
       return { status: 200, body: await collectMachineOverview() }
     } catch (error) {
-      return { status: 500, body: { message: message(error) } }
+      return { status: 500, body: { message: describeError(error) } }
     }
   },
 
@@ -37,7 +35,7 @@ export const dashboardRouter = s.router(dashboardContract, {
         body: { processes: await collectTopProcesses(query.limit) },
       }
     } catch (error) {
-      return { status: 500, body: { message: message(error) } }
+      return { status: 500, body: { message: describeError(error) } }
     }
   },
 
@@ -45,7 +43,7 @@ export const dashboardRouter = s.router(dashboardContract, {
     try {
       return { status: 200, body: { ports: await collectListeningPorts() } }
     } catch (error) {
-      return { status: 500, body: { message: message(error) } }
+      return { status: 500, body: { message: describeError(error) } }
     }
   },
 })

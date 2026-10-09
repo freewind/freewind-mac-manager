@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import type { ProcessEntry } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import { useKillProcesses, useProcessList } from "@web/features/processes/queries"
 import {
   useProcessesLocalStore,
@@ -118,7 +119,7 @@ export const useProcesses = () => {
           }
         },
         onError: (error) => {
-          toast.error(error instanceof Error ? error.message : String(error))
+          toast.error(describeError(error))
         },
       }
     )
@@ -136,12 +137,7 @@ export const useProcesses = () => {
     threadCount,
     isLoading: listQuery.isLoading,
     isFetching: listQuery.isFetching,
-    error:
-      listQuery.error instanceof Error
-        ? listQuery.error.message
-        : listQuery.error === null
-          ? null
-          : String(listQuery.error),
+    error: listQuery.isError ? describeError(listQuery.error) : null,
     updatedAt,
     nowMs,
     secondsSinceUpdate: Math.max(0, Math.round((nowMs - updatedAt) / 1000)),

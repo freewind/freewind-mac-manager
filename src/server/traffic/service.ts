@@ -5,6 +5,7 @@ import type {
   TrafficStatus,
 } from "@shared/api-contract"
 import { DATA_DIR, DATABASE_FILE } from "@server/env"
+import { describeError } from "@shared/format"
 import path from "node:path"
 import { processLabel, scriptName } from "./identity"
 import { snapshotProcesses, type ProcessDetails } from "./inspector"
@@ -192,7 +193,7 @@ export const sampleOnce = async (): Promise<void> => {
     store.insertSamples(rows)
     lastError = null
   } catch (error) {
-    lastError = error instanceof Error ? error.message : String(error)
+    lastError = describeError(error)
   } finally {
     sampling = false
   }

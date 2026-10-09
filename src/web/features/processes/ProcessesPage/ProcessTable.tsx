@@ -9,7 +9,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
-import { formatBytes } from "@shared/format"
+import { formatBytes, describeError } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Checkbox } from "@web/components/ui/checkbox"
@@ -233,7 +233,7 @@ const ProcessRow = (props: ProcessRowProps) => {
       await navigator.clipboard.writeText(String(item.pid))
       toast.success(`已复制 PID ${item.pid}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
+      toast.error(describeError(error))
     }
   }
 

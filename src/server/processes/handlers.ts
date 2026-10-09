@@ -1,6 +1,7 @@
 import os from "node:os"
 import { initServer } from "@ts-rest/express"
 import { contract } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import { collectMachineOverview } from "@server/common/collect"
 import { killProcesses } from "@server/common/kill"
 import { collectProcesses } from "./collect"
@@ -12,9 +13,6 @@ export const processesContract = {
   listProcesses: contract.listProcesses,
   killProcesses: contract.killProcesses,
 }
-
-const toMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
 
 export const processesRouter = s.router(processesContract, {
   listProcesses: async () => {
@@ -28,7 +26,7 @@ export const processesRouter = s.router(processesContract, {
         body: { processes, overview, currentUser: os.userInfo().username },
       }
     } catch (error) {
-      return { status: 500, body: { message: toMessage(error) } }
+      return { status: 500, body: { message: describeError(error) } }
     }
   },
 

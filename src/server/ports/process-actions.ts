@@ -1,4 +1,5 @@
 import type { KillPortProcessResult } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import { collectPortBindings } from "./scanner"
 
 /**
@@ -47,7 +48,7 @@ export const killPortProcesses = async (
       results.push({
         pid,
         succeeded: false,
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       })
     }
   }

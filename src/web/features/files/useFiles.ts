@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import type { FileEntry } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import { downloadFileUrl } from "@shared/client-api"
 import {
   buildCrumbs,
@@ -17,9 +18,6 @@ import {
   useTransferEntriesMutation,
 } from "@web/features/files/queries"
 import { useFilesLocalStore } from "@web/features/files/store"
-
-const describeError = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
 
 /** 用临时 <a> 触发浏览器原生下载；window.open 在非直接点击时会被拦截。 */
 const triggerDownload = (path: string): void => {

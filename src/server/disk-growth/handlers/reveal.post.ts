@@ -1,4 +1,5 @@
 import { revealInFinder } from "../file-actions.ts"
+import { describeError } from "@shared/format"
 
 export const revealEntry = async ({ body }: { body: { path: string } }) => {
   try {
@@ -7,9 +8,6 @@ export const revealEntry = async ({ body }: { body: { path: string } }) => {
       body: { message: await revealInFinder(body.path) },
     }
   } catch (error) {
-    return { status: 400 as const, body: { message: toMessage(error) } }
+    return { status: 400 as const, body: { message: describeError(error) } }
   }
 }
-
-const toMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)

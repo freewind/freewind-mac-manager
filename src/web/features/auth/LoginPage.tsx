@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { login } from "@shared/client-api"
+import { describeError } from "@shared/format"
 import { Alert, AlertDescription } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import { Input } from "@web/components/ui/input"
@@ -24,7 +25,7 @@ export const LoginPage = ({ configured, onAuthenticated }: LoginPageProps) => {
       setPassword("")
       onAuthenticated()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "登录失败")
+      setError(describeError(cause))
     } finally {
       setSubmitting(false)
     }

@@ -22,6 +22,7 @@ import type {
   FileEntry,
 } from "@shared/api-contract"
 import { FILE_ROOT } from "@server/env"
+import { describeError } from "@shared/format"
 
 /** 上传中的临时后缀；带此后缀的文件不出现在目录列表里。 */
 const UPLOAD_PART_SUFFIX = ".uploading.part"
@@ -112,7 +113,7 @@ export const describeFileError = (error: unknown): string => {
   if (code !== undefined && ERRNO_MESSAGES[code] !== undefined) {
     return ERRNO_MESSAGES[code]
   }
-  return error instanceof Error ? error.message : String(error)
+  return describeError(error)
 }
 
 export const isEditableTextFile = (fileName: string): boolean => {

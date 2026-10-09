@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
+import { describeError } from "@shared/format"
 import type { ServiceDomain, SystemService } from "@shared/api-contract"
 import { revealSystemService } from "@shared/client-api"
 import {
@@ -84,7 +85,7 @@ export const useSystemServices = () => {
       { label: target.label, domain: target.domain, action },
       {
         onSuccess: (data) => setNotice(data.message),
-        onError: (error) => setNotice(String(error)),
+        onError: (error) => setNotice(describeError(error)),
       }
     )
   }
@@ -125,14 +126,14 @@ export const useSystemServices = () => {
   const reveal = (target: SystemService) => {
     void revealSystemService({ label: target.label, domain: target.domain })
       .then((result) => setNotice(result.message))
-      .catch((error) => setNotice(String(error)))
+      .catch((error) => setNotice(describeError(error)))
   }
 
   const copy = (text: string, what: string) => {
     void navigator.clipboard
       .writeText(text)
       .then(() => setNotice(`已复制${what}`))
-      .catch((error) => setNotice(`复制失败：${String(error)}`))
+      .catch((error) => setNotice(`复制失败：${describeError(error)}`))
   }
 
   return {

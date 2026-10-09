@@ -1,5 +1,6 @@
 import { initServer } from "@ts-rest/express"
 import { contract } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import {
   listSystemServices,
   loadService,
@@ -28,7 +29,7 @@ export const systemServicesContract = {
 
 /** 需要 root 的服务回 403，其余命令错误回 400，文案直接用命令输出。 */
 const fail = (error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = describeError(error)
   return error instanceof RootRequiredError
     ? { status: 403 as const, body: { message } }
     : { status: 400 as const, body: { message } }

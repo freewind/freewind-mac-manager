@@ -1,6 +1,7 @@
 import { initServer } from "@ts-rest/express"
 import { killProcesses } from "@server/common/kill"
 import { contract } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import {
   captureSnapshot,
   deleteSnapshots,
@@ -24,9 +25,6 @@ export const trafficContract = {
   killTrafficProcesses: contract.killTrafficProcesses,
 }
 
-const toMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
-
 export const trafficRouter = s.router(trafficContract, {
   getTrafficStatus: async () => ({
     status: 200,
@@ -37,7 +35,7 @@ export const trafficRouter = s.router(trafficContract, {
     try {
       return { status: 200, body: { snapshots: await listSnapshots() } }
     } catch (error) {
-      return { status: 500, body: { message: toMessage(error) } }
+      return { status: 500, body: { message: describeError(error) } }
     }
   },
 
@@ -49,31 +47,40 @@ export const trafficRouter = s.router(trafficContract, {
           : await groupsForSnapshots(query.ids ?? [])
       return { status: 200, body: result }
     } catch (error) {
-      return { status: 500, body: { message: toMessage(error) } }
+      return { status: 500, body: { message: describeError(error) } }
     }
   },
 
   createTrafficSnapshot: async () => {
     try {
-      return { status: 201, body: { snapshot: await captureSnapshot("manual") } }
+      return {
+        status: 201,
+        body: { snapshot: await captureSnapshot("manual") },
+      }
     } catch (error) {
-      return { status: 500, body: { message: toMessage(error) } }
+      return { status: 500, body: { message: describeError(error) } }
     }
   },
 
   mergeTrafficSnapshots: async ({ body }) => {
     try {
-      return { status: 200, body: { snapshots: await mergeSnapshots(body.ids) } }
+      return {
+        status: 200,
+        body: { snapshots: await mergeSnapshots(body.ids) },
+      }
     } catch (error) {
-      return { status: 500, body: { message: toMessage(error) } }
+      return { status: 500, body: { message: describeError(error) } }
     }
   },
 
   deleteTrafficSnapshots: async ({ query }) => {
     try {
-      return { status: 200, body: { snapshots: await deleteSnapshots(query.ids) } }
+      return {
+        status: 200,
+        body: { snapshots: await deleteSnapshots(query.ids) },
+      }
     } catch (error) {
-      return { status: 500, body: { message: toMessage(error) } }
+      return { status: 500, body: { message: describeError(error) } }
     }
   },
 

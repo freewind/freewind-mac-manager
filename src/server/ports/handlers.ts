@@ -1,5 +1,6 @@
 import { initServer, type AppRouteImplementation } from "@ts-rest/express"
 import { contract } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import { collectPortBindings } from "./scanner"
 import { killPortProcesses } from "./process-actions"
 
@@ -14,7 +15,7 @@ const listPortBindings: AppRouteImplementation<
     return {
       status: 500 as const,
       body: {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       },
     }
   }
@@ -32,7 +33,7 @@ const killPortProcessesHandler: AppRouteImplementation<
     return {
       status: 400 as const,
       body: {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       },
     }
   }

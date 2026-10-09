@@ -7,9 +7,10 @@ import type {
   ServicesResponse,
   SystemService,
 } from "@shared/api-contract"
+import { describeError } from "@shared/format"
 import {
-  bootstrapPlist,
   bootoutPlist,
+  bootstrapPlist,
   kickstart,
   kickstartRestart,
   readDisabledMap,
@@ -97,7 +98,7 @@ export const listSystemServices = async (): Promise<ServicesResponse> => {
       } catch (error) {
         skipped.push({
           path: filePath,
-          reason: error instanceof Error ? error.message : String(error),
+          reason: describeError(error),
         })
       }
     }
