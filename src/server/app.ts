@@ -34,20 +34,20 @@ export const createApp = (): express.Express => {
   createExpressEndpoints(authRoutes, createAuthRouter(auth), app, options)
   app.use(auth.middleware)
   createExpressEndpoints(healthContract, healthRouter, app, options)
-  createExpressEndpoints(diskGrowthContract, diskGrowthRouter, app, options)
   createExpressEndpoints(dashboardContract, dashboardRouter, app, options)
-  createExpressEndpoints(portsContract, portsRouter, app, options)
-  createExpressEndpoints(trafficContract, trafficRouter, app, options)
-  createExpressEndpoints(processesContract, processesRouter, app, options)
+  createExpressEndpoints(diskGrowthContract, diskGrowthRouter, app, options)
   createExpressEndpoints(filesContract, filesRouter, app, options)
+  registerUploadEndpoint(app)
+  createExpressEndpoints(frpContract, frpRouter, app, options)
+  createExpressEndpoints(portsContract, portsRouter, app, options)
+  createExpressEndpoints(processesContract, processesRouter, app, options)
   createExpressEndpoints(
     systemServicesContract,
     systemServicesRouter,
     app,
     options
   )
-  createExpressEndpoints(frpContract, frpRouter, app, options)
-  registerUploadEndpoint(app)
+  createExpressEndpoints(trafficContract, trafficRouter, app, options)
 
   // dev 模式下 api 中间件只加载 createApp，采样在这里启动（重复调用是幂等的）。
   startTrafficSampler()
