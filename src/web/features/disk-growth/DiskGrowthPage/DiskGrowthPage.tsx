@@ -15,7 +15,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { useMemo, useState, type ComponentType, type ReactNode } from "react"
 import { toast } from "sonner"
-import type { GrowthEntry } from "@shared/api-contract/types"
+import type { GrowthEntry } from "@shared/api-contract"
 import {
   formatBytes,
   formatSignedBytes,

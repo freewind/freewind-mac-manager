@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { formatBytes } from "@shared/format"
-import type { TreeNode } from "@shared/api-contract/types"
+import type { TreeNode } from "@shared/api-contract"
 import { useSubtree } from "@web/features/disk-growth/queries"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 

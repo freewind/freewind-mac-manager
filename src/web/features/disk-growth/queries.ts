@@ -1,9 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type {
-  GrowthEntry,
-  ScanStatus,
-  TreeNode,
-} from "@shared/api-contract/types"
+import type { GrowthEntry, ScanStatus, TreeNode } from "@shared/api-contract"
 import {
   deleteScans as deleteScansApi,
   fetchEntries,
@@ -16,7 +12,8 @@ import {
 } from "@shared/client-api"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 
-const KEYS = {
+export const diskGrowthKeys = {
+  all: ["disk-growth"] as const,
   snapshots: ["disk-growth", "snapshots"] as const,
   status: ["disk-growth", "scan-status"] as const,
   entries: (scanId: number, baseline: number | null, path: string) =>
@@ -33,7 +30,7 @@ const KEYS = {
 
 export const useSnapshots = () => {
   const query = useQuery({
-    queryKey: KEYS.snapshots,
+    queryKey: diskGrowthKeys.snapshots,
     queryFn: async () => (await fetchScans()).snapshots,
   })
   return { snapshots: query.data ?? [], isLoading: query.isLoading }
@@ -71,7 +68,7 @@ const IDLE_STATUS: ScanStatus = {
 
 export const useScanStatus = (): ScanStatus => {
   const query = useQuery({
-    queryKey: KEYS.status,
+    queryKey: diskGrowthKeys.status,
     queryFn: fetchScanStatus,
     refetchInterval: 2000,
   })
@@ -85,7 +82,7 @@ export const useChildren = (options: {
 }) => {
   const { scanId, baselineScanId, path } = options
   const query = useQuery({
-    queryKey: KEYS.entries(scanId ?? 0, baselineScanId, path),
+    queryKey: diskGrowthKeys.entries(scanId ?? 0, baselineScanId, path),
     enabled: scanId != null,
     queryFn: async (): Promise<GrowthEntry[]> => {
       const data = await fetchEntries({
@@ -107,7 +104,7 @@ export const useSearch = (options: {
   const { scanId, baselineScanId } = options
   const trimmed = options.keyword.trim()
   const query = useQuery({
-    queryKey: KEYS.search(scanId ?? 0, baselineScanId, trimmed),
+    queryKey: diskGrowthKeys.search(scanId ?? 0, baselineScanId, trimmed),
     enabled: scanId != null && trimmed.length > 0,
     queryFn: async (): Promise<GrowthEntry[]> => {
       const data = await fetchEntries({
@@ -134,7 +131,7 @@ export const useSubtree = (options: {
 }) => {
   const { scanId, baselineScanId, path, depth } = options
   const query = useQuery({
-    queryKey: KEYS.tree(scanId ?? 0, baselineScanId, path, depth),
+    queryKey: diskGrowthKeys.tree(scanId ?? 0, baselineScanId, path, depth),
     enabled: scanId != null,
     queryFn: async (): Promise<TreeNode | null> => {
       const data = await fetchTree({
@@ -157,12 +154,12 @@ export const useStartScan = () => {
   return useMutation({
     mutationFn: async (): Promise<string> => {
       const result = await triggerScan()
-      client.invalidateQueries({ queryKey: KEYS.status })
+      client.invalidateQueries({ queryKey: diskGrowthKeys.status })
       return result.message
     },
     onSuccess: () => {
       resetForNewSnapshot()
-      client.invalidateQueries({ queryKey: KEYS.snapshots })
+      client.invalidateQueries({ queryKey: diskGrowthKeys.snapshots })
     },
   })
 }
@@ -179,7 +176,7 @@ export const useDeleteScans = () => {
     },
     onSuccess: () => {
       resetForNewSnapshot()
-      client.invalidateQueries({ queryKey: KEYS.snapshots })
+      client.invalidateQueries({ queryKey: diskGrowthKeys.snapshots })
     },
   })
 }
@@ -192,7 +189,7 @@ export const useTrashEntry = () => {
   return useMutation({
     mutationFn: (path: string) => trashEntryApi(path),
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["disk-growth"] })
+      client.invalidateQueries({ queryKey: diskGrowthKeys.all })
     },
   })
 }
