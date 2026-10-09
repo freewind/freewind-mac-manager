@@ -31,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import type { FrpProxy } from "@web/features/frp/mock-data"
+import type { FrpProxy } from "@shared/api-contract"
 import type { FrpPageModel } from "@web/features/frp/useFrpPage"
 import { cn } from "@web/lib/utils"
 

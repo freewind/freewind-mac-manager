@@ -27,7 +27,7 @@ import {
   FRP_PROXY_TYPES,
   type FrpProxy,
   type FrpProxyType,
-} from "@web/features/frp/mock-data"
+} from "@shared/api-contract"
 
 type ProxyFormDialogProps = {
   onOpenChange: (open: boolean) => void

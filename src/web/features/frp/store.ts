@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { FrpProbe, FrpProxyType } from "@web/features/frp/mock-data"
+import type { FrpProbe, FrpProxyType } from "@shared/api-contract"
 
 export type FrpTypeFilter = "all" | FrpProxyType
 

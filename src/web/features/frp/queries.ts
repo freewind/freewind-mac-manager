@@ -1,27 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type {
+  FrpConfig,
+  FrpConfigInput,
+  FrpProbe,
+  FrpProxy,
+} from "@shared/api-contract"
 import {
-  configSignature,
   fetchFrpConfig,
   probeFrpProxy,
-  saveFrpcConfig,
-  type FrpConfig,
-  type FrpProbe,
-  type FrpProxy,
-  type FrpServer,
-} from "@web/features/frp/mock-data"
+  saveFrpConfig,
+} from "@shared/client-api"
+import { configSignature } from "@shared/frp-format"
 import { useFrpLocalStore } from "@web/features/frp/store"
 
 /**
- * 远程状态统一走 TanStack Query。
- *
- * 目前 queryFn / mutationFn 直接操作演示数据；接后端时只需把这里换成
- * `@shared/client-api` 的调用，页面与本地状态都不用动。
+ * 远程状态统一走 TanStack Query：读配置、保存、探测都通过 @shared/client-api 调后端。
+ * 新增 / 修改 / 删除只是本地编辑，不动磁盘，等用户点保存才写回文件。
  */
 export const frpKeys = {
   config: ["frp", "config"] as const,
 }
-
-export type FrpConfigInput = { server: FrpServer; proxies: FrpProxy[] }
 
 export const useFrpConfigQuery = () =>
   useQuery({ queryKey: frpKeys.config, queryFn: fetchFrpConfig })
@@ -37,7 +35,7 @@ const updateProxies = (
   )
 }
 
-/** 新增一条隧道。 */
+/** 新增一条隧道（仅本地，保存时才落盘）。 */
 export const useAddProxy = () => {
   const client = useQueryClient()
   return useMutation({
@@ -77,12 +75,20 @@ export const useDeleteProxy = () => {
   })
 }
 
-/** 探测一条隧道，过程与结果都写入本地状态。 */
+/** 探测一条隧道：用当前配置的服务端地址，过程与结果都写入本地状态。 */
 export const useProbeProxy = () => {
+  const client = useQueryClient()
   const setProbe = useFrpLocalStore((state) => state.setProbe)
   const setChecking = useFrpLocalStore((state) => state.setChecking)
   return useMutation({
-    mutationFn: (proxy: FrpProxy) => probeFrpProxy(proxy),
+    mutationFn: (proxy: FrpProxy) => {
+      const config = client.getQueryData<FrpConfig>(frpKeys.config)
+      if (!config) throw new Error("尚未读取到 frpc 配置")
+      return probeFrpProxy({
+        serverAddr: config.server.serverAddr,
+        remotePort: proxy.remotePort,
+      })
+    },
     onMutate: (proxy: FrpProxy) => {
       setChecking(proxy.name, true)
     },
@@ -99,7 +105,7 @@ export const useProbeProxy = () => {
 export const useSaveFrp = () => {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (input: FrpConfigInput) => saveFrpcConfig(input),
+    mutationFn: (input: FrpConfigInput) => saveFrpConfig(input),
     onSuccess: (_result, input) => {
       client.setQueryData<FrpConfig>(frpKeys.config, (previous) =>
         previous

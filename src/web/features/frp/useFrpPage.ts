@@ -1,11 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useMemo } from "react"
 import { toast } from "sonner"
-import {
-  configSignature,
-  serializeFrpcToml,
-  type FrpProxy,
-} from "@web/features/frp/mock-data"
+import type { FrpProxy } from "@shared/api-contract"
+import { configSignature, serializeFrpcToml } from "@shared/frp-format"
 import {
   frpKeys,
   useAddProxy,
