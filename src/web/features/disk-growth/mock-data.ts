@@ -12,277 +12,144 @@ type MockNode = {
 const gb = (value: number): number => Math.round(value * 1024 ** 3)
 const mb = (value: number): number => Math.round(value * 1024 ** 2)
 
-const TREE: MockNode = {
-  path: "/",
+const dir = (
+  path: string,
+  size: number,
+  delta: number,
+  children: MockNode[] = []
+): MockNode => ({ path, kind: "dir", size, delta, children })
+
+const file = (path: string, size: number, delta: number): MockNode => ({
+  path,
+  kind: "file",
+  size,
+  delta,
+})
+
+const folded = (path: string, size: number, delta: number): MockNode => ({
+  path,
   kind: "dir",
-  size: gb(1420.6),
-  delta: gb(14.9),
-  children: [
-    {
-      path: "/Users",
-      kind: "dir",
-      size: gb(1310.4),
-      delta: gb(12.6),
-      children: [
-        {
-          path: "/Users/peng.li",
-          kind: "dir",
-          size: gb(1298.2),
-          delta: gb(12.5),
-          children: [
-            {
-              path: "/Users/peng.li/workspace",
-              kind: "dir",
-              size: gb(190.4),
-              delta: gb(8.1),
-              children: [
-                {
-                  path: "/Users/peng.li/workspace/feelime",
-                  kind: "dir",
-                  size: gb(12.6),
-                  delta: gb(3.4),
-                  children: [
-                    {
-                      path: "/Users/peng.li/workspace/feelime/node_modules",
-                      kind: "dir",
-                      size: gb(9.8),
-                      delta: gb(3.2),
-                      folded: true,
-                    },
-                    {
-                      path: "/Users/peng.li/workspace/feelime/build",
-                      kind: "dir",
-                      size: gb(2.1),
-                      delta: gb(180),
-                    },
-                  ],
-                },
-                {
-                  path: "/Users/peng.li/workspace/freewind-llm-providers",
-                  kind: "dir",
-                  size: gb(2.4),
-                  delta: mb(420),
-                  children: [
-                    {
-                      path: "/Users/peng.li/workspace/freewind-llm-providers/.git",
-                      kind: "dir",
-                      size: gb(1.1),
-                      delta: mb(96),
-                      folded: true,
-                    },
-                  ],
-                },
-                {
-                  path: "/Users/peng.li/workspace/freewind-mac-manager",
-                  kind: "dir",
-                  size: mb(96),
-                  delta: mb(96),
-                  children: [
-                    {
-                      path: "/Users/peng.li/workspace/freewind-mac-manager/data/snapshots.sqlite3",
-                      kind: "file",
-                      size: mb(64),
-                      delta: mb(64),
-                    },
-                    {
-                      path: "/Users/peng.li/workspace/freewind-mac-manager/node_modules",
-                      kind: "dir",
-                      size: mb(28),
-                      delta: mb(28),
-                      folded: true,
-                    },
-                  ],
-                },
-                {
-                  path: "/Users/peng.li/workspace/agent-edit-stress-test",
-                  kind: "dir",
-                  size: gb(34.2),
-                  delta: gb(1.8),
-                },
-              ],
-            },
-            {
-              path: "/Users/peng.li/Library",
-              kind: "dir",
-              size: gb(68.4),
-              delta: gb(2.1),
-              children: [
-                {
-                  path: "/Users/peng.li/Library/Caches",
-                  kind: "dir",
-                  size: gb(24.6),
-                  delta: gb(1.4),
-                  children: [
-                    {
-                      path: "/Users/peng.li/Library/Caches/ms-playwright",
-                      kind: "dir",
-                      size: gb(6.2),
-                      delta: gb(1.1),
-                    },
-                    {
-                      path: "/Users/peng.li/Library/Caches/pnpm",
-                      kind: "dir",
-                      size: gb(3.8),
-                      delta: mb(240),
-                    },
-                  ],
-                },
-                {
-                  path: "/Users/peng.li/Library/Application Support",
-                  kind: "dir",
-                  size: gb(18.2),
-                  delta: mb(320),
-                  children: [
-                    {
-                      path: "/Users/peng.li/Library/Application Support/Cursor",
-                      kind: "dir",
-                      size: gb(4.6),
-                      delta: mb(210),
-                    },
-                  ],
-                },
-                {
-                  path: "/Users/peng.li/Library/Containers",
-                  kind: "dir",
-                  size: gb(12.1),
-                  delta: mb(210),
-                },
-              ],
-            },
-            {
-              path: "/Users/peng.li/Downloads",
-              kind: "dir",
-              size: gb(42.8),
-              delta: gb(1.9),
-              children: [
-                {
-                  path: "/Users/peng.li/Downloads/Xcode_26.1.xip",
-                  kind: "file",
-                  size: gb(8.2),
-                  delta: gb(8.2),
-                },
-                {
-                  path: "/Users/peng.li/Downloads/ubuntu-24.04.iso",
-                  kind: "file",
-                  size: gb(5.6),
-                  delta: 0,
-                },
-                {
-                  path: "/Users/peng.li/Downloads/node-v26.4.0-darwin-x64.tar.gz",
-                  kind: "file",
-                  size: mb(58),
-                  delta: mb(58),
-                },
-              ],
-            },
-            {
-              path: "/Users/peng.li/Movies",
-              kind: "dir",
-              size: gb(118.4),
-              delta: 0,
-            },
-            {
-              path: "/Users/peng.li/.cache",
-              kind: "dir",
-              size: gb(6.4),
-              delta: mb(240),
-              children: [
-                {
-                  path: "/Users/peng.li/.cache/huggingface",
-                  kind: "dir",
-                  size: gb(5.1),
-                  delta: mb(180),
-                },
-              ],
-            },
-            {
-              path: "/Users/peng.li/.Trash",
-              kind: "dir",
-              size: gb(1.2),
-              delta: -gb(1.2),
-            },
-          ],
-        },
-        {
-          path: "/Users/Shared",
-          kind: "dir",
-          size: mb(420),
-          delta: mb(2),
-        },
-      ],
-    },
-    {
-      path: "/Applications",
-      kind: "dir",
-      size: gb(52.6),
-      delta: gb(1.2),
-      children: [
-        {
-          path: "/Applications/Xcode.app",
-          kind: "dir",
-          size: gb(18.4),
-          delta: 0,
-          children: [
-            {
-              path: "/Applications/Xcode.app/Contents/Developer/Platforms",
-              kind: "dir",
-              size: gb(12.8),
-              delta: gb(1.1),
-            },
-          ],
-        },
-        {
-          path: "/Applications/Docker.app",
-          kind: "dir",
-          size: gb(2.4),
-          delta: mb(120),
-        },
-      ],
-    },
-    {
-      path: "/Library",
-      kind: "dir",
-      size: gb(31.2),
-      delta: mb(640),
-      children: [
-        {
-          path: "/Library/Developer",
-          kind: "dir",
-          size: gb(22.4),
-          delta: mb(560),
-          children: [
-            {
-              path: "/Library/Developer/CoreSimulator",
-              kind: "dir",
-              size: gb(16.8),
-              delta: mb(520),
-            },
-          ],
-        },
-      ],
-    },
-    {
-      path: "/private",
-      kind: "dir",
-      size: gb(24.1),
-      delta: gb(1.1),
-      children: [
-        {
-          path: "/private/var/folders",
-          kind: "dir",
-          size: gb(14.2),
-          delta: gb(980),
-        },
-        {
-          path: "/private/tmp",
-          kind: "dir",
-          size: mb(320),
-          delta: mb(96),
-        },
-      ],
-    },
-  ],
-}
+  size,
+  delta,
+  folded: true,
+})
+
+const HOME = "/Users/peng.li"
+const WORKSPACE = `${HOME}/workspace`
+
+/** 一个前端项目：node_modules 与 .git 折叠，dist 与锁文件留明细。 */
+const project = (
+  name: string,
+  sizeMb: number,
+  deltaMb: number,
+  extra: MockNode[] = []
+): MockNode =>
+  dir(`${WORKSPACE}/${name}`, mb(sizeMb), mb(deltaMb), [
+    folded(`${WORKSPACE}/${name}/node_modules`, mb(sizeMb * 0.45), mb(deltaMb * 0.55)),
+    folded(`${WORKSPACE}/${name}/.git`, mb(sizeMb * 0.18), mb(deltaMb * 0.1)),
+    dir(`${WORKSPACE}/${name}/dist`, mb(sizeMb * 0.12), mb(deltaMb * 0.2), [
+      file(`${WORKSPACE}/${name}/dist/index.js`, mb(sizeMb * 0.06), mb(deltaMb * 0.15)),
+    ]),
+    file(`${WORKSPACE}/${name}/pnpm-lock.yaml`, mb(1.4), mb(0.2)),
+    ...extra,
+  ])
+
+const cache = (name: string, sizeMb: number, deltaMb: number): MockNode =>
+  dir(`${HOME}/Library/Caches/${name}`, mb(sizeMb), mb(deltaMb))
+
+const download = (name: string, sizeMb: number, deltaMb: number): MockNode =>
+  file(`${HOME}/Downloads/${name}`, mb(sizeMb), mb(deltaMb))
+
+const TREE: MockNode = dir("/", gb(1420.6), gb(14.9), [
+  dir("/Users", gb(1310.4), gb(12.6), [
+    dir(HOME, gb(1298.2), gb(12.5), [
+      dir(WORKSPACE, gb(190.4), gb(8.1), [
+        project("feelime", 12900, 3400),
+        project("freewind-agent-hub", 8600, 1200),
+        project("freewind-llm-providers", 2400, 420),
+        project("freewind-paseo", 6800, 2400),
+        project("freewind-mac-manager", 96, 96),
+        project("freewind-remote-shell", 1800, 60),
+        project("freewind-music-player", 3200, 180),
+        project("freewind-git-diff", 1500, 40),
+        project("agent-edit-stress-test", 34200, 1800),
+        project("paseo-legacy", 12400, -2200),
+      ]),
+      dir(`${HOME}/Library`, gb(68.4), gb(2.1), [
+        dir(`${HOME}/Library/Caches`, gb(24.6), gb(1.4), [
+          cache("ms-playwright", 6200, 1100),
+          cache("pnpm", 3800, 240),
+          cache("Homebrew", 2400, 60),
+          cache("Cypress", 1900, 0),
+          cache("puppeteer", 1600, -320),
+        ]),
+        dir(`${HOME}/Library/Application Support`, gb(18.2), mb(320), [
+          dir(`${HOME}/Library/Application Support/Cursor`, gb(4.6), mb(210)),
+          dir(`${HOME}/Library/Application Support/Code`, gb(3.2), mb(48)),
+          dir(`${HOME}/Library/Application Support/Claude`, gb(2.1), mb(36)),
+        ]),
+        dir(`${HOME}/Library/Containers`, gb(12.1), mb(210)),
+        dir(`${HOME}/Library/Developer`, gb(9.4), mb(480), [
+          dir(`${HOME}/Library/Developer/Xcode/DerivedData`, gb(6.8), mb(430)),
+          dir(`${HOME}/Library/Developer/Xcode/iOS DeviceSupport`, gb(2.1), 0),
+        ]),
+        dir(`${HOME}/Library/Mobile Documents`, gb(3.6), mb(12)),
+      ]),
+      dir(`${HOME}/Downloads`, gb(42.8), gb(1.9), [
+        download("Xcode_26.1.xip", 8400, 8400),
+        download("ubuntu-24.04.2-desktop-amd64.iso", 5700, 0),
+        download("node-v26.4.0-darwin-x64.tar.gz", 58, 58),
+        download("ScreenRecording_10-08.mov", 3200, 3200),
+        download("swift-6.0.3-RELEASE-ubuntu24.04.tar.gz", 820, 0),
+        download("archive-old-projects.zip", 4200, -4200),
+      ]),
+      dir(`${HOME}/Movies`, gb(118.4), 0),
+      dir(`${HOME}/Pictures`, gb(64.2), mb(24)),
+      dir(`${HOME}/Music`, gb(22.6), 0),
+      dir(`${HOME}/Documents`, gb(9.8), mb(160), [
+        dir(`${HOME}/Documents/会议记录`, mb(420), mb(18)),
+        file(`${HOME}/Documents/备份-2025-09.zip`, gb(4.2), 0),
+      ]),
+      dir(`${HOME}/.cache`, gb(6.4), mb(240), [
+        dir(`${HOME}/.cache/huggingface`, gb(5.1), mb(180)),
+        dir(`${HOME}/.cache/uv`, gb(1.1), mb(60)),
+      ]),
+      dir(`${HOME}/.npm`, gb(4.8), mb(320)),
+      dir(`${HOME}/.cargo`, gb(3.2), mb(90)),
+      dir(`${HOME}/.Trash`, gb(1.2), -gb(1.2)),
+    ]),
+    dir("/Users/Shared", mb(420), mb(2)),
+    dir("/Users/Guest", mb(12), 0),
+  ]),
+  dir("/Applications", gb(52.6), gb(1.2), [
+    dir("/Applications/Xcode.app", gb(18.4), 0, [
+      dir("/Applications/Xcode.app/Contents/Developer/Platforms", gb(12.8), gb(1.1)),
+    ]),
+    dir("/Applications/Docker.app", gb(2.4), mb(120)),
+    dir("/Applications/Cursor.app", gb(1.2), mb(64)),
+    file("/Applications/Paseo.app.dmg", mb(680), mb(680)),
+  ]),
+  dir("/Library", gb(31.2), mb(640), [
+    dir("/Library/Developer", gb(22.4), mb(560), [
+      dir("/Library/Developer/CoreSimulator", gb(16.8), mb(520)),
+      dir("/Library/Developer/CommandLineTools", gb(4.1), 0),
+    ]),
+    dir("/Library/Caches", gb(4.2), mb(60)),
+    dir("/Library/Logs", mb(880), mb(120)),
+  ]),
+  dir("/private", gb(24.1), gb(1.1), [
+    dir("/private/var/folders", gb(14.2), gb(0.98)),
+    dir("/private/var/log", mb(640), mb(80)),
+    dir("/private/tmp", mb(320), mb(96)),
+  ]),
+  dir("/opt", gb(6.2), mb(140), [
+    dir("/opt/homebrew", gb(6.1), mb(140)),
+  ]),
+  dir("/usr/local", gb(14.8), mb(220), [
+    dir("/usr/local/Cellar", gb(9.4), mb(160)),
+    dir("/usr/local/var", gb(4.2), mb(50)),
+  ]),
+])
 
 const findNode = (target: string, node: MockNode = TREE): MockNode | null => {
   if (node.path === target) return node
@@ -307,38 +174,21 @@ export const isMockMode = (): boolean => {
   return new URLSearchParams(window.location.search).has("mock")
 }
 
-const MOCK_SNAPSHOTS: ScanSnapshot[] = [
-  {
-    id: 3,
-    startedAt: 1791543600,
-    finishedAt: 1791543732,
-    totalSize: gb(1420.6),
-    dirCount: 612455,
-    fileCount: 6880312,
-    errorCount: 12,
-    foldedCount: 2841,
-  },
-  {
-    id: 2,
-    startedAt: 1791457200,
-    finishedAt: 1791457328,
-    totalSize: gb(1405.7),
-    dirCount: 611902,
-    fileCount: 6871904,
-    errorCount: 12,
-    foldedCount: 2830,
-  },
-  {
-    id: 1,
-    startedAt: 1791370800,
-    finishedAt: 1791370921,
-    totalSize: gb(1398.2),
-    dirCount: 610401,
-    fileCount: 6860221,
-    errorCount: 11,
-    foldedCount: 2802,
-  },
-]
+const DAY = 86_400
+const LAST_SCAN = 1_791_543_600
+
+const TOTALS_GB = [1420.6, 1405.7, 1398.2, 1412.9, 1401.4, 1388.6, 1376.1]
+
+const MOCK_SNAPSHOTS: ScanSnapshot[] = TOTALS_GB.map((total, index) => ({
+  id: TOTALS_GB.length - index,
+  startedAt: LAST_SCAN - index * DAY,
+  finishedAt: LAST_SCAN - index * DAY + 132,
+  totalSize: gb(total),
+  dirCount: 612_455 - index * 410,
+  fileCount: 6_880_312 - index * 8_120,
+  errorCount: 12,
+  foldedCount: 2_841 - index * 7,
+}))
 
 export const mockSnapshots = (): ScanSnapshot[] => MOCK_SNAPSHOTS
 
@@ -347,12 +197,10 @@ export const mockEntries = (
 ): { current: GrowthEntry | null; entries: GrowthEntry[] } => {
   const node = findNode(path)
   if (!node) return { current: null, entries: [] }
-  const current: GrowthEntry = {
-    ...toEntry(node),
-    name: node.path === "/" ? "根" : toEntry(node).name,
-  }
+  const entry = toEntry(node)
+  const current: GrowthEntry = node.path === "/" ? { ...entry, name: "根" } : entry
   const entries = (node.children ?? [])
-    .map((child) => toEntry(child))
+    .map(toEntry)
     .sort((left, right) => right.delta - left.delta)
   return { current, entries }
 }
