@@ -12,17 +12,9 @@
 
 ## 三、前端调用与反馈
 
-- [ ] **按用途整改通知**（AGENTS 六）：ports、traffic、disk-growth、system-services 的短暂 `notice` + Alert 操作反馈改为 sonner；持续加载错误、离线、表单校验留在对应区域，不把所有 Alert 和业务状态都删除。
-- [ ] **本地 store 命名与内容**（AGENTS 六）：核对 `useDiskGrowthStore`、`useDashboardStore`；保留必要共享本地状态时改为 `useDiskGrowthLocalStore`、`useDashboardLocalStore` 并迁移引用，不因命名要求新建空 store。
-- [ ] **FRP 入口 hook 命名**（AGENTS 六）：`useFrpPage` 改为 `useFrp`，同步文件名和引用，不扩展为其他无关结构重构。
-- [ ] **查询键与公共类型入口**（AGENTS 3.2、六）：disk-growth 私有 `KEYS` 改为导出 `diskGrowthKeys`，核对参数与失效范围；该域从 `@shared/api-contract/types` 的深引用收回公共类型入口，不机械增加其他 barrel。
 
 ## 四、手机默认与 PWA
 
-- [ ] **集中响应式与手机操作路径**（AGENTS 8.1）：逐域审查散落的 `sm/lg/xl` 和桌面缩小布局；将真正的结构/交互差异收进布局或数据展示组件，默认采用 md，其他内容门槛有依据才保留。统一业务 `useIsDesktop` 与 CSS 断点来源，不改官方 `use-mobile.ts` 和 sidebar，不要求每页使用 JS。验证 320px 无页面级横向溢出、触控热区、键盘输入、点按详情入口及安全区；手势仅用官方已支持能力，能力不足记录限制。
-- [ ] **URL 导航与返回行为**（AGENTS 六、8.2）：当前页面切换只用组件 state；建立可刷新和恢复的 URL/历史导航及可见返回入口。窄屏 Sheet/Dialog 等浮层接入统一返回管理，返回先关闭浮层，反复开关不堆积历史；不能复制手写多套历史处理。
-- [ ] **PWA 安装、静态壳与更新**（AGENTS 8.2）：接入 manifest、图标、standalone 形态及 Service Worker；只缓存版本化静态壳，敏感 API、会话和文件不离线缓存，写操作不排队重放。提供离线提示和受控更新，退出清理敏感数据，编辑与执行期间不强制刷新。真实安装与浏览器验证另经明确授权，不以配置文件存在代替验收。
-- [ ] **弱网、恢复与后台任务**（AGENTS 5.4、六、8.2）：区分失败与结果未知，核对 mutation 重试、并发提交及长任务查询。页面关闭不丢失后端执行状态；恢复前台核实会话、数据时间和任务结果，旧数据明确标识，禁止乐观误报危险动作成功。
 
 ## 五、工具链迁移与提交检查
 
