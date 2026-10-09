@@ -1,5 +1,9 @@
 import { HugeiconsIcon } from "@hugeicons/react"
-import { AnalyticsUpIcon, Settings01Icon } from "@hugeicons/core-free-icons"
+import {
+  AnalyticsUpIcon,
+  DashboardSpeed02Icon,
+  Settings01Icon,
+} from "@hugeicons/core-free-icons"
 import {
   Sidebar,
   SidebarContent,
@@ -13,7 +17,7 @@ import {
 } from "@web/components/ui/sidebar"
 
 /** 功能菜单的唯一清单；新增功能只在这里加一项。 */
-export type FeatureKey = "disk-growth"
+export type FeatureKey = "disk-growth" | "traffic"
 
 type FeatureItem = {
   key: FeatureKey
@@ -23,6 +27,7 @@ type FeatureItem = {
 
 const FEATURES: FeatureItem[] = [
   { key: "disk-growth", label: "磁盘增长", icon: AnalyticsUpIcon },
+  { key: "traffic", label: "流量监控", icon: DashboardSpeed02Icon },
 ]
 
 type AppSidebarProps = {
