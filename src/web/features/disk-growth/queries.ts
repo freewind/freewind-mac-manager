@@ -14,7 +14,7 @@ import {
   trashEntry as trashEntryApi,
   triggerScan,
 } from "@shared/client-api"
-import { useDiskGrowthStore } from "@web/features/disk-growth/store"
+import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 
 const KEYS = {
   snapshots: ["disk-growth", "snapshots"] as const,
@@ -23,8 +23,12 @@ const KEYS = {
     ["disk-growth", "entries", scanId, baseline, path] as const,
   search: (scanId: number, baseline: number | null, keyword: string) =>
     ["disk-growth", "search", scanId, baseline, keyword] as const,
-  tree: (scanId: number, baseline: number | null, path: string, depth: number) =>
-    ["disk-growth", "tree", scanId, baseline, path, depth] as const,
+  tree: (
+    scanId: number,
+    baseline: number | null,
+    path: string,
+    depth: number
+  ) => ["disk-growth", "tree", scanId, baseline, path, depth] as const,
 }
 
 export const useSnapshots = () => {
@@ -36,8 +40,10 @@ export const useSnapshots = () => {
 }
 
 /** 快照区间：端点 → 列表下标区间 → 连续 id 列表。 */
-export const useSelectionRange = (snapshots: ReturnType<typeof useSnapshots>["snapshots"]) => {
-  const selection = useDiskGrowthStore((state) => state.selection)
+export const useSelectionRange = (
+  snapshots: ReturnType<typeof useSnapshots>["snapshots"]
+) => {
+  const selection = useDiskGrowthLocalStore((state) => state.selection)
   const fallback = {
     ids: snapshots.length > 0 ? [snapshots[0].id] : ([] as number[]),
     scanId: snapshots[0]?.id ?? null,
@@ -145,7 +151,7 @@ export const useSubtree = (options: {
 
 export const useStartScan = () => {
   const client = useQueryClient()
-  const resetForNewSnapshot = useDiskGrowthStore(
+  const resetForNewSnapshot = useDiskGrowthLocalStore(
     (state) => state.resetForNewSnapshot
   )
   return useMutation({
@@ -163,7 +169,7 @@ export const useStartScan = () => {
 
 export const useDeleteScans = () => {
   const client = useQueryClient()
-  const resetForNewSnapshot = useDiskGrowthStore(
+  const resetForNewSnapshot = useDiskGrowthLocalStore(
     (state) => state.resetForNewSnapshot
   )
   return useMutation({

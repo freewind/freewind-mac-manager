@@ -45,7 +45,7 @@ const DEFAULT_SORT: Record<DiskGrowthView, DiskGrowthSortKey> = {
   icicle: "size",
 }
 
-export const useDiskGrowthStore = create<DiskGrowthState>((set) => ({
+export const useDiskGrowthLocalStore = create<DiskGrowthState>((set) => ({
   view: "growth",
   sortKey: "delta",
   descending: true,

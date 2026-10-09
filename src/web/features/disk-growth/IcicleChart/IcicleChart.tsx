@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { formatBytes } from "@shared/format"
 import type { TreeNode } from "@shared/api-contract/types"
 import { useSubtree } from "@web/features/disk-growth/queries"
-import { useDiskGrowthStore } from "@web/features/disk-growth/store"
+import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 
 const ROW_HEIGHT = 22
 const MAX_DEPTH = 4
@@ -25,13 +25,19 @@ type Block = {
  * 每往下一层整体再旋转一点，避免上下层撞色。
  */
 const hueFor = (index: number, siblings: number, depth: number): number =>
-  Math.round((360 * index) / Math.max(1, siblings) + depth * 37 + index * 6) % 360
+  Math.round((360 * index) / Math.max(1, siblings) + depth * 37 + index * 6) %
+  360
 
 /** 把子树逐层铺开：同一层宽度都等于根宽，每个节点按大小切走父节点的宽度。 */
 const buildBlocks = (root: TreeNode): Block[] => {
   const blocks: Block[] = []
 
-  const walk = (node: TreeNode, start: number, width: number, depth: number) => {
+  const walk = (
+    node: TreeNode,
+    start: number,
+    width: number,
+    depth: number
+  ) => {
     const children = node.children.filter((child) => child.size > 0)
     const total = children.reduce((sum, child) => sum + child.size, 0)
 
@@ -79,14 +85,11 @@ type IcicleChartProps = {
 }
 
 /** 分布图：一层一行，行的宽度等于该行的根，父子之间按大小切分宽度。 */
-export const IcicleChart = ({
-  scanId,
-  baselineScanId,
-}: IcicleChartProps) => {
-  const focus = useDiskGrowthStore((state) => state.focusPath)
-  const stack = useDiskGrowthStore((state) => state.focusStack)
-  const enterFocus = useDiskGrowthStore((state) => state.enterFocus)
-  const leaveFocus = useDiskGrowthStore((state) => state.leaveFocus)
+export const IcicleChart = ({ scanId, baselineScanId }: IcicleChartProps) => {
+  const focus = useDiskGrowthLocalStore((state) => state.focusPath)
+  const stack = useDiskGrowthLocalStore((state) => state.focusStack)
+  const enterFocus = useDiskGrowthLocalStore((state) => state.enterFocus)
+  const leaveFocus = useDiskGrowthLocalStore((state) => state.leaveFocus)
   const [hovered, setHovered] = useState<string | null>(null)
 
   const { root: tree } = useSubtree({
@@ -114,7 +117,8 @@ export const IcicleChart = ({
           ← 返回上层
         </button>
         <span className="text-muted-foreground">
-          当前根：{focus === "" ? "/" : focus} · {tree ? formatBytes(tree.size) : "—"}
+          当前根：{focus === "" ? "/" : focus} ·{" "}
+          {tree ? formatBytes(tree.size) : "—"}
         </span>
         {hovered ? (
           <span className="ml-auto text-muted-foreground">{hovered}</span>

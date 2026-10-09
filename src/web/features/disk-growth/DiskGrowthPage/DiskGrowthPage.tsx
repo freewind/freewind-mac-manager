@@ -80,18 +80,18 @@ import {
   useStartScan,
   useTrashEntry,
 } from "@web/features/disk-growth/queries"
-import { useDiskGrowthStore } from "@web/features/disk-growth/store"
+import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 
 const INDENT = 14
 
 export const DiskGrowthPage = () => {
   const { snapshots, isLoading } = useSnapshots()
   const status = useScanStatus()
-  const view = useDiskGrowthStore((state) => state.view)
-  const setView = useDiskGrowthStore((state) => state.setView)
-  const keyword = useDiskGrowthStore((state) => state.keyword)
-  const setKeyword = useDiskGrowthStore((state) => state.setKeyword)
-  const collapseAll = useDiskGrowthStore((state) => state.collapseAll)
+  const view = useDiskGrowthLocalStore((state) => state.view)
+  const setView = useDiskGrowthLocalStore((state) => state.setView)
+  const keyword = useDiskGrowthLocalStore((state) => state.keyword)
+  const setKeyword = useDiskGrowthLocalStore((state) => state.setKeyword)
+  const collapseAll = useDiskGrowthLocalStore((state) => state.collapseAll)
   const notify = (message: string | null) => {
     if (message) toast(message)
   }
@@ -247,10 +247,12 @@ const TreeBranch = (props: BranchProps) => {
     baselineScanId: props.baselineScanId,
     path,
   })
-  const expanded = useDiskGrowthStore((state) => state.expanded)
-  const sortKey = useDiskGrowthStore((state) => state.sortKey)
-  const descending = useDiskGrowthStore((state) => state.descending)
-  const toggleExpanded = useDiskGrowthStore((state) => state.toggleExpanded)
+  const expanded = useDiskGrowthLocalStore((state) => state.expanded)
+  const sortKey = useDiskGrowthLocalStore((state) => state.sortKey)
+  const descending = useDiskGrowthLocalStore((state) => state.descending)
+  const toggleExpanded = useDiskGrowthLocalStore(
+    (state) => state.toggleExpanded
+  )
 
   const sorted = useMemo(() => {
     const factor = descending ? -1 : 1
@@ -543,9 +545,9 @@ const SortableHead = (props: {
   sortKey: "name" | "size" | "delta"
   className?: string
 }) => {
-  const sortKey = useDiskGrowthStore((state) => state.sortKey)
-  const descending = useDiskGrowthStore((state) => state.descending)
-  const setSort = useDiskGrowthStore((state) => state.setSort)
+  const sortKey = useDiskGrowthLocalStore((state) => state.sortKey)
+  const descending = useDiskGrowthLocalStore((state) => state.descending)
+  const setSort = useDiskGrowthLocalStore((state) => state.setSort)
   const active = sortKey === props.sortKey
   return (
     <TableHead className={props.className}>
@@ -626,7 +628,7 @@ const SnapshotSidebar = ({
   onNotice,
   busiest,
 }: SidebarProps) => {
-  const store = useDiskGrowthStore()
+  const store = useDiskGrowthLocalStore()
   const deleteScans = useDeleteScans()
   const [pending, setPending] = useState<
     { kind: "delete"; id: number; label: string } | { kind: "merge" } | null

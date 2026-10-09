@@ -4,7 +4,7 @@ import {
   fetchMachineOverview,
   fetchTopProcesses,
 } from "@shared/client-api"
-import { useDashboardStore } from "@web/features/dashboard/store"
+import { useDashboardLocalStore } from "@web/features/dashboard/store"
 
 /** 进程表只展示占用最高的这几个。 */
 export const PROCESS_LIMIT = 6
@@ -18,7 +18,7 @@ export const dashboardKeys = {
 }
 
 export const useMachineOverview = () => {
-  const paused = useDashboardStore((state) => state.paused)
+  const paused = useDashboardLocalStore((state) => state.paused)
   return useQuery({
     queryKey: dashboardKeys.overview,
     queryFn: fetchMachineOverview,
@@ -27,7 +27,7 @@ export const useMachineOverview = () => {
 }
 
 export const useTopProcesses = () => {
-  const paused = useDashboardStore((state) => state.paused)
+  const paused = useDashboardLocalStore((state) => state.paused)
   return useQuery({
     queryKey: dashboardKeys.processes,
     queryFn: () => fetchTopProcesses(PROCESS_LIMIT),
@@ -36,7 +36,7 @@ export const useTopProcesses = () => {
 }
 
 export const useListeningPorts = () => {
-  const paused = useDashboardStore((state) => state.paused)
+  const paused = useDashboardLocalStore((state) => state.paused)
   return useQuery({
     queryKey: dashboardKeys.ports,
     queryFn: fetchListeningPorts,

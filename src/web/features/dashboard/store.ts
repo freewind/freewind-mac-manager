@@ -19,7 +19,7 @@ type DashboardLocalState = {
   setProcessSort: (key: ProcessSortKey) => void
 }
 
-export const useDashboardStore = create<DashboardLocalState>((set) => ({
+export const useDashboardLocalStore = create<DashboardLocalState>((set) => ({
   paused: false,
   processSortKey: "cpu",
   processDescending: true,

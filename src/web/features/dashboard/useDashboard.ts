@@ -8,7 +8,7 @@ import {
   useTopProcesses,
 } from "@web/features/dashboard/queries"
 import {
-  useDashboardStore,
+  useDashboardLocalStore,
   type ProcessSortKey,
 } from "@web/features/dashboard/store"
 
@@ -25,7 +25,7 @@ export type MemoryPressure = {
  * - 派生展示值：这里的 useMemo（排序结果、内存压力）
  */
 export const useDashboard = () => {
-  const local = useDashboardStore()
+  const local = useDashboardLocalStore()
   const queryClient = useQueryClient()
 
   const overviewQuery = useMachineOverview()
