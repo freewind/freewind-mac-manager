@@ -8,6 +8,7 @@ import {
   Search01Icon,
 } from "@hugeicons/core-free-icons"
 import { useMemo, useState } from "react"
+import type { GrowthEntry } from "@shared/api-contract"
 import { formatBytes, formatSignedBytes, formatTimestamp } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -45,6 +46,29 @@ export const DiskGrowthPage = () => {
       return (leftValue - rightValue) * factor
     })
   }, [model.entries, sortKey, descending])
+
+  /** 进入子目录后，首行显示「..」回到上一层。 */
+  const parentRow = useMemo<GrowthEntry | null>(() => {
+    if (model.path === "") return null
+    const index = model.path.lastIndexOf("/")
+    const parentPath = index <= 0 ? "" : model.path.slice(0, index)
+    return {
+      path: parentPath,
+      name: "..",
+      kind: "dir",
+      size: 0,
+      delta: 0,
+      folded: false,
+    }
+  }, [model.path])
+
+  const rows = useMemo(
+    () =>
+      parentRow
+        ? [{ entry: parentRow, isParent: true }, ...sortedEntries.map((entry) => ({ entry, isParent: false }))]
+        : sortedEntries.map((entry) => ({ entry, isParent: false })),
+    [parentRow, sortedEntries]
+  )
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -197,22 +221,32 @@ export const DiskGrowthPage = () => {
                       </TableCell>
                     </TableRow>
                   ))
-                : sortedEntries.map((entry) => (
+                : rows.map(({ entry, isParent }) => (
                     <TableRow
-                      key={entry.path}
+                      key={isParent ? "__parent__" : entry.path}
                       data-state={selected === entry.path ? "selected" : undefined}
                       className={cn(
-                        entry.kind === "dir" && !entry.folded
+                        isParent
                           ? "cursor-pointer"
-                          : undefined
+                          : entry.kind === "dir" && !entry.folded
+                            ? "cursor-pointer"
+                            : undefined
                       )}
                       onClick={() => {
+                        if (isParent) {
+                          model.goUp()
+                          return
+                        }
                         setSelected(entry.path)
                         if (entry.kind === "dir" && !entry.folded) {
                           model.enterDirectory(entry)
                         }
                       }}
                       onDoubleClick={() => {
+                        if (isParent) {
+                          model.goUp()
+                          return
+                        }
                         if (entry.kind === "dir" && !entry.folded) {
                           model.enterDirectory(entry)
                         }
@@ -228,7 +262,7 @@ export const DiskGrowthPage = () => {
                           {entry.folded ? (
                             <Badge variant="secondary">已折叠</Badge>
                           ) : null}
-                          {entry.kind === "dir" && !entry.folded ? (
+                          {!isParent && entry.kind === "dir" && !entry.folded ? (
                             <HugeiconsIcon
                               icon={ArrowRight01Icon}
                               className="size-3 text-muted-foreground"
@@ -237,7 +271,7 @@ export const DiskGrowthPage = () => {
                         </span>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatBytes(entry.size)}
+                        {isParent ? "—" : formatBytes(entry.size)}
                       </TableCell>
                       <TableCell
                         className={cn(
@@ -245,10 +279,10 @@ export const DiskGrowthPage = () => {
                           entry.delta > 0 ? "text-destructive" : "text-muted-foreground"
                         )}
                       >
-                        {formatSignedBytes(entry.delta)}
+                        {isParent ? "—" : formatSignedBytes(entry.delta)}
                       </TableCell>
                       <TableCell className="truncate text-xs text-muted-foreground">
-                        {entry.path}
+                        {entry.path === "" ? "/" : entry.path}
                       </TableCell>
                     </TableRow>
                   ))}
