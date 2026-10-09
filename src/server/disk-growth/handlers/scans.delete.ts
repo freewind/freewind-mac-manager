@@ -1,5 +1,5 @@
-import { diskGrowthStore } from "../service"
 import { describeError } from "@shared/format"
+import { diskGrowthStore } from "../service"
 
 export const deleteScans = async ({
   query,

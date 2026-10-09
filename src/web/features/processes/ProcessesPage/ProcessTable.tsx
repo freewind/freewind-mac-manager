@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Cancel01Icon,
   Copy01Icon,
@@ -7,9 +6,9 @@ import {
   MoreHorizontalIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons"
-import { useMemo, useState } from "react"
-import { toast } from "sonner"
-import { formatBytes, describeError } from "@shared/format"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type { ProcessEntry } from "@shared/api-contract"
+import { describeError, formatBytes } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Checkbox } from "@web/components/ui/checkbox"
@@ -36,7 +35,6 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { cn } from "@web/lib/utils"
 import {
   formatDuration,
   PROCESS_KIND_LABEL,
@@ -44,9 +42,11 @@ import {
   PROCESS_STATE_VARIANT,
   toPercent,
 } from "@web/features/processes/display"
-import type { ProcessEntry } from "@shared/api-contract"
 import { ProcessAvatar } from "@web/features/processes/ProcessesPage/ProcessAvatar"
 import type { useProcesses } from "@web/features/processes/useProcesses"
+import { cn } from "@web/lib/utils"
+import { useMemo, useState } from "react"
+import { toast } from "sonner"
 
 const COLUMN_COUNT = 11
 
@@ -101,7 +101,8 @@ export const ProcessTable = (props: ProcessTableProps) => {
   }
 
   const allChecked =
-    rows.length > 0 && rows.every((item) => model.checkedPids.includes(item.pid))
+    rows.length > 0 &&
+    rows.every((item) => model.checkedPids.includes(item.pid))
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
@@ -112,9 +113,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
               <Checkbox
                 checked={allChecked}
                 onCheckedChange={(checked: boolean) =>
-                  model.setChecked(
-                    checked ? rows.map((item) => item.pid) : []
-                  )
+                  model.setChecked(checked ? rows.map((item) => item.pid) : [])
                 }
                 aria-label="全选"
               />
@@ -370,7 +369,10 @@ const SortableHead = (props: SortableHeadProps) => {
         variant="ghost"
         size="xs"
         onClick={onClick}
-        className={cn("-ml-2", active ? "text-foreground" : "text-muted-foreground")}
+        className={cn(
+          "-ml-2",
+          active ? "text-foreground" : "text-muted-foreground"
+        )}
       >
         {label}
         {active ? <span>{descending ? "↓" : "↑"}</span> : null}

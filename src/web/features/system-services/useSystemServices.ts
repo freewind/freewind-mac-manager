@@ -1,9 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
-import { toast } from "sonner"
-import { describeError } from "@shared/format"
 import type { ServiceDomain, SystemService } from "@shared/api-contract"
 import { revealSystemService } from "@shared/client-api"
+import { describeError } from "@shared/format"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   CONFIRM_REQUIRED,
   type ServiceAction,
@@ -14,6 +12,8 @@ import {
   useServicesQuery,
 } from "@web/features/system-services/queries"
 import { useSystemServicesLocalStore } from "@web/features/system-services/store"
+import { useMemo, useState } from "react"
+import { toast } from "sonner"
 
 export type PendingAction = {
   action: ServiceAction

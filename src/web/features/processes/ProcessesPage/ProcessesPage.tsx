@@ -1,13 +1,12 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   PauseIcon,
   PlayIcon,
   RefreshIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons"
-import { useState } from "react"
-import { formatBytes } from "@shared/format"
+import { HugeiconsIcon } from "@hugeicons/react"
 import type { ProcessEntry } from "@shared/api-contract"
+import { formatBytes } from "@shared/format"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,10 +25,7 @@ import {
 } from "@web/components/ui/input-group"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { Toggle } from "@web/components/ui/toggle"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@web/components/ui/toggle-group"
+import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import {
   averageCoreUsage,
   formatDuration,
@@ -43,6 +39,7 @@ import {
 } from "@web/features/processes/store"
 import { useProcesses } from "@web/features/processes/useProcesses"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { useState } from "react"
 
 /** 页面级瞬时状态：确认弹窗的目标。
  *  远程数据由 TanStack Query 管，本地共享状态由 Zustand 管，其余留在组件自己的 state。 */
@@ -129,7 +126,8 @@ export const ProcessesPage = () => {
               : "已暂停自动刷新"}
           </span>
           <span>
-            显示 {model.filteredProcesses.length} / {model.processes.length} 个进程
+            显示 {model.filteredProcesses.length} / {model.processes.length}{" "}
+            个进程
           </span>
           {model.isFetching ? <span>采样中…</span> : null}
           {model.error === null ? null : (
@@ -190,16 +188,12 @@ export const ProcessesPage = () => {
         <span className="ml-auto flex items-center gap-3">
           <span>{model.overview?.system.osVersion ?? ""}</span>
           <span>
-            已运行{" "}
-            {formatDuration(model.overview?.system.uptimeSeconds ?? 0)}
+            已运行 {formatDuration(model.overview?.system.uptimeSeconds ?? 0)}
           </span>
         </span>
       </footer>
 
-      <ProcessDetailSheet
-        model={model}
-        onRequestTerminate={requestTerminate}
-      />
+      <ProcessDetailSheet model={model} onRequestTerminate={requestTerminate} />
 
       <AlertDialog
         open={pending !== null}

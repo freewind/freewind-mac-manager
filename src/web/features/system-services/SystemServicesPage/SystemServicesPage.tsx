@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Alert02Icon,
   BanIcon,
@@ -14,6 +13,12 @@ import {
   StopIcon,
   TrashIcon,
 } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type {
+  ServiceDomain,
+  ServiceState,
+  SystemService,
+} from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
@@ -73,22 +78,17 @@ import {
 import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
-import type {
-  ServiceDomain,
-  ServiceState,
-  SystemService,
-} from "@shared/api-contract"
 import type { ServiceAction } from "@web/features/system-services/actions"
 import { domainLabels, stateLabels } from "@web/features/system-services/labels"
-import {
-  useSystemServices,
-  type PendingAction,
-} from "@web/features/system-services/useSystemServices"
-import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import type {
   DomainFilter,
   StateFilter,
 } from "@web/features/system-services/store"
+import {
+  type PendingAction,
+  useSystemServices,
+} from "@web/features/system-services/useSystemServices"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 
 const STATE_ORDER: ServiceState[] = ["running", "stopped", "failed", "disabled"]
 

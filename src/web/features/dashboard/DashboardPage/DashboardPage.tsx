@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
   ArrowUp01Icon,
@@ -9,9 +8,9 @@ import {
   NetworkIcon,
   RefreshIcon,
 } from "@hugeicons/core-free-icons"
-import type { ReactNode } from "react"
-import { formatBytes } from "@shared/format"
+import { HugeiconsIcon } from "@hugeicons/react"
 import type { DiskVolume } from "@shared/api-contract"
+import { formatBytes } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -40,8 +39,9 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { cn } from "@web/lib/utils"
 import { useDashboard } from "@web/features/dashboard/useDashboard"
+import { cn } from "@web/lib/utils"
+import type { ReactNode } from "react"
 
 export const DashboardPage = () => {
   const model = useDashboard()
@@ -103,11 +103,15 @@ export const DashboardPage = () => {
                 .join(" / ")}`}
             >
               <div className="grid grid-cols-4 gap-2">
-                {overview.cpu.coreUsage.map((usage, index) => (
-                  <div key={index} className="flex flex-col gap-1">
+                {overview.cpu.coreUsage.map((usage, coreIndex) => (
+                  <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: CPU core positions are stable.
+                    key={`core-${coreIndex + 1}`}
+                    className="flex flex-col gap-1"
+                  >
                     <Progress value={usage} />
                     <span className="text-[0.625rem] text-muted-foreground tabular-nums">
-                      核 {index + 1} · {usage.toFixed(0)}%
+                      核 {coreIndex + 1} · {usage.toFixed(0)}%
                     </span>
                   </div>
                 ))}

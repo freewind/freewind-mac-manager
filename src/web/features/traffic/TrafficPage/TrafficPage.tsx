@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
   ArrowUp01Icon,
@@ -7,8 +6,8 @@ import {
   RefreshIcon,
   Upload01Icon,
 } from "@hugeicons/core-free-icons"
-import { useState, type ReactNode } from "react"
-import { toast } from "sonner"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type { TrafficSnapshot } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import {
   AlertDialog,
@@ -29,9 +28,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
-import type { TrafficSnapshot } from "@shared/api-contract"
 import { useTraffic } from "@web/features/traffic/useTraffic"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { type ReactNode, useState } from "react"
+import { toast } from "sonner"
 import { ProcessTable } from "./ProcessTable"
 import { SnapshotList } from "./SnapshotList"
 

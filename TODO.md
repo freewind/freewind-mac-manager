@@ -26,7 +26,6 @@
 
 ## 五、工具链迁移与提交检查
 
-- [ ] **Biome 替代 ESLint + Prettier**（AGENTS 二、九）：接入官方 recommended 配置与适用团队规则，提供只读 `lint` 和安全修复 `lint:fix`；覆盖手写源码、脚本、测试与配置。移除旧依赖、配置和 Prettier 命令，不保留并行格式化器；Markdown/YAML 不交给 Biome。迁移时处理实际诊断，不关闭手写代码的推荐规则，也不能声称 Biome 自动替代所有 ESLint 能力。
 - [ ] **TypeScript 7 与统一类型检查脚本**（AGENTS 二、九）：将当前 TypeScript 6 升级到实施时最新的 7.x 稳定版，锁文件固定；保留 `typecheck: tsc --noEmit`，`build` 调用 `pnpm typecheck`。核实 ts-rest、OpenAPI 生成、Vite、Vitest 及编译器 API 使用者的兼容性，运行真实类型检查与构建，不假设所有旧 API 都兼容。
 - [ ] **每次提交检查暂存代码**（AGENTS 九）：接入 Husky + lint-staged，`prepare` 自动安装钩子；提交前对受支持的暂存手写文件运行同一 Biome 检查，有错误阻止提交，不自动修复。验证嵌套文件、部分暂存、文件名空格、纯文档提交与无匹配文件场景，不读取未暂存内容、不改 shadcn、不依赖跳过钩子完成迁移。
 - [ ] **官方代码检查边界与存量 lint 冲突**（AGENTS 七、九）：迁移前 ESLint 在官方 `web/hooks/use-mobile.ts` 同步 `setState` 处报 `react-hooks/set-state-in-effect`；迁移后以实际 Biome 诊断重新验证。明确只针对官方源码的排除范围，不修改官方 hook、不用行内禁用、不放宽手写代码规则；原错误不能仅靠删除记录就宣称修复。

@@ -1,5 +1,9 @@
 import path from "node:path"
-import { runCommand, cached, collectListeningPorts } from "@server/common/collect"
+import {
+  cached,
+  collectListeningPorts,
+  runCommand,
+} from "@server/common/collect"
 import type {
   ProcessEntry,
   ProcessKind,
@@ -30,8 +34,15 @@ const stateOf = (stat: string): ProcessState =>
   STATE_BY_LETTER[stat.slice(0, 1).toUpperCase()] ?? "sleeping"
 
 /** 由可执行文件路径与父进程猜归属，只用于图标与文案。 */
-const kindOf = (executable: string, name: string, ppid: number): ProcessKind => {
-  if (name === "kernel_task" || executable.startsWith("/System/Library/Kernels/")) {
+const kindOf = (
+  executable: string,
+  name: string,
+  ppid: number
+): ProcessKind => {
+  if (
+    name === "kernel_task" ||
+    executable.startsWith("/System/Library/Kernels/")
+  ) {
     return "kernel"
   }
   if (/Helper/.test(name)) return "helper"
@@ -118,6 +129,12 @@ export const collectProcesses = (): Promise<ProcessEntry[]> =>
     for (const line of psOutput.split("\n")) {
       const match = PS_LINE.exec(line)
       if (match === null) continue
+      const user = match[3]
+      const state = match[6]
+      const elapsed = match[7]
+      if (user === undefined || state === undefined || elapsed === undefined) {
+        continue
+      }
       const pid = Number(match[1])
       const ppid = Number(match[2])
       const command = match[8]?.trim() ?? ""
@@ -130,14 +147,17 @@ export const collectProcesses = (): Promise<ProcessEntry[]> =>
         name,
         command: command === "" ? executable : command,
         path: executable,
-        user: match[3]!,
-        state: stateOf(match[6]!),
+        user,
+        state: stateOf(state),
         kind: kindOf(executable, name, ppid),
         cpu: Number(match[4]),
         memoryBytes: Number(match[5]) * 1024,
         threads: threads.get(pid) ?? null,
-        ports: listeningPorts === undefined ? [] : [...listeningPorts].sort((a, b) => a - b),
-        startedAt: startedAt - parseElapsed(match[7]!),
+        ports:
+          listeningPorts === undefined
+            ? []
+            : [...listeningPorts].sort((a, b) => a - b),
+        startedAt: startedAt - parseElapsed(elapsed),
       })
     }
 

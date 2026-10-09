@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Add01Icon,
   CloudSavingDone01Icon,
@@ -11,8 +10,8 @@ import {
   StopIcon,
   TrashIcon,
 } from "@hugeicons/core-free-icons"
-import { useState } from "react"
-import { toast } from "sonner"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type { FrpProxy, FrpProxyType } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import {
   AlertDialog,
@@ -39,9 +38,10 @@ import { Input } from "@web/components/ui/input"
 import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Separator } from "@web/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
-import type { FrpProxy, FrpProxyType } from "@shared/api-contract"
 import { useFrp } from "@web/features/frp/useFrp"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { useState } from "react"
+import { toast } from "sonner"
 import { ProxyFormDialog } from "./ProxyFormDialog"
 import { ProxyTable } from "./ProxyTable"
 

@@ -27,10 +27,15 @@ export const parsePsLine = (
     return null
   }
 
+  const command = match[3]
+  if (command === undefined) {
+    return null
+  }
+
   return {
     pid: Number(match[1]),
     parentPid: Number(match[2]),
-    command: match[3]!.trim(),
+    command: command.trim(),
   }
 }
 
@@ -42,7 +47,10 @@ export const parsePsOutput = (output: string): Map<number, ProcessDetails> => {
     if (!record) {
       continue
     }
-    commands.set(record.pid, { parentPid: record.parentPid, command: record.command })
+    commands.set(record.pid, {
+      parentPid: record.parentPid,
+      command: record.command,
+    })
   }
 
   const result = new Map<number, ProcessDetails>()
@@ -60,9 +68,15 @@ export const parsePsOutput = (output: string): Map<number, ProcessDetails> => {
 }
 
 /** 取本机进程的命令行与父进程，用于把重名进程（大量 node）区分开。 */
-export const snapshotProcesses = async (): Promise<Map<number, ProcessDetails>> => {
-  const { stdout } = await execFileAsync("/bin/ps", ["-axo", "pid,ppid,command"], {
-    maxBuffer: MAX_BUFFER,
-  })
+export const snapshotProcesses = async (): Promise<
+  Map<number, ProcessDetails>
+> => {
+  const { stdout } = await execFileAsync(
+    "/bin/ps",
+    ["-axo", "pid,ppid,command"],
+    {
+      maxBuffer: MAX_BUFFER,
+    }
+  )
   return parsePsOutput(stdout)
 }

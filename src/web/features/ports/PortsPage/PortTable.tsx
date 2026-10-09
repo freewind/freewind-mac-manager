@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
@@ -10,7 +9,8 @@ import {
   MoreHorizontalIcon,
   SquareLock01Icon,
 } from "@hugeicons/core-free-icons"
-import { Fragment, useMemo, useState, type ReactNode } from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type { PortBinding } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -49,10 +49,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@web/components/ui/tooltip"
-import { cn } from "@web/lib/utils"
-import type { PortBinding } from "@shared/api-contract"
 import type { PortGroup } from "@web/features/ports/domain"
 import type { usePorts } from "@web/features/ports/usePorts"
+import { cn } from "@web/lib/utils"
+import { Fragment, type ReactNode, useMemo, useState } from "react"
 
 type SortKey = "port" | "service" | "processCount"
 
@@ -124,9 +124,7 @@ export const PortTable = (props: PortTableProps) => {
                 onClick={() => toggleSort("service")}
               />
             </TableHead>
-            <TableHead className="w-[1%] whitespace-nowrap">
-              监听地址
-            </TableHead>
+            <TableHead className="w-[1%] whitespace-nowrap">监听地址</TableHead>
             <TableHead className="w-[1%] whitespace-nowrap">进程</TableHead>
             <TableHead className="w-[1%] whitespace-nowrap">
               <SortButton

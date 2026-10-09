@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
@@ -13,14 +12,13 @@ import {
   Search01Icon,
   TrashIcon,
 } from "@hugeicons/core-free-icons"
-import { useMemo, useState, type ComponentType, type ReactNode } from "react"
-import { toast } from "sonner"
+import { HugeiconsIcon } from "@hugeicons/react"
 import type { GrowthEntry } from "@shared/api-contract"
 import {
+  describeError,
   formatBytes,
   formatSignedBytes,
   formatTimestamp,
-  describeError,
 } from "@shared/format"
 import {
   AlertDialog,
@@ -67,7 +65,6 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
-import { cn } from "@web/lib/utils"
 import { IcicleChart } from "@web/features/disk-growth/IcicleChart"
 import {
   useChildren,
@@ -81,6 +78,9 @@ import {
   useTrashEntry,
 } from "@web/features/disk-growth/queries"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
+import { cn } from "@web/lib/utils"
+import { type ComponentType, type ReactNode, useMemo, useState } from "react"
+import { toast } from "sonner"
 
 const INDENT = 14
 

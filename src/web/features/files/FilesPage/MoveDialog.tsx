@@ -1,6 +1,5 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import { ArrowUp01Icon, Folder01Icon } from "@hugeicons/core-free-icons"
-import { useState } from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
 import {
   Dialog,
@@ -20,6 +19,7 @@ import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { buildCrumbs, dirnameOf } from "@web/features/files/domain"
 import { useDirectoryQuery } from "@web/features/files/queries"
+import { useState } from "react"
 import { PathBreadcrumb } from "./PathBreadcrumb"
 
 type MoveDialogProps = {

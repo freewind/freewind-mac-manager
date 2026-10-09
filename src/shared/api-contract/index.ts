@@ -1,5 +1,5 @@
 export { contract } from "./contract"
 export { c } from "./init"
-export { FRP_PROXY_TYPES } from "./schemas/frp"
 export * from "./schemas/common"
+export { FRP_PROXY_TYPES } from "./schemas/frp"
 export * from "./types"

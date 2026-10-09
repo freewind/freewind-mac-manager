@@ -1,26 +1,26 @@
-import { z } from "zod"
-import {
-  DirectoryResponseSchema,
-  FileContentResponseSchema,
-  FileEntrySchema,
-  UploadResponseSchema,
-} from "./schemas/files"
-import {
+import type { z } from "zod"
+import type {
   ActionResponseSchema,
   ApiErrorSchema,
   KillProcessesBodySchema,
   KillProcessesResponseSchema,
 } from "./schemas/common"
-import {
+import type {
   EntriesResponseSchema,
   GrowthEntrySchema,
   ScanSnapshotSchema,
   ScanStartResponseSchema,
   ScanStatusSchema,
-  TreeResponseSchema,
-  type TreeNodeWire,
   ScansResponseSchema,
+  TreeNodeWire,
+  TreeResponseSchema,
 } from "./schemas/disk-growth"
+import type {
+  DirectoryResponseSchema,
+  FileContentResponseSchema,
+  FileEntrySchema,
+  UploadResponseSchema,
+} from "./schemas/files"
 
 export type ScanSnapshot = z.infer<typeof ScanSnapshotSchema>
 export type GrowthEntry = z.infer<typeof GrowthEntrySchema>
@@ -28,7 +28,8 @@ export type ScanStatus = z.infer<typeof ScanStatusSchema>
 export type ScansResponse = z.infer<typeof ScansResponseSchema>
 export type EntriesResponse = z.infer<typeof EntriesResponseSchema>
 export type ScanStartResponse = z.infer<typeof ScanStartResponseSchema>
-import {
+
+import type {
   TrafficChildSchema,
   TrafficGroupSchema,
   TrafficGroupsResponseSchema,
@@ -61,7 +62,7 @@ export type DirectoryResponse = z.infer<typeof DirectoryResponseSchema>
 export type FileContentResponse = z.infer<typeof FileContentResponseSchema>
 export type UploadResponse = z.infer<typeof UploadResponseSchema>
 
-import {
+import type {
   CpuInfoSchema,
   DiskVolumeSchema,
   MachineOverviewSchema,
@@ -69,8 +70,8 @@ import {
   NetworkInfoSchema,
   PortInfoSchema,
   PortsResponseSchema,
-  ProcessInfoSchema,
   ProcessesResponseSchema,
+  ProcessInfoSchema,
   SystemInfoSchema,
 } from "./schemas/dashboard"
 
@@ -85,10 +86,10 @@ export type PortInfo = z.infer<typeof PortInfoSchema>
 export type ProcessesResponse = z.infer<typeof ProcessesResponseSchema>
 export type PortsResponse = z.infer<typeof PortsResponseSchema>
 
-import {
-  KillPortProcessResultSchema,
+import type {
   KillPortProcessesBodySchema,
   KillPortProcessesResponseSchema,
+  KillPortProcessResultSchema,
   PortBindingSchema,
   PortBindingsResponseSchema,
 } from "./schemas/ports"
@@ -101,7 +102,7 @@ export type KillPortProcessesResponse = z.infer<
   typeof KillPortProcessesResponseSchema
 >
 
-import {
+import type {
   ProcessEntrySchema,
   ProcessKindSchema,
   ProcessListResponseSchema,
@@ -113,13 +114,13 @@ export type ProcessState = z.infer<typeof ProcessStateSchema>
 export type ProcessKind = z.infer<typeof ProcessKindSchema>
 export type ProcessListResponse = z.infer<typeof ProcessListResponseSchema>
 
-import {
+import type {
   ServiceDomainSchema,
   ServiceEnabledBodySchema,
   ServiceStateSchema,
+  ServicesResponseSchema,
   ServiceTargetBodySchema,
   ServiceTargetQuerySchema,
-  ServicesResponseSchema,
   SystemServiceSchema,
 } from "./schemas/system-services"
 
@@ -131,7 +132,7 @@ export type ServiceTargetBody = z.infer<typeof ServiceTargetBodySchema>
 export type ServiceTargetQuery = z.infer<typeof ServiceTargetQuerySchema>
 export type ServiceEnabledBody = z.infer<typeof ServiceEnabledBodySchema>
 
-import {
+import type {
   FrpConfigInputSchema,
   FrpConfigSchema,
   FrpProbeBodySchema,

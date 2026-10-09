@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ProcessListResponse } from "@shared/api-contract"
 import { fetchProcessList, killProcesses } from "@shared/client-api"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   REFRESH_INTERVAL_SECONDS,
   useProcessesLocalStore,

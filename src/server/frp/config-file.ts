@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs"
 import { readFile, writeFile } from "node:fs/promises"
-import { parse } from "smol-toml"
-import { serializeFrpcToml } from "@shared/frp-format"
 import type { FrpConfigInput } from "@shared/api-contract"
+import { serializeFrpcToml } from "@shared/frp-format"
+import { parse } from "smol-toml"
 
 /**
  * frpc 配置文件的读写。

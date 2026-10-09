@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { Button } from "@web/components/ui/button"
 import {
   Dialog,
@@ -10,6 +9,7 @@ import {
 } from "@web/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
+import { useState } from "react"
 
 type EntryNameDialogProps = {
   open: boolean

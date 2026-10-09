@@ -1,13 +1,13 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { StrictMode } from "react"
-import { createRoot } from "react-dom/client"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { RefreshIcon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { App } from "@web/App"
 import { Button } from "@web/components/ui/button"
 import { Toaster } from "@web/components/ui/sonner"
 import { TooltipProvider } from "@web/components/ui/tooltip"
 import { usePwaStatus } from "@web/hooks/use-pwa-status"
+import { StrictMode } from "react"
+import { createRoot } from "react-dom/client"
 import "@web/index.css"
 
 const queryClient = new QueryClient({

@@ -1,4 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
   FrpConfig,
   FrpConfigInput,
@@ -11,6 +10,7 @@ import {
   saveFrpConfig,
 } from "@shared/client-api"
 import { configSignature } from "@shared/frp-format"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useFrpLocalStore } from "@web/features/frp/store"
 
 /**

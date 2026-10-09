@@ -1,10 +1,10 @@
 import type {
   ActionResponse,
-  TreeResponse,
   EntriesResponse,
   ScanStartResponse,
   ScanStatus,
   ScansResponse,
+  TreeResponse,
 } from "@shared/api-contract"
 import { apiClient, unwrap } from "./client"
 

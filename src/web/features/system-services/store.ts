@@ -1,5 +1,5 @@
-import { create } from "zustand"
 import type { ServiceDomain, ServiceState } from "@shared/api-contract"
+import { create } from "zustand"
 
 export type StateFilter = "all" | ServiceState
 export type DomainFilter = "all" | ServiceDomain

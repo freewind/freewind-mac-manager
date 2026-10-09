@@ -1,20 +1,15 @@
-import { useEffect, useState } from "react"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { logout } from "@shared/client-api"
 import { useQueryClient } from "@tanstack/react-query"
-import {
-  fetchAuthStatus,
-  logout,
-  ensureCsrf,
-  type AuthStatus,
-} from "@shared/client-api"
-import { describeError } from "@shared/format"
 import { AppSidebar, type FeatureKey } from "@web/components/app-sidebar"
+import { Button } from "@web/components/ui/button"
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@web/components/ui/sidebar"
+import { LoginPage } from "@web/features/auth/LoginPage"
 import { DashboardPage } from "@web/features/dashboard/DashboardPage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
 import { FilesPage } from "@web/features/files/FilesPage"
@@ -23,8 +18,13 @@ import { PortsPage } from "@web/features/ports/PortsPage"
 import { ProcessesPage } from "@web/features/processes/ProcessesPage"
 import { SystemServicesPage } from "@web/features/system-services/SystemServicesPage"
 import { TrafficPage } from "@web/features/traffic/TrafficPage"
-import { LoginPage } from "@web/features/auth/LoginPage"
-import { Button } from "@web/components/ui/button"
+import {
+  markAuthenticated,
+  markUnauthenticated,
+  refreshAuthStatus,
+  useAuthStatus,
+} from "@web/hooks/use-auth-status"
+import { useEffect, useSyncExternalStore } from "react"
 
 const FEATURE_KEYS: readonly FeatureKey[] = [
   "overview",
@@ -58,46 +58,50 @@ const isAppFeatureHistory = (state: unknown): boolean =>
   "macManagerFeature" in state &&
   (state as { macManagerFeature?: boolean }).macManagerFeature === true
 
+const featureNavigationSnapshot = (): string =>
+  `${featureFromUrl()}:${isAppFeatureHistory(window.history.state)}`
+
+const subscribeFeatureNavigation = (onChange: () => void): (() => void) => {
+  window.addEventListener("popstate", onChange)
+  return () => window.removeEventListener("popstate", onChange)
+}
+
+const useFeatureNavigation = () => {
+  const snapshot = useSyncExternalStore(
+    subscribeFeatureNavigation,
+    featureNavigationSnapshot,
+    () => "overview:false"
+  )
+  const [featureValue, canGoBackValue] = snapshot.split(":")
+  const feature = featureValue as FeatureKey
+
+  const selectFeature = (next: FeatureKey): void => {
+    if (next === feature) return
+    window.history.pushState({ macManagerFeature: true }, "", featureUrl(next))
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: window.history.state })
+    )
+  }
+
+  return { feature, canGoBack: canGoBackValue === "true", selectFeature }
+}
+
 export const App = () => {
   const queryClient = useQueryClient()
-  const [feature, setFeature] = useState<FeatureKey>(featureFromUrl)
-  const [canGoBack, setCanGoBack] = useState(
-    () =>
-      typeof window !== "undefined" && isAppFeatureHistory(window.history.state)
-  )
-  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
-  const [authError, setAuthError] = useState<string | null>(null)
+  const { feature, canGoBack, selectFeature } = useFeatureNavigation()
+  const { status: authStatus, error: authError } = useAuthStatus()
 
   useEffect(() => {
-    const onPopState = (event: PopStateEvent): void => {
-      setFeature(featureFromUrl())
-      setCanGoBack(isAppFeatureHistory(event.state))
-    }
-    window.addEventListener("popstate", onPopState)
-    return () => window.removeEventListener("popstate", onPopState)
-  }, [])
-
-  useEffect(() => {
-    const load = async (showError: boolean): Promise<void> => {
-      try {
-        await ensureCsrf()
-        setAuthStatus(await fetchAuthStatus())
-      } catch (cause) {
-        if (showError) setAuthError(describeError(cause))
-      }
-    }
-    void load(true)
+    void refreshAuthStatus(true)
 
     const onUnauthorized = (): void => {
       queryClient.clear()
-      setAuthStatus((current) =>
-        current ? { ...current, authenticated: false } : current
-      )
+      markUnauthenticated()
     }
     window.addEventListener("mac-manager:unauthorized", onUnauthorized)
     const onVisibilityChange = (): void => {
       if (document.visibilityState === "visible" && navigator.onLine) {
-        void load(false)
+        void refreshAuthStatus(false)
       }
     }
     document.addEventListener("visibilitychange", onVisibilityChange)
@@ -121,18 +125,9 @@ export const App = () => {
     return (
       <LoginPage
         configured={authStatus.configured}
-        onAuthenticated={() =>
-          setAuthStatus({ ...authStatus, authenticated: true })
-        }
+        onAuthenticated={() => markAuthenticated()}
       />
     )
-  }
-
-  const selectFeature = (next: FeatureKey): void => {
-    if (next === feature) return
-    window.history.pushState({ macManagerFeature: true }, "", featureUrl(next))
-    setFeature(next)
-    setCanGoBack(true)
   }
 
   const goBack = (): void => {
@@ -144,7 +139,7 @@ export const App = () => {
       await logout()
     } finally {
       queryClient.clear()
-      setAuthStatus({ ...authStatus, authenticated: false })
+      markUnauthenticated()
     }
   }
 

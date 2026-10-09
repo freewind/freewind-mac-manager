@@ -1,4 +1,3 @@
-import { Fragment } from "react"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -8,6 +7,7 @@ import {
   BreadcrumbSeparator,
 } from "@web/components/ui/breadcrumb"
 import type { PathCrumb } from "@web/features/files/domain"
+import { Fragment } from "react"
 
 type PathBreadcrumbProps = {
   crumbs: PathCrumb[]

@@ -1,13 +1,12 @@
-import { useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
 import type { FileEntry } from "@shared/api-contract"
-import { describeError } from "@shared/format"
 import { downloadFileUrl } from "@shared/client-api"
+import { describeError } from "@shared/format"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   buildCrumbs,
+  type PathCrumb,
   parentPath,
   withName,
-  type PathCrumb,
 } from "@web/features/files/domain"
 import {
   filesKeys,
@@ -18,6 +17,7 @@ import {
   useTransferEntriesMutation,
 } from "@web/features/files/queries"
 import { useFilesLocalStore } from "@web/features/files/store"
+import { toast } from "sonner"
 
 /** 用临时 <a> 触发浏览器原生下载；window.open 在非直接点击时会被拦截。 */
 const triggerDownload = (path: string): void => {

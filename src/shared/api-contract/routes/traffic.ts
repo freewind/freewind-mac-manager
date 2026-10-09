@@ -1,7 +1,7 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
 import { c } from "../init"
-import { ApiErrorSchema } from "../schemas/common"
 import {
+  ApiErrorSchema,
   KillProcessesBodySchema,
   KillProcessesResponseSchema,
 } from "../schemas/common"

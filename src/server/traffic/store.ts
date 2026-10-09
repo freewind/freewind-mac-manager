@@ -186,7 +186,10 @@ export class TrafficStore {
     }))
   }
 
-  insertSnapshot(row: SnapshotRow, entries: Omit<SnapshotEntryRow, "snapshotId">[]): void {
+  insertSnapshot(
+    row: SnapshotRow,
+    entries: Omit<SnapshotEntryRow, "snapshotId">[]
+  ): void {
     this.db.exec("BEGIN IMMEDIATE")
     try {
       this.db
@@ -211,7 +214,10 @@ export class TrafficStore {
     }
   }
 
-  replaceSnapshot(row: SnapshotRow, entries: Omit<SnapshotEntryRow, "snapshotId">[]): void {
+  replaceSnapshot(
+    row: SnapshotRow,
+    entries: Omit<SnapshotEntryRow, "snapshotId">[]
+  ): void {
     this.db.exec("BEGIN IMMEDIATE")
     try {
       this.db
@@ -228,7 +234,9 @@ export class TrafficStore {
           row.bytesOut,
           row.id
         )
-      this.db.prepare("DELETE FROM traffic_snapshot_entries WHERE snapshot_id = ?").run(row.id)
+      this.db
+        .prepare("DELETE FROM traffic_snapshot_entries WHERE snapshot_id = ?")
+        .run(row.id)
       this.writeEntries(row.id, entries)
       this.db.exec("COMMIT")
     } catch (error) {
@@ -240,7 +248,9 @@ export class TrafficStore {
   deleteSnapshot(id: string): void {
     this.db.exec("BEGIN IMMEDIATE")
     try {
-      this.db.prepare("DELETE FROM traffic_snapshot_entries WHERE snapshot_id = ?").run(id)
+      this.db
+        .prepare("DELETE FROM traffic_snapshot_entries WHERE snapshot_id = ?")
+        .run(id)
       this.db.prepare("DELETE FROM traffic_snapshots WHERE id = ?").run(id)
       this.db.exec("COMMIT")
     } catch (error) {

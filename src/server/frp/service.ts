@@ -1,5 +1,4 @@
 import net from "node:net"
-import { configSignature, parseFrpcConfig } from "@shared/frp-format"
 import type {
   FrpConfig,
   FrpConfigInput,
@@ -7,6 +6,7 @@ import type {
   FrpProbeBody,
   FrpServer,
 } from "@shared/api-contract"
+import { configSignature, parseFrpcConfig } from "@shared/frp-format"
 import { readConfigText, writeConfigText } from "./config-file"
 import { LAUNCHD_LABEL, readProgram, readRuntime } from "./launchd"
 

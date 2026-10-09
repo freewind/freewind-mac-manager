@@ -1,22 +1,22 @@
+import path from "node:path"
+import { DATA_DIR, DATABASE_FILE } from "@server/env"
 import type {
   TrafficChild,
   TrafficGroup,
   TrafficSnapshot,
   TrafficStatus,
 } from "@shared/api-contract"
-import { DATA_DIR, DATABASE_FILE } from "@server/env"
 import { describeError } from "@shared/format"
-import path from "node:path"
 import { processLabel, scriptName } from "./identity"
-import { snapshotProcesses, type ProcessDetails } from "./inspector"
-import { snapshotTraffic } from "./nettop"
+import { type ProcessDetails, snapshotProcesses } from "./inspector"
 import { migrateTrafficDatabase } from "./migrate"
+import { snapshotTraffic } from "./nettop"
 import { snapshotPorts } from "./ports"
 import {
-  TrafficStore,
   type SampleRow,
   type SnapshotEntryRow,
   type SnapshotRow,
+  TrafficStore,
 } from "./store"
 
 export const SAMPLE_INTERVAL_SECONDS = 5
@@ -110,8 +110,9 @@ const aggregate = (
     }
   }
 
-  return groupOrder.map((name) => {
-    const group = groups.get(name)!
+  return groupOrder.flatMap((name) => {
+    const group = groups.get(name)
+    if (!group) return []
     const children = [...group.children.values()].map((child) => {
       const childPorts = [
         ...new Set(child.pids.flatMap((pid) => ports.get(pid) ?? [])),
@@ -450,14 +451,16 @@ export const groupsForSnapshots = async (
     ports
   )
 
+  const first = rows[0]
+  if (!first) {
+    return { scope: "未选择快照", groups: [] }
+  }
+
   const oldest = rows.reduce(
     (min, row) => Math.min(min, row.fromAt),
-    rows[0]!.fromAt
+    first.fromAt
   )
-  const newest = rows.reduce(
-    (max, row) => Math.max(max, row.toAt),
-    rows[0]!.toAt
-  )
+  const newest = rows.reduce((max, row) => Math.max(max, row.toAt), first.toAt)
   const scope =
     rows.length === 1
       ? `快照 ${shortStamp(oldest * 1000)} ~ ${shortStamp(newest * 1000)}`
@@ -545,13 +548,18 @@ export const mergeSnapshots = async (
     return listSnapshots()
   }
 
+  const first = rows[0]
+  if (!first) {
+    return listSnapshots()
+  }
+
   const newest = rows.reduce(
     (max, row) => (row.savedAt > max.savedAt ? row : max),
-    rows[0]!
+    first
   )
   const oldestFromAt = rows.reduce(
     (min, row) => Math.min(min, row.fromAt),
-    rows[0]!.fromAt
+    first.fromAt
   )
 
   const entries = store.listEntries(rows.map((row) => row.id)).map((entry) => ({

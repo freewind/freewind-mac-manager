@@ -1,6 +1,5 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import { MoreHorizontalIcon, RefreshIcon } from "@hugeicons/core-free-icons"
-import { Fragment } from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
 import {
   DropdownMenu,
@@ -11,6 +10,7 @@ import {
 } from "@web/components/ui/dropdown-menu"
 import type { EntryAction } from "@web/features/files/actions"
 import type { FilesModel } from "@web/features/files/useFiles"
+import { Fragment } from "react"
 
 type FilesToolbarProps = {
   model: FilesModel

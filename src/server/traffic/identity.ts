@@ -55,13 +55,19 @@ const baseName = (value: string): string => value.split("/").pop() ?? value
 const tokens = (command: string): string[] =>
   command.split(/[\s\t]+/).filter((token) => token.length > 0)
 
-export const processName = (command: string): string => baseName(tokens(command)[0] ?? "")
+export const processName = (command: string): string =>
+  baseName(tokens(command)[0] ?? "")
 
 const scriptArgument = (command: string): string | null => {
   const parts = tokens(command)
   for (let index = 1; index < parts.length; index += 1) {
-    const token = parts[index]!
-    if (token.startsWith("-") || token.startsWith('"') || token.startsWith("'")) {
+    const token = parts[index]
+    if (!token) continue
+    if (
+      token.startsWith("-") ||
+      token.startsWith('"') ||
+      token.startsWith("'")
+    ) {
       continue
     }
     return token

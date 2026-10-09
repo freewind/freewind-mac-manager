@@ -1,4 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { GrowthEntry, ScanStatus, TreeNode } from "@shared/api-contract"
 import {
   deleteScans as deleteScansApi,
@@ -10,6 +9,7 @@ import {
   trashEntry as trashEntryApi,
   triggerScan,
 } from "@shared/client-api"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 
 export const diskGrowthKeys = {

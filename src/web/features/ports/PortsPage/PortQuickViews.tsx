@@ -1,4 +1,3 @@
-import { ScrollArea } from "@web/components/ui/scroll-area"
 import {
   Item,
   ItemActions,
@@ -6,6 +5,7 @@ import {
   ItemGroup,
   ItemTitle,
 } from "@web/components/ui/item"
+import { ScrollArea } from "@web/components/ui/scroll-area"
 import { PORT_VIEWS } from "@web/features/ports/store"
 import type { usePorts } from "@web/features/ports/usePorts"
 

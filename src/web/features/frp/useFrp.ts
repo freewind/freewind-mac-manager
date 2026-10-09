@@ -1,9 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query"
-import { useMemo } from "react"
-import { toast } from "sonner"
 import type { FrpProxy } from "@shared/api-contract"
 import { describeError } from "@shared/format"
 import { configSignature, serializeFrpcToml } from "@shared/frp-format"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   frpKeys,
   useAddProxy,
@@ -14,6 +12,8 @@ import {
   useUpdateProxy,
 } from "@web/features/frp/queries"
 import { useFrpLocalStore } from "@web/features/frp/store"
+import { useMemo } from "react"
+import { toast } from "sonner"
 
 /**
  * FRP 页的数据入口。

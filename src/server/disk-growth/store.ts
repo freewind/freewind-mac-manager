@@ -1,8 +1,7 @@
 import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import type { GrowthEntry, ScanSnapshot } from "@shared/api-contract"
-import type { TreeNode } from "@shared/api-contract"
+import type { GrowthEntry, ScanSnapshot, TreeNode } from "@shared/api-contract"
 import type { ScanEntryRow, ScanResult } from "./scanner"
 
 type EntryKind = "dir" | "file"
@@ -218,7 +217,9 @@ export class DiskGrowthStore {
     const scanResult = this.db
       .prepare(`DELETE FROM scan WHERE id IN (${placeholders})`)
       .run(...ids)
-    return Number(scanResult.changes ?? 0) + Number(entryResult.changes ?? 0) * 0
+    return (
+      Number(scanResult.changes ?? 0) + Number(entryResult.changes ?? 0) * 0
+    )
   }
 
   /** 只保留最近 keep 份快照。 */

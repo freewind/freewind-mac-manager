@@ -1,7 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query"
-import { useMemo } from "react"
-import { toast } from "sonner"
 import { describeError } from "@shared/format"
+import { useQueryClient } from "@tanstack/react-query"
 import { buildPortGroups, type PortGroup } from "@web/features/ports/domain"
 import {
   portKeys,
@@ -10,10 +8,12 @@ import {
 } from "@web/features/ports/queries"
 import {
   PORT_VIEWS,
-  usePortsLocalStore,
   type PortExposureFilter,
   type PortView,
+  usePortsLocalStore,
 } from "@web/features/ports/store"
+import { useMemo } from "react"
+import { toast } from "sonner"
 
 const matchesView = (group: PortGroup, view: PortView): boolean => {
   switch (view) {

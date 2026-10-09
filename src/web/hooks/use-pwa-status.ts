@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
 
 type PwaState = {
   online: boolean
@@ -6,49 +6,75 @@ type PwaState = {
   applyUpdate: () => void
 }
 
-export const usePwaStatus = (): PwaState => {
-  const [online, setOnline] = useState(() => navigator.onLine)
-  const [waiting, setWaiting] = useState<ServiceWorker | null>(null)
+let waitingWorker: ServiceWorker | null = null
+let waitingInitialized = false
+const waitingListeners = new Set<() => void>()
 
-  useEffect(() => {
-    const setOnlineState = () => setOnline(navigator.onLine)
-    window.addEventListener("online", setOnlineState)
-    window.addEventListener("offline", setOnlineState)
+const notifyWaiting = (worker: ServiceWorker | null) => {
+  waitingWorker = worker
+  for (const listener of waitingListeners) listener()
+}
 
-    if (!import.meta.env.PROD || !("serviceWorker" in navigator)) {
-      return () => {
-        window.removeEventListener("online", setOnlineState)
-        window.removeEventListener("offline", setOnlineState)
+const observeRegistration = (registration: ServiceWorkerRegistration) => {
+  if (registration.waiting) notifyWaiting(registration.waiting)
+  registration.addEventListener("updatefound", () => {
+    const installing = registration.installing
+    if (!installing) return
+    installing.addEventListener("statechange", () => {
+      if (
+        installing.state === "installed" &&
+        navigator.serviceWorker.controller
+      ) {
+        notifyWaiting(registration.waiting ?? installing)
       }
-    }
+    })
+  })
+}
 
-    let disposed = false
+const initializeWaitingStore = () => {
+  if (
+    waitingInitialized ||
+    !import.meta.env.PROD ||
+    !("serviceWorker" in navigator)
+  ) {
+    return
+  }
+  waitingInitialized = true
+  void navigator.serviceWorker.register("/sw.js").then(observeRegistration)
+}
 
-    const observeRegistration = (current: ServiceWorkerRegistration) => {
-      if (current.waiting) setWaiting(current.waiting)
-      current.addEventListener("updatefound", () => {
-        const installing = current.installing
-        if (!installing) return
-        installing.addEventListener("statechange", () => {
-          if (
-            !disposed &&
-            installing.state === "installed" &&
-            navigator.serviceWorker.controller
-          ) {
-            setWaiting(current.waiting ?? installing)
-          }
-        })
-      })
-    }
+const subscribeWaiting = (onChange: () => void) => {
+  waitingListeners.add(onChange)
+  initializeWaitingStore()
+  return () => waitingListeners.delete(onChange)
+}
 
-    void navigator.serviceWorker.register("/sw.js").then(observeRegistration)
+const getWaiting = () => waitingWorker
+const getWaitingServer = () => null
 
-    return () => {
-      disposed = true
-      window.removeEventListener("online", setOnlineState)
-      window.removeEventListener("offline", setOnlineState)
-    }
-  }, [])
+const subscribeOnline = (onChange: () => void) => {
+  window.addEventListener("online", onChange)
+  window.addEventListener("offline", onChange)
+  return () => {
+    window.removeEventListener("online", onChange)
+    window.removeEventListener("offline", onChange)
+  }
+}
+
+const getOnline = () => navigator.onLine
+const getOnlineServer = () => true
+
+export const usePwaStatus = (): PwaState => {
+  const online = useSyncExternalStore(
+    subscribeOnline,
+    getOnline,
+    getOnlineServer
+  )
+  const waiting = useSyncExternalStore(
+    subscribeWaiting,
+    getWaiting,
+    getWaitingServer
+  )
 
   const applyUpdate = () => {
     if (!waiting) return

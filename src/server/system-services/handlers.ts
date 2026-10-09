@@ -1,12 +1,12 @@
-import { initServer } from "@ts-rest/express"
 import { contract } from "@shared/api-contract"
 import { describeError } from "@shared/format"
+import { initServer } from "@ts-rest/express"
 import {
   listSystemServices,
   loadService,
+  RootRequiredError,
   restartService,
   revealService,
-  RootRequiredError,
   setServiceEnabled,
   startService,
   stopService,

@@ -1,11 +1,9 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   EthernetPortIcon,
   RefreshIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons"
-import { useState } from "react"
-import { toast } from "sonner"
+import { HugeiconsIcon } from "@hugeicons/react"
 import { formatTimestamp } from "@shared/format"
 import {
   AlertDialog,
@@ -30,6 +28,8 @@ import { Input } from "@web/components/ui/input"
 import { REFRESH_INTERVAL_SECONDS } from "@web/features/ports/store"
 import { usePorts } from "@web/features/ports/usePorts"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { useState } from "react"
+import { toast } from "sonner"
 import { PortFilterBar } from "./PortFilterBar"
 import { PortQuickViews } from "./PortQuickViews"
 import { PortTable } from "./PortTable"
@@ -78,13 +78,14 @@ export const PortsPage = () => {
                 className="h-7 w-full pl-7 md:w-64"
               />
             </div>
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Checkbox
+                aria-label="自动刷新"
                 checked={model.autoRefresh}
                 onCheckedChange={(checked) => model.setAutoRefresh(checked)}
               />
               自动刷新（{REFRESH_INTERVAL_SECONDS}s）
-            </label>
+            </div>
             <Button size="sm" variant="outline" onClick={model.refresh}>
               <HugeiconsIcon icon={RefreshIcon} />
               刷新

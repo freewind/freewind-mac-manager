@@ -1,8 +1,8 @@
-import { initServer, type AppRouteImplementation } from "@ts-rest/express"
 import { contract } from "@shared/api-contract"
 import { describeError } from "@shared/format"
-import { collectPortBindings } from "./scanner"
+import { type AppRouteImplementation, initServer } from "@ts-rest/express"
 import { killPortProcesses } from "./process-actions"
+import { collectPortBindings } from "./scanner"
 
 const s = initServer()
 

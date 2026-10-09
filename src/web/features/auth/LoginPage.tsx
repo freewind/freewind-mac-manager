@@ -1,10 +1,10 @@
-import { useState, type FormEvent } from "react"
 import { login } from "@shared/client-api"
 import { describeError } from "@shared/format"
 import { Alert, AlertDescription } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
+import { type FormEvent, useState } from "react"
 
 type LoginPageProps = {
   configured: boolean

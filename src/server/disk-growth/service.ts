@@ -1,8 +1,8 @@
+import { DATABASE_FILE } from "@server/env"
 import type { ScanStatus } from "@shared/api-contract"
 import { describeError } from "@shared/format"
-import { DATABASE_FILE } from "@server/env"
-import { DiskGrowthStore } from "./store"
 import { defaultScanConfig, scanFileSystem } from "./scanner"
+import { DiskGrowthStore } from "./store"
 
 const KEEP_SNAPSHOTS = 90
 /** 每日自动扫描时刻（本地时间）。 */

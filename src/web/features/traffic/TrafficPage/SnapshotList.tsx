@@ -1,10 +1,11 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Delete02Icon,
   Download01Icon,
   MoreHorizontalIcon,
   Upload01Icon,
 } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type { TrafficSnapshot } from "@shared/api-contract"
 import { formatBytes, formatTimestamp } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -37,10 +38,9 @@ import {
   ItemTitle,
 } from "@web/components/ui/item"
 import { ScrollArea } from "@web/components/ui/scroll-area"
-import { cn } from "@web/lib/utils"
-import type { TrafficSnapshot } from "@shared/api-contract"
 import { REALTIME_SNAPSHOT_ID } from "@web/features/traffic/store"
 import type { useTraffic } from "@web/features/traffic/useTraffic"
+import { cn } from "@web/lib/utils"
 
 type SnapshotListProps = {
   model: ReturnType<typeof useTraffic>

@@ -2,9 +2,9 @@ import { ApiPath, toContractPath } from "@shared/api-path"
 import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
 import {
   ServiceEnabledBodySchema,
+  ServicesResponseSchema,
   ServiceTargetBodySchema,
   ServiceTargetQuerySchema,
-  ServicesResponseSchema,
 } from "../schemas/system-services"
 
 const errorResponses = {

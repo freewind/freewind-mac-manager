@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { createAuthManager, type AuthManager } from "./auth"
+import { type AuthManager, createAuthManager } from "./auth"
 
 type AuthRequest = Parameters<AuthManager["issueCsrf"]>[0]
 type AuthResponse = Parameters<AuthManager["issueCsrf"]>[1]

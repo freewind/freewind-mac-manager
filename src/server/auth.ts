@@ -1,9 +1,9 @@
-import { initServer } from "@ts-rest/express"
 import { randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto"
 import { promisify } from "node:util"
-import type { NextFunction, Request, Response } from "express"
 import { authRoutes } from "@shared/api-contract/routes/auth"
 import { API_BASE } from "@shared/api-path"
+import { initServer } from "@ts-rest/express"
+import type { NextFunction, Request, Response } from "express"
 
 const s = initServer()
 const SESSION_COOKIE = "mac_manager_session"
@@ -24,9 +24,7 @@ const parseCookies = (header: string | undefined): Record<string, string> => {
     const key = item.slice(0, index).trim()
     try {
       cookies[key] = decodeURIComponent(item.slice(index + 1).trim())
-    } catch {
-      continue
-    }
+    } catch {}
   }
   return cookies
 }

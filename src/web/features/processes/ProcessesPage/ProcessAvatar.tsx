@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback } from "@web/components/ui/avatar"
-import { cn } from "@web/lib/utils"
 import { avatarToneClass } from "@web/features/processes/display"
+import { cn } from "@web/lib/utils"
 
 type ProcessAvatarProps = {
   name: string
@@ -12,7 +12,10 @@ type ProcessAvatarProps = {
 export const ProcessAvatar = (props: ProcessAvatarProps) => {
   const { name, size = "sm", className } = props
   return (
-    <Avatar size={size} className={cn("rounded-md after:rounded-md", className)}>
+    <Avatar
+      size={size}
+      className={cn("rounded-md after:rounded-md", className)}
+    >
       <AvatarFallback
         className={cn(
           "rounded-md text-[0.625rem] font-semibold",

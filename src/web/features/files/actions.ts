@@ -1,4 +1,4 @@
-import { FolderAddIcon } from "@hugeicons/core-free-icons"
+import type { FolderAddIcon } from "@hugeicons/core-free-icons"
 
 export type EntryActionIcon = typeof FolderAddIcon
 

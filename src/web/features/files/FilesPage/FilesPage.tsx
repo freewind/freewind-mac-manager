@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Alert02Icon,
   Copy01Icon,
@@ -10,8 +9,7 @@ import {
   PencilEdit01Icon,
   TrashIcon,
 } from "@hugeicons/core-free-icons"
-import { useState } from "react"
-import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { HugeiconsIcon } from "@hugeicons/react"
 import type { FileEntry } from "@shared/api-contract"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
@@ -22,11 +20,13 @@ import {
 import type { EntryAction } from "@web/features/files/actions"
 import { useFiles } from "@web/features/files/useFiles"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { useState } from "react"
 import { DeleteDialog } from "./DeleteDialog"
 import { DirectoryTree } from "./DirectoryTree"
 import { EntryNameDialog } from "./EntryNameDialog"
-import { FileTable } from "./FileTable"
 import { FilesToolbar } from "./FilesToolbar"
+import { FileTable } from "./FileTable"
 import { MoveDialog } from "./MoveDialog"
 import { PathBreadcrumb } from "./PathBreadcrumb"
 

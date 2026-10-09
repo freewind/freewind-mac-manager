@@ -1,7 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query"
-import { useMemo } from "react"
-import { toast } from "sonner"
 import { describeError } from "@shared/format"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   useDeleteSnapshots,
   useKillProcesses,
@@ -12,10 +10,12 @@ import {
   useTrafficStatus,
 } from "@web/features/traffic/queries"
 import {
-  REALTIME_SNAPSHOT_ID,
   ignoredProxyNames,
+  REALTIME_SNAPSHOT_ID,
   useTrafficLocalStore,
 } from "@web/features/traffic/store"
+import { useMemo } from "react"
+import { toast } from "sonner"
 
 export { REALTIME_SNAPSHOT_ID }
 

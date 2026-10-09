@@ -252,7 +252,8 @@ const buildEntries = (
   }
   const pruned = (target: string): boolean => {
     for (const prunePath of config.prunePaths) {
-      if (target === prunePath || target.startsWith(`${prunePath}/`)) return true
+      if (target === prunePath || target.startsWith(`${prunePath}/`))
+        return true
     }
     return false
   }

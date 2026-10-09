@@ -1,5 +1,5 @@
-import { initServer } from "@ts-rest/express"
 import { healthRoutes } from "@shared/api-contract/routes/health"
+import { initServer } from "@ts-rest/express"
 import { getHealth } from "./health.get"
 
 const s = initServer()

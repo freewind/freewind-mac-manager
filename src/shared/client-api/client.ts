@@ -1,5 +1,5 @@
-import { initClient } from "@ts-rest/core"
 import { contract } from "@shared/api-contract"
+import { initClient } from "@ts-rest/core"
 
 export class ApiRequestError extends Error {
   constructor(

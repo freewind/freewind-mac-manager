@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Loading03Icon,
   MoreHorizontalIcon,
@@ -6,6 +5,8 @@ import {
   Radar01Icon,
   TrashIcon,
 } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type { FrpProxy } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -31,7 +32,6 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import type { FrpProxy } from "@shared/api-contract"
 import type { FrpPageModel } from "@web/features/frp/useFrp"
 import { cn } from "@web/lib/utils"
 

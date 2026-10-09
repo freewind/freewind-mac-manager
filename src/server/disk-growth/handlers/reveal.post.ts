@@ -1,5 +1,5 @@
-import { revealInFinder } from "../file-actions.ts"
 import { describeError } from "@shared/format"
+import { revealInFinder } from "../file-actions.ts"
 
 export const revealEntry = async ({ body }: { body: { path: string } }) => {
   try {

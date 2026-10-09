@@ -1,6 +1,6 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import { InformationCircleIcon, LockIcon } from "@hugeicons/core-free-icons"
-import type { ReactNode } from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type { ProcessEntry } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -21,8 +21,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@web/components/ui/sheet"
-import { cn } from "@web/lib/utils"
-import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import {
   formatDuration,
   PROCESS_KIND_LABEL,
@@ -30,9 +28,11 @@ import {
   PROCESS_STATE_VARIANT,
   toPercent,
 } from "@web/features/processes/display"
-import type { ProcessEntry } from "@shared/api-contract"
 import { ProcessAvatar } from "@web/features/processes/ProcessesPage/ProcessAvatar"
 import type { useProcesses } from "@web/features/processes/useProcesses"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { cn } from "@web/lib/utils"
+import type { ReactNode } from "react"
 
 type ProcessDetailSheetProps = {
   model: ReturnType<typeof useProcesses>

@@ -1,5 +1,5 @@
-import { initServer } from "@ts-rest/express"
 import { diskGrowthRoutes } from "@shared/api-contract/routes/disk-growth"
+import { initServer } from "@ts-rest/express"
 import { trashEntry } from "./entry.delete"
 import { listEntries } from "./list-entries.get"
 import { listScans } from "./list-scans.get"

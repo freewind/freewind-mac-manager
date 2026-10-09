@@ -1,7 +1,6 @@
 export * from "./auth"
 export * from "./auth-types"
-export { dispatchUnauthorized } from "./client"
-export { apiClient } from "./client"
+export { apiClient, dispatchUnauthorized } from "./client"
 export * from "./dashboard"
 export * from "./disk-growth"
 export * from "./files"

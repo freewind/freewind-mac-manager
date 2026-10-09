@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
@@ -6,12 +5,13 @@ import {
   FolderOpenIcon,
   ShrinkDotIcon,
 } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
 import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Skeleton } from "@web/components/ui/skeleton"
-import { cn } from "@web/lib/utils"
 import { useDirectoryQuery } from "@web/features/files/queries"
 import type { FilesModel } from "@web/features/files/useFiles"
+import { cn } from "@web/lib/utils"
 
 type DirectoryTreeProps = {
   model: FilesModel

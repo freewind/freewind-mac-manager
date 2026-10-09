@@ -1,5 +1,5 @@
-import { formatBytes } from "@shared/format"
 import type { ProcessKind, ProcessState } from "@shared/api-contract"
+import { formatBytes } from "@shared/format"
 
 export const PROCESS_STATE_LABEL: Record<ProcessState, string> = {
   running: "运行中",
@@ -66,6 +66,7 @@ const AVATAR_TONES = [
 /** 进程头像的底色：按进程名散列到一组语义色，保证同一进程颜色稳定。 */
 export const avatarToneClass = (name: string): string => {
   let hash = 0
-  for (const char of name) hash = (hash * 31 + (char.codePointAt(0) ?? 0)) % 9973
+  for (const char of name)
+    hash = (hash * 31 + (char.codePointAt(0) ?? 0)) % 9973
   return AVATAR_TONES[hash % AVATAR_TONES.length]
 }

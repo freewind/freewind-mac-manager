@@ -1,5 +1,5 @@
-import { create } from "zustand"
 import { isDescendantPath } from "@web/features/files/domain"
+import { create } from "zustand"
 
 /**
  * 文件管理页里「跨组件共享的本地状态」集中放这里（Zustand）。

@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
@@ -9,7 +8,7 @@ import {
   MoreHorizontalIcon,
   Upload01Icon,
 } from "@hugeicons/core-free-icons"
-import { Fragment, useMemo, useState } from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
 import type { TrafficChild } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
@@ -41,8 +40,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@web/components/ui/tooltip"
-import { cn } from "@web/lib/utils"
 import type { useTraffic } from "@web/features/traffic/useTraffic"
+import { cn } from "@web/lib/utils"
+import { Fragment, useMemo, useState } from "react"
 
 type SortKey = "name" | "bytesIn" | "bytesOut" | "total"
 

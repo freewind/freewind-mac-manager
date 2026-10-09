@@ -1,8 +1,7 @@
-import express from "express"
-import { createExpressEndpoints } from "@ts-rest/express"
 import { authRoutes } from "@shared/api-contract/routes/auth"
+import { createExpressEndpoints } from "@ts-rest/express"
+import express from "express"
 import { createAuthManager, createAuthRouter } from "./auth"
-import { healthContract, healthRouter } from "./health/handlers"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
 import { diskGrowthContract, diskGrowthRouter } from "./disk-growth/handlers"
 import {
@@ -11,6 +10,7 @@ import {
   registerUploadEndpoint,
 } from "./files/handlers"
 import { frpContract, frpRouter } from "./frp/handlers"
+import { healthContract, healthRouter } from "./health/handlers"
 import { portsContract, portsRouter } from "./ports/handlers"
 import { processesContract, processesRouter } from "./processes/handlers"
 import {

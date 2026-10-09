@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import { contract } from "@shared/api-contract"
 import { generateOpenApi } from "@ts-rest/open-api"
 import { stringify } from "yaml"
-import { contract } from "@shared/api-contract"
 
 const projectRoot = join(import.meta.dirname, "..")
 const outputPath = join(projectRoot, "generated", "openapi.yaml")

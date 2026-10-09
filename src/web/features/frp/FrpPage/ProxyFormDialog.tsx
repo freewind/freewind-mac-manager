@@ -1,4 +1,8 @@
-import { useState } from "react"
+import {
+  FRP_PROXY_TYPES,
+  type FrpProxy,
+  type FrpProxyType,
+} from "@shared/api-contract"
 import { Button } from "@web/components/ui/button"
 import {
   Dialog,
@@ -23,11 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@web/components/ui/select"
-import {
-  FRP_PROXY_TYPES,
-  type FrpProxy,
-  type FrpProxyType,
-} from "@shared/api-contract"
+import { useState } from "react"
 
 type ProxyFormDialogProps = {
   onOpenChange: (open: boolean) => void

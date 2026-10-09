@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
   ArrowUp01Icon,
@@ -8,8 +7,9 @@ import {
   ServerStack01Icon,
   Wifi01Icon,
 } from "@hugeicons/core-free-icons"
-import { formatBytes } from "@shared/format"
+import { HugeiconsIcon } from "@hugeicons/react"
 import type { MachineOverview } from "@shared/api-contract"
+import { formatBytes } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import {
   Card,
@@ -18,7 +18,11 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import { Progress } from "@web/components/ui/progress"
-import { averageCoreUsage, formatRate, toPercent } from "@web/features/processes/display"
+import {
+  averageCoreUsage,
+  formatRate,
+  toPercent,
+} from "@web/features/processes/display"
 
 /** 网络进度条的满量程，用来把瞬时速率换算成可见长度。 */
 const NETWORK_FULL_SCALE = 4 * 1024 ** 2
@@ -33,8 +37,7 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
   const { cpu, memory, disk, network, system } = overview
   const cpuTotal = averageCoreUsage(cpu.coreUsage)
   const primaryDisk = disk[0] ?? null
-  const memoryUsedRatio =
-    memory.total === 0 ? 0 : memory.used / memory.total
+  const memoryUsedRatio = memory.total === 0 ? 0 : memory.used / memory.total
 
   return (
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -82,7 +85,9 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
             <span className="text-lg font-medium tabular-nums">
               {formatBytes(memory.used)}
             </span>
-            <Badge variant={memoryUsedRatio >= 0.85 ? "destructive" : "secondary"}>
+            <Badge
+              variant={memoryUsedRatio >= 0.85 ? "destructive" : "secondary"}
+            >
               共 {formatBytes(memory.total)}
             </Badge>
           </div>
@@ -174,7 +179,9 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
           <Progress
             value={toPercent(network.downloadRate / NETWORK_FULL_SCALE)}
           />
-          <Progress value={toPercent(network.uploadRate / NETWORK_FULL_SCALE)} />
+          <Progress
+            value={toPercent(network.uploadRate / NETWORK_FULL_SCALE)}
+          />
           <span className="flex items-center gap-1 truncate text-[0.625rem] text-muted-foreground">
             <HugeiconsIcon icon={ServerStack01Icon} className="size-3" />
             {network.interfaceName} · {network.address}

@@ -60,7 +60,9 @@ export const openApiDocsPlugin = (): Plugin => ({
       if (pathname === "/api-docs/openapi.yaml") {
         if (!existsSync(OPENAPI_PATH)) {
           response.statusCode = 404
-          response.end("generated/openapi.yaml 不存在，请先跑 pnpm generate:openapi")
+          response.end(
+            "generated/openapi.yaml 不存在，请先跑 pnpm generate:openapi"
+          )
           return
         }
         response.setHeader("Content-Type", MIME[".yaml"] ?? "application/yaml")
@@ -93,7 +95,10 @@ export const openApiDocsPlugin = (): Plugin => ({
         return
       }
 
-      response.setHeader("Content-Type", MIME[extname(filePath)] ?? "application/octet-stream")
+      response.setHeader(
+        "Content-Type",
+        MIME[extname(filePath)] ?? "application/octet-stream"
+      )
       createReadStream(filePath).pipe(response)
     })
   },

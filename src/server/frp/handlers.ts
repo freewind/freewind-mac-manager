@@ -1,6 +1,6 @@
-import { initServer } from "@ts-rest/express"
 import { contract } from "@shared/api-contract"
 import { describeError } from "@shared/format"
+import { initServer } from "@ts-rest/express"
 import { probeFrpProxy, readFrpConfig, saveFrpConfig } from "./service"
 
 const s = initServer()

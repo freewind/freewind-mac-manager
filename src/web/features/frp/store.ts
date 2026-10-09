@@ -1,5 +1,5 @@
-import { create } from "zustand"
 import type { FrpProbe, FrpProxyType } from "@shared/api-contract"
+import { create } from "zustand"
 
 export type FrpTypeFilter = "all" | FrpProxyType
 

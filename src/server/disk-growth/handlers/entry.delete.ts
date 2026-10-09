@@ -1,5 +1,5 @@
-import { moveToTrash } from "../file-actions.ts"
 import { describeError } from "@shared/format"
+import { moveToTrash } from "../file-actions.ts"
 
 export const trashEntry = async ({ query }: { query: { path: string } }) => {
   try {

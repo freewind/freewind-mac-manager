@@ -1,7 +1,7 @@
+import { contract } from "@shared/api-contract"
+import { ApiPath } from "@shared/api-path"
 import { initServer } from "@ts-rest/express"
 import type express from "express"
-import { ApiPath } from "@shared/api-path"
-import { contract } from "@shared/api-contract"
 import {
   copyEntries,
   createDirectory,

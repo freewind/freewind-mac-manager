@@ -15,7 +15,10 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("mac-manager-shell-") && key !== SHELL_CACHE)
+            .filter(
+              (key) =>
+                key.startsWith("mac-manager-shell-") && key !== SHELL_CACHE
+            )
             .map((key) => caches.delete(key))
         )
       )
@@ -43,7 +46,9 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           const copy = response.clone()
-          void caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy))
+          void caches
+            .open(SHELL_CACHE)
+            .then((cache) => cache.put(request, copy))
           return response
         })
         .catch(() => caches.match("/index.html"))
@@ -54,11 +59,15 @@ self.addEventListener("fetch", (event) => {
   if (STATIC_DESTINATIONS.has(request.destination)) {
     event.respondWith(
       caches.match(request).then(
-        (cached) => cached ?? fetch(request).then((response) => {
-          const copy = response.clone()
-          void caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy))
-          return response
-        })
+        (cached) =>
+          cached ??
+          fetch(request).then((response) => {
+            const copy = response.clone()
+            void caches
+              .open(SHELL_CACHE)
+              .then((cache) => cache.put(request, copy))
+            return response
+          })
       )
     )
   }

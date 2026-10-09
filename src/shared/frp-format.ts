@@ -1,4 +1,3 @@
-import { parse, stringify } from "smol-toml"
 import {
   FRP_PROXY_TYPES,
   type FrpConfigInput,
@@ -6,6 +5,7 @@ import {
   type FrpProxyType,
   type FrpServer,
 } from "@shared/api-contract"
+import { parse, stringify } from "smol-toml"
 
 /**
  * frpc 配置文本的解析与序列化。

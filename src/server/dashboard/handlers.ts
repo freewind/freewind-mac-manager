@@ -1,11 +1,11 @@
-import { initServer } from "@ts-rest/express"
-import { contract } from "@shared/api-contract"
-import { describeError } from "@shared/format"
 import {
   collectListeningPorts,
   collectMachineOverview,
   collectTopProcesses,
 } from "@server/common/collect"
+import { contract } from "@shared/api-contract"
+import { describeError } from "@shared/format"
+import { initServer } from "@ts-rest/express"
 
 const s = initServer()
 

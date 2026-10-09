@@ -1,9 +1,9 @@
 import os from "node:os"
-import { initServer } from "@ts-rest/express"
-import { contract } from "@shared/api-contract"
-import { describeError } from "@shared/format"
 import { collectMachineOverview } from "@server/common/collect"
 import { killProcesses } from "@server/common/kill"
+import { contract } from "@shared/api-contract"
+import { describeError } from "@shared/format"
+import { initServer } from "@ts-rest/express"
 import { collectProcesses } from "./collect"
 
 const s = initServer()

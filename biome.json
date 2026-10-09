@@ -1,0 +1,44 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.9/schema.json",
+  "plugins": [
+    "/Users/peng.li/.agents/skills/biome/plugins/no-flatmap-as-filter.grit",
+    "/Users/peng.li/.agents/skills/biome/plugins/no-setstate-in-effect.grit",
+    "/Users/peng.li/.agents/skills/biome/plugins/no-useref-as-state.grit",
+    "/Users/peng.li/.agents/skills/biome/plugins/no-deep-relative-import.grit",
+    "/Users/peng.li/.agents/skills/biome/plugins/prefer-type-alias.grit"
+  ],
+  "files": {
+    "includes": [
+      "**/*.{js,ts,tsx,json}",
+      "!dist",
+      "!dist-ssr",
+      "!generated",
+      "!vite.config.ts",
+      "!vitest.config.ts",
+      "!src/web/components/ui",
+      "!src/web/hooks/use-mobile.ts"
+    ]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noDefaultExport": "error",
+        "noEnum": "error"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "es5",
+      "semicolons": "asNeeded"
+    }
+  }
+}

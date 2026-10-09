@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
@@ -6,7 +5,7 @@ import {
   File01Icon,
   Folder01Icon,
 } from "@hugeicons/core-free-icons"
-import { Fragment, useMemo, useState } from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
 import type { FileEntry } from "@shared/api-contract"
 import { formatBytes, formatTimestamp } from "@shared/format"
 import { Button } from "@web/components/ui/button"
@@ -35,10 +34,11 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { cn } from "@web/lib/utils"
 import type { EntryAction } from "@web/features/files/actions"
-import { sortEntries, type FileSortKey } from "@web/features/files/domain"
+import { type FileSortKey, sortEntries } from "@web/features/files/domain"
 import type { FilesModel } from "@web/features/files/useFiles"
+import { cn } from "@web/lib/utils"
+import { Fragment, useMemo, useState } from "react"
 
 type FileTableProps = {
   model: FilesModel

@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Activity01Icon,
   AnalyticsUpIcon,
@@ -12,6 +11,7 @@ import {
   ServerStack01Icon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Collapsible,
   CollapsibleContent,

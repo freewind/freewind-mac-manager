@@ -1,11 +1,11 @@
-import { createReadStream, createWriteStream, existsSync } from "node:fs"
 import type { Dirent, ReadStream } from "node:fs"
+import { createReadStream, createWriteStream, existsSync } from "node:fs"
 import {
   copyFile,
   lstat,
   mkdir,
-  readFile,
   readdir,
+  readFile,
   realpath,
   rename,
   rm,
@@ -16,12 +16,12 @@ import path from "node:path"
 import type { Readable } from "node:stream"
 import { Transform } from "node:stream"
 import { pipeline } from "node:stream/promises"
+import { FILE_ROOT } from "@server/env"
 import type {
   DirectoryResponse,
   FileContentResponse,
   FileEntry,
 } from "@shared/api-contract"
-import { FILE_ROOT } from "@server/env"
 import { describeError } from "@shared/format"
 
 /** 上传中的临时后缀；带此后缀的文件不出现在目录列表里。 */

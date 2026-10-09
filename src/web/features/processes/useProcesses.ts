@@ -1,20 +1,39 @@
-import { useEffect, useMemo, useState } from "react"
-import { toast } from "sonner"
 import type { ProcessEntry } from "@shared/api-contract"
 import { describeError } from "@shared/format"
-import { useKillProcesses, useProcessList } from "@web/features/processes/queries"
 import {
-  useProcessesLocalStore,
+  useKillProcesses,
+  useProcessList,
+} from "@web/features/processes/queries"
+import {
   type ProcessScope,
+  useProcessesLocalStore,
 } from "@web/features/processes/store"
+import { useMemo, useSyncExternalStore } from "react"
+import { toast } from "sonner"
 
-const SCOPE_MATCHES: Record<ProcessScope, (item: ProcessEntry, user: string) => boolean> =
-  {
-    all: () => true,
-    mine: (item, user) => item.user === user,
-    system: (item, user) => item.user !== user,
-    ports: (item) => item.ports.length > 0,
-  }
+let clockMs = Date.now()
+
+const subscribeClock = (onChange: () => void): (() => void) => {
+  const timer = window.setInterval(() => {
+    clockMs = Date.now()
+    onChange()
+  }, 1000)
+  return () => window.clearInterval(timer)
+}
+
+const getClock = () => clockMs
+
+const useNowMs = () => useSyncExternalStore(subscribeClock, getClock, getClock)
+
+const SCOPE_MATCHES: Record<
+  ProcessScope,
+  (item: ProcessEntry, user: string) => boolean
+> = {
+  all: () => true,
+  mine: (item, user) => item.user === user,
+  system: (item, user) => item.user !== user,
+  ports: (item) => item.ports.length > 0,
+}
 
 /**
  * 进程管理的数据入口。
@@ -27,13 +46,7 @@ export const useProcesses = () => {
   const local = useProcessesLocalStore()
   const listQuery = useProcessList()
   const killMutation = useKillProcesses()
-  const [nowMs, setNowMs] = useState(() => Date.now())
-
-  // 运行时长与「上次更新几秒前」需要一个秒级时钟，与采样节奏解耦。
-  useEffect(() => {
-    const timer = setInterval(() => setNowMs(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [])
+  const nowMs = useNowMs()
 
   const processes = useMemo(
     () => listQuery.data?.processes ?? [],
@@ -103,7 +116,9 @@ export const useProcesses = () => {
           if (done.length > 0) {
             toast.success(
               `已${label} ${done
-                .map((item) => `${names.get(item.pid) ?? "进程"}（${item.pid}）`)
+                .map(
+                  (item) => `${names.get(item.pid) ?? "进程"}（${item.pid}）`
+                )
                 .join("、")}`
             )
           }

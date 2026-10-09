@@ -4,9 +4,9 @@ import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
 import {
   DeleteScansQuerySchema,
   EntriesQuerySchema,
+  EntriesResponseSchema,
   EntryPathBodySchema,
   EntryPathQuerySchema,
-  EntriesResponseSchema,
   ScanStartResponseSchema,
   ScanStatusSchema,
   ScansResponseSchema,

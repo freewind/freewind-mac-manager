@@ -1,10 +1,10 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
-import { ApiErrorSchema } from "../schemas/common"
-import { ProcessListResponseSchema } from "../schemas/processes"
 import {
+  ApiErrorSchema,
   KillProcessesBodySchema,
   KillProcessesResponseSchema,
 } from "../schemas/common"
+import { ProcessListResponseSchema } from "../schemas/processes"
 
 const errorResponses = {
   400: ApiErrorSchema,

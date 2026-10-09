@@ -65,7 +65,7 @@ const parseLsof = (output: string): SocketRow[] => {
   } | null = null
 
   const flush = (): void => {
-    if (process && socket && socket.name) {
+    if (process && socket?.name) {
       rows.push({
         pid: process.pid,
         processName: process.name,

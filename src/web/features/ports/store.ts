@@ -1,5 +1,5 @@
-import { create } from "zustand"
 import type { PortCategory, PortProtocol } from "@web/features/ports/domain"
+import { create } from "zustand"
 
 /** 左侧快捷视图：状态、暴露面与分类的快捷筛选。 */
 export type PortView =

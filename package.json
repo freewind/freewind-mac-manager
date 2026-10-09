@@ -6,11 +6,11 @@
   "packageManager": "pnpm@12.4.1",
   "scripts": {
     "dev": "pnpm generate:openapi && vite --open",
-    "build": "pnpm generate:openapi && tsc --noEmit && vite build && vite build --ssr src/server/main.ts --outDir dist-ssr/server",
+    "build": "pnpm generate:openapi && pnpm typecheck && vite build && vite build --ssr src/server/main.ts --outDir dist-ssr/server",
     "start": "node dist-ssr/server/main.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:openapi": "tsx scripts/generate-openapi.ts"
@@ -40,7 +40,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@eslint/js": "^10",
+    "@biomejs/biome": "2.5.9",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
     "@ts-rest/open-api": "^3.52.1",
@@ -49,17 +49,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6",
-    "eslint": "^10",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.7",
-    "globals": "^17",
     "jsdom": "^30.1.2",
-    "prettier": "^3.9.9",
-    "prettier-plugin-tailwindcss": "^0.8.1",
     "swagger-ui-dist": "^5.33.1",
     "tsx": "^4.23.15",
     "typescript": "~6.0.2",
-    "typescript-eslint": "^8",
     "vite": "^8",
     "vitest": "^5.0.3",
     "yaml": "^2.9.1"

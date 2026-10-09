@@ -1,4 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ServiceDomain } from "@shared/api-contract"
 import {
   fetchSystemServices,
@@ -9,6 +8,7 @@ import {
   stopSystemService,
   uninstallSystemService,
 } from "@shared/client-api"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ServiceAction } from "@web/features/system-services/actions"
 
 /** 远程状态统一走 TanStack Query，数据来源是后端 /api/system-services。 */

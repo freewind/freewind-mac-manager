@@ -46,13 +46,20 @@ export const parseLsofOutput = (output: string): Map<number, number[]> => {
   }
 
   return new Map(
-    [...result.entries()].map(([pid, ports]) => [pid, [...ports].sort((a, b) => a - b)])
+    [...result.entries()].map(([pid, ports]) => [
+      pid,
+      [...ports].sort((a, b) => a - b),
+    ])
   )
 }
 
 /** 批量取若干进程当前占用的本地端口（一次 lsof 调用）。 */
-export const snapshotPorts = async (pids: number[]): Promise<Map<number, number[]>> => {
-  const targets = [...new Set(pids)].filter((pid) => Number.isInteger(pid) && pid > 0)
+export const snapshotPorts = async (
+  pids: number[]
+): Promise<Map<number, number[]>> => {
+  const targets = [...new Set(pids)].filter(
+    (pid) => Number.isInteger(pid) && pid > 0
+  )
   if (targets.length === 0) {
     return new Map()
   }

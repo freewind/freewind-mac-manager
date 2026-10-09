@@ -1,7 +1,4 @@
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@web/components/ui/toggle-group"
+import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import type {
   PortExposureFilter,
   PortProtocolFilter,
@@ -41,9 +38,7 @@ export const PortFilterBar = (props: PortFilterBarProps) => {
         label="协议"
         options={PROTOCOL_OPTIONS}
         value={model.protocol}
-        onChange={(value) =>
-          model.setProtocol(value as PortProtocolFilter)
-        }
+        onChange={(value) => model.setProtocol(value as PortProtocolFilter)}
       />
       <FilterGroup
         label="状态"

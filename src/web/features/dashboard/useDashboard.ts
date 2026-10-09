@@ -1,6 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query"
-import { useMemo } from "react"
 import type { MemoryInfo, ProcessInfo } from "@shared/api-contract"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   dashboardKeys,
   useListeningPorts,
@@ -8,9 +7,10 @@ import {
   useTopProcesses,
 } from "@web/features/dashboard/queries"
 import {
-  useDashboardLocalStore,
   type ProcessSortKey,
+  useDashboardLocalStore,
 } from "@web/features/dashboard/store"
+import { useMemo } from "react"
 
 export type MemoryPressure = {
   label: string

@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react"
-import { formatBytes } from "@shared/format"
 import type { TreeNode } from "@shared/api-contract"
+import { formatBytes } from "@shared/format"
 import { useSubtree } from "@web/features/disk-growth/queries"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
+import { useMemo, useState } from "react"
 
 const ROW_HEIGHT = 22
 const MAX_DEPTH = 4
@@ -133,11 +133,13 @@ export const IcicleChart = ({ scanId, baselineScanId }: IcicleChartProps) => {
             height={chartHeight}
             className="select-none"
           >
+            <title>磁盘占用分布图</title>
             {blocks.map((block) => {
               const x = (block.start / VIEW_WIDTH) * VIEW_WIDTH
               const active = hovered === block.path
               return (
                 <g key={block.path}>
+                  {/* biome-ignore lint/a11y/useSemanticElements: SVG rect is the interactive chart cell. */}
                   <rect
                     x={x}
                     y={block.depth * ROW_HEIGHT}
@@ -146,6 +148,17 @@ export const IcicleChart = ({ scanId, baselineScanId }: IcicleChartProps) => {
                     rx={2}
                     fill={`hsl(${block.hue} 68% ${active ? block.lightness - 14 : block.lightness}%)`}
                     className="cursor-pointer transition-colors"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${block.path}，${formatBytes(block.size)}`}
+                    onKeyDown={(event) => {
+                      if (
+                        (event.key === "Enter" || event.key === " ") &&
+                        block.depth !== 0
+                      ) {
+                        enterFocus(block.path)
+                      }
+                    }}
                     onMouseEnter={() =>
                       setHovered(`${block.path} · ${formatBytes(block.size)}`)
                     }
