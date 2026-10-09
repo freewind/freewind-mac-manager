@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { GrowthEntry, ScanStatus, ScansResponse, TreeNode } from "@shared/api-contract"
+import type { GrowthEntry, ScanStatus, ScansResponse, TreeNode } from "@shared/api-contract/types"
 import {
   deleteScans as deleteScansApi,
   fetchEntries,

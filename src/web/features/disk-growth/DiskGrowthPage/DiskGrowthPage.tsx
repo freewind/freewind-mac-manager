@@ -14,7 +14,7 @@ import {
   TrashIcon,
 } from "@hugeicons/core-free-icons"
 import { useMemo, useState, type ComponentType, type ReactNode } from "react"
-import type { GrowthEntry } from "@shared/api-contract"
+import type { GrowthEntry } from "@shared/api-contract/types"
 import { formatBytes, formatSignedBytes, formatTimestamp } from "@shared/format"
 import {
   AlertDialog,

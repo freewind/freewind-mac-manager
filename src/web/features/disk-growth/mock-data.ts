@@ -3,7 +3,7 @@ import type {
   ScanSnapshot,
   ScanStatus,
   TreeNode,
-} from "@shared/api-contract"
+} from "@shared/api-contract/types"
 
 type MockNode = {
   path: string

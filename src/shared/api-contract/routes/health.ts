@@ -9,4 +9,4 @@ export const healthRoutes = {
       200: HealthSchema,
     },
   },
-}
+} as const

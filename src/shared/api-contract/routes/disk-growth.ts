@@ -18,7 +18,7 @@ import {
 const errorResponses = {
   400: ApiErrorSchema,
   500: ApiErrorSchema,
-}
+} as const
 
 export const diskGrowthRoutes = {
   listScans: {
@@ -91,4 +91,4 @@ export const diskGrowthRoutes = {
       ...errorResponses,
     },
   },
-}
+} as const

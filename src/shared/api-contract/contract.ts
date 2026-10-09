@@ -1,12 +1,25 @@
 import { API_BASE } from "@shared/api-path"
 import { c } from "./init"
+import { dashboardRoutes } from "./routes/dashboard"
 import { diskGrowthRoutes } from "./routes/disk-growth"
+import { filesRoutes } from "./routes/files"
 import { healthRoutes } from "./routes/health"
+import { portsRoutes } from "./routes/ports"
+import { processesRoutes } from "./routes/processes"
+import { systemServicesRoutes } from "./routes/system-services"
+import { trafficRoutes } from "./routes/traffic"
 
+/** 按域拆到 routes/ 下，这里只做汇总，避免单文件越写越大。 */
 export const contract = c.router(
   {
     ...healthRoutes,
     ...diskGrowthRoutes,
+    ...trafficRoutes,
+    ...dashboardRoutes,
+    ...portsRoutes,
+    ...filesRoutes,
+    ...processesRoutes,
+    ...systemServicesRoutes,
   },
   { pathPrefix: API_BASE }
 )
