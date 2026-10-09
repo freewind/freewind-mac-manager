@@ -36,6 +36,8 @@ export const ApiPath = {
   [`${API_BASE}/system-services/restart`]: `${API_BASE}/system-services/restart`,
   [`${API_BASE}/system-services/loaded`]: `${API_BASE}/system-services/loaded`,
   [`${API_BASE}/system-services/reveal`]: `${API_BASE}/system-services/reveal`,
+  [`${API_BASE}/frp/config`]: `${API_BASE}/frp/config`,
+  [`${API_BASE}/frp/probe`]: `${API_BASE}/frp/probe`,
 } as const
 
 export type ApiPathKey = keyof typeof ApiPath

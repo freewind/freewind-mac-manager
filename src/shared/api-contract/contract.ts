@@ -3,6 +3,7 @@ import { c } from "./init"
 import { dashboardRoutes } from "./routes/dashboard"
 import { diskGrowthRoutes } from "./routes/disk-growth"
 import { filesRoutes } from "./routes/files"
+import { frpRoutes } from "./routes/frp"
 import { healthRoutes } from "./routes/health"
 import { portsRoutes } from "./routes/ports"
 import { processesRoutes } from "./routes/processes"
@@ -20,6 +21,7 @@ export const contract = c.router(
     ...filesRoutes,
     ...processesRoutes,
     ...systemServicesRoutes,
+    ...frpRoutes,
   },
   { pathPrefix: API_BASE }
 )

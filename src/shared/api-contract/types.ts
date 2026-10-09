@@ -130,3 +130,21 @@ export type ServicesResponse = z.infer<typeof ServicesResponseSchema>
 export type ServiceTargetBody = z.infer<typeof ServiceTargetBodySchema>
 export type ServiceTargetQuery = z.infer<typeof ServiceTargetQuerySchema>
 export type ServiceEnabledBody = z.infer<typeof ServiceEnabledBodySchema>
+
+import {
+  FrpConfigInputSchema,
+  FrpConfigSchema,
+  FrpProbeBodySchema,
+  FrpProbeSchema,
+  FrpProxySchema,
+  FrpProxyTypeSchema,
+  FrpServerSchema,
+} from "./schemas/frp"
+
+export type FrpProxyType = z.infer<typeof FrpProxyTypeSchema>
+export type FrpProxy = z.infer<typeof FrpProxySchema>
+export type FrpServer = z.infer<typeof FrpServerSchema>
+export type FrpConfig = z.infer<typeof FrpConfigSchema>
+export type FrpConfigInput = z.infer<typeof FrpConfigInputSchema>
+export type FrpProbeBody = z.infer<typeof FrpProbeBodySchema>
+export type FrpProbe = z.infer<typeof FrpProbeSchema>
