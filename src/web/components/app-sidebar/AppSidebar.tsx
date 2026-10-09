@@ -2,6 +2,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import {
   AnalyticsUpIcon,
   CircleGaugeIcon,
+  CpuIcon,
   DashboardSpeed02Icon,
   EthernetPortIcon,
   ServerStack01Icon,
@@ -23,6 +24,7 @@ import {
 export type FeatureKey =
   | "overview"
   | "disk-growth"
+  | "processes"
   | "traffic"
   | "ports"
   | "system-services"
@@ -36,6 +38,7 @@ type FeatureItem = {
 const FEATURES: FeatureItem[] = [
   { key: "overview", label: "概览", icon: CircleGaugeIcon },
   { key: "disk-growth", label: "磁盘增长", icon: AnalyticsUpIcon },
+  { key: "processes", label: "进程管理", icon: CpuIcon },
   { key: "traffic", label: "流量监控", icon: DashboardSpeed02Icon },
   { key: "ports", label: "端口管理", icon: EthernetPortIcon },
   { key: "system-services", label: "系统服务", icon: ServerStack01Icon },
