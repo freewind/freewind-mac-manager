@@ -1,137 +1,217 @@
 # AGENTS.md — freewind-mac-manager 开发规范
 
-本文档是本项目的唯一开发标准。任何 AI 或人修改本项目前先读这里，所有约定与本文冲突时以本文为准。
+本文是本项目的开发标准。修改前先读本文；存量偏差和未实现能力记录在 [TODO.md](./TODO.md)，不能把规范要求当成已经完成的功能。
 
-## 一、项目定位
+项目的明确约束优先于 AI Wiki 的通用默认值。Wiki 用于查阅技术事实与可复用经验，不因其目录模板、个人偏好或工具检查报告而机械重构项目。
 
-Mac 多功能控制面板（工具网站）：把散落在命令行里的 Mac 系统信息（流量、磁盘、进程、端口、服务等）收进一个网页，便于在电脑上查看与操作，也便于人在外面用手机查看和快速操作。
+## 一、根本目标与产品边界
 
-- 每个功能是一个**独立页面**，互不耦合。
-- 页面之间**共用**：技术架构、契约层、client-api、后端基础设施、UI 组件与工具函数。
-- 新功能按「契约 → client-api → 后端 handler → 前端 feature」的既有套路接入，禁止另起一套。
+个人 Mac 多功能控制台：把流量、磁盘、进程、端口、文件和系统服务等能力集中到网页，既能在电脑上使用，也能在外出时通过手机查看与快速操作。
 
-## 二、技术栈（固定，不得替换）
+- **手机默认完整可用**，并以可安装的 PWA 运行；桌面提供更大的信息视野与操作空间，不另写一套业务。
+- **操作可信**：能区分实时数据、历史数据、执行中、失败和结果未知，不误报成功，不因弱网重复执行危险动作。
+- **访问安全**：登录与后端鉴权保护 Mac 的数据和操作能力，不能只隐藏前端页面。
+- **维护简单**：功能按域独立，公共能力复用，改动容易定位，不以文件数量、目录深度或形式统一作为质量目标。
+- 本项目不是多用户管理平台；没有明确需求时不增加注册、角色系统等能力。
 
-- 前端：React 19 + Vite 8 + TypeScript（strict）
-- 契约：ts-rest（`@ts-rest/core` / `@ts-rest/express`），zod 定义 schema
-- 数据库：`node:sqlite`（内置，无第三方驱动）
-- UI：shadcn（style `base-mira`，紧凑风格，适合手机）+ Tailwind CSS 4，图标 hugeicons
-- 远程状态：TanStack Query；页面共享状态：Zustand；组件内部状态：`useState`
-- 后端：Express 5，dev 与生产共用 `createApp()`
+本规范约束应用本身，不涉及外部部署包装。
 
-## 三、目录结构与职责
+## 二、技术栈与运行架构
 
-```
+沿用现有技术栈，不因通用默认规范擅自替换：
+
+- React 19 + Vite 8 + TypeScript strict。
+- Express 5；开发与生产复用 `createApp()`，前端与 API 同端口，客户端使用相对地址。
+- ts-rest（`@ts-rest/core` / `@ts-rest/express`）+ zod；契约是请求、响应与类型的唯一来源。
+- `node:sqlite`；只使用 `env.ts` 的 `DATABASE_FILE`。
+- shadcn `base-mira` + Tailwind CSS 4；图标用 hugeicons。
+- TanStack Query 管理远程状态，Zustand 管理必要的共享本地状态，`useState` 管理组件内部状态。
+- ESLint + Prettier 保持现有工具链；测试采用 Vitest，组件测试采用 Testing Library。
+
+模块别名保持 `@web`、`@server`、`@shared`，类型检查、构建与测试配置必须一致。版本事实以依赖和锁文件为准。
+
+## 三、组织原则：按域、浅层、边界清楚
+
+### 3.1 运行时与依赖边界
+
+```text
 src/
-  shared/            # 前后端共用
-    api-path/        # 路径唯一来源：API_BASE + ApiPath
-    api-contract/    # 契约：contract.ts 汇总，routes/ 与 schemas/ 按域拆分
-    client-api/      # 前端唯一 HTTP 出口，按域拆文件，index.ts 汇总导出
-    format.ts        # 通用格式化（formatBytes 等）
-  server/            # 后端，按域一目录
-    <域>/handlers.ts # 本域路由实现（见 4.4）
-    common/          # 跨域后端工具（kill、collect、file-actions）
-    app.ts           # 注册所有域的 endpoints
-    env.ts           # 端口、目录、数据库路径等唯一定义处
+  shared/
+    api-path/          路径唯一来源
+    api-contract/      routes、schemas、派生类型与汇总入口
+    client-api/        契约客户端与具名调用
+    format.ts          真正通用的纯函数
+  server/
+    <域>/              handler、服务、采集与存储等按需组织
+    common/            跨域后端能力
+    app.ts             公共中间件与各域挂载
+    env.ts             应用配置与运行目录的统一入口
   web/
-    components/ui/   # shadcn 组件，禁止手写改造其内部
-    components/app-sidebar/  # 全局侧边栏（功能菜单唯一清单）
-    features/<域>/   # 每域一套文件，见 4.5
+    features/<域>/     页面、查询、hook、组件与域内工具
+    components/ui/     官方 shadcn 组件源码
+    components/        跨域布局、交互模式与公共组件
+    hooks/             跨域前端 hook
 ```
 
-模块路径别名固定：`@web` `@server` `@shared`（tsconfig 与 vite alias 一致，勿加第四种）。
+- 前端不得引用后端实现，后端不得引用前端实现。
+- `shared` 默认只放契约、类型与无 IO 的纯逻辑；现有 `client-api` 是明确例外，它是客户端传输边界，不得混入 Node 或业务页面依赖。
+- 功能之间不得引用对方页面、store 或私有实现。跨域调用经公共契约或提取后的公共能力。
+- 公共基础层不得反向依赖具体功能域；只在出现稳定的共同语义时提取复用，不为消除几行相似代码建立通用框架。
 
-## 四、硬规范
+### 3.2 域内默认浅层组织
 
-### 4.1 契约（契约即接口）
+- **代码归属不等于目录嵌套**：不采用递归金字塔，不让目录复制 JSX 组件树，不强制 `children/children/`。
+- 小组件直接放在域内或一层 `components/` 中；不要求每个组件都有同名目录和 `index.ts`。
+- 页面、hook、查询、工具等按职责命名；已有合理名称不因 `domain/display/labels/actions` 不同而强制归一。
+- 只有形成独立业务子模块、明显的私有实现组或独立生命周期时才新增目录层级；不规定机械的最大层数。
+- 组件树调整不应迫使文件跟着搬家；模块接口与依赖约束才是边界，目录深度不是隔离机制。
+- 页面入口保持清楚；复杂逻辑按语义拆分，不按行数或“一文件一函数”机械拆分。
+- `queries.ts`、`store.ts`、`useXxx.ts` 按需存在，不凑固定五件套，不创建空 store、空 hook 或空 barrel。
+- `index.ts` 如存在只做转发；不为每个小文件建立出口，跨域共享模块应提供稳定入口。
 
-1. 新端点在 `shared/api-contract/routes/<域>.ts` 定义，schema 在 `schemas/<域>.ts`。
-2. **路径只写一处**：先加到 `shared/api-path/index.ts` 的 `ApiPath`，routes 里用 `toContractPath(ApiPath[...])` 引用，禁止在 routes 里写字符串路径。
-3. `contract.ts` 只做汇总拼接；`app.ts` 只做挂载；业务路由归属各域 handler。
-4. 每个端点的 `responses` 必须带 `400/500` 错误响应（`errorResponses` 展开），需要 403 的域另加。
+验收看：一个功能是否容易定位、修改是否集中、依赖是否单向、文件是否有清晰职责。
 
-### 4.2 状态码规则（统一后）
+## 四、契约与 HTTP 边界
 
-- 读操作成功：`200`
-- 创建资源：`201`
-- 异步/有后续副作用的动作：`202`
-- 客户端入参错误：`400`；需要 root：`403`；服务端内部错误：`500`
-- 动作类响应体统一 `{ message: string }`（`ActionResponseSchema`），不用 `{ ok: true }`
+### 4.1 单一来源
 
-### 4.3 SQLite
+- API 路径统一定义在 `shared/api-path` 的 `ApiPath`，使用可读的语义键；路径字符串不在 routes、handler 或客户端重复维护。
+- routes 按域定义在 `shared/api-contract/routes/`，schema 按域定义在 `schemas/`，类型从 schema 派生。
+- 真正跨域的 `ApiErrorSchema`、`ActionResponseSchema`、进程操作等公共 schema 放 `schemas/common.ts`，不寄居在其他业务域。
+- `contract.ts` 只汇总契约；前端运行时调用只经过 `client-api`，可以从契约公共入口导入类型，但不能直接调用 contract、`initClient` 或 API 路径。
+- 同一 TypeScript 应用复用 ts-rest 的类型能力；OpenAPI 由契约生成用于文档，不额外维护重复 DTO、客户端样板或第二套类型来源。
+- JSON 端点接入契约；文件上传、下载、流式响应等传输例外可以独立挂载，但路径、入参校验、鉴权与错误行为必须明确。
+- 生产功能必须接真实后端；禁止 mock/demo 回退掩盖故障。测试中的受控替身不受此限制。
 
-- **单库**：只用 `env.ts` 导出的 `DATABASE_FILE`，禁止各域自拼 `.sqlite3` 路径。
-- 各域在自己 store 类里 `CREATE TABLE IF NOT EXISTS` 自建表，表名带域前缀（如 `traffic_samples`）。
-- 打开库时统一 `PRAGMA journal_mode=WAL` + `PRAGMA synchronous=NORMAL`；批量写用 `BEGIN IMMEDIATE`/`COMMIT`/`ROLLBACK` 包裹。
+### 4.2 动词与状态码按语义使用
 
-### 4.4 后端 handler
+- GET：只读；PUT：完整替换；PATCH：局部更新；DELETE：删除；POST：创建资源或执行复杂动作。读取不能产生业务写入副作用。
+- `200`：读取成功，或动作已经完成并返回结果。
+- `201`：资源已创建，返回新资源或其标识。
+- `202`：请求已接收但任务尚未完成，必须有查询状态的途径；不能把“有副作用”当成使用 202 的理由。
+- `204`：成功且不返回正文；不再同时返回 message。
+- `400`：入参错误；`401`：未登录或会话失效；`403`：已鉴权但权限不足，包括系统权限不足。
+- `404`：资源不存在；`409`：状态冲突；`429`：请求受限；`500`：未预期的内部错误。
+- 每个端点显式声明实际可能返回的状态与 schema；受保护端点包含 401，错误响应复用公共定义，不把所有异常都归为 400。
+- 只有消息的已完成动作返回 `ActionResponseSchema { message }`，不用 `{ ok: true }`；资源、批量结果和任务状态返回自己的强类型结构，不强塞进 message。
 
-- 每域一个 `server/<域>/handlers.ts`，导出 `<域>Contract` + `<域>Router`（`s.router(...)`）。
-- handler 内 `try/catch`，按 4.2 返回对应状态码，错误文案 `error instanceof Error ? error.message : String(error)`。
-- 跨域能力放 `server/common/`，禁止复制粘贴。
+## 五、后端、存储与操作安全
 
-### 4.5 前端 feature 结构（每域固定五个文件）
+### 5.1 后端分工
 
-```
-features/<域>/
-  store.ts      # Zustand：命名统一 use<域>LocalStore，只放跨组件本地状态
-  queries.ts    # TanStack Query：导出 query key 常量 <域>Keys，导出 useXxx hook
-  use<域>.ts    # 数据入口 hook，命名统一 use<域>（不用 use<域>Page）
-  <域>Page/     # 页面组件（PascalCase 目录 + index.ts）
-  其余：domain/labels/actions 等纯函数、常量、类型文件
-```
+- 每域对外提供 `<域>Contract` 和 `<域>Router`，命名反映真实归属；health 不挂在 disk-growth 名下。
+- 小域可用 `handlers.ts`，大域可用 `handlers/index.ts` 汇总独立端点，两种内部组织都允许。
+- handler 负责入参到服务的映射和响应，业务与 IO 能力按需要放服务、采集或 store；`app.ts` 不承载域内业务。
+- 已知错误按语义映射，未预期异常有统一兜底；可以共享错误处理，不要求每个端点复制 `try/catch`。
+- 跨域后端能力放 `server/common/`；不要为普通小功能额外堆叠空的分层。
+- 请求、文件、上传、采集与外部命令有明确的大小、数量或时限边界，不依赖“只在本机”来放弃校验。
 
-- **query key**：一律 `export const <域>Keys = { ... } as const`，禁止私有 `KEYS`。
-- **HTTP**：queryFn/mutationFn 只调 `@shared/client-api`，禁止组件直接 `fetch`/碰 contract。
-- **`unwrap` 只有一份**：放 `client-api/client.ts` 导出，各域导入，禁止再复制。
-- **远程数据永远走 TanStack Query**，不进 Zustand，不在组件里 `useEffect` 拉数。
-- **新增功能必须有真实后端**：禁止 `mock-data.ts`、禁止 demo 回退（历史 mock 已全部删除，勿回头）。
+### 5.2 单库与数据保护
 
-### 4.6 通知
+- 仅使用 `env.DATABASE_FILE`，禁止各域自行拼接数据库文件。
+- 各域创建并维护自己的表，表名带域前缀；初始化包含 `journal_mode=WAL` 与 `synchronous=NORMAL`。
+- 批量或关联写入使用事务，失败回滚；数据库迁移必须考虑已有数据，不能简单换路径后丢掉历史记录。
+- 测试使用临时目录和临时数据库，不能写入真实记录或执行真实的删除、杀进程、服务重启。
 
-- 统一用 sonner `toast.success/error/info`（`use<域>.ts` 里调用）。
-- 禁止自造 `notice` 状态 + 页内 Alert 展示（历史实现待整改，见 `TODO.md`）。
+### 5.3 登录与鉴权
 
-### 4.7 响应式：只有 768（md）一条线
+- 登录采用服务端会话，覆盖所有敏感 API，包括独立上传、下载和流式端点；不能只做页面跳转或按钮隐藏。
+- 公开端点只允许明确列出的登录入口、静态应用资源与不泄露系统信息的最小探活接口。
+- 密码用成熟密码哈希方案保存，凭据不进入源码、日志、URL 或前端持久存储。
+- 会话使用随机标识及 `HttpOnly` Cookie，设置合理的 `SameSite`、有效期和服务端撤销能力；生产 Cookie 设置 `Secure`，退出使会话失效。
+- Cookie 鉴权的写操作必须有 CSRF 防护；登录尝试限制频率，错误信息不泄露敏感细节。
+- 401 在客户端统一处理：停止相关轮询与动作、清除敏感查询缓存并回到登录；不自动重试写操作。
+- 进程以普通用户权限运行；需要系统权限的操作明确拒绝或走受控能力，不能为方便而让整个应用长期以 root 运行。
 
-- 断点只用 Tailwind 默认 `md`（768px）二分：`<768 = 手机`，`≥768 = 桌面`，两套布局直接切换，不做渐进式。
-- 禁止页面里使用 `sm:`/`lg:`/`xl:`/`2xl:` 断点（对话框宽度等 shadcn 默认类除外）。
-- 桌面/手机需要 JS 判断时用 `useIsMobile()`（`hooks/use-mobile.ts`，同 768）。
-- 手机端遵循移动端实践：详情用 Sheet/侧边抽屉、优先支持滑动操作、点击目标 ≥44px。
-- shadcn 组件内部（如 sidebar 的 `md:`）不动。
+### 5.4 危险动作与后台任务
 
-### 4.8 UI 组件
+- 删除、终止进程、重启服务和覆盖配置等有风险操作明确显示对象、数量和影响；确认用动作化文案，不用含糊的“确定”。
+- 前端确认不是安全边界：后端仍校验目标、权限、路径及当前状态，不能信任客户端传来的对象信息。
+- 文件操作校验允许范围，并处理路径穿越、符号链接与目标变化；调用外部命令不拼接不可信 shell 文本。
+- 写操作禁止离线排队、自动重放或盲重试；执行中阻止重复提交，必要时提供服务端幂等或并发冲突保护。
+- 请求超时或连接中断表示“结果未知”，不能直接提示操作失败或安全重试；通过任务状态或重新读取目标核实结果。
+- 长任务由后端管理，返回可查询的标识或状态；PWA 切后台、关闭或重启不能决定任务是否继续，也不能靠前端定时器维持执行。
 
-- 优先用 `components/ui/` 已有 shadcn 组件与默认变体；缺组件用 `pnpm dlx shadcn add` 添加，**不手写、不改其内部**。
-- 弹层选择：危险操作确认用 `AlertDialog`，编辑/填表用 `Dialog`，移动端详情用 `Sheet`。
-- 图标用 hugeicons（`@hugeicons/core-free-icons`），不混用其他图标库。
-- 组件内小状态用 `useState`；表格排序、弹窗开关等单组件状态留组件内，不进 store。
+## 六、前端状态与反馈
 
-### 4.9 代码风格
+- 远程数据归 TanStack Query；query/mutation 只调用 `client-api`，不在组件 `useEffect` 中另写请求链，不复制进 Zustand。
+- query key 按域导出 `xxxKeys`，参数进入 key；成功后的失效范围、轮询间隔、取消和重试策略明确。
+- Zustand 只承载确有跨组件需要的本地状态，按生命周期限定作用域；命名用 `useXxxLocalStore`，复杂时才使用 slices。
+- 组件内小状态用 `useState`。需要刷新、分享或返回恢复的导航状态归 URL/历史，不用全局 store 代替路由。
+- 页面入口 hook 按需命名 `useXxx`，负责数据与动作编排；不把所有小组件状态都提升进去。
+- `client-api/client.ts` 统一传输、解包与鉴权错误处理；`unwrap` 只保留一份，具名查询用 `fetchXxx`，动作用动词加资源。
+- 通用错误转换提取到合适的公共位置；前端显示可理解的业务错误，内部异常和敏感细节留在脱敏的服务端日志。
+- **短暂操作反馈**使用 sonner，由动作编排处触发一次；**表单错误、持续故障和离线状态**在对应位置持续展示，不用 toast 替代。
+- 禁止另建自造 `notice` 队列重复实现 toast；允许确有业务含义的页内状态和 Alert。
+- 数据必须有加载、空、错误状态。历史快照与过期缓存标明时间；弱网时保留的数据不能冒充当前状态，破坏性动作不做未经确认的乐观成功展示。
 
-- 导出一律 `export const xxx = ...` / `export const Xxx = () => ...`（除 shadcn 生成的组件）。
-- 格式化交给 Prettier（无分号、双引号、2 空格、printWidth 80），改动后跑 `pnpm format`。
-- 中文注释解释「为什么」，不写「是什么」的废话注释。
-- 禁止 `console.log` 上生产路径（后端启动日志用 `main.ts`/`env` 约定的 `[mac-manager]` 前缀）、禁止 `any`/`ts-ignore`/`eslint-disable`。
+## 七、UI 实验约束：shadcn 源码绝对禁止修改
 
-### 4.10 常用命令
+本项目有意验证官方 shadcn `base-mira` 的原生能力。这是明确实验约束，优先于 Wiki 中“必要时可修改源码”的通用规定。
+
+- 使用已有官方组件、公开属性、默认变体与组合能力；缺组件用 `pnpm dlx shadcn add` 添加官方实现。
+- **禁止手改组件源码**，包括内部行为、结构、样式、格式化和自动修复；禁止复制一份再改造冒充业务组件。
+- 添加前确认不覆盖已有组件；组件升级或重新生成属于单独变更，需明确授权，不能借其绕过禁改规则。
+- 允许公开 `className`、主题变量、业务层布局和组合；不能通过内部选择器、DOM 操作或私有属性补丁变相修改内部行为。
+- 不重写组件已有的键盘、焦点、手势和可达性机制。无法满足的能力记录为限制，不擅自突破约束。
+- 危险确认用 AlertDialog，编辑表单用 Dialog，窄屏详情用 Sheet；需要手势时只用官方组件已支持的能力，不手写边缘手势判定。
+- 业务组件和公共布局不是禁写范围，但不能重新实现已有基础控件来规避限制。
+- 图标按钮有可访问名称，输入有标签；优先原生语义，触控和键盘均可完成操作。
+
+## 八、手机默认、桌面增强与 PWA
+
+### 8.1 响应式集中管理
+
+- 默认布局服务手机单列与触控；桌面扩大视野，例如抽屉变侧栏、列表变表格，但共享数据、动作和校验。
+- 默认布局切换点为 Tailwind `md`（48rem，通常 768px）。业务层不散写设备分支；差异封装到有明确职责的布局或数据展示组件。
+- 纯样式优先 CSS，结构或交互不同才使用 JS 条件渲染。不要同时挂载两套交互表单再用 `hidden` 隐藏。
+- 业务 JS 确需分流时使用统一 `useIsDesktop`，断点与 CSS 保持单一来源；不为命名偏好修改官方 `use-mobile.ts` 或 sidebar 源码。
+- 768 是默认策略，不是禁止适配的理由：具体内容需要额外门槛时集中定义并说明原因，优先流式布局或容器查询，不机械替换所有断点。
+- 320px 窄屏不发生页面级横向溢出；路径、图表等确需横向查看的区域有明确的局部滚动，不靠缩小字号塞入桌面结构。
+- 有效触控目标至少 44px，关键操作优先 48px；紧凑视觉不能以命中困难为代价，相邻热区不能重叠。
+- 必需信息与动作不依赖 hover、长按或滑动；手势只是加速入口，始终保留确定性点按路径。
+- 输入适配手机键盘、自动填充与键盘遮挡；考虑安全区、动态视口和系统缩放，尊重减弱动效设置。
+
+### 8.2 PWA 的应用职责
+
+- 提供 manifest、应用名称、合适图标和 standalone 启动形态；手机安装后无需浏览器地址栏也能完成导航。
+- 提供可见返回和关闭入口；窄屏浮层接入统一返回管理，系统返回先关闭浮层，再回退页面，不制造无限历史栈或困住用户。
+- Service Worker 只缓存版本化的静态应用壳；登录、会话、系统数据、文件内容、上传下载等 API 不进入离线缓存。
+- 离线可显示应用壳与明确的离线状态，不承诺离线控制 Mac；写操作不可用且不能后台重放。
+- PWA 可能被系统暂停或销毁，不能承诺后台常驻；恢复前台重新核实会话、数据新鲜度和未完成任务，不重复执行动作。
+- 更新可感知且由用户控制重新加载时机，不能在编辑或动作进行中强制刷新；应用壳与静态资源版本一致，不能长期混用旧客户端和新接口。
+- PWA、鉴权与弱网行为都是待验收的应用能力，不以“能安装”替代实际使用验证。
+
+## 九、代码质量、验证与交付
+
+- 使用清晰的命名导出；函数声明或箭头函数按语义选择，不为语法形式批量迁移。第三方生成代码和工具配置遵循各自要求。
+- 保持 TypeScript strict，未知输入用 `unknown` 并校验；禁止 `any`、`ts-ignore` 和 `eslint-disable` 掩盖问题。
+- 中文注释解释原因。应用日志用 `[mac-manager]` 前缀并脱敏，不在业务路径散落调试 `console.log`。
+- Prettier 沿用无分号、双引号、2 空格、printWidth 80；只格式化本任务的手写代码，不格式化或自动修复 shadcn 源码。
+- 测试优先覆盖公共纯函数、契约与 handler 边界、鉴权、路径安全、危险动作和未知结果；组件交互用 Testing Library，断言语义与可达性，不绑定组件内部实现。
+- 不以覆盖率数字或大量 E2E 为目标；浏览器 E2E 只做克制的冒烟，实际浏览器、截图或安装验证须用户明确要求，不自动启动。
+- 每项改动先定义可观察的验收结果；类型检查与 lint 不能替代业务验证，未验证的手机安装、触控和 PWA 行为必须明确标注。
+- 提交前 self review；手写代码改动运行类型检查、lint、构建及相关测试。纯文档改动检查内容、链接和 diff，不宣称业务功能因此完成。
+- 不顺手修改无关文件，不批量清理存量问题；一个任务一个中文 commit，body 整理原始需求，完成后 push。
+
+### 常用命令
 
 ```bash
-pnpm dev        # 生成 openapi + vite dev（端口 51510，固定，被占用即失败）
-pnpm build      # typecheck + vite build + SSR 构建
-pnpm typecheck  # tsc --noEmit
-pnpm lint       # eslint
-pnpm format     # prettier 格式化 src
+pnpm dev                 # OpenAPI 生成 + Vite 开发，固定端口 51510，占用即失败
+pnpm build               # OpenAPI 生成 + 类型检查 + 前后端构建
+pnpm typecheck           # tsc --noEmit
+pnpm lint                # ESLint 检查
+pnpm generate:openapi     # 更新契约文档产物
 ```
 
-提交前至少跑 `pnpm typecheck` + `pnpm lint`。一个任务一个 commit，信息中文。
+现有 `pnpm format` 会批量改写源码，不能作为默认交付命令；需要格式化时使用 Prettier 仅处理本次修改的手写文件。测试命令待测试基础设施接入后补齐，不把未配置的命令写成现状。
 
-## 五、新功能接入 checklist
+## 十、新功能与整改验收清单
 
-1. `shared/api-path/index.ts` 加路径
-2. `shared/api-contract/schemas/<域>.ts` 写 schema，`routes/<域>.ts` 写路由
-3. `contract.ts` 汇总；`client-api/<域>.ts` 写调用（复用 `unwrap`），`client-api/index.ts` 导出
-4. `server/<域>/handlers.ts` 实现（数据存取经自己的 store，库用 `env.DATABASE_FILE`），`app.ts` 挂载
-5. `web/features/<域>/` 建 store/queries/use<域>/<域>Page 五件套
-6. `AppSidebar.tsx` 加菜单项 + `App.tsx` 加挂载
-7. `pnpm typecheck && pnpm lint` 通过后提交
+1. 明确用户场景、风险与验收结果，确认手机默认路径完整可用。
+2. 涉及 API 时先定路径、动词、状态与 schema，再接客户端、后端及前端；传输例外说明边界。
+3. 存储经单库并保护已有数据；IO 校验目标、权限、范围和时限。
+4. 新敏感端点纳入统一鉴权，危险动作处理重复提交与结果未知。
+5. 域内按需建页面、查询、hook、store 和组件；不凑文件，不扩展无意义目录。
+6. 响应式与 PWA 共享业务，检查离线、恢复、返回、更新和会话失效行为；不修改 shadcn 源码。
+7. 更新必要测试与文档，按改动范围完成验证和 self review；整改验收完成后从 TODO 删除对应项，再提交与推送。
