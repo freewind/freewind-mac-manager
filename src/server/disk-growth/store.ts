@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import type { GrowthEntry, ScanSnapshot } from "@shared/api-contract"
+import type { TreeNode } from "@shared/api-contract"
 import type { ScanEntryRow, ScanResult } from "./scanner"
 
 type EntryKind = "dir" | "file"
@@ -124,12 +125,16 @@ export class DiskGrowthStore {
 
   listEntries(options: {
     scanId: number
-    previousScanId: number | null
+    /** 差值基线；不传则用 scanId 的前一份快照。 */
+    baselineScanId?: number | null
     parent: string
     keyword?: string
     limit?: number
   }): GrowthEntry[] {
-    const previousId = options.previousScanId ?? -1
+    const previousId =
+      options.baselineScanId !== undefined
+        ? (options.baselineScanId ?? -1)
+        : (this.previousScanId(options.scanId) ?? -1)
     const limit = options.limit ?? 2000
     const keyword = options.keyword?.trim()
     const sql = keyword
@@ -163,6 +168,57 @@ export class DiskGrowthStore {
       | EntryQueryRow
       | undefined
     return row ? toGrowthEntry(row) : null
+  }
+
+  /** 按层取子树，供分布图一次性拿到前几层。 */
+  subtree(options: {
+    scanId: number
+    baselineScanId: number | null
+    path: string
+    depth: number
+  }): TreeNode | null {
+    const build = (target: string, remaining: number): TreeNode | null => {
+      const entry = this.getEntry({
+        scanId: options.scanId,
+        previousScanId: options.baselineScanId,
+        path: target,
+      })
+      if (!entry) return null
+      const children =
+        remaining > 1
+          ? this.listEntries({
+              scanId: options.scanId,
+              baselineScanId: options.baselineScanId,
+              parent: target,
+              limit: 400,
+            })
+              .map((child) => build(child.path, remaining - 1))
+              .filter((child): child is TreeNode => child !== null)
+          : []
+      return {
+        path: entry.path,
+        name: entry.name,
+        kind: entry.kind,
+        size: entry.size,
+        delta: entry.delta,
+        folded: entry.folded,
+        children,
+      }
+    }
+    return build(options.path, options.depth)
+  }
+
+  /** 删除指定快照；剩下的快照差值会自动跨越被删区间。 */
+  deleteSnapshots(ids: number[]): number {
+    if (ids.length === 0) return 0
+    const placeholders = ids.map(() => "?").join(", ")
+    const entryResult = this.db
+      .prepare(`DELETE FROM entry WHERE scan_id IN (${placeholders})`)
+      .run(...ids)
+    const scanResult = this.db
+      .prepare(`DELETE FROM scan WHERE id IN (${placeholders})`)
+      .run(...ids)
+    return Number(scanResult.changes ?? 0) + Number(entryResult.changes ?? 0) * 0
   }
 
   /** 只保留最近 keep 份快照。 */

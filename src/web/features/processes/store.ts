@@ -1,5 +1,8 @@
 import { create } from "zustand"
 
+/** 自动刷新间隔（秒），也作为 TanStack Query 的 refetchInterval。 */
+export const REFRESH_INTERVAL_SECONDS = 2
+
 /** 进程范围筛选。 */
 export type ProcessScope = "all" | "mine" | "system" | "ports"
 

@@ -22,5 +22,11 @@
       "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "api-middleware.ts"]
+  "include": [
+    "src",
+    "scripts",
+    "vite.config.ts",
+    "api-middleware.ts",
+    "vite-openapi-docs-plugin.ts"
+  ]
 }

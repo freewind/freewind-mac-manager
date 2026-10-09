@@ -9,6 +9,7 @@ import {
   Wifi01Icon,
 } from "@hugeicons/core-free-icons"
 import { formatBytes } from "@shared/format"
+import type { MachineOverview } from "@shared/api-contract"
 import { Badge } from "@web/components/ui/badge"
 import {
   Card,
@@ -17,30 +18,24 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import { Progress } from "@web/components/ui/progress"
-import { formatRate, toPercent } from "@web/features/processes/display"
-import type {
-  MachineInfo,
-  SystemOverview,
-} from "@web/features/processes/mock-data"
+import { averageCoreUsage, formatRate, toPercent } from "@web/features/processes/display"
 
-/** 磁盘与网络进度条的满量程，用来把瞬时速率换算成可见长度。 */
-const DISK_FULL_SCALE = 48 * 1024 ** 2
+/** 网络进度条的满量程，用来把瞬时速率换算成可见长度。 */
 const NETWORK_FULL_SCALE = 4 * 1024 ** 2
 
-const PRESSURE_LABEL = {
-  normal: "内存正常",
-  warning: "内存偏高",
-  critical: "内存紧张",
-} as const
-
 type ProcessOverviewCardsProps = {
-  overview: SystemOverview
-  machine: MachineInfo
+  overview: MachineOverview
 }
 
-/** 顶部四张概览卡：CPU、内存、磁盘、网络。 */
+/** 顶部四张概览卡：CPU、内存、磁盘、网络，数据与概览页同源。 */
 export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
-  const { overview, machine } = props
+  const { overview } = props
+  const { cpu, memory, disk, network, system } = overview
+  const cpuTotal = averageCoreUsage(cpu.coreUsage)
+  const primaryDisk = disk[0] ?? null
+  const memoryUsedRatio =
+    memory.total === 0 ? 0 : memory.used / memory.total
+
   return (
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
       <Card size="sm" className="gap-2 py-3">
@@ -56,20 +51,18 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
         <CardContent className="flex flex-col gap-2 px-3">
           <div className="flex items-end justify-between gap-2">
             <span className="text-lg font-medium tabular-nums">
-              {overview.cpuTotal.toFixed(1)}%
+              {cpuTotal.toFixed(1)}%
             </span>
             <span className="text-[0.625rem] text-muted-foreground">
-              {overview.cores} 核
+              {cpu.coreCount} 核
             </span>
           </div>
-          <Progress value={toPercent(overview.cpuTotal / 100)} />
+          <Progress value={toPercent(cpuTotal / 100)} />
           <span className="text-[0.625rem] text-muted-foreground">
-            用户 {overview.cpuUser.toFixed(1)}% · 系统{" "}
-            {overview.cpuSystem.toFixed(1)}% · 空闲{" "}
-            {overview.cpuIdle.toFixed(1)}%
+            负载 {cpu.loadAverage.map((value) => value.toFixed(2)).join(" / ")}
           </span>
-          <span className="text-[0.625rem] text-muted-foreground">
-            负载 {overview.loadAverage.map((value) => value.toFixed(2)).join(" / ")}
+          <span className="truncate text-[0.625rem] text-muted-foreground">
+            {system.chip}
           </span>
         </CardContent>
       </Card>
@@ -87,25 +80,20 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
         <CardContent className="flex flex-col gap-2 px-3">
           <div className="flex items-end justify-between gap-2">
             <span className="text-lg font-medium tabular-nums">
-              {formatBytes(overview.memoryUsedBytes)}
+              {formatBytes(memory.used)}
             </span>
-            <Badge
-              variant={
-                overview.memoryPressure === "normal" ? "secondary" : "destructive"
-              }
-            >
-              {PRESSURE_LABEL[overview.memoryPressure]}
+            <Badge variant={memoryUsedRatio >= 0.85 ? "destructive" : "secondary"}>
+              共 {formatBytes(memory.total)}
             </Badge>
           </div>
-          <Progress
-            value={toPercent(
-              overview.memoryUsedBytes / overview.memoryTotalBytes
-            )}
-          />
+          <Progress value={toPercent(memoryUsedRatio)} />
           <span className="text-[0.625rem] text-muted-foreground">
-            共 {formatBytes(overview.memoryTotalBytes)} · 缓存{" "}
-            {formatBytes(overview.memoryCachedBytes)} · 交换{" "}
-            {formatBytes(overview.swapUsedBytes)}
+            联动 {formatBytes(memory.wired)} · 压缩{" "}
+            {formatBytes(memory.compressed)}
+          </span>
+          <span className="text-[0.625rem] text-muted-foreground">
+            可用 {formatBytes(memory.free)} · 交换{" "}
+            {formatBytes(memory.swapUsed)} / {formatBytes(memory.swapTotal)}
           </span>
         </CardContent>
       </Card>
@@ -121,20 +109,37 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2 px-3">
-          <div className="flex items-end justify-between gap-2">
-            <span className="text-lg font-medium tabular-nums">
-              {formatRate(overview.diskReadBytesPerSec)}
+          {primaryDisk === null ? (
+            <span className="text-[0.625rem] text-muted-foreground">
+              读不到卷信息
             </span>
-            <span className="text-[0.625rem] text-muted-foreground">读取</span>
-          </div>
-          <Progress
-            value={toPercent(overview.diskReadBytesPerSec / DISK_FULL_SCALE)}
-          />
-          <Progress
-            value={toPercent(overview.diskWriteBytesPerSec / DISK_FULL_SCALE)}
-          />
-          <span className="text-[0.625rem] text-muted-foreground">
-            写入 {formatRate(overview.diskWriteBytesPerSec)} · {machine.diskName}
+          ) : (
+            <>
+              <div className="flex items-end justify-between gap-2">
+                <span className="text-lg font-medium tabular-nums">
+                  {formatBytes(primaryDisk.used)}
+                </span>
+                <span className="text-[0.625rem] text-muted-foreground">
+                  {primaryDisk.name}
+                </span>
+              </div>
+              <Progress
+                value={toPercent(
+                  primaryDisk.total === 0
+                    ? 0
+                    : primaryDisk.used / primaryDisk.total
+                )}
+              />
+              <span className="text-[0.625rem] text-muted-foreground">
+                共 {formatBytes(primaryDisk.total)} · 剩余{" "}
+                {formatBytes(primaryDisk.free)}
+              </span>
+            </>
+          )}
+          <span className="truncate text-[0.625rem] text-muted-foreground">
+            {disk.length > 1
+              ? `另有 ${disk.length - 1} 个卷`
+              : `挂载于 ${primaryDisk?.mount ?? "—"}`}
           </span>
         </CardContent>
       </Card>
@@ -156,29 +161,23 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
                 icon={ArrowDown01Icon}
                 className="size-4 text-emerald-500"
               />
-              {formatRate(overview.networkInBytesPerSec)}
+              {formatRate(network.downloadRate)}
             </span>
             <span className="flex items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
               <HugeiconsIcon
                 icon={ArrowUp01Icon}
                 className="size-3.5 text-sky-500"
               />
-              {formatRate(overview.networkOutBytesPerSec)}
+              {formatRate(network.uploadRate)}
             </span>
           </div>
           <Progress
-            value={toPercent(
-              overview.networkInBytesPerSec / NETWORK_FULL_SCALE
-            )}
+            value={toPercent(network.downloadRate / NETWORK_FULL_SCALE)}
           />
-          <Progress
-            value={toPercent(
-              overview.networkOutBytesPerSec / NETWORK_FULL_SCALE
-            )}
-          />
-          <span className="flex items-center gap-1 text-[0.625rem] text-muted-foreground">
+          <Progress value={toPercent(network.uploadRate / NETWORK_FULL_SCALE)} />
+          <span className="flex items-center gap-1 truncate text-[0.625rem] text-muted-foreground">
             <HugeiconsIcon icon={ServerStack01Icon} className="size-3" />
-            {machine.networkInterface} · {overview.threadCount} 个线程
+            {network.interfaceName} · {network.address}
           </span>
         </CardContent>
       </Card>

@@ -133,6 +133,14 @@ export const scanFileSystem = async (
   )
   fdProcess.stdout.pipe(xargsProcess.stdin)
 
+  // 必须先挂监听再消费流：等流读完了才挂，close 事件早已错过，await 永远不会返回。
+  const fdClosed = new Promise<void>((resolve) => {
+    fdProcess.on("close", () => resolve())
+  })
+  const xargsClosed = new Promise<void>((resolve) => {
+    xargsProcess.on("close", () => resolve())
+  })
+
   const ownBytes = new Map<string, number>()
   const dirs = new Set<string>(config.roots)
   for (const root of config.roots) {
@@ -173,10 +181,7 @@ export const scanFileSystem = async (
     }
   }
 
-  await Promise.all([
-    new Promise<void>((resolve) => fdProcess.on("close", () => resolve())),
-    new Promise<void>((resolve) => xargsProcess.on("close", () => resolve())),
-  ])
+  await Promise.all([fdClosed, xargsClosed])
 
   const subtree = accumulateSubtree(dirs, ownBytes)
   const result = buildEntries(config, dirs, subtree, fileRows)

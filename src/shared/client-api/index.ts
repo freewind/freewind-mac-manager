@@ -1,3 +1,8 @@
 export { apiClient } from "./client"
+export * from "./dashboard"
 export * from "./disk-growth"
+export * from "./files"
 export * from "./ports"
+export * from "./processes"
+export * from "./system-services"
+export * from "./traffic"

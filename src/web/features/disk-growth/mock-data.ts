@@ -1,4 +1,9 @@
-import type { GrowthEntry, ScanSnapshot, ScanStatus } from "@shared/api-contract"
+import type {
+  GrowthEntry,
+  ScanSnapshot,
+  ScanStatus,
+  TreeNode,
+} from "@shared/api-contract"
 
 type MockNode = {
   path: string
@@ -160,12 +165,12 @@ const findNode = (target: string, node: MockNode = TREE): MockNode | null => {
   return null
 }
 
-const toEntry = (node: MockNode): GrowthEntry => ({
+const toEntry = (node: MockNode, spanDays = 1): GrowthEntry => ({
   path: node.path,
   name: node.path.split("/").filter(Boolean).pop() ?? node.path,
   kind: node.kind,
   size: node.size,
-  delta: node.delta,
+  delta: node.delta * spanDays,
   folded: node.folded ?? false,
 })
 
@@ -173,8 +178,6 @@ const toEntry = (node: MockNode): GrowthEntry => ({
  * 当前阶段界面一律用示例数据填充，方便先看交互。
  * 接真实快照时改写此函数（例如改为探测后端是否已有快照）。
  */
-export const isMockMode = (): boolean => true
-
 const DAY = 86_400
 const LAST_SCAN = 1_791_543_600
 
@@ -191,20 +194,86 @@ const MOCK_SNAPSHOTS: ScanSnapshot[] = TOTALS_GB.map((total, index) => ({
   foldedCount: 2_841 - index * 7,
 }))
 
-export const mockSnapshots = (): ScanSnapshot[] => MOCK_SNAPSHOTS
+/** Mock 期间保留一份可变快照列表，删除/合并后界面才会跟着变。 */
+let mockSnapshotState: ScanSnapshot[] = [...MOCK_SNAPSHOTS]
+
+export const mockSnapshots = (): ScanSnapshot[] => mockSnapshotState
+
+export const deleteMockSnapshots = (ids: number[]): void => {
+  mockSnapshotState = mockSnapshotState.filter(
+    (snapshot) => !ids.includes(snapshot.id)
+  )
+}
+
+export const appendMockSnapshot = (): ScanSnapshot => {
+  const next = mockNextSnapshot(mockSnapshotState[0])
+  mockSnapshotState = [next, ...mockSnapshotState]
+  return next
+}
 
 export const mockEntries = (
-  path: string
+  path: string,
+  spanDays = 1
 ): { current: GrowthEntry | null; entries: GrowthEntry[] } => {
   // 界面上「根」用空字符串表示，示例树的根是 "/"。
   const node = findNode(path === "" ? "/" : path)
   if (!node) return { current: null, entries: [] }
-  const entry = toEntry(node)
+  const entry = toEntry(node, spanDays)
   const current: GrowthEntry = node.path === "/" ? { ...entry, name: "根" } : entry
   const entries = (node.children ?? [])
-    .map(toEntry)
+    .map((child) => toEntry(child, spanDays))
     .sort((left, right) => right.delta - left.delta)
   return { current, entries }
+}
+
+export type MockSubtree = TreeNode
+
+/** 取某个节点的完整子树，供分布图逐层铺开。 */
+export const mockTree = (path: string): TreeNode | null => {
+  const node = findNode(path === "" ? "/" : path)
+  if (!node) return null
+  const build = (current: MockNode): TreeNode => ({
+    path: current.path,
+    name:
+      current.path === "/"
+        ? "根"
+        : (current.path.split("/").filter(Boolean).pop() ?? current.path),
+    kind: current.kind,
+    size: current.size,
+    delta: current.delta,
+    folded: current.folded ?? false,
+    children: (current.children ?? [])
+      .slice()
+      .sort((left, right) => right.size - left.size)
+      .map(build),
+  })
+  return build(node)
+}
+
+/** 按层截断到指定深度，和真实后端的 subtree 行为保持一致。 */
+export const truncateTree = (node: TreeNode, depth: number): TreeNode => ({
+  ...node,
+  children:
+    depth <= 1 ? [] : node.children.map((child) => truncateTree(child, depth - 1)),
+})
+
+/** Mock 模式是否启用，由数据源决定。 */
+export const shouldUseMockData = (dataSource: "server" | "demo"): boolean =>
+  dataSource === "demo"
+
+export const mockSearch = (keyword: string, spanDays = 1): GrowthEntry[] => {
+  const needle = keyword.toLowerCase()
+  const found: GrowthEntry[] = []
+  const walk = (node: MockNode): void => {
+    for (const child of node.children ?? []) {
+      if (child.path.toLowerCase().includes(needle)) {
+        found.push(toEntry(child, spanDays))
+      }
+      walk(child)
+    }
+  }
+  walk(TREE)
+  return found.sort((left, right) => Math.abs(right.delta) - Math.abs(left.delta))
 }
 
 export const mockStatus = (latest: ScanSnapshot | undefined): ScanStatus => ({

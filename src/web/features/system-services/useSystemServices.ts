@@ -1,9 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
-import type {
-  LaunchService,
-  ServiceAction,
-} from "@web/features/system-services/mock-data"
+import type { ServiceDomain, SystemService } from "@shared/api-contract"
+import { revealSystemService } from "@shared/client-api"
+import {
+  CONFIRM_REQUIRED,
+  type ServiceAction,
+} from "@web/features/system-services/actions"
 import {
   systemServiceKeys,
   useServiceAction,
@@ -11,15 +13,11 @@ import {
 } from "@web/features/system-services/queries"
 import { useSystemServicesLocalStore } from "@web/features/system-services/store"
 
-export type PendingAction = { action: ServiceAction; label: string }
-
-/** 会改状态、可能影响开机行为的操作，先让用户确认。 */
-const CONFIRM_REQUIRED: ServiceAction[] = [
-  "stop",
-  "restart",
-  "unload",
-  "disable",
-]
+export type PendingAction = {
+  action: ServiceAction
+  label: string
+  domain: ServiceDomain
+}
 
 /**
  * 系统服务页的数据入口。
@@ -37,7 +35,11 @@ export const useSystemServices = () => {
   const servicesQuery = useServicesQuery()
   const serviceAction = useServiceAction()
 
-  const services = useMemo(() => servicesQuery.data ?? [], [servicesQuery.data])
+  const services = useMemo(
+    () => servicesQuery.data?.services ?? [],
+    [servicesQuery.data]
+  )
+  const skipped = servicesQuery.data?.skipped ?? []
 
   const filtered = useMemo(() => {
     const needle = local.keyword.trim().toLowerCase()
@@ -77,9 +79,9 @@ export const useSystemServices = () => {
     [services]
   )
 
-  const run = (action: ServiceAction, label: string) => {
+  const run = (action: ServiceAction, target: SystemService) => {
     serviceAction.mutate(
-      { label, action },
+      { label: target.label, domain: target.domain, action },
       {
         onSuccess: (data) => setNotice(data.message),
         onError: (error) => setNotice(String(error)),
@@ -88,22 +90,30 @@ export const useSystemServices = () => {
   }
 
   /** 入口：需要确认的先弹窗，其余直接执行。 */
-  const requestAction = (action: ServiceAction, label: string) => {
-    const target = services.find((service) => service.label === label)
-    if (target?.requiresRoot) {
-      setNotice(`${label} 位于系统域，需要 root 权限；此处只提供查看与复制。`)
+  const requestAction = (action: ServiceAction, target: SystemService) => {
+    if (target.requiresRoot) {
+      setNotice(
+        `${target.label} 位于系统目录，需要 root 权限；此处只提供查看与复制。`
+      )
       return
     }
     if (CONFIRM_REQUIRED.includes(action)) {
-      setPending({ action, label })
+      setPending({ action, label: target.label, domain: target.domain })
       return
     }
-    run(action, label)
+    run(action, target)
   }
 
+  const pendingTarget = pending
+    ? (services.find(
+        (service) =>
+          service.label === pending.label && service.domain === pending.domain
+      ) ?? null)
+    : null
+
   const confirmPending = () => {
-    if (!pending) return
-    run(pending.action, pending.label)
+    if (!pending || !pendingTarget) return
+    run(pending.action, pendingTarget)
     setPending(null)
   }
 
@@ -112,12 +122,10 @@ export const useSystemServices = () => {
     setNotice(`已重新读取 ${services.length} 个 plist 与 launchd 状态`)
   }
 
-  const reveal = (target: LaunchService) => {
-    setNotice(
-      target.exists
-        ? `已在访达中显示：${target.filePath}`
-        : `plist 已不在原处：${target.filePath}`
-    )
+  const reveal = (target: SystemService) => {
+    void revealSystemService({ label: target.label, domain: target.domain })
+      .then((result) => setNotice(result.message))
+      .catch((error) => setNotice(String(error)))
   }
 
   const copy = (text: string, what: string) => {
@@ -131,6 +139,7 @@ export const useSystemServices = () => {
     // 数据
     services,
     filtered,
+    skipped,
     selected,
     stats,
     isLoading: servicesQuery.isLoading,

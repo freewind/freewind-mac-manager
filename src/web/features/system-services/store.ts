@@ -1,8 +1,5 @@
 import { create } from "zustand"
-import type {
-  ServiceDomain,
-  ServiceState,
-} from "@web/features/system-services/mock-data"
+import type { ServiceDomain, ServiceState } from "@shared/api-contract"
 
 export type StateFilter = "all" | ServiceState
 export type DomainFilter = "all" | ServiceDomain

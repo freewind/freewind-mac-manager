@@ -44,7 +44,7 @@ import {
   PROCESS_STATE_VARIANT,
   toPercent,
 } from "@web/features/processes/display"
-import type { ProcessInfo } from "@web/features/processes/mock-data"
+import type { ProcessEntry } from "@shared/api-contract"
 import { ProcessAvatar } from "@web/features/processes/ProcessesPage/ProcessAvatar"
 import type { useProcesses } from "@web/features/processes/useProcesses"
 
@@ -54,8 +54,8 @@ const COLUMN_COUNT = 11
 type SortKey = "name" | "pid" | "cpu" | "memory" | "threads" | "started"
 
 const compareRows = (
-  left: ProcessInfo,
-  right: ProcessInfo,
+  left: ProcessEntry,
+  right: ProcessEntry,
   sortKey: SortKey
 ): number => {
   switch (sortKey) {
@@ -64,7 +64,7 @@ const compareRows = (
     case "memory":
       return left.memoryBytes - right.memoryBytes
     case "threads":
-      return left.threads - right.threads
+      return (left.threads ?? 0) - (right.threads ?? 0)
     case "pid":
       return left.pid - right.pid
     case "started":
@@ -76,7 +76,7 @@ const compareRows = (
 
 type ProcessTableProps = {
   model: ReturnType<typeof useProcesses>
-  onRequestTerminate: (items: ProcessInfo[], force: boolean) => void
+  onRequestTerminate: (items: ProcessEntry[], force: boolean) => void
 }
 
 export const ProcessTable = (props: ProcessTableProps) => {
@@ -172,7 +172,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
             <ProcessRow
               key={item.pid}
               item={item}
-              currentUser={model.machine.user}
+              currentUser={model.currentUser}
               checked={model.checkedPids.includes(item.pid)}
               memoryRatio={item.memoryBytes / model.peakMemoryBytes}
               uptimeSeconds={model.nowMs / 1000 - item.startedAt}
@@ -205,14 +205,14 @@ export const ProcessTable = (props: ProcessTableProps) => {
 }
 
 type ProcessRowProps = {
-  item: ProcessInfo
+  item: ProcessEntry
   currentUser: string
   checked: boolean
   memoryRatio: number
   uptimeSeconds: number
   onCheck: (pid: number, checked: boolean) => void
   onOpen: () => void
-  onRequestTerminate: (items: ProcessInfo[], force: boolean) => void
+  onRequestTerminate: (items: ProcessEntry[], force: boolean) => void
 }
 
 const ProcessRow = (props: ProcessRowProps) => {

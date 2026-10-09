@@ -1,36 +1,31 @@
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import {
-  MACHINE,
-  type ProcessInfo,
-} from "@web/features/processes/mock-data"
-import {
-  useProcessSample,
-  useTerminateProcesses,
-} from "@web/features/processes/queries"
+import type { ProcessEntry } from "@shared/api-contract"
+import { useKillProcesses, useProcessList } from "@web/features/processes/queries"
 import {
   useProcessesLocalStore,
   type ProcessScope,
 } from "@web/features/processes/store"
 
-const SCOPE_MATCHERS: Record<ProcessScope, (item: ProcessInfo) => boolean> = {
-  all: () => true,
-  mine: (item) => item.user === MACHINE.user,
-  system: (item) => item.user !== MACHINE.user,
-  ports: (item) => item.ports.length > 0,
-}
+const SCOPE_MATCHES: Record<ProcessScope, (item: ProcessEntry, user: string) => boolean> =
+  {
+    all: () => true,
+    mine: (item, user) => item.user === user,
+    system: (item, user) => item.user !== user,
+    ports: (item) => item.ports.length > 0,
+  }
 
 /**
  * 进程管理的数据入口。
  *
  * - 远程状态：TanStack Query（进程采样）
  * - 本地共享状态：Zustand（范围筛选、搜索、自动刷新、勾选、详情目标）
- * - 页面级瞬时状态：React state（这里的时钟；表格排序与确认弹窗在各自组件内）
+ * - 组件局部状态：React state（这里的秒级时钟；表格排序与确认弹窗在各自组件内）
  */
 export const useProcesses = () => {
   const local = useProcessesLocalStore()
-  const sampleQuery = useProcessSample()
-  const terminateProcesses = useTerminateProcesses()
+  const listQuery = useProcessList()
+  const killMutation = useKillProcesses()
   const [nowMs, setNowMs] = useState(() => Date.now())
 
   // 运行时长与「上次更新几秒前」需要一个秒级时钟，与采样节奏解耦。
@@ -40,16 +35,18 @@ export const useProcesses = () => {
   }, [])
 
   const processes = useMemo(
-    () => sampleQuery.data?.processes ?? [],
-    [sampleQuery.data]
+    () => listQuery.data?.processes ?? [],
+    [listQuery.data]
   )
+  const overview = listQuery.data?.overview ?? null
+  const currentUser = listQuery.data?.currentUser ?? ""
 
   /** 按范围与关键词过滤；排序交给表格组件自己处理。 */
   const filteredProcesses = useMemo(() => {
     const keyword = local.search.trim().toLowerCase()
-    const matches = SCOPE_MATCHERS[local.scope]
+    const matches = SCOPE_MATCHES[local.scope]
     return processes.filter((item) => {
-      if (!matches(item)) return false
+      if (!matches(item, currentUser)) return false
       if (keyword === "") return true
       return (
         item.name.toLowerCase().includes(keyword) ||
@@ -59,7 +56,7 @@ export const useProcesses = () => {
         item.ports.some((port) => String(port).includes(keyword))
       )
     })
-  }, [processes, local.scope, local.search])
+  }, [processes, local.scope, local.search, currentUser])
 
   /** 单个进程占用的内存上限，用于把内存条画成相对长度。 */
   const peakMemoryBytes = useMemo(
@@ -82,35 +79,41 @@ export const useProcesses = () => {
   }, [checkedProcesses])
 
   const threadCount = useMemo(
-    () => processes.reduce((sum, item) => sum + item.threads, 0),
+    () => processes.reduce((sum, item) => sum + (item.threads ?? 0), 0),
     [processes]
   )
 
   const refresh = () => {
-    void sampleQuery.refetch()
+    void listQuery.refetch()
     toast.info("已重新采样进程列表")
   }
 
-  /** 结束进程：成功与失败都通过 toast 汇报。 */
-  const terminate = (targets: ProcessInfo[], force: boolean) => {
+  /** 结束进程：逐条汇报成功与失败原因。 */
+  const terminate = (targets: ProcessEntry[], force: boolean) => {
     if (targets.length === 0) return
-    terminateProcesses.mutate(
+    const names = new Map(targets.map((item) => [item.pid, item.name]))
+    killMutation.mutate(
       { pids: targets.map((item) => item.pid), force },
       {
         onSuccess: (outcome) => {
           const label = force ? "强制结束" : "结束"
-          if (outcome.succeeded.length > 0) {
+          const done = outcome.results.filter((item) => item.succeeded)
+          const failed = outcome.results.filter((item) => !item.succeeded)
+          if (done.length > 0) {
             toast.success(
-              `已${label} ${outcome.succeeded
-                .map((item) => `${item.name}（${item.pid}）`)
+              `已${label} ${done
+                .map((item) => `${names.get(item.pid) ?? "进程"}（${item.pid}）`)
                 .join("、")}`
             )
           }
-          if (outcome.denied.length > 0) {
+          if (failed.length > 0) {
             toast.error(
-              `${outcome.denied
-                .map((item) => item.name)
-                .join("、")} 属于系统进程，需要管理员权限，已跳过`
+              failed
+                .map(
+                  (item) =>
+                    `${names.get(item.pid) ?? "进程"}（${item.pid}）：${item.message}`
+                )
+                .join("；")
             )
           }
         },
@@ -121,24 +124,24 @@ export const useProcesses = () => {
     )
   }
 
-  const updatedAt = sampleQuery.dataUpdatedAt
+  const updatedAt = listQuery.dataUpdatedAt
 
   return {
     // 数据
-    machine: MACHINE,
     processes,
     filteredProcesses,
-    overview: sampleQuery.data?.overview ?? null,
+    overview,
+    currentUser,
     peakMemoryBytes,
     threadCount,
-    isLoading: sampleQuery.isLoading,
-    isFetching: sampleQuery.isFetching,
+    isLoading: listQuery.isLoading,
+    isFetching: listQuery.isFetching,
     error:
-      sampleQuery.error instanceof Error
-        ? sampleQuery.error.message
-        : sampleQuery.error === null
+      listQuery.error instanceof Error
+        ? listQuery.error.message
+        : listQuery.error === null
           ? null
-          : String(sampleQuery.error),
+          : String(listQuery.error),
     updatedAt,
     nowMs,
     secondsSinceUpdate: Math.max(0, Math.round((nowMs - updatedAt) / 1000)),

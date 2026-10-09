@@ -1,8 +1,5 @@
 import { formatBytes } from "@shared/format"
-import type {
-  ProcessKind,
-  ProcessState,
-} from "@web/features/processes/mock-data"
+import type { ProcessKind, ProcessState } from "@shared/api-contract"
 
 export const PROCESS_STATE_LABEL: Record<ProcessState, string> = {
   running: "运行中",
@@ -48,6 +45,12 @@ export const formatRate = (bytesPerSecond: number): string =>
 /** 把 0-1 的比例换算成 Progress 需要的百分数。 */
 export const toPercent = (ratio: number): number =>
   Math.min(100, Math.max(0, ratio * 100))
+
+/** 整机 CPU 占用：各核占用的平均值。 */
+export const averageCoreUsage = (coreUsage: number[]): number => {
+  if (coreUsage.length === 0) return 0
+  return coreUsage.reduce((sum, value) => sum + value, 0) / coreUsage.length
+}
 
 const AVATAR_TONES = [
   "bg-sky-500/15 text-sky-600 dark:text-sky-300",

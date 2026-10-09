@@ -1,0 +1,1 @@
+export { IcicleChart } from "./IcicleChart"

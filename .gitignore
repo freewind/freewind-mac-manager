@@ -26,3 +26,6 @@ data/
 
 # Codegraph 索引
 .codegraph/
+
+# OpenAPI 产物（由 pnpm generate:openapi 生成）
+generated/

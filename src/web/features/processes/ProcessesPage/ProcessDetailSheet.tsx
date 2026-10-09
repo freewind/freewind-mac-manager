@@ -24,19 +24,18 @@ import {
 import { cn } from "@web/lib/utils"
 import {
   formatDuration,
-  formatRate,
   PROCESS_KIND_LABEL,
   PROCESS_STATE_LABEL,
   PROCESS_STATE_VARIANT,
   toPercent,
 } from "@web/features/processes/display"
-import type { ProcessInfo } from "@web/features/processes/mock-data"
+import type { ProcessEntry } from "@shared/api-contract"
 import { ProcessAvatar } from "@web/features/processes/ProcessesPage/ProcessAvatar"
 import type { useProcesses } from "@web/features/processes/useProcesses"
 
 type ProcessDetailSheetProps = {
   model: ReturnType<typeof useProcesses>
-  onRequestTerminate: (items: ProcessInfo[], force: boolean) => void
+  onRequestTerminate: (items: ProcessEntry[], force: boolean) => void
 }
 
 /** 选中进程的详情抽屉：资源占用、进程信息与子进程。 */
@@ -52,8 +51,7 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
     selected === null
       ? []
       : model.processes.filter((item) => item.ppid === selected.pid)
-  const ownedByCurrentUser =
-    selected !== null && selected.user === model.machine.user
+  const ownedByCurrentUser = selected !== null && selected.user === model.currentUser
 
   return (
     <Sheet
@@ -123,18 +121,8 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
                       />
                     </span>
                   </DetailRow>
-                  <DetailRow label="能量影响">
-                    {selected.energyImpact} / 100
-                  </DetailRow>
-                  <DetailRow label="线程">{selected.threads}</DetailRow>
-                  <DetailRow label="打开文件">{selected.openFiles}</DetailRow>
-                  <DetailRow label="磁盘读写">
-                    {formatRate(selected.diskReadBytesPerSec)} /{" "}
-                    {formatRate(selected.diskWriteBytesPerSec)}
-                  </DetailRow>
-                  <DetailRow label="网络收发">
-                    {formatRate(selected.networkInBytesPerSec)} /{" "}
-                    {formatRate(selected.networkOutBytesPerSec)}
+                  <DetailRow label="线程">
+                    {selected.threads ?? "—"}
                   </DetailRow>
                 </section>
 
@@ -166,13 +154,6 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
                   </DetailRow>
                   <DetailRow label="可执行文件">
                     <code className="text-[0.6875rem]">{selected.path}</code>
-                  </DetailRow>
-                  <DetailRow label="Bundle ID">
-                    {selected.bundleId === null ? (
-                      <span className="text-muted-foreground">—</span>
-                    ) : (
-                      <code className="text-[0.6875rem]">{selected.bundleId}</code>
-                    )}
                   </DetailRow>
                   <DetailRow label="监听端口">
                     {selected.ports.length === 0 ? (

@@ -35,8 +35,13 @@ export const ScansResponseSchema = z.object({
 
 export const EntriesQuerySchema = z.object({
   scanId: z.coerce.number().int().positive(),
+  baselineScanId: z.coerce.number().int().positive().optional(),
   path: z.string().default(""),
   keyword: z.string().optional(),
+})
+
+export const DeleteScansQuerySchema = z.object({
+  scanIds: z.string().min(1),
 })
 
 export const EntriesResponseSchema = z.object({
@@ -51,4 +56,49 @@ export const ScanStartResponseSchema = z.object({
 
 export const ApiErrorSchema = z.object({
   message: z.string(),
+})
+
+export const EntryPathBodySchema = z.object({
+  path: z.string().min(1),
+})
+
+export const EntryPathQuerySchema = z.object({
+  path: z.string().min(1),
+})
+
+export const ActionResponseSchema = z.object({
+  message: z.string(),
+})
+
+export const TreeQuerySchema = z.object({
+  scanId: z.coerce.number().int().positive(),
+  baselineScanId: z.coerce.number().int().positive().optional(),
+  path: z.string().default(""),
+  depth: z.coerce.number().int().min(1).max(8).default(4),
+})
+
+export type TreeNodeWire = {
+  path: string
+  name: string
+  kind: "dir" | "file"
+  size: number
+  delta: number
+  folded: boolean
+  children: TreeNodeWire[]
+}
+
+export const TreeNodeSchema: z.ZodType<TreeNodeWire> = z.lazy(() =>
+  z.object({
+    path: z.string(),
+    name: z.string(),
+    kind: z.enum(["dir", "file"]),
+    size: z.number(),
+    delta: z.number(),
+    folded: z.boolean(),
+    children: z.array(TreeNodeSchema),
+  })
+)
+
+export const TreeResponseSchema = z.object({
+  root: TreeNodeSchema.nullable(),
 })

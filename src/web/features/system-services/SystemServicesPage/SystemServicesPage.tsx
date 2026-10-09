@@ -78,14 +78,13 @@ import {
 import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
-import {
-  domainLabels,
-  stateLabels,
-  type LaunchService,
-  type ServiceAction,
-  type ServiceDomain,
-  type ServiceState,
-} from "@web/features/system-services/mock-data"
+import type {
+  ServiceDomain,
+  ServiceState,
+  SystemService,
+} from "@shared/api-contract"
+import type { ServiceAction } from "@web/features/system-services/actions"
+import { domainLabels, stateLabels } from "@web/features/system-services/labels"
 import {
   useSystemServices,
   type PendingAction,
@@ -151,7 +150,7 @@ const STATE_ICON_CLASSES: Record<ServiceState, string> = {
 
 /** 每个动作在当前状态下是否可用，以及不可用的原因。 */
 const actionAvailability = (
-  service: LaunchService,
+  service: SystemService,
   action: ServiceAction
 ): { disabled: boolean; reason: string | null } => {
   if (service.requiresRoot) {
@@ -205,7 +204,7 @@ const stateBadge = (state: ServiceState) => {
   return <Badge variant="outline">{stateLabels.stopped}</Badge>
 }
 
-const summaryOf = (service: LaunchService): string => {
+const summaryOf = (service: SystemService): string => {
   if (service.pid !== null) return `pid ${service.pid}`
   if (!service.exists) return "plist 已移入废纸篓"
   if (service.state === "failed") {
@@ -242,7 +241,7 @@ export const SystemServicesPage = () => {
         size="sm"
         disabled={availability.disabled || model.isPending}
         title={availability.reason ?? undefined}
-        onClick={() => model.requestAction(action, service.label)}
+        onClick={() => model.requestAction(action, service)}
       >
         <HugeiconsIcon icon={icon} />
         {ACTION_LABELS[action]}
@@ -261,6 +260,11 @@ export const SystemServicesPage = () => {
           <Badge variant="ghost">失败 {model.stats.failed}</Badge>
           <Badge variant="ghost">禁用 {model.stats.disabled}</Badge>
           <Badge variant="ghost">需 root {model.stats.requiresRoot}</Badge>
+          {model.skipped.length > 0 ? (
+            <Badge variant="ghost" title={model.skipped[0]?.reason}>
+              跳过 {model.skipped.length}
+            </Badge>
+          ) : null}
           {model.isFetching ? <Badge variant="ghost">读取中…</Badge> : null}
           <Button
             variant="outline"
@@ -444,7 +448,7 @@ export const SystemServicesPage = () => {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           onClick={() =>
-                            model.requestAction("disable", service.label)
+                            model.requestAction("disable", service)
                           }
                           disabled={service.disabled}
                         >
@@ -452,9 +456,7 @@ export const SystemServicesPage = () => {
                           禁用（开机不启动）
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() =>
-                            model.requestAction("enable", service.label)
-                          }
+                          onClick={() => model.requestAction("enable", service)}
                           disabled={!service.disabled}
                         >
                           <HugeiconsIcon icon={CheckmarkCircle02Icon} />
@@ -488,9 +490,6 @@ export const SystemServicesPage = () => {
                     <p className="text-xs text-muted-foreground">
                       该系统域服务由 root 管理，此处只提供查看、复制与访达定位。
                     </p>
-                  ) : null}
-                  {service.lastAction ? (
-                    <p className="text-xs">{service.lastAction}</p>
                   ) : null}
                 </CardContent>
               </Card>

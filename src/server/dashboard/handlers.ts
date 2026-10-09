@@ -4,7 +4,7 @@ import {
   collectListeningPorts,
   collectMachineOverview,
   collectTopProcesses,
-} from "./collect"
+} from "@server/common/collect"
 
 const s = initServer()
 

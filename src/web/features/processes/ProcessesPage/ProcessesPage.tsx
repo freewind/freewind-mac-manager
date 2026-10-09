@@ -7,6 +7,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { useState } from "react"
 import { formatBytes } from "@shared/format"
+import type { ProcessEntry } from "@shared/api-contract"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,8 +30,10 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@web/components/ui/toggle-group"
-import { formatDuration } from "@web/features/processes/display"
-import type { ProcessInfo } from "@web/features/processes/mock-data"
+import {
+  averageCoreUsage,
+  formatDuration,
+} from "@web/features/processes/display"
 import { ProcessDetailSheet } from "@web/features/processes/ProcessesPage/ProcessDetailSheet"
 import { ProcessOverviewCards } from "@web/features/processes/ProcessesPage/ProcessOverviewCards"
 import { ProcessTable } from "@web/features/processes/ProcessesPage/ProcessTable"
@@ -43,7 +46,7 @@ import { useProcesses } from "@web/features/processes/useProcesses"
 /** 页面级瞬时状态：确认弹窗的目标。
  *  远程数据由 TanStack Query 管，本地共享状态由 Zustand 管，其余留在组件自己的 state。 */
 type PendingTerminate = {
-  items: ProcessInfo[]
+  items: ProcessEntry[]
   force: boolean
 }
 
@@ -51,7 +54,7 @@ export const ProcessesPage = () => {
   const model = useProcesses()
   const [pending, setPending] = useState<PendingTerminate | null>(null)
 
-  const requestTerminate = (items: ProcessInfo[], force: boolean) => {
+  const requestTerminate = (items: ProcessEntry[], force: boolean) => {
     if (items.length === 0) return
     setPending({ items, force })
   }
@@ -62,7 +65,9 @@ export const ProcessesPage = () => {
         <div className="flex items-center gap-2">
           <h1 className="text-sm font-medium">进程管理</h1>
           <span className="hidden text-[0.6875rem] text-muted-foreground lg:inline">
-            {model.machine.name} · {model.machine.chip}
+            {model.overview === null
+              ? "正在采样"
+              : `${model.overview.system.hostname} · ${model.overview.system.chip}`}
           </span>
           <InputGroup className="ml-auto w-64">
             <InputGroupInput
@@ -111,10 +116,7 @@ export const ProcessesPage = () => {
             ))}
           </div>
         ) : (
-          <ProcessOverviewCards
-            overview={model.overview}
-            machine={model.machine}
-          />
+          <ProcessOverviewCards overview={model.overview} />
         )}
 
         <div className="flex items-center gap-3 text-[0.6875rem] text-muted-foreground">
@@ -172,17 +174,21 @@ export const ProcessesPage = () => {
         <span>{model.threadCount} 个线程</span>
         {model.overview === null ? null : (
           <>
-            <span>CPU 总占用 {model.overview.cpuTotal.toFixed(1)}%</span>
             <span>
-              内存 {formatBytes(model.overview.memoryUsedBytes)} /{" "}
-              {formatBytes(model.overview.memoryTotalBytes)}
+              CPU 总占用{" "}
+              {averageCoreUsage(model.overview.cpu.coreUsage).toFixed(1)}%
+            </span>
+            <span>
+              内存 {formatBytes(model.overview.memory.used)} /{" "}
+              {formatBytes(model.overview.memory.total)}
             </span>
           </>
         )}
         <span className="ml-auto flex items-center gap-3">
-          <span>{model.machine.osVersion}</span>
+          <span>{model.overview?.system.osVersion ?? ""}</span>
           <span>
-            已运行 {formatDuration(model.nowMs / 1000 - model.machine.bootAt)}
+            已运行{" "}
+            {formatDuration(model.overview?.system.uptimeSeconds ?? 0)}
           </span>
         </span>
       </footer>

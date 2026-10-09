@@ -5,12 +5,13 @@
   "type": "module",
   "packageManager": "pnpm@12.4.1",
   "scripts": {
-    "dev": "APP_PORT=7409 vite --host --open",
-    "build": "tsc --noEmit && vite build && vite build --ssr src/server/main.ts --outDir dist-ssr/server",
-    "start": "APP_PORT=7410 node dist-ssr/server/main.js",
+    "dev": "pnpm generate:openapi && vite --open",
+    "build": "pnpm generate:openapi && tsc --noEmit && vite build && vite build --ssr src/server/main.ts --outDir dist-ssr/server",
+    "start": "node dist-ssr/server/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "generate:openapi": "tsx scripts/generate-openapi.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10",
+    "@ts-rest/open-api": "^3.52.1",
     "@types/express": "^5.0.4",
     "@types/node": "^24",
     "@types/react": "^19",
@@ -47,8 +49,11 @@
     "globals": "^17",
     "prettier": "^3.9.9",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "swagger-ui-dist": "^5.33.1",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8",
-    "vite": "^8"
+    "vite": "^8",
+    "yaml": "^2.9.1"
   }
 }

@@ -12,7 +12,7 @@ import type {
   SystemInfo,
 } from "@shared/api-contract"
 
-const run = (command: string, args: string[]): Promise<string> =>
+export const runCommand = (command: string, args: string[]): Promise<string> =>
   new Promise((resolve, reject) => {
     execFile(command, args, { maxBuffer: 8 * 1024 * 1024 }, (error, stdout) => {
       if (error) {
@@ -39,7 +39,7 @@ const num = (text: string | undefined): number => {
  */
 const cache = new Map<string, { at: number; value: unknown }>()
 
-const cached = async <T>(
+export const cached = async <T>(
   key: string,
   ttl: number,
   load: () => Promise<T>
@@ -53,10 +53,12 @@ const cached = async <T>(
 
 const collectSystem = async (): Promise<SystemInfo> => {
   const [swVers, model, chip, who] = await Promise.all([
-    run("/usr/bin/sw_vers", []),
-    run("/usr/sbin/sysctl", ["-n", "hw.model"]).catch(() => ""),
-    run("/usr/sbin/sysctl", ["-n", "machdep.cpu.brand_string"]).catch(() => ""),
-    run("/usr/bin/who", []).catch(() => ""),
+    runCommand("/usr/bin/sw_vers", []),
+    runCommand("/usr/sbin/sysctl", ["-n", "hw.model"]).catch(() => ""),
+    runCommand("/usr/sbin/sysctl", ["-n", "machdep.cpu.brand_string"]).catch(
+      () => ""
+    ),
+    runCommand("/usr/bin/who", []).catch(() => ""),
   ])
   const version = /ProductVersion:\s*(\S+)/.exec(swVers)?.[1] ?? ""
   const build = /BuildVersion:\s*(\S+)/.exec(swVers)?.[1] ?? ""
@@ -125,9 +127,9 @@ const collectCpu = async (): Promise<CpuInfo> => {
 
 const collectMemory = async (): Promise<MemoryInfo> => {
   const [memSize, vmStat, swap] = await Promise.all([
-    run("/usr/sbin/sysctl", ["-n", "hw.memsize"]),
-    run("/usr/bin/vm_stat", []),
-    run("/usr/sbin/sysctl", ["-n", "vm.swapusage"]),
+    runCommand("/usr/sbin/sysctl", ["-n", "hw.memsize"]),
+    runCommand("/usr/bin/vm_stat", []),
+    runCommand("/usr/sbin/sysctl", ["-n", "vm.swapusage"]),
   ])
   const pageSize = num(/page size of (\d+) bytes/.exec(vmStat)?.[1])
   const pages = (label: string): number =>
@@ -157,8 +159,8 @@ const collectMemory = async (): Promise<MemoryInfo> => {
 const collectDisk = (): Promise<DiskVolume[]> =>
   cached("disk", 10_000, async () => {
     const [dfOutput, mountOutput] = await Promise.all([
-      run("/bin/df", ["-k"]),
-      run("/sbin/mount", []),
+      runCommand("/bin/df", ["-k"]),
+      runCommand("/sbin/mount", []),
     ])
     const readOnly = new Set<string>()
     for (const line of mountOutput.split("\n")) {
@@ -211,7 +213,7 @@ const primaryAddress = (name: string): string => {
 }
 
 const collectNetwork = async (): Promise<NetworkInfo> => {
-  const output = await run("/usr/sbin/netstat", ["-ibn"])
+  const output = await runCommand("/usr/sbin/netstat", ["-ibn"])
   let bytesIn = 0
   let bytesOut = 0
   let busiest = { name: "", total: 0 }
@@ -253,7 +255,7 @@ const collectNetwork = async (): Promise<NetworkInfo> => {
 export const collectTopProcesses = async (
   limit: number
 ): Promise<ProcessInfo[]> => {
-  const output = await run("/bin/ps", [
+  const output = await runCommand("/bin/ps", [
     "-axo",
     "pid=,pcpu=,pmem=,rss=,user=,args=",
     "-r",
@@ -289,7 +291,7 @@ const splitAddress = (name: string): { address: string; port: string } => {
 
 export const collectListeningPorts = (): Promise<PortInfo[]> =>
   cached("ports", 5_000, async () => {
-    const output = await run("/usr/sbin/lsof", [
+    const output = await runCommand("/usr/sbin/lsof", [
       "-nP",
       "-iTCP",
       "-sTCP:LISTEN",
