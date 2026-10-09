@@ -26,5 +26,4 @@
 
 ## 五、工具链迁移与提交检查
 
-- [ ] **官方代码检查边界与存量 lint 冲突**（AGENTS 七、九）：迁移前 ESLint 在官方 `web/hooks/use-mobile.ts` 同步 `setState` 处报 `react-hooks/set-state-in-effect`；迁移后以实际 Biome 诊断重新验证。明确只针对官方源码的排除范围，不修改官方 hook、不用行内禁用、不放宽手写代码规则；原错误不能仅靠删除记录就宣称修复。
 - [ ] **保护 shadcn 源码免于自动改写**（AGENTS 七、九）：当前 `pnpm format` 覆盖全部源码；在 Biome 配置、`lint:fix` 和提交检查中统一排除官方 UI、官方 hook 与生成物，移除旧 Prettier 格式化链路。检查组件添加不会覆盖已有文件；不改源码、不复制改造组件、不用内部补丁规避约束。
