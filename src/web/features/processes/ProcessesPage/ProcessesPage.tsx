@@ -62,14 +62,14 @@ export const ProcessesPage = () => {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-col gap-3 border-b px-4 py-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-sm font-medium">进程管理</h1>
           <span className="hidden text-[0.6875rem] text-muted-foreground lg:inline">
             {model.overview === null
               ? "正在采样"
               : `${model.overview.system.hostname} · ${model.overview.system.chip}`}
           </span>
-          <InputGroup className="ml-auto w-64">
+          <InputGroup className="w-full md:ml-auto md:w-64">
             <InputGroupInput
               value={model.search}
               onChange={(event) => model.setSearch(event.target.value)}

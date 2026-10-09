@@ -272,7 +272,7 @@ export const SystemServicesPage = () => {
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <InputGroup className="w-80">
+          <InputGroup className="w-full md:w-80">
             <InputGroupAddon>
               <HugeiconsIcon icon={Search01Icon} />
             </InputGroupAddon>
@@ -285,6 +285,7 @@ export const SystemServicesPage = () => {
           <ToggleGroup
             variant="outline"
             size="sm"
+            className="flex-wrap"
             value={[model.stateFilter]}
             onValueChange={(values) =>
               model.setStateFilter((values[0] ?? "all") as StateFilter)
@@ -300,6 +301,7 @@ export const SystemServicesPage = () => {
           <ToggleGroup
             variant="outline"
             size="sm"
+            className="flex-wrap"
             value={[model.domainFilter]}
             onValueChange={(values) =>
               model.setDomainFilter((values[0] ?? "all") as DomainFilter)
@@ -318,8 +320,8 @@ export const SystemServicesPage = () => {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="flex w-80 shrink-0 flex-col border-r">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <aside className="flex max-h-72 w-full shrink-0 flex-col border-b md:max-h-none md:w-80 md:border-r md:border-b-0">
           <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
             服务列表
           </div>

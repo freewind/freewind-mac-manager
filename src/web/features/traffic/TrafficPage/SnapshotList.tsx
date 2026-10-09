@@ -59,7 +59,7 @@ export const SnapshotList = (props: SnapshotListProps) => {
   } = props
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-r">
+    <aside className="flex max-h-72 w-full shrink-0 flex-col border-b md:max-h-none md:w-72 md:border-r md:border-b-0">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-xs font-medium">快照（增量）</span>
         <span className="text-[0.6875rem] text-muted-foreground">

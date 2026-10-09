@@ -18,7 +18,7 @@ export const PortQuickViews = (props: PortQuickViewsProps) => {
   const { model } = props
 
   return (
-    <aside className="flex w-52 shrink-0 flex-col border-r">
+    <aside className="flex max-h-44 w-full shrink-0 flex-col border-b md:max-h-none md:w-52 md:border-r md:border-b-0">
       <div className="border-b px-3 py-2 text-xs font-medium">快捷视图</div>
       <ScrollArea className="min-h-0 flex-1">
         <ItemGroup className="gap-0">

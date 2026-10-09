@@ -112,7 +112,7 @@ export const DiskGrowthPage = () => {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-col gap-2 border-b px-4 py-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-sm font-medium">磁盘增长</h1>
           <ToggleGroup
             value={[view]}
@@ -125,7 +125,7 @@ export const DiskGrowthPage = () => {
             <ToggleGroupItem value="size">看大小</ToggleGroupItem>
             <ToggleGroupItem value="icicle">分布图</ToggleGroupItem>
           </ToggleGroup>
-          <div className="relative ml-auto w-64">
+          <div className="relative ml-auto w-full md:w-64">
             <HugeiconsIcon
               icon={Search01Icon}
               className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
@@ -160,7 +160,7 @@ export const DiskGrowthPage = () => {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <SnapshotSidebar
           snapshots={snapshots}
           isLoading={isLoading}
@@ -663,7 +663,7 @@ const SnapshotSidebar = ({
   }
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r">
+    <aside className="flex max-h-72 w-full shrink-0 flex-col border-b md:max-h-none md:w-56 md:border-r md:border-b-0">
       <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
         快照
       </div>

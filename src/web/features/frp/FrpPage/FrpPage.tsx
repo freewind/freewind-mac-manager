@@ -140,7 +140,7 @@ export const FrpPage = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-80">
+          <div className="relative w-full md:w-80">
             <HugeiconsIcon
               icon={Search01Icon}
               className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"

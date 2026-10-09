@@ -72,7 +72,7 @@ export const PortsPage = () => {
                 value={model.search}
                 onChange={(event) => model.setSearch(event.target.value)}
                 placeholder="搜索端口 / 进程 / 命令 / 项目"
-                className="h-7 w-64 pl-7"
+                className="h-7 w-full pl-7 md:w-64"
               />
             </div>
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -113,7 +113,7 @@ export const PortsPage = () => {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <PortQuickViews model={model} />
         <div className="flex min-h-0 flex-1 flex-col">
           <PortFilterBar model={model} />

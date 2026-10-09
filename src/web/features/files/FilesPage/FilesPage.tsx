@@ -11,6 +11,7 @@ import {
   TrashIcon,
 } from "@hugeicons/core-free-icons"
 import { useState } from "react"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import type { FileEntry } from "@shared/api-contract"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
@@ -35,6 +36,7 @@ type TransferState = {
 
 export const FilesPage = () => {
   const model = useFiles()
+  const isDesktop = useIsDesktop()
   const [createKind, setCreateKind] = useState<"mkdir" | "newfile" | null>(null)
   const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null)
   const [deletePaths, setDeletePaths] = useState<string[] | null>(null)
@@ -166,7 +168,10 @@ export const FilesPage = () => {
         </div>
       ) : null}
 
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+      <ResizablePanelGroup
+        orientation={isDesktop ? "horizontal" : "vertical"}
+        className="min-h-0 flex-1"
+      >
         <ResizablePanel
           defaultSize={22}
           minSize={12}
