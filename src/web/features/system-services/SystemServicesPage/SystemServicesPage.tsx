@@ -84,6 +84,7 @@ import {
   useSystemServices,
   type PendingAction,
 } from "@web/features/system-services/useSystemServices"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import type {
   DomainFilter,
   StateFilter,
@@ -221,6 +222,7 @@ const MetadataField = (props: { label: string; children: React.ReactNode }) => (
 
 export const SystemServicesPage = () => {
   const model = useSystemServices()
+  useHistoryOverlay(model.pending !== null, model.cancelPending)
   const service = model.selected
   const pending: PendingAction | null = model.pending
 

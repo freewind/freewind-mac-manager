@@ -31,6 +31,7 @@ import {
 } from "@web/components/ui/card"
 import type { TrafficSnapshot } from "@shared/api-contract"
 import { useTraffic } from "@web/features/traffic/useTraffic"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { ProcessTable } from "./ProcessTable"
 import { SnapshotList } from "./SnapshotList"
 
@@ -46,6 +47,8 @@ export const TrafficPage = () => {
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
     null
   )
+
+  useHistoryOverlay(pendingConfirm !== null, () => setPendingConfirm(null))
 
   const scopeText = model.isRealtime
     ? "实时（当前正在跑的进程）"

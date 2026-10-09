@@ -42,6 +42,7 @@ import {
   type ProcessScope,
 } from "@web/features/processes/store"
 import { useProcesses } from "@web/features/processes/useProcesses"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 
 /** 页面级瞬时状态：确认弹窗的目标。
  *  远程数据由 TanStack Query 管，本地共享状态由 Zustand 管，其余留在组件自己的 state。 */
@@ -53,6 +54,8 @@ type PendingTerminate = {
 export const ProcessesPage = () => {
   const model = useProcesses()
   const [pending, setPending] = useState<PendingTerminate | null>(null)
+
+  useHistoryOverlay(pending !== null, () => setPending(null))
 
   const requestTerminate = (items: ProcessEntry[], force: boolean) => {
     if (items.length === 0) return

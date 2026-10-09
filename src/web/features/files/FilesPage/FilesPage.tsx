@@ -21,6 +21,7 @@ import {
 } from "@web/components/ui/resizable"
 import type { EntryAction } from "@web/features/files/actions"
 import { useFiles } from "@web/features/files/useFiles"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { DeleteDialog } from "./DeleteDialog"
 import { DirectoryTree } from "./DirectoryTree"
 import { EntryNameDialog } from "./EntryNameDialog"
@@ -41,6 +42,19 @@ export const FilesPage = () => {
   const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null)
   const [deletePaths, setDeletePaths] = useState<string[] | null>(null)
   const [transfer, setTransfer] = useState<TransferState | null>(null)
+
+  useHistoryOverlay(
+    createKind !== null ||
+      renameTarget !== null ||
+      deletePaths !== null ||
+      transfer !== null,
+    () => {
+      setCreateKind(null)
+      setRenameTarget(null)
+      setDeletePaths(null)
+      setTransfer(null)
+    }
+  )
 
   // 动作只针对当前目录里确实存在的条目，避免选择里残留的旧路径被当成目标
   const selectedPaths = model.selectedEntries.map((entry) => entry.path)

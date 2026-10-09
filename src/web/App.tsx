@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { ArrowLeft01Icon } from "@hugeicons/core-free-icons"
 import { useQueryClient } from "@tanstack/react-query"
 import {
   fetchAuthStatus,
@@ -8,7 +10,11 @@ import {
 } from "@shared/client-api"
 import { describeError } from "@shared/format"
 import { AppSidebar, type FeatureKey } from "@web/components/app-sidebar"
-import { SidebarInset, SidebarProvider } from "@web/components/ui/sidebar"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@web/components/ui/sidebar"
 import { DashboardPage } from "@web/features/dashboard/DashboardPage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
 import { FilesPage } from "@web/features/files/FilesPage"
@@ -20,11 +26,56 @@ import { TrafficPage } from "@web/features/traffic/TrafficPage"
 import { LoginPage } from "@web/features/auth/LoginPage"
 import { Button } from "@web/components/ui/button"
 
+const FEATURE_KEYS: readonly FeatureKey[] = [
+  "overview",
+  "files",
+  "disk-growth",
+  "processes",
+  "traffic",
+  "ports",
+  "frp",
+  "system-services",
+]
+
+const featureFromUrl = (): FeatureKey => {
+  if (typeof window === "undefined") return "overview"
+  const value = new URL(window.location.href).searchParams.get("feature")
+  return value && FEATURE_KEYS.includes(value as FeatureKey)
+    ? (value as FeatureKey)
+    : "overview"
+}
+
+const featureUrl = (feature: FeatureKey) => {
+  const url = new URL(window.location.href)
+  if (feature === "overview") url.searchParams.delete("feature")
+  else url.searchParams.set("feature", feature)
+  return url
+}
+
+const isAppFeatureHistory = (state: unknown): boolean =>
+  typeof state === "object" &&
+  state !== null &&
+  "macManagerFeature" in state &&
+  (state as { macManagerFeature?: boolean }).macManagerFeature === true
+
 export const App = () => {
   const queryClient = useQueryClient()
-  const [feature, setFeature] = useState<FeatureKey>("overview")
+  const [feature, setFeature] = useState<FeatureKey>(featureFromUrl)
+  const [canGoBack, setCanGoBack] = useState(
+    () =>
+      typeof window !== "undefined" && isAppFeatureHistory(window.history.state)
+  )
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent): void => {
+      setFeature(featureFromUrl())
+      setCanGoBack(isAppFeatureHistory(event.state))
+    }
+    window.addEventListener("popstate", onPopState)
+    return () => window.removeEventListener("popstate", onPopState)
+  }, [])
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -67,6 +118,17 @@ export const App = () => {
     )
   }
 
+  const selectFeature = (next: FeatureKey): void => {
+    if (next === feature) return
+    window.history.pushState({ macManagerFeature: true }, "", featureUrl(next))
+    setFeature(next)
+    setCanGoBack(true)
+  }
+
+  const goBack = (): void => {
+    window.history.back()
+  }
+
   const signOut = async (): Promise<void> => {
     try {
       await logout()
@@ -78,12 +140,26 @@ export const App = () => {
 
   return (
     <SidebarProvider>
-      <AppSidebar active={feature} onSelect={setFeature} />
+      <AppSidebar active={feature} onSelect={selectFeature} />
       <SidebarInset>
-        <div className="flex justify-end border-b px-4 py-2">
-          <Button size="sm" variant="outline" onClick={() => void signOut()}>
-            退出登录
-          </Button>
+        <div className="flex items-center gap-2 border-b px-2 py-2">
+          <SidebarTrigger />
+          {canGoBack ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="返回"
+              title="返回"
+              onClick={goBack}
+            >
+              <HugeiconsIcon icon={ArrowLeft01Icon} />
+            </Button>
+          ) : null}
+          <div className="ml-auto">
+            <Button size="sm" variant="outline" onClick={() => void signOut()}>
+              退出登录
+            </Button>
+          </div>
         </div>
         {feature === "overview" ? <DashboardPage /> : null}
         {feature === "files" ? <FilesPage /> : null}

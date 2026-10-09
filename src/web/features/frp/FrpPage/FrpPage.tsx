@@ -41,6 +41,7 @@ import { Separator } from "@web/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import type { FrpProxy, FrpProxyType } from "@shared/api-contract"
 import { useFrp } from "@web/features/frp/useFrp"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { ProxyFormDialog } from "./ProxyFormDialog"
 import { ProxyTable } from "./ProxyTable"
 
@@ -66,6 +67,12 @@ export const FrpPage = () => {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<FrpProxy | null>(null)
   const [pendingDelete, setPendingDelete] = useState<FrpProxy | null>(null)
+
+  useHistoryOverlay(formOpen || pendingDelete !== null, () => {
+    setFormOpen(false)
+    setEditing(null)
+    setPendingDelete(null)
+  })
 
   const server = model.server
 

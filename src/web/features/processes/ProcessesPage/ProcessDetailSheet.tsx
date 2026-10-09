@@ -22,6 +22,7 @@ import {
   SheetTitle,
 } from "@web/components/ui/sheet"
 import { cn } from "@web/lib/utils"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import {
   formatDuration,
   PROCESS_KIND_LABEL,
@@ -51,7 +52,10 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
     selected === null
       ? []
       : model.processes.filter((item) => item.ppid === selected.pid)
-  const ownedByCurrentUser = selected !== null && selected.user === model.currentUser
+  const ownedByCurrentUser =
+    selected !== null && selected.user === model.currentUser
+
+  useHistoryOverlay(selected !== null, () => model.selectProcess(null))
 
   return (
     <Sheet
@@ -65,7 +69,11 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
           <>
             <SheetHeader className="gap-2 border-b p-5">
               <div className="flex items-center gap-2.5">
-                <ProcessAvatar name={selected.name} size="lg" className="rounded-lg" />
+                <ProcessAvatar
+                  name={selected.name}
+                  size="lg"
+                  className="rounded-lg"
+                />
                 <div className="flex min-w-0 flex-col gap-1">
                   <SheetTitle className="truncate">{selected.name}</SheetTitle>
                   <SheetDescription className="flex items-center gap-1.5">
@@ -121,9 +129,7 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
                       />
                     </span>
                   </DetailRow>
-                  <DetailRow label="线程">
-                    {selected.threads ?? "—"}
-                  </DetailRow>
+                  <DetailRow label="线程">{selected.threads ?? "—"}</DetailRow>
                 </section>
 
                 <Separator />
@@ -147,7 +153,9 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
                     )}
                   </DetailRow>
                   <DetailRow label="启动于">
-                    {new Date(selected.startedAt * 1000).toLocaleString("zh-CN")}
+                    {new Date(selected.startedAt * 1000).toLocaleString(
+                      "zh-CN"
+                    )}
                   </DetailRow>
                   <DetailRow label="已运行">
                     {formatDuration(model.nowMs / 1000 - selected.startedAt)}
@@ -194,7 +202,7 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
                             <ItemDescription>PID {child.pid}</ItemDescription>
                           </ItemContent>
                           <ItemActions>
-                            <span className="text-xs tabular-nums text-muted-foreground">
+                            <span className="text-xs text-muted-foreground tabular-nums">
                               {child.cpu.toFixed(1)}% ·{" "}
                               {formatBytes(child.memoryBytes)}
                             </span>

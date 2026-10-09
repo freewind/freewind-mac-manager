@@ -29,6 +29,7 @@ import { Checkbox } from "@web/components/ui/checkbox"
 import { Input } from "@web/components/ui/input"
 import { REFRESH_INTERVAL_SECONDS } from "@web/features/ports/store"
 import { usePorts } from "@web/features/ports/usePorts"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { PortFilterBar } from "./PortFilterBar"
 import { PortQuickViews } from "./PortQuickViews"
 import { PortTable } from "./PortTable"
@@ -45,6 +46,8 @@ export const PortsPage = () => {
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
     null
   )
+
+  useHistoryOverlay(pendingConfirm !== null, () => setPendingConfirm(null))
 
   const copyText = async (text: string) => {
     try {
