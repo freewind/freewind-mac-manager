@@ -1,5 +1,6 @@
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  ArrowRight01Icon,
   ArrowUp01Icon,
   File01Icon,
   Folder01Icon,
@@ -206,7 +207,12 @@ export const DiskGrowthPage = () => {
                           ? "cursor-pointer"
                           : undefined
                       )}
-                      onClick={() => setSelected(entry.path)}
+                      onClick={() => {
+                        setSelected(entry.path)
+                        if (entry.kind === "dir" && !entry.folded) {
+                          model.enterDirectory(entry)
+                        }
+                      }}
                       onDoubleClick={() => {
                         if (entry.kind === "dir" && !entry.folded) {
                           model.enterDirectory(entry)
@@ -222,6 +228,12 @@ export const DiskGrowthPage = () => {
                           <span className="truncate">{entry.name}</span>
                           {entry.folded ? (
                             <Badge variant="secondary">已折叠</Badge>
+                          ) : null}
+                          {entry.kind === "dir" && !entry.folded ? (
+                            <HugeiconsIcon
+                              icon={ArrowRight01Icon}
+                              className="size-3 text-muted-foreground"
+                            />
                           ) : null}
                         </span>
                       </TableCell>
