@@ -20,13 +20,14 @@
 
 沿用现有技术栈，不因通用默认规范擅自替换：
 
-- React 19 + Vite 8 + TypeScript strict。
+- React 19 + Vite 8 + TypeScript 7 strict；使用最新 7.x 稳定版并通过锁文件固定，升级时验证兼容性。
 - Express 5；开发与生产复用 `createApp()`，前端与 API 同端口，客户端使用相对地址。
 - ts-rest（`@ts-rest/core` / `@ts-rest/express`）+ zod；契约是请求、响应与类型的唯一来源。
 - `node:sqlite`；只使用 `env.ts` 的 `DATABASE_FILE`。
 - shadcn `base-mira` + Tailwind CSS 4；图标用 hugeicons。
 - TanStack Query 管理远程状态，Zustand 管理必要的共享本地状态，`useState` 管理组件内部状态。
-- ESLint + Prettier 保持现有工具链；测试采用 Vitest，组件测试采用 Testing Library。
+- Biome 统一代码检查、格式化与 import 整理，替代 ESLint + Prettier，不再保留并行工具链。
+- 测试采用 Vitest，组件测试采用 Testing Library；适合快照的稳定输出优先使用 `toMatchInlineSnapshot()`。
 
 模块别名保持 `@web`、`@server`、`@shared`，类型检查、构建与测试配置必须一致。版本事实以依赖和锁文件为准。
 
@@ -185,26 +186,40 @@ src/
 ## 九、代码质量、验证与交付
 
 - 使用清晰的命名导出；函数声明或箭头函数按语义选择，不为语法形式批量迁移。第三方生成代码和工具配置遵循各自要求。
-- 保持 TypeScript strict，未知输入用 `unknown` 并校验；禁止 `any`、`ts-ignore` 和 `eslint-disable` 掩盖问题。
+- 保持 TypeScript strict，未知输入用 `unknown` 并校验；禁止 `any`、`ts-ignore` 和用 lint suppression 掩盖问题。
 - 中文注释解释原因。应用日志用 `[mac-manager]` 前缀并脱敏，不在业务路径散落调试 `console.log`。
-- Prettier 沿用无分号、双引号、2 空格、printWidth 80；只格式化本任务的手写代码，不格式化或自动修复 shadcn 源码。
+- Biome 使用官方 recommended 规则，手写代码不得关闭推荐规则；团队额外规则按适用性接入，配置与插件必须可复现。
+- 格式沿用无分号、双引号、2 空格、行宽 80，由 Biome 统一处理；官方 shadcn 组件与 hook、生成物不参与格式化、import 整理或自动修复，手写代码的检查范围覆盖源码、脚本、测试与配置。
+- Biome 不替代 TypeScript 的类型检查；`typecheck` 必须独立运行 TypeScript 7 的 `tsc --noEmit`，构建复用该脚本。旧编译器 API 的工具依赖另行核实，不能静默改回旧类型检查器。
+- 不为 Markdown/YAML 等未支持格式保留 Prettier；这些文件通过内容、链接与 diff 检查验收，不交给 Biome 导致无文件匹配时阻断提交。
 - 测试优先覆盖公共纯函数、契约与 handler 边界、鉴权、路径安全、危险动作和未知结果；组件交互用 Testing Library，断言语义与可达性，不绑定组件内部实现。
+- 稳定且可读的返回值、解析结果与错误结构尽量使用 `toMatchInlineSnapshot()`；快照保持小而明确，时间、随机值和环境差异受控，不能用整页 DOM 快照代替行为验收。
+- 权限拒绝、危险动作不执行、次数与状态迁移等关键行为使用明确断言；快照只用于适合的输出比较。快照生成或更新必须审查差异，提交检查与 CI 不自动更新快照。
+- 每次提交用 Husky + lint-staged 对暂存的受支持手写文件运行同一套 Biome 检查，失败阻止提交；钩子只检查，不自动修复、不全仓格式化、不把未暂存内容带入提交。
+- `lint` 做全项目只读检查；`lint:fix` 显式执行安全修复、格式化与 import 整理，不默认使用 `--unsafe`，不修改受保护的官方源码。提交钩子不能代替完整类型检查、构建和相关测试。
 - 不以覆盖率数字或大量 E2E 为目标；浏览器 E2E 只做克制的冒烟，实际浏览器、截图或安装验证须用户明确要求，不自动启动。
 - 每项改动先定义可观察的验收结果；类型检查与 lint 不能替代业务验证，未验证的手机安装、触控和 PWA 行为必须明确标注。
 - 提交前 self review；手写代码改动运行类型检查、lint、构建及相关测试。纯文档改动检查内容、链接和 diff，不宣称业务功能因此完成。
 - 不顺手修改无关文件，不批量清理存量问题；一个任务一个中文 commit，body 整理原始需求，完成后 push。
 
-### 常用命令
+### 必备脚本与命令
+
+以下是目标约定；未接入的工具、脚本和提交钩子记录在 TODO，不能当作当前已经可用。
 
 ```bash
 pnpm dev                 # OpenAPI 生成 + Vite 开发，固定端口 51510，占用即失败
-pnpm build               # OpenAPI 生成 + 类型检查 + 前后端构建
-pnpm typecheck           # tsc --noEmit
-pnpm lint                # ESLint 检查
+pnpm build               # OpenAPI 生成 + pnpm typecheck + 前后端构建
+pnpm typecheck           # TypeScript 7：tsc --noEmit
+pnpm lint                # Biome：biome check .（只读）
+pnpm lint:fix            # Biome：biome check --write .（仅安全修复）
+pnpm test                # Vitest：vitest run
+pnpm test:watch          # Vitest：vitest
 pnpm generate:openapi     # 更新契约文档产物
 ```
 
-现有 `pnpm format` 会批量改写源码，不能作为默认交付命令；需要格式化时使用 Prettier 仅处理本次修改的手写文件。测试命令待测试基础设施接入后补齐，不把未配置的命令写成现状。
+`package.json` 的 scripts 必须提供 `typecheck`、`lint`、`lint:fix`、`test`，并用 `prepare` 安装提交钩子。检查与修复范围由同一 Biome 配置限定，排除官方源码与生成物；只改文档或没有受支持暂存文件时正常放行。
+
+不再保留调用 Prettier 的 `format` 命令。需要格式化局部手写文件时使用 Biome；`lint:fix` 虽提供全项目修复能力，也不得在无关业务任务中顺手全仓改写。
 
 ## 十、新功能与整改验收清单
 
