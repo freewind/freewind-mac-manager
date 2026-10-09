@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { GrowthEntry, ScanStatus, ScansResponse, TreeNode } from "@shared/api-contract/types"
+import type {
+  GrowthEntry,
+  ScanStatus,
+  TreeNode,
+} from "@shared/api-contract/types"
 import {
   deleteScans as deleteScansApi,
   fetchEntries,
@@ -10,58 +14,29 @@ import {
   trashEntry as trashEntryApi,
   triggerScan,
 } from "@shared/client-api"
-import {
-  appendMockSnapshot,
-  deleteMockSnapshots,
-  mockEntries,
-  mockScanPhases,
-  mockSearch,
-  mockSnapshots,
-  mockStatus,
-  mockTree,
-  truncateTree,
-} from "@web/features/disk-growth/mock-data"
 import { useDiskGrowthStore } from "@web/features/disk-growth/store"
 
 const KEYS = {
   snapshots: ["disk-growth", "snapshots"] as const,
   status: ["disk-growth", "scan-status"] as const,
-  entries: (source: string, scanId: number, baseline: number | null, path: string) =>
-    ["disk-growth", "entries", source, scanId, baseline, path] as const,
-  search: (source: string, scanId: number, baseline: number | null, keyword: string) =>
-    ["disk-growth", "search", source, scanId, baseline, keyword] as const,
-  tree: (source: string, scanId: number, baseline: number | null, path: string, depth: number) =>
-    ["disk-growth", "tree", source, scanId, baseline, path, depth] as const,
+  entries: (scanId: number, baseline: number | null, path: string) =>
+    ["disk-growth", "entries", scanId, baseline, path] as const,
+  search: (scanId: number, baseline: number | null, keyword: string) =>
+    ["disk-growth", "search", scanId, baseline, keyword] as const,
+  tree: (scanId: number, baseline: number | null, path: string, depth: number) =>
+    ["disk-growth", "tree", scanId, baseline, path, depth] as const,
 }
 
 export const useSnapshots = () => {
-  const setDataSource = useDiskGrowthStore((state) => state.setDataSource)
-  const dataSource = useDiskGrowthStore((state) => state.dataSource)
-
   const query = useQuery({
     queryKey: KEYS.snapshots,
-    queryFn: async (): Promise<ScansResponse> => {
-      try {
-        const data = await fetchScans()
-        if (data.snapshots.length > 0) {
-          setDataSource("server")
-          return data
-        }
-      } catch {
-        // 后端不可用时退回本地演示数据，保证界面可用。
-      }
-      setDataSource("demo")
-      return { snapshots: mockSnapshots() }
-    },
+    queryFn: async () => (await fetchScans()).snapshots,
   })
-
-  const snapshots =
-    dataSource === "demo" ? mockSnapshots() : (query.data?.snapshots ?? [])
-  return { snapshots, isLoading: query.isLoading }
+  return { snapshots: query.data ?? [], isLoading: query.isLoading }
 }
 
 /** 快照区间：端点 → 列表下标区间 → 连续 id 列表。 */
-export const useSelectionRange = (snapshots: ScansResponse["snapshots"]) => {
+export const useSelectionRange = (snapshots: ReturnType<typeof useSnapshots>["snapshots"]) => {
   const selection = useDiskGrowthStore((state) => state.selection)
   const fallback = {
     ids: snapshots.length > 0 ? [snapshots[0].id] : ([] as number[]),
@@ -79,48 +54,34 @@ export const useSelectionRange = (snapshots: ScansResponse["snapshots"]) => {
   return { ids, scanId: ids[0], baselineScanId: snapshots[to + 1]?.id ?? null }
 }
 
+const IDLE_STATUS: ScanStatus = {
+  running: false,
+  phase: "尚未扫描",
+  startedAt: null,
+  finishedAt: null,
+  scannedEntries: 0,
+  lastError: null,
+}
+
 export const useScanStatus = (): ScanStatus => {
-  const dataSource = useDiskGrowthStore((state) => state.dataSource)
-  const mockPhase = useDiskGrowthStore((state) => state.mockPhase)
   const query = useQuery({
     queryKey: KEYS.status,
     queryFn: fetchScanStatus,
-    enabled: dataSource === "server",
     refetchInterval: 2000,
   })
-
-  if (dataSource === "demo") {
-    const latest = mockSnapshots()[0]
-    return mockPhase
-      ? { ...mockStatus(latest), running: true, phase: mockPhase }
-      : mockStatus(latest)
-  }
-
-  return (
-    query.data ?? {
-      running: false,
-      phase: "尚未扫描",
-      startedAt: null,
-      finishedAt: null,
-      scannedEntries: 0,
-      lastError: null,
-    }
-  )
+  return query.data ?? IDLE_STATUS
 }
 
 export const useChildren = (options: {
   scanId: number | null
   baselineScanId: number | null
   path: string
-  spanDays: number
 }) => {
-  const { scanId, baselineScanId, path, spanDays } = options
-  const dataSource = useDiskGrowthStore((state) => state.dataSource)
+  const { scanId, baselineScanId, path } = options
   const query = useQuery({
-    queryKey: KEYS.entries(dataSource, scanId ?? 0, baselineScanId, path),
+    queryKey: KEYS.entries(scanId ?? 0, baselineScanId, path),
     enabled: scanId != null,
     queryFn: async (): Promise<GrowthEntry[]> => {
-      if (dataSource === "demo") return mockEntries(path, spanDays).entries
       const data = await fetchEntries({
         scanId: scanId as number,
         baselineScanId: baselineScanId ?? undefined,
@@ -136,16 +97,13 @@ export const useSearch = (options: {
   scanId: number | null
   baselineScanId: number | null
   keyword: string
-  spanDays: number
 }) => {
-  const { scanId, baselineScanId, spanDays } = options
-  const dataSource = useDiskGrowthStore((state) => state.dataSource)
+  const { scanId, baselineScanId } = options
   const trimmed = options.keyword.trim()
   const query = useQuery({
-    queryKey: KEYS.search(dataSource, scanId ?? 0, baselineScanId, trimmed),
+    queryKey: KEYS.search(scanId ?? 0, baselineScanId, trimmed),
     enabled: scanId != null && trimmed.length > 0,
     queryFn: async (): Promise<GrowthEntry[]> => {
-      if (dataSource === "demo") return mockSearch(trimmed, spanDays)
       const data = await fetchEntries({
         scanId: scanId as number,
         baselineScanId: baselineScanId ?? undefined,
@@ -167,18 +125,12 @@ export const useSubtree = (options: {
   baselineScanId: number | null
   path: string
   depth: number
-  spanDays: number
 }) => {
   const { scanId, baselineScanId, path, depth } = options
-  const dataSource = useDiskGrowthStore((state) => state.dataSource)
   const query = useQuery({
-    queryKey: KEYS.tree(dataSource, scanId ?? 0, baselineScanId, path, depth),
+    queryKey: KEYS.tree(scanId ?? 0, baselineScanId, path, depth),
     enabled: scanId != null,
     queryFn: async (): Promise<TreeNode | null> => {
-      if (dataSource === "demo") {
-        const tree = mockTree(path)
-        return tree ? truncateTree(tree, depth) : null
-      }
       const data = await fetchTree({
         scanId: scanId as number,
         baselineScanId: baselineScanId ?? undefined,
@@ -191,32 +143,19 @@ export const useSubtree = (options: {
   return { root: query.data ?? null, isLoading: query.isLoading }
 }
 
-/** 触发一次扫描；演示数据源下本地模拟整段过程并追加一份快照。 */
 export const useStartScan = () => {
   const client = useQueryClient()
-  const dataSource = useDiskGrowthStore((state) => state.dataSource)
-  const setMockPhase = useDiskGrowthStore((state) => state.setMockPhase)
   const resetForNewSnapshot = useDiskGrowthStore(
     (state) => state.resetForNewSnapshot
   )
-
   return useMutation({
     mutationFn: async (): Promise<string> => {
-      if (dataSource === "server") {
-        const result = await triggerScan()
-        client.invalidateQueries({ queryKey: KEYS.status })
-        return result.message
-      }
-      for (const phase of mockScanPhases()) {
-        setMockPhase(phase)
-        await new Promise((resolve) => setTimeout(resolve, 700))
-      }
-      setMockPhase(null)
-      appendMockSnapshot()
-      resetForNewSnapshot()
-      return "扫描完成"
+      const result = await triggerScan()
+      client.invalidateQueries({ queryKey: KEYS.status })
+      return result.message
     },
     onSuccess: () => {
+      resetForNewSnapshot()
       client.invalidateQueries({ queryKey: KEYS.snapshots })
     },
   })
@@ -224,22 +163,16 @@ export const useStartScan = () => {
 
 export const useDeleteScans = () => {
   const client = useQueryClient()
-  const dataSource = useDiskGrowthStore((state) => state.dataSource)
   const resetForNewSnapshot = useDiskGrowthStore(
     (state) => state.resetForNewSnapshot
   )
   return useMutation({
     mutationFn: async (ids: number[]): Promise<string> => {
-      if (dataSource === "demo") {
-        deleteMockSnapshots(ids)
-        resetForNewSnapshot()
-        return `已删除 ${ids.length} 份快照，相邻快照的差值已自动跨过被删区间`
-      }
       const result = await deleteScansApi(ids)
-      resetForNewSnapshot()
       return result.message
     },
     onSuccess: () => {
+      resetForNewSnapshot()
       client.invalidateQueries({ queryKey: KEYS.snapshots })
     },
   })

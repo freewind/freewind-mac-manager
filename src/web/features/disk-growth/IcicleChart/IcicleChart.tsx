@@ -76,14 +76,12 @@ const buildBlocks = (root: TreeNode): Block[] => {
 type IcicleChartProps = {
   scanId: number | null
   baselineScanId: number | null
-  spanDays: number
 }
 
 /** 分布图：一层一行，行的宽度等于该行的根，父子之间按大小切分宽度。 */
 export const IcicleChart = ({
   scanId,
   baselineScanId,
-  spanDays,
 }: IcicleChartProps) => {
   const focus = useDiskGrowthStore((state) => state.focusPath)
   const stack = useDiskGrowthStore((state) => state.focusStack)
@@ -96,7 +94,6 @@ export const IcicleChart = ({
     baselineScanId,
     path: focus,
     depth: MAX_DEPTH + 1,
-    spanDays,
   })
   const blocks = useMemo(() => (tree ? buildBlocks(tree) : []), [tree])
   const maxDepth = useMemo(

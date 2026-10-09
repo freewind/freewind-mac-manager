@@ -161,14 +161,12 @@ export const DiskGrowthPage = () => {
           <IcicleChart
             scanId={range.scanId}
             baselineScanId={range.baselineScanId}
-            spanDays={spanDays}
           />
         ) : isSearching ? (
           <SearchResultTable
             scanId={range.scanId}
             baselineScanId={range.baselineScanId}
             keyword={keyword}
-            spanDays={spanDays}
             view={view}
             onNotice={setNotice}
           />
@@ -194,7 +192,6 @@ export const DiskGrowthPage = () => {
                   depth={0}
                   scanId={range.scanId}
                   baselineScanId={range.baselineScanId}
-                  spanDays={spanDays}
                   view={view}
                   onNotice={setNotice}
                 />
@@ -212,7 +209,6 @@ type BranchProps = {
   depth: number
   scanId: number | null
   baselineScanId: number | null
-  spanDays: number
   view: "growth" | "size"
   onNotice: (message: string | null) => void
 }
@@ -223,7 +219,6 @@ const TreeBranch = (props: BranchProps) => {
     scanId: props.scanId,
     baselineScanId: props.baselineScanId,
     path,
-    spanDays: props.spanDays,
   })
   const expanded = useDiskGrowthStore((state) => state.expanded)
   const sortKey = useDiskGrowthStore((state) => state.sortKey)
@@ -300,7 +295,6 @@ type SearchProps = {
   scanId: number | null
   baselineScanId: number | null
   keyword: string
-  spanDays: number
   view: "growth" | "size"
   onNotice: (message: string | null) => void
 }
@@ -310,7 +304,6 @@ const SearchResultTable = (props: SearchProps) => {
     scanId: props.scanId,
     baselineScanId: props.baselineScanId,
     keyword: props.keyword,
-    spanDays: props.spanDays,
   })
   const total = results.reduce((sum, entry) => sum + entry.size, 0)
   return (

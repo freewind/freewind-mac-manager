@@ -24,11 +24,7 @@ type DiskGrowthState = {
   focusPath: string
   focusStack: string[]
   keyword: string
-  /** 数据来源：真实后端 或 本地演示数据（后端无快照/不可用时自动退回）。 */
-  dataSource: "server" | "demo"
   notice: string | null
-  /** Mock 模式下扫描进度的临时文案（真实模式由服务端状态提供）。 */
-  mockPhase: string | null
 
   setView: (view: DiskGrowthView) => void
   setSort: (key: DiskGrowthSortKey) => void
@@ -41,9 +37,7 @@ type DiskGrowthState = {
   enterFocus: (path: string) => void
   leaveFocus: () => void
   setKeyword: (keyword: string) => void
-  setDataSource: (source: "server" | "demo") => void
   setNotice: (message: string | null) => void
-  setMockPhase: (phase: string | null) => void
   resetForNewSnapshot: () => void
 }
 
@@ -65,9 +59,7 @@ export const useDiskGrowthStore = create<DiskGrowthState>((set) => ({
   focusPath: "",
   focusStack: [],
   keyword: "",
-  dataSource: "server",
   notice: null,
-  mockPhase: null,
 
   setView: (view) =>
     set({ view, sortKey: DEFAULT_SORT[view], descending: true }),
@@ -121,11 +113,7 @@ export const useDiskGrowthStore = create<DiskGrowthState>((set) => ({
 
   setKeyword: (keyword) => set({ keyword }),
 
-  setDataSource: (source) => set({ dataSource: source }),
-
   setNotice: (message) => set({ notice: message }),
-
-  setMockPhase: (phase) => set({ mockPhase: phase }),
 
   resetForNewSnapshot: () =>
     set({
@@ -136,6 +124,5 @@ export const useDiskGrowthStore = create<DiskGrowthState>((set) => ({
       anchorIndex: null,
       focusPath: "",
       focusStack: [],
-      mockPhase: null,
     }),
 }))
