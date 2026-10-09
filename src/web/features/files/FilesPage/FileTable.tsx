@@ -73,9 +73,7 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-3 border-b px-3 py-2 text-xs text-muted-foreground">
         <span>{rows.length} 个条目</span>
-        {model.selected.length > 0 ? (
-          <span>已选 {model.selected.length} 项</span>
-        ) : null}
+        {selectedCount > 0 ? <span>已选 {selectedCount} 项</span> : null}
         {model.isFetching ? <span>读取中…</span> : null}
       </div>
 

@@ -23,6 +23,7 @@ type FilesLocalState = {
   expandAncestors: (rootPath: string, path: string) => void
   collapseAll: () => void
   setSelected: (paths: string[]) => void
+  replaceSelectedPath: (from: string, to: string) => void
   toggleSelected: (path: string, checked: boolean) => void
   setSelectedForPaths: (checked: boolean, paths: string[]) => void
   clearSelection: () => void
@@ -77,6 +78,16 @@ export const useFilesLocalStore = create<FilesLocalState>((set) => ({
   collapseAll: () => set({ expanded: [] }),
 
   setSelected: (selected) => set({ selected }),
+
+  /**
+   * 改名后把选择里的旧路径换成新路径。
+   * 不换的话旧路径会永远留在选择里：它不再对应任何条目，
+   * 既让「已选 N 项」虚高，也让表头全选清不掉它。
+   */
+  replaceSelectedPath: (from, to) =>
+    set((state) => ({
+      selected: state.selected.map((item) => (item === from ? to : item)),
+    })),
 
   toggleSelected: (path, checked) =>
     set((state) => ({

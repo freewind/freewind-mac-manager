@@ -40,12 +40,13 @@ export const FilesPage = () => {
   const [deletePaths, setDeletePaths] = useState<string[] | null>(null)
   const [transfer, setTransfer] = useState<TransferState | null>(null)
 
-  const selected = model.selected
+  // 动作只针对当前目录里确实存在的条目，避免选择里残留的旧路径被当成目标
+  const selectedPaths = model.selectedEntries.map((entry) => entry.path)
   const singleEntry =
     model.selectedEntries.length === 1 ? model.selectedEntries[0] : null
   const downloadable = singleEntry?.kind === "file" ? singleEntry : null
   const busy = model.isMutating
-  const noSelection = selected.length === 0
+  const noSelection = selectedPaths.length === 0
 
   const actions: EntryAction[] = [
     {
@@ -74,14 +75,14 @@ export const FilesPage = () => {
       label: "复制到…",
       icon: Copy01Icon,
       disabled: busy || noSelection,
-      run: () => setTransfer({ mode: "copy", paths: selected }),
+      run: () => setTransfer({ mode: "copy", paths: selectedPaths }),
     },
     {
       key: "move",
       label: "移动到…",
       icon: FolderTransferIcon,
       disabled: busy || noSelection,
-      run: () => setTransfer({ mode: "move", paths: selected }),
+      run: () => setTransfer({ mode: "move", paths: selectedPaths }),
     },
     {
       key: "download",
@@ -98,7 +99,7 @@ export const FilesPage = () => {
       icon: TrashIcon,
       destructive: true,
       disabled: busy || noSelection,
-      run: () => setDeletePaths(selected),
+      run: () => setDeletePaths(selectedPaths),
     },
   ]
 

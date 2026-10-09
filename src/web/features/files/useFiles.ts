@@ -4,8 +4,8 @@ import type { FileEntry } from "@shared/api-contract"
 import { downloadFileUrl } from "@shared/client-api"
 import {
   buildCrumbs,
-  isDescendantPath,
   parentPath,
+  withName,
   type PathCrumb,
 } from "@web/features/files/domain"
 import {
@@ -86,14 +86,11 @@ export const useFiles = () => {
   const canGoUp = rootPath.length > 0 && resolvedPath !== rootPath
 
   /**
-   * 操作后当前目录自己可能已被删掉或移走：这时回到可用父目录并清空选择，
-   * 否则文件表会停在一个已经不存在的路径上。
+   * 写操作后清空选择：删除与移动会让被选条目离开当前目录，
+   * 选择留着就会出现指向不存在条目的残留。
    */
-  const leaveIfRemoved = (paths: string[]): void => {
+  const resetSelection = (): void => {
     local.setSelected([])
-    const container = paths.find((path) => isDescendantPath(path, resolvedPath))
-    if (container === undefined) return
-    local.enterDirectory(rootPath, parentPath(rootPath, container))
   }
 
   const createEntry = async (
@@ -117,6 +114,7 @@ export const useFiles = () => {
   const renameEntry = async (path: string, name: string): Promise<void> => {
     try {
       await renameEntryMutation.mutateAsync({ path, name })
+      local.replaceSelectedPath(path, withName(path, name))
       toast.success(`已重命名为：${name}`)
     } catch (error) {
       toast.error(describeError(error))
@@ -127,8 +125,8 @@ export const useFiles = () => {
     if (paths.length === 0) return
     try {
       await deleteEntriesMutation.mutateAsync(paths)
+      resetSelection()
       toast.success(`已删除 ${paths.length} 项`)
-      leaveIfRemoved(paths)
     } catch (error) {
       toast.error(describeError(error))
     }
@@ -148,7 +146,7 @@ export const useFiles = () => {
           : `已移动 ${paths.length} 项`
       )
       if (mode === "move") {
-        leaveIfRemoved(paths)
+        resetSelection()
       }
     } catch (error) {
       toast.error(describeError(error))
