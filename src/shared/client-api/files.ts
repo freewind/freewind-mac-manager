@@ -5,7 +5,7 @@ import type {
   OkResponse,
 } from "@shared/api-contract"
 import { API_BASE, ApiPath } from "@shared/api-path"
-import { apiClient } from "./client"
+import { apiClient, dispatchUnauthorized } from "./client"
 
 const unwrap = <T>(result: { status: number; body: unknown }): T => {
   if (result.status >= 200 && result.status < 300) return result.body as T
@@ -110,6 +110,12 @@ export const uploadFile = (
     })
     const request = new XMLHttpRequest()
     request.open("POST", `${ApiPath[`${API_BASE}/files/uploads`]}?${query}`)
+    const csrfToken = document.cookie.match(
+      /(?:^|; )mac_manager_csrf=([^;]*)/
+    )?.[1]
+    if (csrfToken) {
+      request.setRequestHeader("x-csrf-token", decodeURIComponent(csrfToken))
+    }
     request.setRequestHeader("content-type", "application/octet-stream")
 
     request.upload.addEventListener("progress", (event) => {
@@ -118,6 +124,7 @@ export const uploadFile = (
       }
     })
     request.addEventListener("load", () => {
+      if (request.status === 401) dispatchUnauthorized()
       const parsed = parseUploadResponse(request.responseText)
       if (request.status >= 200 && request.status < 300 && parsed?.file) {
         resolve(parsed.file)

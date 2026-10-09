@@ -1,6 +1,10 @@
 export const API_BASE = "/api" as const
 
 export const ApiPath = {
+  [`${API_BASE}/auth/csrf`]: `${API_BASE}/auth/csrf`,
+  [`${API_BASE}/auth/status`]: `${API_BASE}/auth/status`,
+  [`${API_BASE}/auth/login`]: `${API_BASE}/auth/login`,
+  [`${API_BASE}/auth/logout`]: `${API_BASE}/auth/logout`,
   [`${API_BASE}/health`]: `${API_BASE}/health`,
   [`${API_BASE}/disk-growth/scans`]: `${API_BASE}/disk-growth/scans`,
   [`${API_BASE}/disk-growth/entries`]: `${API_BASE}/disk-growth/entries`,
