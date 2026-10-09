@@ -1,18 +1,11 @@
 import { useMemo, useState } from "react"
 import {
   ignoredNames,
-  mockGroups,
+  mockSnapshots,
   mockStatus,
-  type TrafficGroup,
+  scaleGroupsForManualSnapshot,
+  type TrafficSnapshot,
 } from "@web/features/traffic/mock-data"
-
-export type RangeKind = "today" | "last7Days" | "custom"
-
-const RANGE_LABELS: Record<RangeKind, string> = {
-  today: "今天",
-  last7Days: "近 7 天",
-  custom: "自定义",
-}
 
 export type TrafficTotals = {
   bytesIn: number
@@ -21,28 +14,41 @@ export type TrafficTotals = {
   processCount: number
 }
 
+/** 快照驱动的流量视图：选中哪份快照，就展示那份快照区间内的进程流量。 */
 export const useTraffic = () => {
-  const [rangeKind, setRangeKind] = useState<RangeKind>("today")
+  const [snapshots, setSnapshots] = useState<TrafficSnapshot[]>(mockSnapshots)
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState(
+    mockSnapshots[0]?.id ?? ""
+  )
   const [ignoreProxy, setIgnoreProxy] = useState(true)
   const [expanded, setExpanded] = useState<string[]>(["node"])
   const [selected, setSelected] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshedAt, setRefreshedAt] = useState(() => Date.now())
 
-  const groups: TrafficGroup[] = mockGroups
   const status = mockStatus
 
-  const visibleGroups = useMemo(
+  const selectedSnapshot = useMemo(
+    () =>
+      snapshots.find((item) => item.id === selectedSnapshotId) ??
+      snapshots[0] ??
+      null,
+    [snapshots, selectedSnapshotId]
+  )
+
+  const allGroups = useMemo(() => selectedSnapshot?.groups ?? [], [selectedSnapshot])
+
+  const groups = useMemo(
     () =>
       ignoreProxy
-        ? groups.filter((item) => !ignoredNames.includes(item.name))
-        : groups,
-    [groups, ignoreProxy]
+        ? allGroups.filter((item) => !ignoredNames.includes(item.name))
+        : allGroups,
+    [allGroups, ignoreProxy]
   )
 
   const totals = useMemo<TrafficTotals>(
     () =>
-      visibleGroups.reduce<TrafficTotals>(
+      groups.reduce<TrafficTotals>(
         (accumulator, item) => ({
           bytesIn: accumulator.bytesIn + item.bytesIn,
           bytesOut: accumulator.bytesOut + item.bytesOut,
@@ -51,7 +57,7 @@ export const useTraffic = () => {
         }),
         { bytesIn: 0, bytesOut: 0, total: 0, processCount: 0 }
       ),
-    [visibleGroups]
+    [groups]
   )
 
   const toggleExpanded = (name: string) => {
@@ -64,7 +70,15 @@ export const useTraffic = () => {
 
   const refresh = () => {
     setRefreshedAt(Date.now())
-    setNotice("（演示数据）已刷新")
+    setNotice("（演示数据）已刷新实时速率")
+  }
+
+  /** 手动保存一份快照：以当前实时累计量为内容，保存后自动选中它。 */
+  const saveSnapshot = () => {
+    const snapshot = scaleGroupsForManualSnapshot(snapshots.length)
+    setSnapshots((previous) => [snapshot, ...previous])
+    setSelectedSnapshotId(snapshot.id)
+    setNotice(`（演示数据）已保存快照 ${snapshot.rangeText}`)
   }
 
   const terminate = (label: string, pids: number[]) => {
@@ -78,13 +92,14 @@ export const useTraffic = () => {
   }
 
   return {
-    rangeKind,
-    setRangeKind,
-    rangeLabel: RANGE_LABELS[rangeKind],
+    snapshots,
+    selectedSnapshotId,
+    selectSnapshot: setSelectedSnapshotId,
+    selectedSnapshot,
     ignoreProxy,
     setIgnoreProxy,
-    groups: visibleGroups,
-    hiddenCount: groups.length - visibleGroups.length,
+    groups,
+    hiddenCount: allGroups.length - groups.length,
     totals,
     status,
     expanded,
@@ -94,6 +109,7 @@ export const useTraffic = () => {
     select,
     notice,
     refresh,
+    saveSnapshot,
     terminate,
     refreshedAt,
   }

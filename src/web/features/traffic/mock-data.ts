@@ -163,5 +163,81 @@ export const mockStatus: TrafficStatus = {
   intervalSeconds: 5,
 }
 
+export type TrafficSnapshot = {
+  id: string
+  /** 保存时间的时间戳 */
+  savedAt: number
+  /** 本次快照覆盖的区间，形如 `10-08 23:55 ~ 10-09 23:55` */
+  rangeText: string
+  savedBy: "scheduled" | "manual"
+  bytesIn: number
+  bytesOut: number
+  /** 本区间内各进程新增的流量 */
+  groups: TrafficGroup[]
+}
+
+const pad = (value: number) => String(value).padStart(2, "0")
+
+const shortStamp = (time: number): string => {
+  const date = new Date(time)
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/** 按系数缩放一份基础数据，用来造出多天不同的快照内容。 */
+const scaleGroups = (groups: TrafficGroup[], factor: number): TrafficGroup[] =>
+  groups.map((item) =>
+    group(
+      item.name,
+      item.children.map((childItem) => ({
+        ...childItem,
+        bytesIn: Math.round(childItem.bytesIn * factor),
+        bytesOut: Math.round(childItem.bytesOut * factor),
+      }))
+    )
+  )
+
+/** 最近 7 天，每天一份增量快照（最上面一份是今天手动存的）。 */
+const SNAPSHOT_FACTORS = [0.62, 1.05, 0.48, 1.32, 0.75, 0.95, 1.18]
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+export const mockSnapshots: TrafficSnapshot[] = SNAPSHOT_FACTORS.map(
+  (factor, index) => {
+    const savedAt = Date.now() - index * DAY_MS
+    const previousAt = savedAt - DAY_MS
+    const groups = scaleGroups(mockGroups, factor)
+
+    return {
+      id: `snapshot-${index}`,
+      savedAt,
+      rangeText: `${shortStamp(previousAt)} ~ ${shortStamp(savedAt)}`,
+      savedBy: index === 0 ? "manual" : "scheduled",
+      bytesIn: groups.reduce((sum, item) => sum + item.bytesIn, 0),
+      bytesOut: groups.reduce((sum, item) => sum + item.bytesOut, 0),
+      groups,
+    }
+  }
+)
+
+/** 手动保存快照时用的内容：以基础数据按小系数放大，模拟「刚发生的一小段新增流量」。 */
+export const scaleGroupsForManualSnapshot = (
+  index: number
+): TrafficSnapshot => {
+  const savedAt = Date.now()
+  const factor = 0.12 + (index % 5) * 0.03
+  const groups = scaleGroups(mockGroups, factor)
+  const previousAt = mockSnapshots[0]?.savedAt ?? savedAt - DAY_MS
+
+  return {
+    id: `snapshot-manual-${index}-${savedAt}`,
+    savedAt,
+    rangeText: `${shortStamp(previousAt)} ~ ${shortStamp(savedAt)}`,
+    savedBy: "manual",
+    bytesIn: groups.reduce((sum, item) => sum + item.bytesIn, 0),
+    bytesOut: groups.reduce((sum, item) => sum + item.bytesOut, 0),
+    groups,
+  }
+}
+
 /** 默认忽略的代理进程：经代理的流量会同时记在它们的名下。 */
 export const ignoredNames = ["verge-mihomo", "clash-verge", "clash", "mihomo"]
