@@ -101,33 +101,29 @@ export const FileTable = ({ model }: FileTableProps) => {
                     }
                   />
                 </TableHead>
-                <TableHead>
-                  <SortHeader
-                    label="名称"
-                    sortKey="name"
-                    activeKey={sortKey}
-                    descending={descending}
-                    onSort={onSort}
-                  />
-                </TableHead>
-                <TableHead className="w-24">
-                  <SortHeader
-                    label="大小"
-                    sortKey="size"
-                    activeKey={sortKey}
-                    descending={descending}
-                    onSort={onSort}
-                  />
-                </TableHead>
-                <TableHead className="w-40">
-                  <SortHeader
-                    label="修改时间"
-                    sortKey="modified"
-                    activeKey={sortKey}
-                    descending={descending}
-                    onSort={onSort}
-                  />
-                </TableHead>
+                <SortHeader
+                  label="名称"
+                  sortKey="name"
+                  activeKey={sortKey}
+                  descending={descending}
+                  onSort={onSort}
+                />
+                <SortHeader
+                  label="大小"
+                  sortKey="size"
+                  activeKey={sortKey}
+                  descending={descending}
+                  onSort={onSort}
+                  className="w-24"
+                />
+                <SortHeader
+                  label="修改时间"
+                  sortKey="modified"
+                  activeKey={sortKey}
+                  descending={descending}
+                  onSort={onSort}
+                  className="w-40"
+                />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -166,26 +162,36 @@ type SortHeaderProps = {
   activeKey: FileSortKey
   descending: boolean
   onSort: (key: FileSortKey) => void
+  className?: string
 }
 
+/** 可排序表头：排序状态同时给屏幕阅读器（aria-sort），不只靠图标。 */
 const SortHeader = ({
   label,
   sortKey,
   activeKey,
   descending,
   onSort,
+  className,
 }: SortHeaderProps) => (
-  <Button
-    size="sm"
-    variant="ghost"
-    className={cn("-ml-2", activeKey === sortKey && "text-foreground")}
-    onClick={() => onSort(sortKey)}
+  <TableHead
+    className={className}
+    aria-sort={
+      activeKey === sortKey ? (descending ? "descending" : "ascending") : "none"
+    }
   >
-    {label}
-    {activeKey === sortKey ? (
-      <HugeiconsIcon icon={descending ? ArrowDown01Icon : ArrowUp01Icon} />
-    ) : null}
-  </Button>
+    <Button
+      size="sm"
+      variant="ghost"
+      className={cn("-ml-2", activeKey === sortKey && "text-foreground")}
+      onClick={() => onSort(sortKey)}
+    >
+      {label}
+      {activeKey === sortKey ? (
+        <HugeiconsIcon icon={descending ? ArrowDown01Icon : ArrowUp01Icon} />
+      ) : null}
+    </Button>
+  </TableHead>
 )
 
 type FileRowProps = {
