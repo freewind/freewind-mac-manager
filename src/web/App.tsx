@@ -78,15 +78,15 @@ export const App = () => {
   }, [])
 
   useEffect(() => {
-    const load = async (): Promise<void> => {
+    const load = async (showError: boolean): Promise<void> => {
       try {
         await ensureCsrf()
         setAuthStatus(await fetchAuthStatus())
       } catch (cause) {
-        setAuthError(describeError(cause))
+        if (showError) setAuthError(describeError(cause))
       }
     }
-    void load()
+    void load(true)
 
     const onUnauthorized = (): void => {
       queryClient.clear()
@@ -95,8 +95,18 @@ export const App = () => {
       )
     }
     window.addEventListener("mac-manager:unauthorized", onUnauthorized)
-    return () =>
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        void load(false)
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    window.addEventListener("online", onVisibilityChange)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+      window.removeEventListener("online", onVisibilityChange)
       window.removeEventListener("mac-manager:unauthorized", onUnauthorized)
+    }
   }, [queryClient])
 
   if (authError)

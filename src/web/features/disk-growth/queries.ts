@@ -70,7 +70,8 @@ export const useScanStatus = (): ScanStatus => {
   const query = useQuery({
     queryKey: diskGrowthKeys.status,
     queryFn: fetchScanStatus,
-    refetchInterval: 2000,
+    refetchInterval: (query) =>
+      query.state.data?.running === true ? 2000 : false,
   })
   return query.data ?? IDLE_STATUS
 }

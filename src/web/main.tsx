@@ -13,8 +13,12 @@ import "@web/index.css"
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
       staleTime: 1000,
+    },
+    mutations: {
+      retry: false,
     },
   },
 })

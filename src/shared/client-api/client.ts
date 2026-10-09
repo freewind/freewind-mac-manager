@@ -6,7 +6,8 @@ export class ApiRequestError extends Error {
     message: string,
     readonly status: number | null,
     readonly responseBody?: unknown,
-    cause?: unknown
+    cause?: unknown,
+    readonly resultUnknown = false
   ) {
     super(message, { cause })
     this.name = "ApiRequestError"
@@ -64,7 +65,15 @@ export const apiClient = initClient(contract, {
         credentials: "same-origin",
       })
     } catch (error) {
-      throw new ApiRequestError("网络请求失败", null, undefined, error)
+      throw new ApiRequestError(
+        ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())
+          ? "请求结果未知，请重新读取确认"
+          : "网络请求失败",
+        null,
+        undefined,
+        error,
+        ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())
+      )
     }
     if (
       response.status === 401 &&

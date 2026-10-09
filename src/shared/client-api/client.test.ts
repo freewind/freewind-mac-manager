@@ -22,6 +22,17 @@ describe("client response handling", () => {
     }
   })
 
+  it("marks write request failures as having an unknown result", () => {
+    const error = new ApiRequestError(
+      "请求结果未知，请重新读取确认",
+      null,
+      undefined,
+      undefined,
+      true
+    )
+    expect(error.resultUnknown).toBe(true)
+    expect(error.status).toBeNull()
+  })
   it("uses plain text when a server does not return JSON", () => {
     expect(() => unwrap({ status: 502, body: "upstream unavailable" })).toThrow(
       "upstream unavailable"
