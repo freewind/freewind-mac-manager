@@ -1,0 +1,1 @@
+export { FrpPage } from "./FrpPage"

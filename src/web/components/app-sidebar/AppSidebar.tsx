@@ -1,13 +1,21 @@
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  Activity01Icon,
   AnalyticsUpIcon,
+  ArrowRight01Icon,
   CircleGaugeIcon,
   CpuIcon,
   DashboardSpeed02Icon,
   EthernetPortIcon,
+  Globe02Icon,
   ServerStack01Icon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@web/components/ui/collapsible"
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +25,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
 } from "@web/components/ui/sidebar"
 
@@ -27,6 +38,7 @@ export type FeatureKey =
   | "processes"
   | "traffic"
   | "ports"
+  | "frp"
   | "system-services"
 
 type FeatureItem = {
@@ -35,14 +47,22 @@ type FeatureItem = {
   icon: typeof AnalyticsUpIcon
 }
 
+/** 顶层功能，直接平铺。 */
 const FEATURES: FeatureItem[] = [
   { key: "overview", label: "概览", icon: CircleGaugeIcon },
   { key: "disk-growth", label: "磁盘增长", icon: AnalyticsUpIcon },
   { key: "processes", label: "进程管理", icon: CpuIcon },
   { key: "traffic", label: "流量监控", icon: DashboardSpeed02Icon },
   { key: "ports", label: "端口管理", icon: EthernetPortIcon },
-  { key: "system-services", label: "系统服务", icon: ServerStack01Icon },
 ]
+
+/** 可折叠「服务」组下的子项。 */
+const SERVICES: FeatureItem[] = [
+  { key: "frp", label: "FRP 内网穿透", icon: Globe02Icon },
+  { key: "system-services", label: "系统服务", icon: Activity01Icon },
+]
+
+const SERVICE_KEYS = SERVICES.map((item) => item.key)
 
 type AppSidebarProps = {
   active: FeatureKey
@@ -51,6 +71,7 @@ type AppSidebarProps = {
 
 export const AppSidebar = (props: AppSidebarProps) => {
   const { active, onSelect } = props
+  const serviceActive = SERVICE_KEYS.includes(active)
 
   return (
     <Sidebar collapsible="icon">
@@ -78,6 +99,37 @@ export const AppSidebar = (props: AppSidebarProps) => {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
+
+            <Collapsible defaultOpen className="group/collapsible">
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={serviceActive}
+                  render={<CollapsibleTrigger />}
+                >
+                  <HugeiconsIcon icon={ServerStack01Icon} />
+                  <span>服务</span>
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    className="ml-auto transition-transform group-data-open/collapsible:rotate-90"
+                  />
+                </SidebarMenuButton>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {SERVICES.map((service) => (
+                      <SidebarMenuSubItem key={service.key}>
+                        <SidebarMenuSubButton
+                          isActive={active === service.key}
+                          onClick={() => onSelect(service.key)}
+                        >
+                          <HugeiconsIcon icon={service.icon} />
+                          <span>{service.label}</span>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))}
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </SidebarMenuItem>
+            </Collapsible>
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
