@@ -1,4 +1,4 @@
-import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
+import { ApiPath, toContractPath } from "@shared/api-path"
 import { ApiErrorSchema } from "../schemas/common"
 import { ProcessListResponseSchema } from "../schemas/processes"
 import {
@@ -14,7 +14,7 @@ const errorResponses = {
 export const processesRoutes = {
   listProcesses: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/processes`]),
+    path: toContractPath(ApiPath.processes),
     responses: {
       200: ProcessListResponseSchema,
       ...errorResponses,
@@ -23,7 +23,7 @@ export const processesRoutes = {
   // 结束进程是不可逆动作，按语义用 POST；body 与流量监控的结束进程同形。
   killProcesses: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/processes/kill`]),
+    path: toContractPath(ApiPath.processesKill),
     body: KillProcessesBodySchema,
     responses: {
       200: KillProcessesResponseSchema,

@@ -1,4 +1,4 @@
-import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
+import { ApiPath, toContractPath } from "@shared/api-path"
 import { c } from "../init"
 import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
 import {
@@ -22,7 +22,7 @@ const errorResponses = {
 export const diskGrowthRoutes = {
   listScans: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/disk-growth/scans`]),
+    path: toContractPath(ApiPath.diskGrowthScans),
     responses: {
       200: ScansResponseSchema,
       ...errorResponses,
@@ -30,7 +30,7 @@ export const diskGrowthRoutes = {
   },
   listEntries: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/disk-growth/entries`]),
+    path: toContractPath(ApiPath.diskGrowthEntries),
     query: EntriesQuerySchema,
     responses: {
       200: EntriesResponseSchema,
@@ -39,7 +39,7 @@ export const diskGrowthRoutes = {
   },
   subtree: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/disk-growth/tree`]),
+    path: toContractPath(ApiPath.diskGrowthTree),
     query: TreeQuerySchema,
     responses: {
       200: TreeResponseSchema,
@@ -48,7 +48,7 @@ export const diskGrowthRoutes = {
   },
   scanStatus: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/disk-growth/scan-status`]),
+    path: toContractPath(ApiPath.diskGrowthScanStatus),
     responses: {
       200: ScanStatusSchema,
       ...errorResponses,
@@ -56,7 +56,7 @@ export const diskGrowthRoutes = {
   },
   startScan: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/disk-growth/scan`]),
+    path: toContractPath(ApiPath.diskGrowthScan),
     body: c.noBody(),
     responses: {
       202: ScanStartResponseSchema,
@@ -65,7 +65,7 @@ export const diskGrowthRoutes = {
   },
   revealEntry: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/disk-growth/reveal`]),
+    path: toContractPath(ApiPath.diskGrowthReveal),
     body: EntryPathBodySchema,
     responses: {
       202: ActionResponseSchema,
@@ -74,7 +74,7 @@ export const diskGrowthRoutes = {
   },
   deleteScans: {
     method: "DELETE",
-    path: toContractPath(ApiPath[`${API_BASE}/disk-growth/scans`]),
+    path: toContractPath(ApiPath.diskGrowthScans),
     query: DeleteScansQuerySchema,
     responses: {
       202: ActionResponseSchema,
@@ -83,7 +83,7 @@ export const diskGrowthRoutes = {
   },
   trashEntry: {
     method: "DELETE",
-    path: toContractPath(ApiPath[`${API_BASE}/disk-growth/entry`]),
+    path: toContractPath(ApiPath.diskGrowthEntry),
     query: EntryPathQuerySchema,
     responses: {
       202: ActionResponseSchema,

@@ -1,4 +1,4 @@
-import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
+import { ApiPath, toContractPath } from "@shared/api-path"
 import { z } from "zod"
 import { c } from "../init"
 import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
@@ -21,61 +21,61 @@ const errorResponses = {
 export const filesRoutes = {
   listDirectory: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/files/directory`]),
+    path: toContractPath(ApiPath.filesDirectory),
     query: PathQuerySchema,
     responses: { 200: DirectoryResponseSchema, ...errorResponses },
   },
   createDirectory: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/files/directories`]),
+    path: toContractPath(ApiPath.filesDirectories),
     body: CreateEntryBodySchema,
     responses: { 200: ActionResponseSchema, ...errorResponses },
   },
   createFile: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/files/entries`]),
+    path: toContractPath(ApiPath.filesEntries),
     body: CreateEntryBodySchema,
     responses: { 200: ActionResponseSchema, ...errorResponses },
   },
   renameEntry: {
     method: "PUT",
-    path: toContractPath(ApiPath[`${API_BASE}/files/entries/name`]),
+    path: toContractPath(ApiPath.filesEntryName),
     body: RenameEntryBodySchema,
     responses: { 200: ActionResponseSchema, ...errorResponses },
   },
   deleteEntries: {
     method: "DELETE",
-    path: toContractPath(ApiPath[`${API_BASE}/files/entries`]),
+    path: toContractPath(ApiPath.filesEntries),
     query: PathsQuerySchema,
     responses: { 200: ActionResponseSchema, ...errorResponses },
   },
   copyEntries: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/files/entries/copy`]),
+    path: toContractPath(ApiPath.filesEntriesCopy),
     body: TransferEntriesBodySchema,
     responses: { 200: ActionResponseSchema, ...errorResponses },
   },
   moveEntries: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/files/entries/move`]),
+    path: toContractPath(ApiPath.filesEntriesMove),
     body: TransferEntriesBodySchema,
     responses: { 200: ActionResponseSchema, ...errorResponses },
   },
   readFileContent: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/files/content`]),
+    path: toContractPath(ApiPath.filesContent),
     query: PathQuerySchema,
     responses: { 200: FileContentResponseSchema, ...errorResponses },
   },
   writeFileContent: {
     method: "PUT",
-    path: toContractPath(ApiPath[`${API_BASE}/files/content`]),
+    path: toContractPath(ApiPath.filesContent),
     body: SaveFileContentBodySchema,
     responses: { 200: ActionResponseSchema, ...errorResponses },
   },
   downloadFile: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/files/download`]),
+    path: toContractPath(ApiPath.filesDownload),
     query: PathQuerySchema,
     responses: {
       200: c.otherResponse({

@@ -1,6 +1,6 @@
 import { initServer } from "@ts-rest/express"
 import type express from "express"
-import { API_BASE, ApiPath } from "@shared/api-path"
+import { ApiPath } from "@shared/api-path"
 import { contract } from "@shared/api-contract"
 import {
   copyEntries,
@@ -139,7 +139,7 @@ export const filesRouter = s.router(filesContract, {
  * 而这里用裸 octet-stream，元数据走 query，便于流式写入与前端进度统计。
  */
 export const registerUploadEndpoint = (app: express.Express): void => {
-  app.post(ApiPath[`${API_BASE}/files/uploads`], async (request, response) => {
+  app.post(ApiPath.filesUploads, async (request, response) => {
     const targetPath =
       typeof request.query.targetPath === "string"
         ? request.query.targetPath

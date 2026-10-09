@@ -4,7 +4,7 @@ import type {
   FileContentResponse,
   FileEntry,
 } from "@shared/api-contract"
-import { API_BASE, ApiPath } from "@shared/api-path"
+import { ApiPath } from "@shared/api-path"
 import { apiClient, dispatchUnauthorized } from "./client"
 
 const unwrap = <T>(result: { status: number; body: unknown }): T => {
@@ -76,7 +76,7 @@ export const saveFileContent = async (
 
 /** 下载走浏览器原生请求，由 <a download> 或 window.open 触发，不经过 ts-rest client。 */
 export const downloadFileUrl = (path: string): string =>
-  `${ApiPath[`${API_BASE}/files/download`]}?path=${encodeURIComponent(path)}`
+  `${ApiPath.filesDownload}?path=${encodeURIComponent(path)}`
 
 export type UploadProgress = {
   loaded: number
@@ -115,7 +115,7 @@ export const uploadFile = (
       relativePath: options?.relativePath ?? file.name,
     })
     const request = new XMLHttpRequest()
-    request.open("POST", `${ApiPath[`${API_BASE}/files/uploads`]}?${query}`)
+    request.open("POST", `${ApiPath.filesUploads}?${query}`)
     const csrfToken = document.cookie.match(
       /(?:^|; )mac_manager_csrf=([^;]*)/
     )?.[1]

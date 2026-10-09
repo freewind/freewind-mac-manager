@@ -1,4 +1,4 @@
-import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
+import { ApiPath, toContractPath } from "@shared/api-path"
 import { c } from "../init"
 import { ApiErrorSchema } from "../schemas/common"
 import {
@@ -23,7 +23,7 @@ const errorResponses = {
 export const trafficRoutes = {
   getTrafficStatus: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/traffic/status`]),
+    path: toContractPath(ApiPath.trafficStatus),
     responses: {
       200: TrafficStatusSchema,
       ...errorResponses,
@@ -31,7 +31,7 @@ export const trafficRoutes = {
   },
   listTrafficSnapshots: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/traffic/snapshots`]),
+    path: toContractPath(ApiPath.trafficSnapshots),
     responses: {
       200: TrafficSnapshotsResponseSchema,
       ...errorResponses,
@@ -39,7 +39,7 @@ export const trafficRoutes = {
   },
   listTrafficGroups: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/traffic/groups`]),
+    path: toContractPath(ApiPath.trafficGroups),
     query: TrafficGroupsQuerySchema,
     responses: {
       200: TrafficGroupsResponseSchema,
@@ -48,7 +48,7 @@ export const trafficRoutes = {
   },
   createTrafficSnapshot: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/traffic/snapshots`]),
+    path: toContractPath(ApiPath.trafficSnapshots),
     body: c.noBody(),
     responses: {
       201: TrafficSnapshotResponseSchema,
@@ -57,7 +57,7 @@ export const trafficRoutes = {
   },
   mergeTrafficSnapshots: {
     method: "PUT",
-    path: toContractPath(ApiPath[`${API_BASE}/traffic/snapshots/merge`]),
+    path: toContractPath(ApiPath.trafficSnapshotsMerge),
     body: MergeSnapshotsBodySchema,
     responses: {
       200: TrafficSnapshotsResponseSchema,
@@ -66,7 +66,7 @@ export const trafficRoutes = {
   },
   deleteTrafficSnapshots: {
     method: "DELETE",
-    path: toContractPath(ApiPath[`${API_BASE}/traffic/snapshots`]),
+    path: toContractPath(ApiPath.trafficSnapshots),
     query: DeleteSnapshotsQuerySchema,
     responses: {
       200: TrafficSnapshotsResponseSchema,
@@ -75,7 +75,7 @@ export const trafficRoutes = {
   },
   killTrafficProcesses: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/traffic/processes/kill`]),
+    path: toContractPath(ApiPath.trafficProcessesKill),
     body: KillProcessesBodySchema,
     responses: {
       200: KillProcessesResponseSchema,

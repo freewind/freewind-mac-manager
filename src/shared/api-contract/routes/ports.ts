@@ -1,4 +1,4 @@
-import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
+import { ApiPath, toContractPath } from "@shared/api-path"
 import { ApiErrorSchema } from "../schemas/common"
 import {
   KillPortProcessesBodySchema,
@@ -14,7 +14,7 @@ const errorResponses = {
 export const portsRoutes = {
   listPortBindings: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/ports/bindings`]),
+    path: toContractPath(ApiPath.portsBindings),
     responses: {
       200: PortBindingsResponseSchema,
       ...errorResponses,
@@ -22,7 +22,7 @@ export const portsRoutes = {
   },
   killPortProcesses: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/ports/processes/kill`]),
+    path: toContractPath(ApiPath.portsProcessesKill),
     body: KillPortProcessesBodySchema,
     responses: {
       200: KillPortProcessesResponseSchema,

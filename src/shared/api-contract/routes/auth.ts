@@ -1,4 +1,4 @@
-import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
+import { ApiPath, toContractPath } from "@shared/api-path"
 import { c } from "../init"
 import {
   AuthErrorSchema,
@@ -11,17 +11,17 @@ import {
 export const authRoutes = {
   getAuthCsrf: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/auth/csrf`]),
+    path: toContractPath(ApiPath.authCsrf),
     responses: { 200: CsrfTokenSchema },
   },
   getAuthStatus: {
     method: "GET",
-    path: toContractPath(ApiPath[`${API_BASE}/auth/status`]),
+    path: toContractPath(ApiPath.authStatus),
     responses: { 200: AuthStatusSchema },
   },
   login: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/auth/login`]),
+    path: toContractPath(ApiPath.authLogin),
     body: LoginBodySchema,
     responses: {
       200: AuthResultSchema,
@@ -32,7 +32,7 @@ export const authRoutes = {
   },
   logout: {
     method: "POST",
-    path: toContractPath(ApiPath[`${API_BASE}/auth/logout`]),
+    path: toContractPath(ApiPath.authLogout),
     body: c.noBody(),
     responses: {
       200: AuthResultSchema,
