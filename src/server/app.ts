@@ -2,8 +2,9 @@ import express from "express"
 import { createExpressEndpoints } from "@ts-rest/express"
 import { authRoutes } from "@shared/api-contract/routes/auth"
 import { createAuthManager, createAuthRouter } from "./auth"
+import { healthContract, healthRouter } from "./health/handlers"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
-import { diskGrowthContract, serverRouter } from "./disk-growth/handlers"
+import { diskGrowthContract, diskGrowthRouter } from "./disk-growth/handlers"
 import {
   filesContract,
   filesRouter,
@@ -32,7 +33,8 @@ export const createApp = (): express.Express => {
   const auth = createAuthManager()
   createExpressEndpoints(authRoutes, createAuthRouter(auth), app, options)
   app.use(auth.middleware)
-  createExpressEndpoints(diskGrowthContract, serverRouter, app, options)
+  createExpressEndpoints(healthContract, healthRouter, app, options)
+  createExpressEndpoints(diskGrowthContract, diskGrowthRouter, app, options)
   createExpressEndpoints(dashboardContract, dashboardRouter, app, options)
   createExpressEndpoints(portsContract, portsRouter, app, options)
   createExpressEndpoints(trafficContract, trafficRouter, app, options)
