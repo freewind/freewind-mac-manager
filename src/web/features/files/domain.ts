@@ -48,6 +48,16 @@ export const parentPath = (rootPath: string, path: string): string => {
   return parent.length < rootPath.length ? rootPath : parent
 }
 
+/** path 的父目录（不依赖根，供缓存失效使用）。 */
+export const dirnameOf = (path: string): string => {
+  const index = path.lastIndexOf(SEPARATOR)
+  return index <= 0 ? SEPARATOR : path.slice(0, index)
+}
+
+/** 把 path 换成同目录下的新名字。 */
+export const withName = (path: string, name: string): string =>
+  `${dirnameOf(path)}${dirnameOf(path) === SEPARATOR ? "" : SEPARATOR}${name}`
+
 /** 目录恒在前，其次按所选列排序。 */
 export const sortEntries = (
   entries: FileEntry[],

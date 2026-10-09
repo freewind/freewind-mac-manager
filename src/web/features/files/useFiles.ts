@@ -1,11 +1,35 @@
 import { useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+import type { FileEntry } from "@shared/api-contract"
+import { downloadFileUrl } from "@shared/client-api"
 import {
   buildCrumbs,
+  isDescendantPath,
   parentPath,
   type PathCrumb,
 } from "@web/features/files/domain"
-import { filesKeys, useDirectoryQuery } from "@web/features/files/queries"
+import {
+  filesKeys,
+  useCreateEntryMutation,
+  useDeleteEntriesMutation,
+  useDirectoryQuery,
+  useRenameEntryMutation,
+  useTransferEntriesMutation,
+} from "@web/features/files/queries"
 import { useFilesLocalStore } from "@web/features/files/store"
+
+const describeError = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
+
+/** 用临时 <a> 触发浏览器原生下载；window.open 在非直接点击时会被拦截。 */
+const triggerDownload = (path: string): void => {
+  const link = document.createElement("a")
+  link.href = downloadFileUrl(path)
+  link.download = ""
+  document.body.append(link)
+  link.click()
+  link.remove()
+}
 
 /**
  * 文件管理页的数据入口。
@@ -26,14 +50,21 @@ export const useFiles = () => {
   const targetPath = local.currentPath === "" ? rootPath : local.currentPath
   const currentQuery = useDirectoryQuery(targetPath)
 
+  const createEntryMutation = useCreateEntryMutation()
+  const renameEntryMutation = useRenameEntryMutation()
+  const deleteEntriesMutation = useDeleteEntriesMutation()
+  const transferEntriesMutation = useTransferEntriesMutation()
+
   const entries = currentQuery.data?.entries ?? []
   const resolvedPath = currentQuery.data?.path ?? targetPath
   const crumbs: PathCrumb[] = resolvedPath
     ? buildCrumbs(rootPath, resolvedPath)
     : []
+  const selectedEntries = entries.filter((entry) =>
+    local.selected.includes(entry.path)
+  )
 
   const isSelected = (path: string): boolean => local.selected.includes(path)
-
   const selectOnly = (path: string): void => local.setSelected([path])
 
   /** 让当前目录与已展开的树节点重新拉一次。 */
@@ -54,14 +85,100 @@ export const useFiles = () => {
 
   const canGoUp = rootPath.length > 0 && resolvedPath !== rootPath
 
+  /**
+   * 操作后当前目录自己可能已被删掉或移走：这时回到可用父目录并清空选择，
+   * 否则文件表会停在一个已经不存在的路径上。
+   */
+  const leaveIfRemoved = (paths: string[]): void => {
+    local.setSelected([])
+    const container = paths.find((path) => isDescendantPath(path, resolvedPath))
+    if (container === undefined) return
+    local.enterDirectory(rootPath, parentPath(rootPath, container))
+  }
+
+  const createEntry = async (
+    kind: "mkdir" | "newfile",
+    name: string
+  ): Promise<void> => {
+    try {
+      await createEntryMutation.mutateAsync({
+        kind,
+        parent: resolvedPath,
+        name,
+      })
+      toast.success(
+        kind === "mkdir" ? `已新建文件夹：${name}` : `已新建文件：${name}`
+      )
+    } catch (error) {
+      toast.error(describeError(error))
+    }
+  }
+
+  const renameEntry = async (path: string, name: string): Promise<void> => {
+    try {
+      await renameEntryMutation.mutateAsync({ path, name })
+      toast.success(`已重命名为：${name}`)
+    } catch (error) {
+      toast.error(describeError(error))
+    }
+  }
+
+  const deleteEntries = async (paths: string[]): Promise<void> => {
+    if (paths.length === 0) return
+    try {
+      await deleteEntriesMutation.mutateAsync(paths)
+      toast.success(`已删除 ${paths.length} 项`)
+      leaveIfRemoved(paths)
+    } catch (error) {
+      toast.error(describeError(error))
+    }
+  }
+
+  const transferEntries = async (
+    mode: "copy" | "move",
+    paths: string[],
+    destPath: string
+  ): Promise<void> => {
+    if (paths.length === 0) return
+    try {
+      await transferEntriesMutation.mutateAsync({ mode, paths, destPath })
+      toast.success(
+        mode === "copy"
+          ? `已复制 ${paths.length} 项`
+          : `已移动 ${paths.length} 项`
+      )
+      if (mode === "move") {
+        leaveIfRemoved(paths)
+      }
+    } catch (error) {
+      toast.error(describeError(error))
+    }
+  }
+
+  const downloadEntry = (entry: FileEntry): void => {
+    if (entry.kind !== "file") {
+      toast.error("目录暂不支持下载")
+      return
+    }
+    triggerDownload(entry.path)
+  }
+
+  const isMutating =
+    createEntryMutation.isPending ||
+    renameEntryMutation.isPending ||
+    deleteEntriesMutation.isPending ||
+    transferEntriesMutation.isPending
+
   return {
     // 数据
     rootPath,
     currentPath: resolvedPath,
     entries,
     crumbs,
+    selectedEntries,
     isLoading: currentQuery.isLoading || rootQuery.isLoading,
     isFetching: currentQuery.isFetching,
+    isMutating,
     error: currentQuery.error ?? rootQuery.error,
 
     // 本地共享状态
@@ -75,11 +192,18 @@ export const useFiles = () => {
     setSelectedForPaths: local.setSelectedForPaths,
     clearSelection: local.clearSelection,
 
-    // 动作
+    // 导航
     enterDirectory,
     goToParent,
     canGoUp,
     refresh,
+
+    // 写操作
+    createEntry,
+    renameEntry,
+    deleteEntries,
+    transferEntries,
+    downloadEntry,
   }
 }
 

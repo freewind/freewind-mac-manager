@@ -1,5 +1,15 @@
-import { useQuery } from "@tanstack/react-query"
-import { fetchDirectory } from "@shared/client-api"
+import type { QueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  copyEntries as copyEntriesApi,
+  createDirectory as createDirectoryApi,
+  createFile as createFileApi,
+  deleteEntries as deleteEntriesApi,
+  fetchDirectory,
+  moveEntries as moveEntriesApi,
+  renameEntry as renameEntryApi,
+} from "@shared/client-api"
+import { dirnameOf, isDescendantPath } from "@web/features/files/domain"
 
 /**
  * 远程状态统一走 TanStack Query，数据都从 `@shared/client-api` 取。
@@ -20,3 +30,117 @@ export const useDirectoryQuery = (path: string) =>
     queryFn: () => fetchDirectory(path),
     staleTime: 10_000,
   })
+
+/**
+ * 移出 path 及其全部后代的目录缓存（改名、删除、移动后旧路径已不存在）。
+ * Query 的数组键只做逐元素相等匹配、不做字符串前缀，因此按已缓存键逐个判断。
+ */
+const dropDirectorySubtree = (queryClient: QueryClient, path: string): void => {
+  for (const [key] of queryClient.getQueriesData({
+    queryKey: ["files", "directory"],
+  })) {
+    const cached = key[2]
+    if (typeof cached !== "string") continue
+    if (cached === path || isDescendantPath(path, cached)) {
+      queryClient.removeQueries({
+        queryKey: filesKeys.directory(cached),
+        exact: true,
+      })
+    }
+  }
+}
+
+/** 让指定目录重新取数；未缓存的目录不产生请求。 */
+const invalidateDirectories = async (
+  queryClient: QueryClient,
+  paths: readonly string[]
+): Promise<void> => {
+  await Promise.all(
+    Array.from(new Set(paths)).map((path) =>
+      queryClient.invalidateQueries({
+        queryKey: filesKeys.directory(path),
+        exact: true,
+      })
+    )
+  )
+}
+
+export type CreateEntryInput = {
+  kind: "mkdir" | "newfile"
+  parent: string
+  name: string
+}
+
+/** 新建目录 / 新建文件：只失效父目录。 */
+export const useCreateEntryMutation = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ kind, parent, name }: CreateEntryInput) =>
+      kind === "mkdir"
+        ? createDirectoryApi(parent, name)
+        : createFileApi(parent, name),
+    onSuccess: async (_result, variables) => {
+      await invalidateDirectories(queryClient, [variables.parent])
+    },
+  })
+}
+
+export type RenameEntryInput = {
+  path: string
+  name: string
+}
+
+/** 改名：旧路径的整棵子树缓存作废，失效所在目录。 */
+export const useRenameEntryMutation = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ path, name }: RenameEntryInput) =>
+      renameEntryApi(path, name),
+    onSuccess: async (_result, variables) => {
+      dropDirectorySubtree(queryClient, variables.path)
+      await invalidateDirectories(queryClient, [dirnameOf(variables.path)])
+    },
+  })
+}
+
+/** 删除：被删路径的整棵子树缓存作废，失效各自父目录。 */
+export const useDeleteEntriesMutation = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (paths: string[]) => deleteEntriesApi(paths),
+    onSuccess: async (_result, paths) => {
+      for (const path of paths) {
+        dropDirectorySubtree(queryClient, path)
+      }
+      await invalidateDirectories(queryClient, paths.map(dirnameOf))
+    },
+  })
+}
+
+export type TransferEntriesInput = {
+  mode: "copy" | "move"
+  paths: string[]
+  destPath: string
+}
+
+/** 复制 / 移动：移动时旧路径子树作废，失效源目录与目标目录。 */
+export const useTransferEntriesMutation = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ mode, paths, destPath }: TransferEntriesInput) =>
+      mode === "copy"
+        ? copyEntriesApi(paths, destPath)
+        : moveEntriesApi(paths, destPath),
+    onSuccess: async (_result, variables) => {
+      if (variables.mode === "move") {
+        for (const path of variables.paths) {
+          dropDirectorySubtree(queryClient, path)
+        }
+      }
+      await invalidateDirectories(queryClient, [
+        ...variables.paths.map(dirnameOf),
+        variables.destPath,
+      ])
+    },
+  })
+}
