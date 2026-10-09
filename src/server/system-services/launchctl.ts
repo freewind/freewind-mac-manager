@@ -36,7 +36,7 @@ const run = (args: string[]): Promise<string> =>
     execFile(
       "/bin/launchctl",
       args,
-      { maxBuffer: 8 * 1024 * 1024 },
+      { maxBuffer: 8 * 1024 * 1024, timeout: 10_000 },
       (error, stdout, stderr) => {
         if (error) {
           reject(commandError(error, stdout, stderr))

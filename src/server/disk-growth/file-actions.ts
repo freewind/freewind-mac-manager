@@ -7,7 +7,7 @@ const TRASH_DIR = path.join(homedir(), ".Trash")
 
 const run = (command: string, args: string[]): Promise<void> =>
   new Promise((resolve, reject) => {
-    execFile(command, args, (error) => {
+    execFile(command, args, { timeout: 10_000 }, (error) => {
       if (error) {
         reject(error)
         return

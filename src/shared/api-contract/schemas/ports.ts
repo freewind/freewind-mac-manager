@@ -37,7 +37,7 @@ export const PortBindingsResponseSchema = z.object({
 
 export const KillPortProcessesBodySchema = z.object({
   port: z.number().int().positive(),
-  pids: z.array(z.number().int().positive()).min(1),
+  pids: z.array(z.number().int().positive().max(999999)).min(1).max(64),
 })
 
 export const KillPortProcessResultSchema = z.object({

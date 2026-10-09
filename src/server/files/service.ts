@@ -2,9 +2,11 @@ import { createReadStream, createWriteStream, existsSync } from "node:fs"
 import type { Dirent, ReadStream } from "node:fs"
 import {
   copyFile,
+  lstat,
   mkdir,
   readFile,
   readdir,
+  realpath,
   rename,
   rm,
   stat,
@@ -12,6 +14,7 @@ import {
 } from "node:fs/promises"
 import path from "node:path"
 import type { Readable } from "node:stream"
+import { Transform } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import type {
   DirectoryResponse,
@@ -25,6 +28,7 @@ const UPLOAD_PART_SUFFIX = ".uploading.part"
 
 /** 在线编辑的大小上限，超过直接拒绝，避免把大文件读进内存。 */
 const MAX_EDITABLE_BYTES = 2 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 512 * 1024 * 1024
 
 /** 批量 stat 的批大小，避免一次对大目录的每个条目同时发起请求。 */
 const STAT_BATCH_SIZE = 64
@@ -142,6 +146,30 @@ export const resolvePath = (input: string): string => {
   return target
 }
 
+const assertWithinRoot = (target: string): void => {
+  const relative = path.relative(FILE_ROOT, target)
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("路径通过符号链接越出允许范围")
+  }
+}
+
+/** 现有目标拒绝符号链接，并确认解析后的真实路径仍在 FILE_ROOT 内。 */
+const resolveExistingPath = async (input: string): Promise<string> => {
+  const target = resolvePath(input)
+  const info = await lstat(target)
+  if (info.isSymbolicLink()) throw new Error("不允许操作符号链接")
+  const resolved = await realpath(target)
+  assertWithinRoot(resolved)
+  return resolved
+}
+
+const resolveExistingDirectory = async (input: string): Promise<string> => {
+  const target = await resolveExistingPath(input)
+  const info = await stat(target)
+  if (!info.isDirectory()) throw new Error("不是目录")
+  return target
+}
+
 /** target 是否等于 ancestor 或位于其之下。 */
 const isInside = (ancestor: string, target: string): boolean =>
   target === ancestor ||
@@ -192,11 +220,7 @@ const byKindThenName = (left: FileEntry, right: FileEntry): number => {
 export const listDirectory = async (
   targetPath: string
 ): Promise<DirectoryResponse> => {
-  const dir = resolvePath(targetPath)
-  const info = await stat(dir)
-  if (!info.isDirectory()) {
-    throw new Error("不是目录")
-  }
+  const dir = await resolveExistingDirectory(targetPath)
   const dirents = (await readdir(dir, { withFileTypes: true })).filter(
     (dirent) =>
       (dirent.isDirectory() || dirent.isFile()) &&
@@ -210,7 +234,8 @@ export const createDirectory = async (
   parentPath: string,
   name: string
 ): Promise<void> => {
-  await mkdir(path.join(resolvePath(parentPath), assertSafeName(name)))
+  const parent = await resolveExistingDirectory(parentPath)
+  await mkdir(path.join(parent, assertSafeName(name)))
 }
 
 export const createFile = async (
@@ -218,20 +243,17 @@ export const createFile = async (
   name: string
 ): Promise<void> => {
   // flag "wx" 让同名文件直接失败，不覆盖已有内容
-  await writeFile(
-    path.join(resolvePath(parentPath), assertSafeName(name)),
-    "",
-    {
-      flag: "wx",
-    }
-  )
+  const parent = await resolveExistingDirectory(parentPath)
+  await writeFile(path.join(parent, assertSafeName(name)), "", {
+    flag: "wx",
+  })
 }
 
 export const renameEntry = async (
   targetPath: string,
   name: string
 ): Promise<void> => {
-  const source = resolvePath(targetPath)
+  const source = await resolveExistingPath(targetPath)
   const destination = path.join(path.dirname(source), assertSafeName(name))
   // macOS 的 rename 会静默覆盖同名条目，这里先挡住
   if (destination !== source && existsSync(destination)) {
@@ -242,8 +264,8 @@ export const renameEntry = async (
 
 export const deleteEntries = async (paths: string[]): Promise<void> => {
   await Promise.all(
-    paths.map((item) =>
-      rm(resolvePath(item), { recursive: true, force: false })
+    paths.map(async (item) =>
+      rm(await resolveExistingPath(item), { recursive: true, force: false })
     )
   )
 }
@@ -252,8 +274,11 @@ const copyRecursive = async (
   source: string,
   destination: string
 ): Promise<void> => {
-  const info = await stat(source)
-  if (!info.isDirectory()) {
+  const sourceInfo = await lstat(source)
+  if (sourceInfo.isSymbolicLink()) {
+    throw new Error("不允许复制符号链接")
+  }
+  if (!sourceInfo.isDirectory()) {
     await copyFile(source, destination)
     return
   }
@@ -271,13 +296,9 @@ const resolveTransferTarget = async (
   paths: string[],
   destPath: string
 ): Promise<string> => {
-  const destination = resolvePath(destPath)
-  const info = await stat(destination)
-  if (!info.isDirectory()) {
-    throw new Error("目标不是目录")
-  }
+  const destination = await resolveExistingDirectory(destPath)
   for (const item of paths) {
-    const source = resolvePath(item)
+    const source = await resolveExistingPath(item)
     if (isInside(source, destination)) {
       throw new Error("不能把目录操作到自身或其子目录")
     }
@@ -295,7 +316,7 @@ export const copyEntries = async (
   const destination = await resolveTransferTarget(paths, destPath)
   await Promise.all(
     paths.map(async (item) => {
-      const source = resolvePath(item)
+      const source = await resolveExistingPath(item)
       const target = path.join(destination, path.basename(source))
       if (existsSync(target)) {
         throw new Error(`目标已存在同名条目：${path.basename(source)}`)
@@ -312,7 +333,7 @@ export const moveEntries = async (
   const destination = await resolveTransferTarget(paths, destPath)
   await Promise.all(
     paths.map(async (item) => {
-      const source = resolvePath(item)
+      const source = await resolveExistingPath(item)
       const target = path.join(destination, path.basename(source))
       if (existsSync(target)) {
         throw new Error(`目标已存在同名条目：${path.basename(source)}`)
@@ -334,7 +355,7 @@ export const moveEntries = async (
 export const readFileContent = async (
   targetPath: string
 ): Promise<FileContentResponse> => {
-  const value = resolvePath(targetPath)
+  const value = await resolveExistingPath(targetPath)
   const info = await stat(value)
   if (!info.isFile()) {
     throw new Error("不是文件")
@@ -363,7 +384,7 @@ export const writeFileContent = async (
   targetPath: string,
   content: string
 ): Promise<void> => {
-  const value = resolvePath(targetPath)
+  const value = await resolveExistingPath(targetPath)
   const info = await stat(value)
   if (!info.isFile()) {
     throw new Error("不是文件")
@@ -371,7 +392,17 @@ export const writeFileContent = async (
   if (!isEditableTextFile(path.basename(value))) {
     throw new Error("该文件类型不支持在线编辑")
   }
-  await writeFile(value, content, "utf8")
+  if (Buffer.byteLength(content, "utf8") > MAX_EDITABLE_BYTES) {
+    throw new Error("文件内容超过 2 MB，不支持保存")
+  }
+  const tempPath = `${value}.writing`
+  try {
+    await writeFile(tempPath, content, { encoding: "utf8", flag: "wx" })
+    await rename(tempPath, value)
+  } catch (error) {
+    await rm(tempPath, { force: true })
+    throw error
+  }
 }
 
 export type DownloadHandle = {
@@ -383,7 +414,7 @@ export type DownloadHandle = {
 export const openDownload = async (
   targetPath: string
 ): Promise<DownloadHandle> => {
-  const value = resolvePath(targetPath)
+  const value = await resolveExistingPath(targetPath)
   const info = await stat(value)
   if (!info.isFile()) {
     throw new Error("只能下载文件")
@@ -404,7 +435,7 @@ export const receiveUpload = async (
   relativePath: string,
   source: Readable
 ): Promise<FileEntry> => {
-  const destRoot = resolvePath(targetPath)
+  const destRoot = await resolveExistingDirectory(targetPath)
   const segments = relativePath.split("/").filter(Boolean).map(assertSafeName)
   const fileName = segments.pop()
   if (!fileName) {
@@ -422,7 +453,19 @@ export const receiveUpload = async (
     throw new Error("该文件正在上传中")
   }
   try {
-    await pipeline(source, createWriteStream(partPath))
+    const limiter = new Transform({
+      transform(chunk: unknown, _encoding, callback) {
+        const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))
+        if (data.length > MAX_UPLOAD_BYTES - bytes) {
+          callback(new Error("上传文件超过 512 MB 限制"))
+          return
+        }
+        bytes += data.length
+        callback(null, data)
+      },
+    })
+    let bytes = 0
+    await pipeline(source, limiter, createWriteStream(partPath))
     await rename(partPath, destination)
   } catch (error) {
     await rm(partPath, { force: true })

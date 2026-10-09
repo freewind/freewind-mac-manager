@@ -31,7 +31,7 @@ export const PathQuerySchema = z.object({
  * 服务端因此必须使用 extended query parser 才能还原成数组。
  */
 export const PathsQuerySchema = z.object({
-  paths: z.array(z.string().min(1)).min(1),
+  paths: z.array(z.string().min(1)).min(1).max(64),
 })
 
 export const CreateEntryBodySchema = z.object({
@@ -45,13 +45,13 @@ export const RenameEntryBodySchema = z.object({
 })
 
 export const TransferEntriesBodySchema = z.object({
-  paths: z.array(z.string().min(1)).min(1),
+  paths: z.array(z.string().min(1)).min(1).max(64),
   destPath: z.string().min(1),
 })
 
 export const SaveFileContentBodySchema = z.object({
   path: z.string().min(1),
-  content: z.string(),
+  content: z.string().max(2 * 1024 * 1024),
 })
 
 export const OkResponseSchema = z.object({

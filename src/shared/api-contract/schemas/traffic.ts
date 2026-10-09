@@ -5,7 +5,7 @@ export const TrafficChildSchema = z.object({
   label: z.string(),
   scriptName: z.string(),
   parent: z.string(),
-  pids: z.array(z.number().int()),
+  pids: z.array(z.number().int().max(999999)).max(64),
   ports: z.array(z.number().int()),
   running: z.boolean(),
   bytesIn: z.number().int().nonnegative(),
@@ -75,7 +75,7 @@ export const DeleteSnapshotsQuerySchema = z.object({
 })
 
 export const KillProcessesBodySchema = z.object({
-  pids: z.array(z.number().int().positive()).min(1),
+  pids: z.array(z.number().int().positive().max(999999)).min(1).max(64),
   force: z.boolean().optional(),
 })
 

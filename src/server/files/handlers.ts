@@ -152,6 +152,12 @@ export const registerUploadEndpoint = (app: express.Express): void => {
       response.status(400).json({ message: "缺少 targetPath 参数" })
       return
     }
+    const contentLength = Number(request.get("content-length") ?? 0)
+    if (contentLength > 512 * 1024 * 1024) {
+      response.status(413).json({ message: "上传文件超过 512 MB 限制" })
+      return
+    }
+    request.setTimeout(10 * 60 * 1000, () => request.destroy())
     try {
       const file = await receiveUpload(targetPath, relativePath, request)
       response.status(200).json({ ok: true, file })

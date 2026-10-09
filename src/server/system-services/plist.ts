@@ -6,13 +6,18 @@ type PlistJson = Record<string, unknown>
 
 const runText = (command: string, args: string[]): Promise<string> =>
   new Promise((resolve, reject) => {
-    execFile(command, args, { maxBuffer: 8 * 1024 * 1024 }, (error, stdout) => {
-      if (error) {
-        reject(error)
-        return
+    execFile(
+      command,
+      args,
+      { maxBuffer: 8 * 1024 * 1024, timeout: 10_000 },
+      (error, stdout) => {
+        if (error) {
+          reject(error)
+          return
+        }
+        resolve(stdout)
       }
-      resolve(stdout)
-    })
+    )
   })
 
 /** plist 原文（展示用）。 */

@@ -46,12 +46,20 @@ export const ServicesResponseSchema = z.object({
 })
 
 export const ServiceTargetQuerySchema = z.object({
-  label: z.string().min(1),
+  label: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[A-Za-z0-9._-]+$/, "服务标识包含非法字符"),
   domain: ServiceDomainSchema,
 })
 
 export const ServiceTargetBodySchema = z.object({
-  label: z.string().min(1),
+  label: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[A-Za-z0-9._-]+$/, "服务标识包含非法字符"),
   domain: ServiceDomainSchema,
 })
 

@@ -9,6 +9,7 @@ type PortState = PortBinding["state"]
 const run = (command: string, args: string[]): Promise<string> =>
   new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] })
+    const timer = setTimeout(() => child.kill("SIGTERM"), 10_000)
     let stdout = ""
     let stderr = ""
     child.stdout.setEncoding("utf8")
@@ -21,6 +22,7 @@ const run = (command: string, args: string[]): Promise<string> =>
     })
     child.on("error", reject)
     child.on("close", (code) => {
+      clearTimeout(timer)
       if (code === 0 || code === 1) {
         resolve(stdout)
         return
@@ -201,13 +203,21 @@ const parsePairs = (
 }
 
 /** 取每个 PID 的父进程、完整命令、进程名与启动时间。 */
-const loadProcessRows = async (pids: number[]): Promise<Map<number, ProcessRow>> => {
+const loadProcessRows = async (
+  pids: number[]
+): Promise<Map<number, ProcessRow>> => {
   const rows = new Map<number, ProcessRow>()
   if (pids.length === 0) return rows
   const targets = pids.map(String)
 
   const [lstart, comm, command, cwd] = await Promise.all([
-    run("/bin/ps", ["-ww", "-o", "pid=,ppid=,lstart=", "-p", targets.join(",")]),
+    run("/bin/ps", [
+      "-ww",
+      "-o",
+      "pid=,ppid=,lstart=",
+      "-p",
+      targets.join(","),
+    ]),
     run("/bin/ps", ["-ww", "-o", "pid=,comm=", "-p", targets.join(",")]),
     run("/bin/ps", ["-ww", "-o", "pid=,command=", "-p", targets.join(",")]),
     run("/usr/sbin/lsof", ["-a", "-p", targets.join(","), "-d", "cwd", "-Fpn"]),
@@ -251,7 +261,9 @@ const loadProcessRows = async (pids: number[]): Promise<Map<number, ProcessRow>>
 }
 
 /** 父进程名：PID 1 记作 launchd，其余查 comm。 */
-const loadParentNames = async (pids: number[]): Promise<Map<number, string>> => {
+const loadParentNames = async (
+  pids: number[]
+): Promise<Map<number, string>> => {
   const names = new Map<number, string>()
   const targets = [...new Set(pids)].filter((pid) => pid > 0)
   if (targets.length === 0) return names
