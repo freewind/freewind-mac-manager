@@ -1,10 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useMemo } from "react"
-import type { MemoryInfo, ProcessInfo } from "@web/features/dashboard/mock-data"
+import type { MemoryInfo, ProcessInfo } from "@shared/api-contract"
 import {
   dashboardKeys,
   useListeningPorts,
-  useMachineSnapshot,
+  useMachineOverview,
   useTopProcesses,
 } from "@web/features/dashboard/queries"
 import {
@@ -20,7 +20,7 @@ export type MemoryPressure = {
 /**
  * 概览页的数据入口。
  *
- * - 远程状态：TanStack Query（机器快照、进程、端口）
+ * - 远程状态：TanStack Query（机器概览、进程、端口）
  * - 本地共享状态：Zustand（刷新开关、进程表排序）
  * - 派生展示值：这里的 useMemo（排序结果、内存压力）
  */
@@ -28,28 +28,30 @@ export const useDashboard = () => {
   const local = useDashboardStore()
   const queryClient = useQueryClient()
 
-  const snapshotQuery = useMachineSnapshot()
+  const overviewQuery = useMachineOverview()
   const processesQuery = useTopProcesses()
   const portsQuery = useListeningPorts()
 
   const processes = useMemo(
     () =>
       sortProcesses(
-        processesQuery.data ?? [],
+        processesQuery.data?.processes ?? [],
         local.processSortKey,
         local.processDescending
       ),
     [processesQuery.data, local.processSortKey, local.processDescending]
   )
 
-  const snapshot = snapshotQuery.data ?? null
+  const overview = overviewQuery.data ?? null
+  const error = overviewQuery.error ?? processesQuery.error ?? portsQuery.error
 
   return {
-    snapshot,
-    loading: snapshotQuery.isPending,
+    overview,
+    loading: overviewQuery.isPending,
     processes,
-    ports: portsQuery.data ?? [],
-    pressure: snapshot ? describeMemoryPressure(snapshot.memory) : null,
+    ports: portsQuery.data?.ports ?? [],
+    pressure: overview ? describeMemoryPressure(overview.memory) : null,
+    error: error ? (error as Error).message : null,
     processSortKey: local.processSortKey,
     processDescending: local.processDescending,
     setProcessSort: local.setProcessSort,
@@ -79,7 +81,7 @@ const sortProcesses = (
 
 const describeMemoryPressure = (memory: MemoryInfo): MemoryPressure => {
   const usage = (memory.used + memory.wired + memory.compressed) / memory.total
-  const swap = memory.swapUsed / memory.swapTotal
+  const swap = memory.swapTotal > 0 ? memory.swapUsed / memory.swapTotal : 0
   if (usage > 0.85 || swap > 0.85) return { label: "紧张", level: "high" }
   if (usage > 0.7 || swap > 0.6) return { label: "偏高", level: "warn" }
   return { label: "正常", level: "ok" }

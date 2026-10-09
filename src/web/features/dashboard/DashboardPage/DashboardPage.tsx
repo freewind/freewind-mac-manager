@@ -11,6 +11,8 @@ import {
 } from "@hugeicons/core-free-icons"
 import type { ReactNode } from "react"
 import { formatBytes } from "@shared/format"
+import type { DiskVolume } from "@shared/api-contract"
+import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
@@ -39,12 +41,11 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import { cn } from "@web/lib/utils"
-import type { DiskVolume } from "@web/features/dashboard/mock-data"
 import { useDashboard } from "@web/features/dashboard/useDashboard"
 
 export const DashboardPage = () => {
   const model = useDashboard()
-  const snapshot = model.snapshot
+  const overview = model.overview
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -56,8 +57,8 @@ export const DashboardPage = () => {
             <span className="text-xs text-muted-foreground">
               {model.paused
                 ? "已暂停自动刷新"
-                : snapshot
-                  ? `更新于 ${formatClock(snapshot.sampledAt)} · 每 3 秒自动刷新`
+                : overview
+                  ? `更新于 ${formatClock(overview.sampledAt)} · 每 3 秒自动刷新`
                   : "正在读取状态"}
             </span>
             <Button size="sm" variant="outline" onClick={model.togglePaused}>
@@ -69,14 +70,14 @@ export const DashboardPage = () => {
             </Button>
           </div>
         </div>
-        {snapshot ? (
+        {overview ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span className="text-foreground">{snapshot.system.hostname}</span>
-            <span>{snapshot.system.model}</span>
-            <span>{snapshot.system.chip}</span>
-            <span>{snapshot.system.osVersion}</span>
-            <span>已开机 {formatDuration(snapshot.system.uptimeSeconds)}</span>
-            <span>{snapshot.system.userCount} 人登录</span>
+            <span className="text-foreground">{overview.system.hostname}</span>
+            <span>{overview.system.model}</span>
+            <span>{overview.system.chip}</span>
+            <span>{overview.system.osVersion}</span>
+            <span>已开机 {formatDuration(overview.system.uptimeSeconds)}</span>
+            <span>{overview.system.userCount} 人登录</span>
           </div>
         ) : (
           <Skeleton className="h-4 w-96" />
@@ -85,18 +86,24 @@ export const DashboardPage = () => {
       <Separator />
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        {snapshot ? (
+        {model.error ? (
+          <Alert variant="destructive" className="mb-3">
+            <AlertTitle>读取本机状态失败</AlertTitle>
+            <AlertDescription>{model.error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {overview ? (
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               icon={CpuIcon}
               title="CPU 负载"
-              value={(snapshot.cpu.loadAverage[0] ?? 0).toFixed(2)}
-              description={`${snapshot.cpu.coreCount} 核 · 1/5/15 分钟：${snapshot.cpu.loadAverage
+              value={(overview.cpu.loadAverage[0] ?? 0).toFixed(2)}
+              description={`${overview.cpu.coreCount} 核 · 1/5/15 分钟：${overview.cpu.loadAverage
                 .map((value) => value.toFixed(2))
                 .join(" / ")}`}
             >
               <div className="grid grid-cols-4 gap-2">
-                {snapshot.cpu.coreUsage.map((usage, index) => (
+                {overview.cpu.coreUsage.map((usage, index) => (
                   <div key={index} className="flex flex-col gap-1">
                     <Progress value={usage} />
                     <span className="text-[0.625rem] text-muted-foreground tabular-nums">
@@ -110,7 +117,7 @@ export const DashboardPage = () => {
             <MetricCard
               icon={MemoryStickIcon}
               title="内存"
-              value={`${formatBytes(snapshot.memory.used)} / ${formatBytes(snapshot.memory.total)}`}
+              value={`${formatBytes(overview.memory.used)} / ${formatBytes(overview.memory.total)}`}
               description={
                 <Badge
                   variant={
@@ -123,24 +130,24 @@ export const DashboardPage = () => {
             >
               <div className="flex flex-col gap-2">
                 <Progress
-                  value={ratio(snapshot.memory.used, snapshot.memory.total)}
+                  value={ratio(overview.memory.used, overview.memory.total)}
                 />
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.6875rem] text-muted-foreground">
                   <StatRow
                     label="应用"
-                    value={formatBytes(snapshot.memory.used)}
+                    value={formatBytes(overview.memory.used)}
                   />
                   <StatRow
                     label="联动"
-                    value={formatBytes(snapshot.memory.wired)}
+                    value={formatBytes(overview.memory.wired)}
                   />
                   <StatRow
                     label="压缩"
-                    value={formatBytes(snapshot.memory.compressed)}
+                    value={formatBytes(overview.memory.compressed)}
                   />
                   <StatRow
                     label="可用"
-                    value={formatBytes(snapshot.memory.free)}
+                    value={formatBytes(overview.memory.free)}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -150,19 +157,19 @@ export const DashboardPage = () => {
                       className={cn(
                         "tabular-nums",
                         swapTight(
-                          snapshot.memory.swapUsed,
-                          snapshot.memory.swapTotal
+                          overview.memory.swapUsed,
+                          overview.memory.swapTotal
                         ) && "text-destructive"
                       )}
                     >
-                      {formatBytes(snapshot.memory.swapUsed)} /{" "}
-                      {formatBytes(snapshot.memory.swapTotal)}
+                      {formatBytes(overview.memory.swapUsed)} /{" "}
+                      {formatBytes(overview.memory.swapTotal)}
                     </span>
                   </span>
                   <Progress
                     value={ratio(
-                      snapshot.memory.swapUsed,
-                      snapshot.memory.swapTotal
+                      overview.memory.swapUsed,
+                      overview.memory.swapTotal
                     )}
                   />
                 </div>
@@ -172,13 +179,13 @@ export const DashboardPage = () => {
             <MetricCard
               icon={HardDriveIcon}
               title="磁盘"
-              value={formatBytes(snapshot.disk[0]?.used ?? 0)}
+              value={formatBytes(overview.disk[0]?.used ?? 0)}
               description={`系统盘已用 ${formatPercent(
-                ratio(snapshot.disk[0]?.used ?? 0, snapshot.disk[0]?.total ?? 1)
-              )} · 可用 ${formatBytes(snapshot.disk[0]?.free ?? 0)}`}
+                ratio(overview.disk[0]?.used ?? 0, overview.disk[0]?.total ?? 1)
+              )} · 可用 ${formatBytes(overview.disk[0]?.free ?? 0)}`}
             >
               <div className="flex flex-col gap-2">
-                {snapshot.disk.map((volume) => (
+                {overview.disk.map((volume) => (
                   <VolumeRow key={volume.mount} volume={volume} />
                 ))}
               </div>
@@ -187,28 +194,28 @@ export const DashboardPage = () => {
             <MetricCard
               icon={NetworkIcon}
               title="网络"
-              value={`${formatBytes(snapshot.network.downloadRate)}/s`}
-              description={`${snapshot.network.interfaceName} · ${snapshot.network.address}`}
+              value={`${formatBytes(overview.network.downloadRate)}/s`}
+              description={`${overview.network.interfaceName} · ${overview.network.address}`}
             >
               <div className="flex flex-col gap-2 text-[0.6875rem]">
                 <span className="flex items-center gap-1 text-muted-foreground">
                   <HugeiconsIcon icon={ArrowDown01Icon} className="size-3" />
                   下载
                   <span className="text-foreground tabular-nums">
-                    {formatBytes(snapshot.network.downloadRate)}/s
+                    {formatBytes(overview.network.downloadRate)}/s
                   </span>
                   <span className="ml-auto tabular-nums">
-                    累计 {formatBytes(snapshot.network.totalDown)}
+                    累计 {formatBytes(overview.network.totalDown)}
                   </span>
                 </span>
                 <span className="flex items-center gap-1 text-muted-foreground">
                   <HugeiconsIcon icon={ArrowUp01Icon} className="size-3" />
                   上传
                   <span className="text-foreground tabular-nums">
-                    {formatBytes(snapshot.network.uploadRate)}/s
+                    {formatBytes(overview.network.uploadRate)}/s
                   </span>
                   <span className="ml-auto tabular-nums">
-                    累计 {formatBytes(snapshot.network.totalUp)}
+                    累计 {formatBytes(overview.network.totalUp)}
                   </span>
                 </span>
               </div>
