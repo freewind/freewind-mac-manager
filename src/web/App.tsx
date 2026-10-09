@@ -3,6 +3,7 @@ import { AppSidebar, type FeatureKey } from "@web/components/app-sidebar"
 import { SidebarInset, SidebarProvider } from "@web/components/ui/sidebar"
 import { DashboardPage } from "@web/features/dashboard/DashboardPage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
+import { FilesPage } from "@web/features/files/FilesPage"
 import { FrpPage } from "@web/features/frp/FrpPage"
 import { PortsPage } from "@web/features/ports/PortsPage"
 import { ProcessesPage } from "@web/features/processes/ProcessesPage"
@@ -17,6 +18,7 @@ export const App = () => {
       <AppSidebar active={feature} onSelect={setFeature} />
       <SidebarInset>
         {feature === "overview" ? <DashboardPage /> : null}
+        {feature === "files" ? <FilesPage /> : null}
         {feature === "disk-growth" ? <DiskGrowthPage /> : null}
         {feature === "processes" ? <ProcessesPage /> : null}
         {feature === "traffic" ? <TrafficPage /> : null}

@@ -7,6 +7,7 @@ import {
   CpuIcon,
   DashboardSpeed02Icon,
   EthernetPortIcon,
+  FolderShared01Icon,
   Globe02Icon,
   ServerStack01Icon,
   Settings01Icon,
@@ -34,6 +35,7 @@ import {
 /** 功能菜单的唯一清单；新增功能只在这里加一项。 */
 export type FeatureKey =
   | "overview"
+  | "files"
   | "disk-growth"
   | "processes"
   | "traffic"
@@ -50,6 +52,7 @@ type FeatureItem = {
 /** 顶层功能，直接平铺。 */
 const FEATURES: FeatureItem[] = [
   { key: "overview", label: "概览", icon: CircleGaugeIcon },
+  { key: "files", label: "文件管理", icon: FolderShared01Icon },
   { key: "disk-growth", label: "磁盘增长", icon: AnalyticsUpIcon },
   { key: "processes", label: "进程管理", icon: CpuIcon },
   { key: "traffic", label: "流量监控", icon: DashboardSpeed02Icon },
