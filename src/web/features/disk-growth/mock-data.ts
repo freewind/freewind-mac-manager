@@ -169,10 +169,11 @@ const toEntry = (node: MockNode): GrowthEntry => ({
   folded: node.folded ?? false,
 })
 
-export const isMockMode = (): boolean => {
-  if (typeof window === "undefined") return false
-  return new URLSearchParams(window.location.search).has("mock")
-}
+/**
+ * 当前阶段界面一律用示例数据填充，方便先看交互。
+ * 接真实快照时改写此函数（例如改为探测后端是否已有快照）。
+ */
+export const isMockMode = (): boolean => true
 
 const DAY = 86_400
 const LAST_SCAN = 1_791_543_600
