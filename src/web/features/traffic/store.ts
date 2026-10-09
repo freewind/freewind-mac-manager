@@ -3,6 +3,14 @@ import { create } from "zustand"
 /** 快照列表里的「实时」项：始终展示当前正在跑的进程与实时速率。 */
 export const REALTIME_SNAPSHOT_ID = "realtime"
 
+/** 默认忽略的代理进程：经代理的流量会同时记在它们的名下。 */
+export const ignoredProxyNames = [
+  "verge-mihomo",
+  "clash-verge",
+  "clash",
+  "mihomo",
+]
+
 type TrafficLocalState = {
   /** 当前选中的快照；多选时是连续的一段。实时用 REALTIME_SNAPSHOT_ID 表示 */
   selectedIds: string[]

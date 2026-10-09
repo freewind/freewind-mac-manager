@@ -38,7 +38,7 @@ import {
 } from "@web/components/ui/item"
 import { ScrollArea } from "@web/components/ui/scroll-area"
 import { cn } from "@web/lib/utils"
-import type { TrafficSnapshot } from "@web/features/traffic/mock-data"
+import type { TrafficSnapshot } from "@shared/api-contract"
 import { REALTIME_SNAPSHOT_ID } from "@web/features/traffic/store"
 import type { useTraffic } from "@web/features/traffic/useTraffic"
 

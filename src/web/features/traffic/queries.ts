@@ -1,23 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type {
+  TrafficGroup,
+  TrafficSnapshot,
+  TrafficStatus,
+} from "@shared/api-contract"
 import {
-  mergeSnapshotGroups,
-  mergeSnapshotsIntoOne,
-  mockGroups,
-  mockSnapshots,
-  mockStatus,
-  removeSnapshotAndRecompute,
-  scaleGroupsForManualSnapshot,
-  type TrafficGroup,
-  type TrafficSnapshot,
-  type TrafficStatus,
-} from "@web/features/traffic/mock-data"
+  deleteTrafficSnapshots,
+  fetchTrafficGroups,
+  fetchTrafficSnapshots,
+  fetchTrafficStatus,
+  killTrafficProcesses,
+  mergeTrafficSnapshots,
+  saveTrafficSnapshot,
+} from "@shared/client-api"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { REALTIME_SNAPSHOT_ID } from "@web/features/traffic/store"
 
 /**
- * 远程状态统一走 TanStack Query。
- *
- * 目前 queryFn / mutationFn 直接操作演示数据；接后端时只需把这里换成
- * `@shared/client-api` 的调用，页面与本地状态都不用动。
+ * 远程状态统一走 TanStack Query：查询与改动都通过 client-api 调后端，页面只读缓存。
  */
 export const trafficKeys = {
   snapshots: ["traffic", "snapshots"] as const,
@@ -26,97 +25,61 @@ export const trafficKeys = {
     ["traffic", "groups", [...ids].sort().join("|")] as const,
 }
 
-const fetchSnapshots = async (): Promise<TrafficSnapshot[]> => mockSnapshots
-
-const fetchStatus = async (): Promise<TrafficStatus> => mockStatus
-
-const fetchGroups = async (ids: string[]): Promise<TrafficGroup[]> => {
-  if (ids.length === 0 || ids.includes(REALTIME_SNAPSHOT_ID)) {
-    return mockGroups
-  }
-
-  const chosen = mockSnapshots.filter((item) => ids.includes(item.id))
-  if (chosen.length === 0) {
-    return []
-  }
-  if (chosen.length === 1) {
-    return chosen[0].groups
-  }
-  return mergeSnapshotGroups(chosen)
-}
-
 export const useTrafficSnapshots = () =>
-  useQuery({ queryKey: trafficKeys.snapshots, queryFn: fetchSnapshots })
+  useQuery({
+    queryKey: trafficKeys.snapshots,
+    queryFn: async (): Promise<TrafficSnapshot[]> =>
+      (await fetchTrafficSnapshots()).snapshots,
+  })
 
 export const useTrafficStatus = () =>
   useQuery({
     queryKey: trafficKeys.status,
-    queryFn: fetchStatus,
+    queryFn: async (): Promise<TrafficStatus> => fetchTrafficStatus(),
     refetchInterval: 5000,
   })
 
-export const useTrafficGroups = (ids: string[]) =>
-  useQuery({
+/** 选中「实时」时拉当前进程，否则拉所选快照的合计；实时会自动刷新。 */
+export const useTrafficGroups = (ids: string[]) => {
+  const realtime = ids.length === 0 || ids.includes(REALTIME_SNAPSHOT_ID)
+
+  return useQuery({
     queryKey: trafficKeys.groups(ids),
-    queryFn: () => fetchGroups(ids),
+    queryFn: async (): Promise<TrafficGroup[]> => {
+      const result = await fetchTrafficGroups(
+        realtime ? { realtime: true } : { ids }
+      )
+      return result.groups
+    },
+    refetchInterval: realtime ? 5000 : false,
   })
+}
+
+const useInvalidateTraffic = () => {
+  const queryClient = useQueryClient()
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: ["traffic"] })
+  }
+}
 
 /** 手动保存一份快照。 */
 export const useSaveSnapshot = () => {
-  const queryClient = useQueryClient()
+  const invalidate = useInvalidateTraffic()
   return useMutation({
-    mutationFn: async () => {
-      const current = queryClient.getQueryData<TrafficSnapshot[]>(
-        trafficKeys.snapshots
-      )
-      return scaleGroupsForManualSnapshot(current?.length ?? 0)
-    },
-    onSuccess: (snapshot) => {
-      queryClient.setQueryData<TrafficSnapshot[]>(
-        trafficKeys.snapshots,
-        (previous) => (previous ? [snapshot, ...previous] : [snapshot])
-      )
-    },
+    mutationFn: async () => saveTrafficSnapshot(),
+    onSuccess: () => invalidate(),
   })
 }
 
-/** 删除一份快照，后继快照会重新计算。 */
-export const useRemoveSnapshot = () => {
+/** 删除若干份快照，后继快照由后端重新计算。 */
+export const useDeleteSnapshots = () => {
   const queryClient = useQueryClient()
+  const invalidate = useInvalidateTraffic()
   return useMutation({
-    mutationFn: async (id: string) => id,
-    onSuccess: (id) => {
-      queryClient.setQueryData<TrafficSnapshot[]>(
-        trafficKeys.snapshots,
-        (previous) =>
-          previous ? removeSnapshotAndRecompute(previous, id) : previous
-      )
-    },
-  })
-}
-
-/** 批量删除选中的快照。 */
-export const useRemoveSnapshots = () => {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (ids: string[]) => ids,
-    onSuccess: (ids) => {
-      const target = new Set(ids)
-      queryClient.setQueryData<TrafficSnapshot[]>(
-        trafficKeys.snapshots,
-        (previous) => {
-          if (!previous) {
-            return previous
-          }
-          let next = previous
-          for (const snapshot of [...previous].reverse()) {
-            if (target.has(snapshot.id)) {
-              next = removeSnapshotAndRecompute(next, snapshot.id)
-            }
-          }
-          return next
-        }
-      )
+    mutationFn: async (ids: string[]) => deleteTrafficSnapshots(ids),
+    onSuccess: (data) => {
+      queryClient.setQueryData(trafficKeys.snapshots, data.snapshots)
+      invalidate()
     },
   })
 }
@@ -124,14 +87,22 @@ export const useRemoveSnapshots = () => {
 /** 把选中的多份快照合并成一份。 */
 export const useMergeSnapshots = () => {
   const queryClient = useQueryClient()
+  const invalidate = useInvalidateTraffic()
   return useMutation({
-    mutationFn: async (ids: string[]) => ids,
-    onSuccess: (ids) => {
-      queryClient.setQueryData<TrafficSnapshot[]>(
-        trafficKeys.snapshots,
-        (previous) =>
-          previous ? mergeSnapshotsIntoOne(previous, ids) : previous
-      )
+    mutationFn: async (ids: string[]) => mergeTrafficSnapshots(ids),
+    onSuccess: (data) => {
+      queryClient.setQueryData(trafficKeys.snapshots, data.snapshots)
+      invalidate()
     },
+  })
+}
+
+/** 结束进程。 */
+export const useKillProcesses = () => {
+  const invalidate = useInvalidateTraffic()
+  return useMutation({
+    mutationFn: async (input: { pids: number[]; force?: boolean }) =>
+      killTrafficProcesses(input),
+    onSuccess: () => invalidate(),
   })
 }

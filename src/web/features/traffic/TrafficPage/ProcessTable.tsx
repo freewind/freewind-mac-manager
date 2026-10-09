@@ -10,6 +10,7 @@ import {
   Upload01Icon,
 } from "@hugeicons/core-free-icons"
 import { Fragment, useMemo, useState } from "react"
+import type { TrafficChild } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -234,14 +235,14 @@ export const ProcessTable = (props: ProcessTableProps) => {
                   {expanded &&
                     groupItem.children.map((childItem) => (
                       <TableRow
-                        key={groupItem.name + childItem.key}
+                        key={rowKey(groupItem.name, childItem)}
                         className={cn(
                           "cursor-pointer bg-muted/20",
                           model.selectedRowKey ===
-                            groupItem.name + childItem.key && "bg-muted/60"
+                            rowKey(groupItem.name, childItem) && "bg-muted/60"
                         )}
                         onClick={() =>
-                          model.selectRow(groupItem.name + childItem.key)
+                          model.selectRow(rowKey(groupItem.name, childItem))
                         }
                       >
                         <TableCell className="pl-8 text-xs">
@@ -387,6 +388,10 @@ const SortButton = (props: SortButtonProps) => {
 
 const formatPorts = (ports: number[]): string =>
   ports.length === 0 ? "—" : ports.join(", ")
+
+/** 明细行的稳定标识（后端不再给 key，用标识 + 启动者拼）。 */
+const rowKey = (groupName: string, child: TrafficChild): string =>
+  `${groupName}\u{1}${child.label}\u{1}${child.parent}`
 
 /** 复制给 AI 分析用的整行信息。 */
 const buildRowText = (input: {

@@ -1,10 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
-import { ignoredNames } from "@web/features/traffic/mock-data"
 import {
+  useDeleteSnapshots,
+  useKillProcesses,
   useMergeSnapshots,
-  useRemoveSnapshot,
-  useRemoveSnapshots,
   useSaveSnapshot,
   useTrafficGroups,
   useTrafficSnapshots,
@@ -12,10 +11,14 @@ import {
 } from "@web/features/traffic/queries"
 import {
   REALTIME_SNAPSHOT_ID,
+  ignoredProxyNames,
   useTrafficLocalStore,
 } from "@web/features/traffic/store"
 
 export { REALTIME_SNAPSHOT_ID }
+
+const toMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
 
 export type TrafficTotals = {
   bytesIn: number
@@ -41,9 +44,9 @@ export const useTraffic = () => {
   const groupsQuery = useTrafficGroups(local.selectedIds)
 
   const saveSnapshot = useSaveSnapshot()
-  const removeSnapshot = useRemoveSnapshot()
-  const removeSnapshots = useRemoveSnapshots()
+  const deleteSnapshots = useDeleteSnapshots()
   const mergeSnapshots = useMergeSnapshots()
+  const killProcesses = useKillProcesses()
 
   const snapshots = useMemo(
     () => snapshotsQuery.data ?? [],
@@ -54,7 +57,7 @@ export const useTraffic = () => {
   const groups = useMemo(
     () =>
       local.ignoreProxy
-        ? allGroups.filter((item) => !ignoredNames.includes(item.name))
+        ? allGroups.filter((item) => !ignoredProxyNames.includes(item.name))
         : allGroups,
     [allGroups, local.ignoreProxy]
   )
@@ -151,32 +154,35 @@ export const useTraffic = () => {
 
   const handleSaveSnapshot = () => {
     saveSnapshot.mutate(undefined, {
-      onSuccess: (snapshot) => {
-        local.setSelectedIds([snapshot.id])
-        notify(`（演示数据）已保存快照 ${snapshot.rangeText}`)
+      onSuccess: (data) => {
+        local.setSelectedIds([data.snapshot.id])
+        notify(`已保存快照 ${data.snapshot.rangeText}`)
       },
+      onError: (error) => notify(`保存快照失败：${toMessage(error)}`),
     })
   }
 
   const handleRemoveSnapshot = (id: string) => {
-    removeSnapshot.mutate(id, {
+    deleteSnapshots.mutate([id], {
       onSuccess: () => {
         const next = local.selectedIds.filter((item) => item !== id)
         local.setSelectedIds(next.length > 0 ? next : [REALTIME_SNAPSHOT_ID])
-        notify("（演示数据）已删除快照，其后一份已重新计算为合并区间")
+        notify("已删除快照，其后一份已重新计算为合并区间")
       },
+      onError: (error) => notify(`删除快照失败：${toMessage(error)}`),
     })
   }
 
   const handleRemoveSelected = () => {
-    removeSnapshots.mutate(selectedSnapshotIds, {
+    deleteSnapshots.mutate(selectedSnapshotIds, {
       onSuccess: () => {
         local.setSelectedIds([REALTIME_SNAPSHOT_ID])
         local.setSelectionMode(false)
         notify(
-          `（演示数据）已删除 ${selectedSnapshotIds.length} 份快照，受影响的后继快照已重新计算`
+          `已删除 ${selectedSnapshotIds.length} 份快照，受影响的后继快照已重新计算`
         )
       },
+      onError: (error) => notify(`删除快照失败：${toMessage(error)}`),
     })
   }
 
@@ -184,16 +190,26 @@ export const useTraffic = () => {
     mergeSnapshots.mutate(selectedSnapshotIds, {
       onSuccess: () => {
         local.setSelectedIds([selectedSnapshotIds[0]])
-        notify(
-          `（演示数据）已把 ${selectedSnapshotIds.length} 份快照合并成一份`
-        )
+        notify(`已把 ${selectedSnapshotIds.length} 份快照合并成一份`)
       },
+      onError: (error) => notify(`合并快照失败：${toMessage(error)}`),
     })
   }
 
   const terminate = (label: string, pids: number[]) => {
-    setNotice(
-      `（演示数据）将结束「${label}」的 ${pids.length} 个进程：${pids.join(", ")}`
+    killProcesses.mutate(
+      { pids },
+      {
+        onSuccess: (data) => {
+          const failed = data.results.filter((item) => !item.succeeded)
+          notify(
+            failed.length === 0
+              ? `已结束「${label}」的 ${pids.length} 个进程`
+              : `结束「${label}」失败：${failed.map((item) => `PID ${item.pid} ${item.message}`).join("；")}`
+          )
+        },
+        onError: (error) => notify(`结束进程失败：${toMessage(error)}`),
+      }
     )
   }
 

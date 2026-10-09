@@ -28,7 +28,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
-import type { TrafficSnapshot } from "@web/features/traffic/mock-data"
+import type { TrafficSnapshot } from "@shared/api-contract"
 import { useTraffic } from "@web/features/traffic/useTraffic"
 import { ProcessTable } from "./ProcessTable"
 import { SnapshotList } from "./SnapshotList"
