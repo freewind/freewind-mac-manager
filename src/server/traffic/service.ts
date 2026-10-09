@@ -4,11 +4,12 @@ import type {
   TrafficSnapshot,
   TrafficStatus,
 } from "@shared/api-contract"
-import { DATA_DIR } from "@server/env"
+import { DATA_DIR, DATABASE_FILE } from "@server/env"
 import path from "node:path"
 import { processLabel, scriptName } from "./identity"
 import { snapshotProcesses, type ProcessDetails } from "./inspector"
 import { snapshotTraffic } from "./nettop"
+import { migrateTrafficDatabase } from "./migrate"
 import { snapshotPorts } from "./ports"
 import {
   TrafficStore,
@@ -19,9 +20,10 @@ import {
 
 export const SAMPLE_INTERVAL_SECONDS = 5
 
-const DATABASE_FILE = path.join(DATA_DIR, "traffic.sqlite3")
+const LEGACY_DATABASE_FILE = path.join(DATA_DIR, "traffic.sqlite3")
 
 const store = new TrafficStore(DATABASE_FILE)
+migrateTrafficDatabase(DATABASE_FILE, LEGACY_DATABASE_FILE)
 
 /** 上一轮各 pid 的累计值，用来算增量。 */
 let lastTotals = new Map<number, { bytesIn: number; bytesOut: number }>()
@@ -63,7 +65,14 @@ const aggregate = (
   ports: Map<number, number[]>
 ): TrafficGroup[] => {
   const groupOrder: string[] = []
-  const groups = new Map<string, { bytesIn: number; bytesOut: number; children: Map<string, TrafficChild & { pids: number[] }> }>()
+  const groups = new Map<
+    string,
+    {
+      bytesIn: number
+      bytesOut: number
+      children: Map<string, TrafficChild & { pids: number[] }>
+    }
+  >()
 
   for (const row of rows) {
     let group = groups.get(row.name)
@@ -103,7 +112,9 @@ const aggregate = (
   return groupOrder.map((name) => {
     const group = groups.get(name)!
     const children = [...group.children.values()].map((child) => {
-      const childPorts = [...new Set(child.pids.flatMap((pid) => ports.get(pid) ?? []))]
+      const childPorts = [
+        ...new Set(child.pids.flatMap((pid) => ports.get(pid) ?? [])),
+      ]
       return {
         label: child.label,
         scriptName: child.scriptName,
@@ -121,7 +132,9 @@ const aggregate = (
       name,
       bytesIn: group.bytesIn,
       bytesOut: group.bytesOut,
-      children: children.sort((a, b) => b.bytesIn + b.bytesOut - (a.bytesIn + a.bytesOut)),
+      children: children.sort(
+        (a, b) => b.bytesIn + b.bytesOut - (a.bytesIn + a.bytesOut)
+      ),
     }
   })
 }
@@ -144,10 +157,15 @@ export const sampleOnce = async (): Promise<void> => {
     const nextTotals = new Map<number, { bytesIn: number; bytesOut: number }>()
 
     for (const item of traffic) {
-      nextTotals.set(item.pid, { bytesIn: item.bytesIn, bytesOut: item.bytesOut })
+      nextTotals.set(item.pid, {
+        bytesIn: item.bytesIn,
+        bytesOut: item.bytesOut,
+      })
 
       const previous = lastTotals.get(item.pid)
-      const deltaIn = previous ? Math.max(item.bytesIn - previous.bytesIn, 0) : item.bytesIn
+      const deltaIn = previous
+        ? Math.max(item.bytesIn - previous.bytesIn, 0)
+        : item.bytesIn
       const deltaOut = previous
         ? Math.max(item.bytesOut - previous.bytesOut, 0)
         : item.bytesOut
@@ -259,7 +277,11 @@ const mergeEntries = (
     const key = `${entry.name}\u{1}${entry.label}\u{1}${entry.parent}\u{1}${entry.command}`
     const existing = result.get(key)
     if (!existing) {
-      result.set(key, { ...entry, ports: [...entry.ports], pids: [...entry.pids] })
+      result.set(key, {
+        ...entry,
+        ports: [...entry.ports],
+        pids: [...entry.pids],
+      })
       continue
     }
     existing.bytesIn += entry.bytesIn
@@ -319,9 +341,14 @@ export const listSnapshots = async (): Promise<TrafficSnapshot[]> => {
   }
 
   const pids = [...new Set(entries.flatMap((entry) => entry.pids))]
-  const [active, ports] = await Promise.all([runningPids(), snapshotPorts(pids)])
+  const [active, ports] = await Promise.all([
+    runningPids(),
+    snapshotPorts(pids),
+  ])
 
-  return rows.map((row) => toSnapshot(row, bySnapshot.get(row.id) ?? [], active, ports))
+  return rows.map((row) =>
+    toSnapshot(row, bySnapshot.get(row.id) ?? [], active, ports)
+  )
 }
 
 /** 手动或定时保存一份快照：把上次快照之后的采样聚合成一份增量。 */
@@ -363,7 +390,10 @@ export const realtimeGroups = async (): Promise<{
 
   const samples = store.listSamples(ts, ts + 1)
   const pids = [...new Set(samples.map((row) => row.pid))]
-  const [active, ports] = await Promise.all([runningPids(), snapshotPorts(pids)])
+  const [active, ports] = await Promise.all([
+    runningPids(),
+    snapshotPorts(pids),
+  ])
 
   const groups = aggregate(
     samples.map((row) => ({
@@ -379,11 +409,16 @@ export const realtimeGroups = async (): Promise<{
     ports
   )
 
-  return { scope: `实时（${shortStamp(ts * 1000)} 起 ${SAMPLE_INTERVAL_SECONDS} 秒）`, groups }
+  return {
+    scope: `实时（${shortStamp(ts * 1000)} 起 ${SAMPLE_INTERVAL_SECONDS} 秒）`,
+    groups,
+  }
 }
 
 /** 指定若干快照的合计明细。 */
-export const groupsForSnapshots = async (ids: string[]): Promise<{
+export const groupsForSnapshots = async (
+  ids: string[]
+): Promise<{
   scope: string
   groups: TrafficGroup[]
 }> => {
@@ -394,7 +429,10 @@ export const groupsForSnapshots = async (ids: string[]): Promise<{
 
   const entries = store.listEntries(rows.map((row) => row.id))
   const pids = [...new Set(entries.flatMap((entry) => entry.pids))]
-  const [active, ports] = await Promise.all([runningPids(), snapshotPorts(pids)])
+  const [active, ports] = await Promise.all([
+    runningPids(),
+    snapshotPorts(pids),
+  ])
 
   const merged = entries.length > 0 ? mergeEntries([], entries) : []
   const groups = aggregate(
@@ -411,8 +449,14 @@ export const groupsForSnapshots = async (ids: string[]): Promise<{
     ports
   )
 
-  const oldest = rows.reduce((min, row) => Math.min(min, row.fromAt), rows[0]!.fromAt)
-  const newest = rows.reduce((max, row) => Math.max(max, row.toAt), rows[0]!.toAt)
+  const oldest = rows.reduce(
+    (min, row) => Math.min(min, row.fromAt),
+    rows[0]!.fromAt
+  )
+  const newest = rows.reduce(
+    (max, row) => Math.max(max, row.toAt),
+    rows[0]!.toAt
+  )
   const scope =
     rows.length === 1
       ? `快照 ${shortStamp(oldest * 1000)} ~ ${shortStamp(newest * 1000)}`
@@ -427,7 +471,9 @@ export const groupsForSnapshots = async (ids: string[]): Promise<{
  * 快照是「相对上一份的增量」，因此删掉一份后，它的增量要并入其后一份
  * （保存时间更晚的那份），后一份的起点改成被删快照的起点。
  */
-export const deleteSnapshots = async (ids: string[]): Promise<TrafficSnapshot[]> => {
+export const deleteSnapshots = async (
+  ids: string[]
+): Promise<TrafficSnapshot[]> => {
   const rows = store.listSnapshotRows()
   const ascending = [...rows].sort((a, b) => a.savedAt - b.savedAt)
 
@@ -490,14 +536,22 @@ export const deleteSnapshots = async (ids: string[]): Promise<TrafficSnapshot[]>
 }
 
 /** 把多份快照合并成一份（保留最新那份的时间与 id）。 */
-export const mergeSnapshots = async (ids: string[]): Promise<TrafficSnapshot[]> => {
+export const mergeSnapshots = async (
+  ids: string[]
+): Promise<TrafficSnapshot[]> => {
   const rows = store.listSnapshotRows().filter((row) => ids.includes(row.id))
   if (rows.length < 2) {
     return listSnapshots()
   }
 
-  const newest = rows.reduce((max, row) => (row.savedAt > max.savedAt ? row : max), rows[0]!)
-  const oldestFromAt = rows.reduce((min, row) => Math.min(min, row.fromAt), rows[0]!.fromAt)
+  const newest = rows.reduce(
+    (max, row) => (row.savedAt > max.savedAt ? row : max),
+    rows[0]!
+  )
+  const oldestFromAt = rows.reduce(
+    (min, row) => Math.min(min, row.fromAt),
+    rows[0]!.fromAt
+  )
 
   const entries = store.listEntries(rows.map((row) => row.id)).map((entry) => ({
     name: entry.name,
