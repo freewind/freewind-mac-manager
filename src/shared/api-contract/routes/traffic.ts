@@ -1,10 +1,12 @@
 import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
 import { c } from "../init"
-import { ApiErrorSchema } from "../schemas/disk-growth"
+import { ApiErrorSchema } from "../schemas/common"
 import {
-  DeleteSnapshotsQuerySchema,
   KillProcessesBodySchema,
   KillProcessesResponseSchema,
+} from "../schemas/common"
+import {
+  DeleteSnapshotsQuerySchema,
   MergeSnapshotsBodySchema,
   TrafficGroupsQuerySchema,
   TrafficGroupsResponseSchema,

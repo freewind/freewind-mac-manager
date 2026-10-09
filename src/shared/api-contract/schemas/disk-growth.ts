@@ -54,20 +54,12 @@ export const ScanStartResponseSchema = z.object({
   message: z.string(),
 })
 
-export const ApiErrorSchema = z.object({
-  message: z.string(),
-})
-
 export const EntryPathBodySchema = z.object({
   path: z.string().min(1),
 })
 
 export const EntryPathQuerySchema = z.object({
   path: z.string().min(1),
-})
-
-export const ActionResponseSchema = z.object({
-  message: z.string(),
 })
 
 export const TreeQuerySchema = z.object({

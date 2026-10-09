@@ -1,10 +1,10 @@
 import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
-import { ApiErrorSchema } from "../schemas/disk-growth"
+import { ApiErrorSchema } from "../schemas/common"
 import { ProcessListResponseSchema } from "../schemas/processes"
 import {
   KillProcessesBodySchema,
   KillProcessesResponseSchema,
-} from "../schemas/traffic"
+} from "../schemas/common"
 
 const errorResponses = {
   400: ApiErrorSchema,

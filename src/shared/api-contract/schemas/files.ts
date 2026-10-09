@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { ActionResponseSchema } from "./disk-growth"
+import { ActionResponseSchema } from "./common"
 
 export const FileEntrySchema = z.object({
   name: z.string(),

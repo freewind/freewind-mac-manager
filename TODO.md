@@ -9,7 +9,6 @@
 
 ## 二、契约、后端与存储一致性
 
-- [ ] **公共 schema 归位**（AGENTS 4.1）：`ApiErrorSchema`、`ActionResponseSchema` 当前在 `schemas/disk-growth.ts`，`KillProcesses*` 在 `schemas/traffic.ts` 且被跨域引用；迁到 `schemas/common.ts` 并更新调用方，消除其他域对业务 schema 的寄生依赖。
 - [ ] **统一 SQLite，保留历史数据**（AGENTS 5.2）：traffic 当前自行拼接 `traffic.sqlite3`，disk-growth 使用 `snapshots.sqlite3`；改为统一 `env.DATABASE_FILE`，核对 WAL、事务与表名边界。实施前制定已有 traffic 数据迁移及失败回滚方式，验证迁移后历史记录可读；不能只更换路径让旧数据消失。
 - [ ] **后端出口命名与 health 归属**（AGENTS 5.1）：disk-growth 的 `serverRouter` 改为 `diskGrowthRouter`，health 契约与 handler 独立归属。允许 ports 的类型化常量和 disk-growth 的端点拆分，不为写法一致合并所有 handler。
 - [ ] **统一应用接线顺序**（AGENTS 3.1、5.1）：明确公共中间件、公开端点、鉴权与各域挂载顺序，各域按稳定顺序注册，`app.ts` 只做接线。`registerUploadEndpoint` 实际属于 files，不是 FRP；保留非 JSON 上传例外，但必须处于同一鉴权和边界校验之下。

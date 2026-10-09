@@ -1,5 +1,5 @@
 import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
-import { ActionResponseSchema, ApiErrorSchema } from "../schemas/disk-growth"
+import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
 import {
   FrpConfigInputSchema,
   FrpConfigSchema,

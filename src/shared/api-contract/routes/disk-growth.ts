@@ -1,8 +1,7 @@
 import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
 import { c } from "../init"
+import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
 import {
-  ActionResponseSchema,
-  ApiErrorSchema,
   DeleteScansQuerySchema,
   EntriesQuerySchema,
   EntryPathBodySchema,

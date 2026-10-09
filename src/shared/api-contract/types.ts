@@ -8,6 +8,10 @@ import {
 import {
   ActionResponseSchema,
   ApiErrorSchema,
+  KillProcessesBodySchema,
+  KillProcessesResponseSchema,
+} from "./schemas/common"
+import {
   EntriesResponseSchema,
   GrowthEntrySchema,
   ScanSnapshotSchema,
@@ -25,8 +29,6 @@ export type ScansResponse = z.infer<typeof ScansResponseSchema>
 export type EntriesResponse = z.infer<typeof EntriesResponseSchema>
 export type ScanStartResponse = z.infer<typeof ScanStartResponseSchema>
 import {
-  KillProcessesBodySchema,
-  KillProcessesResponseSchema,
   TrafficChildSchema,
   TrafficGroupSchema,
   TrafficGroupsResponseSchema,

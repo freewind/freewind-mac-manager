@@ -1,7 +1,7 @@
 import { API_BASE, ApiPath, toContractPath } from "@shared/api-path"
 import { z } from "zod"
 import { c } from "../init"
-import { ActionResponseSchema, ApiErrorSchema } from "../schemas/disk-growth"
+import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
 import {
   CreateEntryBodySchema,
   DirectoryResponseSchema,
