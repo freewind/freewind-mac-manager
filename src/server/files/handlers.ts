@@ -141,7 +141,9 @@ export const filesRouter = s.router(filesContract, {
 export const registerUploadEndpoint = (app: express.Express): void => {
   app.post(ApiPath[`${API_BASE}/files/uploads`], async (request, response) => {
     const targetPath =
-      typeof request.query.targetPath === "string" ? request.query.targetPath : ""
+      typeof request.query.targetPath === "string"
+        ? request.query.targetPath
+        : ""
     const relativePath =
       typeof request.query.relativePath === "string"
         ? request.query.relativePath

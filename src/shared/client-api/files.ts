@@ -82,6 +82,14 @@ type UploadResponseBody = {
   file?: FileEntry
 }
 
+const parseUploadResponse = (text: string): UploadResponseBody | null => {
+  try {
+    return JSON.parse(text) as UploadResponseBody
+  } catch {
+    return null
+  }
+}
+
 /**
  * 上传单个文件：裸 octet-stream，元数据走 query。
  * 走 XMLHttpRequest 而不是 fetch，因为只有它能拿到上传进度。
@@ -110,12 +118,7 @@ export const uploadFile = (
       }
     })
     request.addEventListener("load", () => {
-      let parsed: UploadResponseBody | null = null
-      try {
-        parsed = JSON.parse(request.responseText) as UploadResponseBody
-      } catch {
-        parsed = null
-      }
+      const parsed = parseUploadResponse(request.responseText)
       if (request.status >= 200 && request.status < 300 && parsed?.file) {
         resolve(parsed.file)
         return

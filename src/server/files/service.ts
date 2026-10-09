@@ -149,7 +149,8 @@ const isInside = (ancestor: string, target: string): boolean =>
     ancestor.endsWith(path.sep) ? ancestor : `${ancestor}${path.sep}`
   )
 
-const toSeconds = (milliseconds: number): number => Math.floor(milliseconds / 1000)
+const toSeconds = (milliseconds: number): number =>
+  Math.floor(milliseconds / 1000)
 
 const toFileEntry = (
   dir: string,
@@ -217,9 +218,13 @@ export const createFile = async (
   name: string
 ): Promise<void> => {
   // flag "wx" 让同名文件直接失败，不覆盖已有内容
-  await writeFile(path.join(resolvePath(parentPath), assertSafeName(name)), "", {
-    flag: "wx",
-  })
+  await writeFile(
+    path.join(resolvePath(parentPath), assertSafeName(name)),
+    "",
+    {
+      flag: "wx",
+    }
+  )
 }
 
 export const renameEntry = async (
@@ -237,7 +242,9 @@ export const renameEntry = async (
 
 export const deleteEntries = async (paths: string[]): Promise<void> => {
   await Promise.all(
-    paths.map((item) => rm(resolvePath(item), { recursive: true, force: false }))
+    paths.map((item) =>
+      rm(resolvePath(item), { recursive: true, force: false })
+    )
   )
 }
 
@@ -381,7 +388,11 @@ export const openDownload = async (
   if (!info.isFile()) {
     throw new Error("只能下载文件")
   }
-  return { stream: createReadStream(value), size: info.size, name: path.basename(value) }
+  return {
+    stream: createReadStream(value),
+    size: info.size,
+    name: path.basename(value),
+  }
 }
 
 /**
