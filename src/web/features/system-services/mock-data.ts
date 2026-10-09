@@ -411,3 +411,101 @@ export const stateLabels: Record<ServiceState, string> = {
   failed: "启动失败",
   disabled: "已禁用",
 }
+
+export type ServiceAction =
+  "start" | "stop" | "restart" | "load" | "unload" | "disable" | "enable"
+
+let pidSeed = 7200
+
+const nextPid = (): number => {
+  pidSeed += 1
+  return pidSeed
+}
+
+/**
+ * 计算某个操作执行后该服务的新状态，以及给界面的反馈文案。
+ * 纯函数，供 TanStack Query 的 mutation 调用。
+ */
+export const applyServiceAction = (
+  target: LaunchService,
+  action: ServiceAction
+): { next: LaunchService; message: string } => {
+  const stamp = Math.round(Date.now() / 1000)
+  if (action === "start" || action === "restart" || action === "load") {
+    const pid = nextPid()
+    const verb =
+      action === "start"
+        ? "已启动"
+        : action === "restart"
+          ? "已重启"
+          : "已加载并启动"
+    return {
+      next: {
+        ...target,
+        exists: true,
+        loaded: true,
+        disabled: false,
+        state: "running",
+        pid,
+        lastExitCode: null,
+        startedAt: stamp,
+        lastAction: `${verb}（pid ${pid}）`,
+      },
+      message: `${verb} ${target.label}，pid ${pid}`,
+    }
+  }
+  if (action === "stop") {
+    return {
+      next: {
+        ...target,
+        state: "stopped",
+        pid: null,
+        lastExitCode: 0,
+        startedAt: null,
+        lastAction: "已停止（退出码 0）",
+      },
+      message: `已停止 ${target.label}`,
+    }
+  }
+  if (action === "unload") {
+    return {
+      next: {
+        ...target,
+        exists: false,
+        loaded: false,
+        state: "stopped",
+        pid: null,
+        lastExitCode: 0,
+        startedAt: null,
+        lastAction: "已卸载，plist 已移入废纸篓",
+      },
+      message: `已卸载 ${target.label}：停止运行，plist 已移入废纸篓`,
+    }
+  }
+  if (action === "disable") {
+    return {
+      next: {
+        ...target,
+        disabled: true,
+        state: "disabled",
+        pid: null,
+        lastExitCode: 0,
+        startedAt: null,
+        lastAction: "已禁用，开机不再自动启动",
+      },
+      message: `已禁用 ${target.label}，开机不再自动启动`,
+    }
+  }
+  return {
+    next: {
+      ...target,
+      disabled: false,
+      state: "stopped",
+      pid: null,
+      lastExitCode: null,
+      startedAt: null,
+      lastAction: "已启用，等下次登录或手动启动",
+    },
+    message: `已启用 ${target.label}`,
+  }
+}
