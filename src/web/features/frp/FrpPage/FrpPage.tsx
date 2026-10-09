@@ -40,7 +40,7 @@ import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Separator } from "@web/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import type { FrpProxy, FrpProxyType } from "@shared/api-contract"
-import { useFrpPage } from "@web/features/frp/useFrpPage"
+import { useFrp } from "@web/features/frp/useFrp"
 import { ProxyFormDialog } from "./ProxyFormDialog"
 import { ProxyTable } from "./ProxyTable"
 
@@ -62,7 +62,7 @@ const InfoField = (props: { label: string; children: React.ReactNode }) => (
 )
 
 export const FrpPage = () => {
-  const model = useFrpPage()
+  const model = useFrp()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<FrpProxy | null>(null)
   const [pendingDelete, setPendingDelete] = useState<FrpProxy | null>(null)

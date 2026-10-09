@@ -22,7 +22,7 @@ import { useFrpLocalStore } from "@web/features/frp/store"
  * - 本地共享状态：Zustand（搜索、类型筛选、选中、探测结果）
  * - 页面级瞬时状态：React state（表单弹窗、删除确认，留在页面组件内）
  */
-export const useFrpPage = () => {
+export const useFrp = () => {
   const queryClient = useQueryClient()
   const local = useFrpLocalStore()
   const configQuery = useFrpConfigQuery()
@@ -189,4 +189,4 @@ export const useFrpPage = () => {
   }
 }
 
-export type FrpPageModel = ReturnType<typeof useFrpPage>
+export type FrpPageModel = ReturnType<typeof useFrp>

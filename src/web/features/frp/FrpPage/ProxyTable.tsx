@@ -32,7 +32,7 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import type { FrpProxy } from "@shared/api-contract"
-import type { FrpPageModel } from "@web/features/frp/useFrpPage"
+import type { FrpPageModel } from "@web/features/frp/useFrp"
 import { cn } from "@web/lib/utils"
 
 type ProxyTableProps = {
