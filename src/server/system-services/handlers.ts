@@ -43,7 +43,7 @@ export const systemServicesRouter = s.router(systemServicesContract, {
   startSystemService: async ({ body }) => {
     try {
       return {
-        status: 202 as const,
+        status: 200 as const,
         body: { message: await startService(body) },
       }
     } catch (error) {
@@ -54,7 +54,7 @@ export const systemServicesRouter = s.router(systemServicesContract, {
   stopSystemService: async ({ query }) => {
     try {
       return {
-        status: 202 as const,
+        status: 200 as const,
         body: { message: await stopService(query) },
       }
     } catch (error) {
@@ -65,7 +65,7 @@ export const systemServicesRouter = s.router(systemServicesContract, {
   restartSystemService: async ({ body }) => {
     try {
       return {
-        status: 202 as const,
+        status: 200 as const,
         body: { message: await restartService(body) },
       }
     } catch (error) {
@@ -76,7 +76,7 @@ export const systemServicesRouter = s.router(systemServicesContract, {
   loadSystemService: async ({ body }) => {
     try {
       return {
-        status: 202 as const,
+        status: 200 as const,
         body: { message: await loadService(body) },
       }
     } catch (error) {
@@ -87,7 +87,7 @@ export const systemServicesRouter = s.router(systemServicesContract, {
   uninstallSystemService: async ({ query }) => {
     try {
       return {
-        status: 202 as const,
+        status: 200 as const,
         body: { message: await uninstallService(query) },
       }
     } catch (error) {
@@ -98,7 +98,7 @@ export const systemServicesRouter = s.router(systemServicesContract, {
   setSystemServiceEnabled: async ({ body }) => {
     try {
       return {
-        status: 202 as const,
+        status: 200 as const,
         body: { message: await setServiceEnabled(body) },
       }
     } catch (error) {
@@ -109,7 +109,7 @@ export const systemServicesRouter = s.router(systemServicesContract, {
   revealSystemService: async ({ body }) => {
     try {
       return {
-        status: 202 as const,
+        status: 200 as const,
         body: { message: await revealService(body) },
       }
     } catch (error) {

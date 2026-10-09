@@ -1,8 +1,8 @@
 import type {
+  ActionResponse,
   DirectoryResponse,
   FileContentResponse,
   FileEntry,
-  OkResponse,
 } from "@shared/api-contract"
 import { API_BASE, ApiPath } from "@shared/api-path"
 import { apiClient, dispatchUnauthorized } from "./client"
@@ -21,37 +21,43 @@ export const fetchDirectory = async (
 export const createDirectory = async (
   parentPath: string,
   name: string
-): Promise<OkResponse> =>
-  unwrap<OkResponse>(
+): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(
     await apiClient.createDirectory({ body: { parentPath, name } })
   )
 
 export const createFile = async (
   parentPath: string,
   name: string
-): Promise<OkResponse> =>
-  unwrap<OkResponse>(await apiClient.createFile({ body: { parentPath, name } }))
+): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(
+    await apiClient.createFile({ body: { parentPath, name } })
+  )
 
 export const renameEntry = async (
   path: string,
   name: string
-): Promise<OkResponse> =>
-  unwrap<OkResponse>(await apiClient.renameEntry({ body: { path, name } }))
+): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(await apiClient.renameEntry({ body: { path, name } }))
 
-export const deleteEntries = async (paths: string[]): Promise<OkResponse> =>
-  unwrap<OkResponse>(await apiClient.deleteEntries({ query: { paths } }))
+export const deleteEntries = async (paths: string[]): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(await apiClient.deleteEntries({ query: { paths } }))
 
 export const copyEntries = async (
   paths: string[],
   destPath: string
-): Promise<OkResponse> =>
-  unwrap<OkResponse>(await apiClient.copyEntries({ body: { paths, destPath } }))
+): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(
+    await apiClient.copyEntries({ body: { paths, destPath } })
+  )
 
 export const moveEntries = async (
   paths: string[],
   destPath: string
-): Promise<OkResponse> =>
-  unwrap<OkResponse>(await apiClient.moveEntries({ body: { paths, destPath } }))
+): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(
+    await apiClient.moveEntries({ body: { paths, destPath } })
+  )
 
 export const fetchFileContent = async (
   path: string
@@ -63,8 +69,8 @@ export const fetchFileContent = async (
 export const saveFileContent = async (
   path: string,
   content: string
-): Promise<OkResponse> =>
-  unwrap<OkResponse>(
+): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(
     await apiClient.writeFileContent({ body: { path, content } })
   )
 

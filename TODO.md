@@ -9,7 +9,6 @@
 
 ## 二、契约、后端与存储一致性
 
-- [ ] **状态码、动词与动作响应**（AGENTS 四）：核对 routes、schemas、handler、client-api 四层。200 表示完成，201 表示已创建，202 仅表示未完成且有状态查询途径，204 无正文；错误按 400/401/403/404/409/429/500 的实际语义声明。消息型动作用 `ActionResponseSchema` 替换 `OkResponse { ok: true }`，资源/任务/批量结果保留强类型响应，不统一强改为 202 或 message。
 - [ ] **公共 schema 归位**（AGENTS 4.1）：`ApiErrorSchema`、`ActionResponseSchema` 当前在 `schemas/disk-growth.ts`，`KillProcesses*` 在 `schemas/traffic.ts` 且被跨域引用；迁到 `schemas/common.ts` 并更新调用方，消除其他域对业务 schema 的寄生依赖。
 - [ ] **统一 SQLite，保留历史数据**（AGENTS 5.2）：traffic 当前自行拼接 `traffic.sqlite3`，disk-growth 使用 `snapshots.sqlite3`；改为统一 `env.DATABASE_FILE`，核对 WAL、事务与表名边界。实施前制定已有 traffic 数据迁移及失败回滚方式，验证迁移后历史记录可读；不能只更换路径让旧数据消失。
 - [ ] **后端出口命名与 health 归属**（AGENTS 5.1）：disk-growth 的 `serverRouter` 改为 `diskGrowthRouter`，health 契约与 handler 独立归属。允许 ports 的类型化常量和 disk-growth 的端点拆分，不为写法一致合并所有 handler。

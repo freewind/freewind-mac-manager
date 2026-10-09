@@ -3,7 +3,6 @@ import {
   DirectoryResponseSchema,
   FileContentResponseSchema,
   FileEntrySchema,
-  OkResponseSchema,
   UploadResponseSchema,
 } from "./schemas/files"
 import {
@@ -58,7 +57,6 @@ export type TreeNode = TreeNodeWire
 export type FileEntry = z.infer<typeof FileEntrySchema>
 export type DirectoryResponse = z.infer<typeof DirectoryResponseSchema>
 export type FileContentResponse = z.infer<typeof FileContentResponseSchema>
-export type OkResponse = z.infer<typeof OkResponseSchema>
 export type UploadResponse = z.infer<typeof UploadResponseSchema>
 
 import {

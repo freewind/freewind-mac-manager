@@ -50,7 +50,7 @@ export const filesRouter = s.router(filesContract, {
   createDirectory: async ({ body }) => {
     try {
       await createDirectory(body.parentPath, body.name)
-      return { status: 200 as const, body: { ok: true as const } }
+      return { status: 200 as const, body: { message: "目录已创建" } }
     } catch (error) {
       return toError(error)
     }
@@ -59,7 +59,7 @@ export const filesRouter = s.router(filesContract, {
   createFile: async ({ body }) => {
     try {
       await createFile(body.parentPath, body.name)
-      return { status: 200 as const, body: { ok: true as const } }
+      return { status: 200 as const, body: { message: "文件已创建" } }
     } catch (error) {
       return toError(error)
     }
@@ -68,7 +68,7 @@ export const filesRouter = s.router(filesContract, {
   renameEntry: async ({ body }) => {
     try {
       await renameEntry(body.path, body.name)
-      return { status: 200 as const, body: { ok: true as const } }
+      return { status: 200 as const, body: { message: "条目已重命名" } }
     } catch (error) {
       return toError(error)
     }
@@ -77,7 +77,7 @@ export const filesRouter = s.router(filesContract, {
   deleteEntries: async ({ query }) => {
     try {
       await deleteEntries(query.paths)
-      return { status: 200 as const, body: { ok: true as const } }
+      return { status: 200 as const, body: { message: "条目已删除" } }
     } catch (error) {
       return toError(error)
     }
@@ -86,7 +86,7 @@ export const filesRouter = s.router(filesContract, {
   copyEntries: async ({ body }) => {
     try {
       await copyEntries(body.paths, body.destPath)
-      return { status: 200 as const, body: { ok: true as const } }
+      return { status: 200 as const, body: { message: "条目已复制" } }
     } catch (error) {
       return toError(error)
     }
@@ -95,7 +95,7 @@ export const filesRouter = s.router(filesContract, {
   moveEntries: async ({ body }) => {
     try {
       await moveEntries(body.paths, body.destPath)
-      return { status: 200 as const, body: { ok: true as const } }
+      return { status: 200 as const, body: { message: "条目已移动" } }
     } catch (error) {
       return toError(error)
     }
@@ -112,7 +112,7 @@ export const filesRouter = s.router(filesContract, {
   writeFileContent: async ({ body }) => {
     try {
       await writeFileContent(body.path, body.content)
-      return { status: 200 as const, body: { ok: true as const } }
+      return { status: 200 as const, body: { message: "文件已保存" } }
     } catch (error) {
       return toError(error)
     }
@@ -160,7 +160,7 @@ export const registerUploadEndpoint = (app: express.Express): void => {
     request.setTimeout(10 * 60 * 1000, () => request.destroy())
     try {
       const file = await receiveUpload(targetPath, relativePath, request)
-      response.status(200).json({ ok: true, file })
+      response.status(200).json({ message: "文件已上传", file })
     } catch (error) {
       response.status(400).json({ message: describeFileError(error) })
     }

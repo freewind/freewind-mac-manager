@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { ActionResponseSchema } from "./disk-growth"
 
 export const FileEntrySchema = z.object({
   name: z.string(),
@@ -54,10 +55,6 @@ export const SaveFileContentBodySchema = z.object({
   content: z.string().max(2 * 1024 * 1024),
 })
 
-export const OkResponseSchema = z.object({
-  ok: z.literal(true),
-})
-
-export const UploadResponseSchema = OkResponseSchema.extend({
+export const UploadResponseSchema = ActionResponseSchema.extend({
   file: FileEntrySchema,
 })
