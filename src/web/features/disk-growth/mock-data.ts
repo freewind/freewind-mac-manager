@@ -196,7 +196,8 @@ export const mockSnapshots = (): ScanSnapshot[] => MOCK_SNAPSHOTS
 export const mockEntries = (
   path: string
 ): { current: GrowthEntry | null; entries: GrowthEntry[] } => {
-  const node = findNode(path)
+  // 界面上「根」用空字符串表示，示例树的根是 "/"。
+  const node = findNode(path === "" ? "/" : path)
   if (!node) return { current: null, entries: [] }
   const entry = toEntry(node)
   const current: GrowthEntry = node.path === "/" ? { ...entry, name: "根" } : entry
