@@ -14,8 +14,14 @@ import {
   TrashIcon,
 } from "@hugeicons/core-free-icons"
 import { useMemo, useState, type ComponentType, type ReactNode } from "react"
+import { toast } from "sonner"
 import type { GrowthEntry } from "@shared/api-contract/types"
-import { formatBytes, formatSignedBytes, formatTimestamp, describeError } from "@shared/format"
+import {
+  formatBytes,
+  formatSignedBytes,
+  formatTimestamp,
+  describeError,
+} from "@shared/format"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +48,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@web/components/ui/dropdown-menu"
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@web/components/ui/empty"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@web/components/ui/empty"
 import { Input } from "@web/components/ui/input"
 import { Progress } from "@web/components/ui/progress"
 import { ScrollArea } from "@web/components/ui/scroll-area"
@@ -81,8 +92,9 @@ export const DiskGrowthPage = () => {
   const keyword = useDiskGrowthStore((state) => state.keyword)
   const setKeyword = useDiskGrowthStore((state) => state.setKeyword)
   const collapseAll = useDiskGrowthStore((state) => state.collapseAll)
-  const notice = useDiskGrowthStore((state) => state.notice)
-  const setNotice = useDiskGrowthStore((state) => state.setNotice)
+  const notify = (message: string | null) => {
+    if (message) toast(message)
+  }
 
   const range = useSelectionRange(snapshots)
   const spanDays = useMemo(() => {
@@ -145,7 +157,6 @@ export const DiskGrowthPage = () => {
           <span>
             区间 {range.ids.length} 份 / {spanDays.toFixed(1)} 天
           </span>
-          {notice ? <span className="text-foreground">{notice}</span> : null}
         </div>
       </header>
 
@@ -153,7 +164,7 @@ export const DiskGrowthPage = () => {
         <SnapshotSidebar
           snapshots={snapshots}
           isLoading={isLoading}
-          onNotice={setNotice}
+          onNotice={notify}
           busiest={startScan.isPending}
         />
 
@@ -168,19 +179,35 @@ export const DiskGrowthPage = () => {
             baselineScanId={range.baselineScanId}
             keyword={keyword}
             view={view}
-            onNotice={setNotice}
+            onNotice={notify}
           />
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
-                  <SortableHead label="名称" sortKey="name" className="min-w-72" />
-                  <SortableHead label="大小" sortKey="size" className="w-24 text-right" />
+                  <SortableHead
+                    label="名称"
+                    sortKey="name"
+                    className="min-w-72"
+                  />
+                  <SortableHead
+                    label="大小"
+                    sortKey="size"
+                    className="w-24 text-right"
+                  />
                   {view === "size" ? (
-                    <SortableHead label="占比" sortKey="size" className="w-40 text-right" />
+                    <SortableHead
+                      label="占比"
+                      sortKey="size"
+                      className="w-40 text-right"
+                    />
                   ) : (
-                    <SortableHead label="增长" sortKey="delta" className="w-24 text-right" />
+                    <SortableHead
+                      label="增长"
+                      sortKey="delta"
+                      className="w-24 text-right"
+                    />
                   )}
                   <TableHead className="w-1/3">路径</TableHead>
                   <TableHead className="w-16 text-right">操作</TableHead>
@@ -193,7 +220,7 @@ export const DiskGrowthPage = () => {
                   scanId={range.scanId}
                   baselineScanId={range.baselineScanId}
                   view={view}
-                  onNotice={setNotice}
+                  onNotice={notify}
                 />
               </TableBody>
             </Table>
@@ -228,7 +255,8 @@ const TreeBranch = (props: BranchProps) => {
   const sorted = useMemo(() => {
     const factor = descending ? -1 : 1
     return [...entries].sort((left, right) => {
-      if (sortKey === "name") return left.name.localeCompare(right.name) * factor
+      if (sortKey === "name")
+        return left.name.localeCompare(right.name) * factor
       const leftValue = sortKey === "size" ? left.size : left.delta
       const rightValue = sortKey === "size" ? right.size : right.delta
       return (leftValue - rightValue) * factor
@@ -257,7 +285,9 @@ const TreeBranch = (props: BranchProps) => {
           <Empty>
             <EmptyHeader>
               <EmptyTitle>还没有快照数据</EmptyTitle>
-              <EmptyDescription>点右上角「立即扫描」生成第一份快照。</EmptyDescription>
+              <EmptyDescription>
+                点右上角「立即扫描」生成第一份快照。
+              </EmptyDescription>
             </EmptyHeader>
           </Empty>
         </TableCell>
@@ -424,7 +454,7 @@ const BranchRow = ({
         {view === "size" ? (
           <TableCell>
             <span className="flex items-center justify-end gap-2">
-              <span className="tabular-nums text-muted-foreground">
+              <span className="text-muted-foreground tabular-nums">
                 {(ratio * 100).toFixed(ratio >= 0.1 ? 0 : 1)}%
               </span>
               <Progress value={Math.min(100, ratio * 100)} className="w-24" />
@@ -461,7 +491,7 @@ const BranchRow = ({
                 onClick={() =>
                   void reveal.mutateAsync(entry.path).then(
                     (result) => onNotice(result.message),
-                    (error: Error) => onNotice(error.message)
+                    (error: unknown) => onNotice(describeError(error))
                   )
                 }
               >
@@ -492,7 +522,7 @@ const BranchRow = ({
                     setConfirmOpen(false)
                     void trash.mutateAsync(entry.path).then(
                       (result) => onNotice(result.message),
-                      (error: Error) => onNotice(error.message)
+                      (error: unknown) => onNotice(describeError(error))
                     )
                   }}
                 >
@@ -590,7 +620,12 @@ type SidebarProps = {
   busiest: boolean
 }
 
-const SnapshotSidebar = ({ snapshots, isLoading, onNotice, busiest }: SidebarProps) => {
+const SnapshotSidebar = ({
+  snapshots,
+  isLoading,
+  onNotice,
+  busiest,
+}: SidebarProps) => {
   const store = useDiskGrowthStore()
   const deleteScans = useDeleteScans()
   const [pending, setPending] = useState<
@@ -627,7 +662,9 @@ const SnapshotSidebar = ({ snapshots, isLoading, onNotice, busiest }: SidebarPro
 
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r">
-      <div className="px-3 py-2 text-xs font-medium text-muted-foreground">快照</div>
+      <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
+        快照
+      </div>
       {store.multiSelect ? (
         <div className="flex items-center gap-1 px-2 pb-2">
           <span className="text-xs text-muted-foreground">
@@ -642,7 +679,11 @@ const SnapshotSidebar = ({ snapshots, isLoading, onNotice, busiest }: SidebarPro
           >
             合并所选
           </Button>
-          <Button variant="ghost" size="xs" onClick={() => store.setMultiSelect(false)}>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => store.setMultiSelect(false)}
+          >
             退出
           </Button>
         </div>
@@ -650,10 +691,14 @@ const SnapshotSidebar = ({ snapshots, isLoading, onNotice, busiest }: SidebarPro
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-0.5 px-2 pb-2">
           {isLoading
-            ? [0, 1, 2].map((index) => <Skeleton key={index} className="h-9 w-full" />)
+            ? [0, 1, 2].map((index) => (
+                <Skeleton key={index} className="h-9 w-full" />
+              ))
             : snapshots.map((snapshot, index) => {
                 const earlier = snapshots[index + 1]
-                const delta = earlier ? snapshot.totalSize - earlier.totalSize : null
+                const delta = earlier
+                  ? snapshot.totalSize - earlier.totalSize
+                  : null
                 const checked = store.checked.includes(snapshot.id)
                 const selected = store.selection.includes(snapshot.id)
                 const actions: SnapshotAction[] = [
@@ -696,7 +741,7 @@ const SnapshotSidebar = ({ snapshots, isLoading, onNotice, busiest }: SidebarPro
                   <ContextMenu key={snapshot.id}>
                     <ContextMenuTrigger
                       className={cn(
-                        "flex select-text items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs",
+                        "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs select-text",
                         selected
                           ? "bg-accent text-accent-foreground"
                           : "hover:bg-accent/60"
@@ -724,7 +769,9 @@ const SnapshotSidebar = ({ snapshots, isLoading, onNotice, busiest }: SidebarPro
                         <span
                           className={cn(
                             "text-muted-foreground",
-                            store.view === "growth" && delta !== null && delta > 0
+                            store.view === "growth" &&
+                              delta !== null &&
+                              delta > 0
                               ? "text-destructive"
                               : undefined
                           )}
@@ -754,7 +801,9 @@ const SnapshotSidebar = ({ snapshots, isLoading, onNotice, busiest }: SidebarPro
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </ContextMenuTrigger>
-                    <ContextMenuContent>{renderContextActions(actions)}</ContextMenuContent>
+                    <ContextMenuContent>
+                      {renderContextActions(actions)}
+                    </ContextMenuContent>
                   </ContextMenu>
                 )
               })}
@@ -794,7 +843,9 @@ const SnapshotSidebar = ({ snapshots, isLoading, onNotice, busiest }: SidebarPro
                 const action = pending
                 setPending(null)
                 if (action?.kind === "merge") {
-                  void runDelete(rangeIds.slice(1)).then(() => store.setMultiSelect(false))
+                  void runDelete(rangeIds.slice(1)).then(() =>
+                    store.setMultiSelect(false)
+                  )
                 }
                 if (action?.kind === "delete") {
                   void runDelete([action.id])

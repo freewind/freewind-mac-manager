@@ -5,6 +5,7 @@ import {
   Search01Icon,
 } from "@hugeicons/core-free-icons"
 import { useState } from "react"
+import { toast } from "sonner"
 import { formatTimestamp } from "@shared/format"
 import {
   AlertDialog,
@@ -50,7 +51,7 @@ export const PortsPage = () => {
       await navigator.clipboard.writeText(text)
       model.notify("已复制到剪贴板")
     } catch {
-      model.notify("复制失败：浏览器拒绝了剪贴板访问")
+      toast.error("复制失败：浏览器拒绝了剪贴板访问")
     }
   }
 
@@ -136,9 +137,6 @@ export const PortsPage = () => {
           当前显示 {model.groups.length} 个端口 / {model.totals.bindings}{" "}
           个套接字
         </span>
-        {model.notice ? (
-          <span className="text-foreground">{model.notice}</span>
-        ) : null}
         <span className="ml-auto">
           {model.autoRefresh
             ? `自动刷新（每 ${REFRESH_INTERVAL_SECONDS} 秒）`

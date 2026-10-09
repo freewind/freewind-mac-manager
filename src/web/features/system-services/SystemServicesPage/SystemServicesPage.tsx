@@ -15,12 +15,7 @@ import {
   TrashIcon,
 } from "@hugeicons/core-free-icons"
 import { formatTimestamp } from "@shared/format"
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from "@web/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -629,19 +624,7 @@ export const SystemServicesPage = () => {
           className="rounded-none border-x-0 border-b-0"
         >
           <AlertTitle>读取服务失败</AlertTitle>
-          <AlertDescription>{String(model.error)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {model.notice ? (
-        <Alert className="rounded-none border-x-0 border-b-0">
-          <AlertTitle>操作结果</AlertTitle>
-          <AlertDescription>{model.notice}</AlertDescription>
-          <AlertAction>
-            <Button variant="ghost" size="xs" onClick={model.clearNotice}>
-              知道了
-            </Button>
-          </AlertAction>
+          <AlertDescription>{model.error}</AlertDescription>
         </Alert>
       ) : null}
 

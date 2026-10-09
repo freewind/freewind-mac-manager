@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
+import { toast } from "sonner"
 import { describeError } from "@shared/format"
 import {
   useDeleteSnapshots,
@@ -35,7 +36,7 @@ export type TrafficTotals = {
 export const useTraffic = () => {
   const queryClient = useQueryClient()
   const local = useTrafficLocalStore()
-  const [notice, setNotice] = useState<string | null>(null)
+  const notify = (text: string) => toast.success(text)
 
   const snapshotsQuery = useTrafficSnapshots()
   const statusQuery = useTrafficStatus()
@@ -80,8 +81,6 @@ export const useTraffic = () => {
   )
 
   const isRealtime = local.selectedIds.includes(REALTIME_SNAPSHOT_ID)
-
-  const notify = (text: string) => setNotice(text)
 
   /** 手动刷新：让缓存里的数据重新拉一次（后端就绪后即重新采样）。 */
   const refresh = () => {
@@ -156,7 +155,7 @@ export const useTraffic = () => {
         local.setSelectedIds([data.snapshot.id])
         notify(`已保存快照 ${data.snapshot.rangeText}`)
       },
-      onError: (error) => notify(`保存快照失败：${describeError(error)}`),
+      onError: (error) => toast.error(`保存快照失败：${describeError(error)}`),
     })
   }
 
@@ -167,7 +166,7 @@ export const useTraffic = () => {
         local.setSelectedIds(next.length > 0 ? next : [REALTIME_SNAPSHOT_ID])
         notify("已删除快照，其后一份已重新计算为合并区间")
       },
-      onError: (error) => notify(`删除快照失败：${describeError(error)}`),
+      onError: (error) => toast.error(`删除快照失败：${describeError(error)}`),
     })
   }
 
@@ -180,7 +179,7 @@ export const useTraffic = () => {
           `已删除 ${selectedSnapshotIds.length} 份快照，受影响的后继快照已重新计算`
         )
       },
-      onError: (error) => notify(`删除快照失败：${describeError(error)}`),
+      onError: (error) => toast.error(`删除快照失败：${describeError(error)}`),
     })
   }
 
@@ -190,7 +189,7 @@ export const useTraffic = () => {
         local.setSelectedIds([selectedSnapshotIds[0]])
         notify(`已把 ${selectedSnapshotIds.length} 份快照合并成一份`)
       },
-      onError: (error) => notify(`合并快照失败：${describeError(error)}`),
+      onError: (error) => toast.error(`合并快照失败：${describeError(error)}`),
     })
   }
 
@@ -206,7 +205,8 @@ export const useTraffic = () => {
               : `结束「${label}」失败：${failed.map((item) => `PID ${item.pid} ${item.message}`).join("；")}`
           )
         },
-        onError: (error) => notify(`结束进程失败：${describeError(error)}`),
+        onError: (error) =>
+          toast.error(`结束进程失败：${describeError(error)}`),
       }
     )
   }
@@ -248,7 +248,6 @@ export const useTraffic = () => {
     terminate,
 
     // 页面级提示
-    notice,
     notify,
     refresh,
   }

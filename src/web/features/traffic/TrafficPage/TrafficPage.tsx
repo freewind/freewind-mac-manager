@@ -8,6 +8,7 @@ import {
   Upload01Icon,
 } from "@hugeicons/core-free-icons"
 import { useState, type ReactNode } from "react"
+import { toast } from "sonner"
 import { formatBytes } from "@shared/format"
 import {
   AlertDialog,
@@ -61,7 +62,7 @@ export const TrafficPage = () => {
       await navigator.clipboard.writeText(text)
       model.notify("已复制到剪贴板")
     } catch {
-      model.notify("复制失败：浏览器拒绝了剪贴板访问")
+      toast.error("复制失败：浏览器拒绝了剪贴板访问")
     }
   }
 
@@ -175,9 +176,6 @@ export const TrafficPage = () => {
             ? `（已隐藏 ${model.hiddenCount} 个代理进程）`
             : ""}
         </span>
-        {model.notice ? (
-          <span className="text-foreground">{model.notice}</span>
-        ) : null}
         <span className="ml-auto">
           {model.isRealtime
             ? `实时视图（每 ${model.status?.intervalSeconds ?? 5} 秒采样）`

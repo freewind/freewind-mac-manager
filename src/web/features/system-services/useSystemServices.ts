@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
+import { toast } from "sonner"
 import { describeError } from "@shared/format"
 import type { ServiceDomain, SystemService } from "@shared/api-contract"
 import { revealSystemService } from "@shared/client-api"
@@ -30,7 +31,6 @@ export type PendingAction = {
 export const useSystemServices = () => {
   const queryClient = useQueryClient()
   const local = useSystemServicesLocalStore()
-  const [notice, setNotice] = useState<string | null>(null)
   const [pending, setPending] = useState<PendingAction | null>(null)
 
   const servicesQuery = useServicesQuery()
@@ -84,8 +84,8 @@ export const useSystemServices = () => {
     serviceAction.mutate(
       { label: target.label, domain: target.domain, action },
       {
-        onSuccess: (data) => setNotice(data.message),
-        onError: (error) => setNotice(describeError(error)),
+        onSuccess: (data) => toast.success(data.message),
+        onError: (error) => toast.error(describeError(error)),
       }
     )
   }
@@ -93,7 +93,7 @@ export const useSystemServices = () => {
   /** 入口：需要确认的先弹窗，其余直接执行。 */
   const requestAction = (action: ServiceAction, target: SystemService) => {
     if (target.requiresRoot) {
-      setNotice(
+      toast.error(
         `${target.label} 位于系统目录，需要 root 权限；此处只提供查看与复制。`
       )
       return
@@ -120,20 +120,20 @@ export const useSystemServices = () => {
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: systemServiceKeys.list })
-    setNotice(`已重新读取 ${services.length} 个 plist 与 launchd 状态`)
+    toast.success(`已重新读取 ${services.length} 个 plist 与 launchd 状态`)
   }
 
   const reveal = (target: SystemService) => {
     void revealSystemService({ label: target.label, domain: target.domain })
-      .then((result) => setNotice(result.message))
-      .catch((error) => setNotice(describeError(error)))
+      .then((result) => toast.success(result.message))
+      .catch((error) => toast.error(describeError(error)))
   }
 
   const copy = (text: string, what: string) => {
     void navigator.clipboard
       .writeText(text)
-      .then(() => setNotice(`已复制${what}`))
-      .catch((error) => setNotice(`复制失败：${describeError(error)}`))
+      .then(() => toast.success(`已复制${what}`))
+      .catch((error) => toast.error(`复制失败：${describeError(error)}`))
   }
 
   return {
@@ -145,7 +145,7 @@ export const useSystemServices = () => {
     stats,
     isLoading: servicesQuery.isLoading,
     isFetching: servicesQuery.isFetching,
-    error: servicesQuery.error,
+    error: servicesQuery.isError ? describeError(servicesQuery.error) : null,
     isPending: serviceAction.isPending,
 
     // 本地共享状态
@@ -166,9 +166,5 @@ export const useSystemServices = () => {
     refresh,
     reveal,
     copy,
-
-    // 页面级提示
-    notice,
-    clearNotice: () => setNotice(null),
   }
 }

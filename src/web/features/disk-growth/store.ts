@@ -24,7 +24,6 @@ type DiskGrowthState = {
   focusPath: string
   focusStack: string[]
   keyword: string
-  notice: string | null
 
   setView: (view: DiskGrowthView) => void
   setSort: (key: DiskGrowthSortKey) => void
@@ -37,7 +36,6 @@ type DiskGrowthState = {
   enterFocus: (path: string) => void
   leaveFocus: () => void
   setKeyword: (keyword: string) => void
-  setNotice: (message: string | null) => void
   resetForNewSnapshot: () => void
 }
 
@@ -59,7 +57,6 @@ export const useDiskGrowthStore = create<DiskGrowthState>((set) => ({
   focusPath: "",
   focusStack: [],
   keyword: "",
-  notice: null,
 
   setView: (view) =>
     set({ view, sortKey: DEFAULT_SORT[view], descending: true }),
@@ -112,8 +109,6 @@ export const useDiskGrowthStore = create<DiskGrowthState>((set) => ({
     }),
 
   setKeyword: (keyword) => set({ keyword }),
-
-  setNotice: (message) => set({ notice: message }),
 
   resetForNewSnapshot: () =>
     set({

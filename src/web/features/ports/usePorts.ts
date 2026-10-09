@@ -1,10 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
+import { toast } from "sonner"
 import { describeError } from "@shared/format"
-import {
-  buildPortGroups,
-  type PortGroup,
-} from "@web/features/ports/domain"
+import { buildPortGroups, type PortGroup } from "@web/features/ports/domain"
 import {
   portKeys,
   useKillPortProcesses,
@@ -51,15 +49,12 @@ const matchesExposure = (
 export const usePorts = () => {
   const queryClient = useQueryClient()
   const local = usePortsLocalStore()
-  const [notice, setNotice] = useState<string | null>(null)
+  const notify = (text: string) => toast.success(text)
 
   const bindingsQuery = usePortBindings()
   const killPortProcesses = useKillPortProcesses()
 
-  const bindings = useMemo(
-    () => bindingsQuery.data ?? [],
-    [bindingsQuery.data]
-  )
+  const bindings = useMemo(() => bindingsQuery.data ?? [], [bindingsQuery.data])
 
   // 按状态与协议先在套接字层过滤，再聚合成端口分组。
   const scopedBindings = useMemo(
@@ -116,8 +111,7 @@ export const usePorts = () => {
     for (const item of PORT_VIEWS) {
       counts[item.key] = searchedGroups.filter(
         (group) =>
-          matchesView(group, item.key) &&
-          matchesExposure(group, local.exposure)
+          matchesView(group, item.key) && matchesExposure(group, local.exposure)
       ).length
     }
     return counts
@@ -133,8 +127,6 @@ export const usePorts = () => {
     }),
     [groups]
   )
-
-  const notify = (text: string) => setNotice(text)
 
   /** 让缓存里的端口列表重新拉一次。 */
   const refresh = () => {
@@ -154,8 +146,7 @@ export const usePorts = () => {
             `端口 ${port}：已结束 ${killed} 个进程，${pids.length - killed} 个跳过`
           )
         },
-        onError: (error) =>
-          notify(describeError(error)),
+        onError: (error) => toast.error(describeError(error)),
       }
     )
   }
@@ -187,10 +178,9 @@ export const usePorts = () => {
     autoRefresh: local.autoRefresh,
     setAutoRefresh: local.setAutoRefresh,
 
-    // 动作与提示
+    // 动作
     refresh,
     terminate,
-    notice,
     notify,
   }
 }
