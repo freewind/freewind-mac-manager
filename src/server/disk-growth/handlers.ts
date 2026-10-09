@@ -1,5 +1,6 @@
 import { initServer } from "@ts-rest/express"
 import { contract } from "@shared/api-contract"
+import { portsHandlers } from "@server/ports/handlers"
 import { diskGrowthStore, getScanStatus, startScan } from "./service"
 
 const s = initServer()
@@ -37,4 +38,6 @@ export const serverRouter = s.router(contract, {
     const outcome = startScan()
     return { status: 202, body: outcome }
   },
+
+  ...portsHandlers,
 })

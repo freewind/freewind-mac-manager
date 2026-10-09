@@ -9,6 +9,11 @@ import {
   ScanStatusSchema,
   ScansResponseSchema,
 } from "./schemas/disk-growth"
+import {
+  KillPortProcessesBodySchema,
+  KillPortProcessesResponseSchema,
+  PortBindingsResponseSchema,
+} from "./schemas/ports"
 
 const HealthSchema = z.object({ ok: z.boolean() })
 
@@ -57,6 +62,23 @@ export const contract = c.router(
       body: c.noBody(),
       responses: {
         202: ScanStartResponseSchema,
+        ...errorResponses,
+      },
+    },
+    listPortBindings: {
+      method: "GET",
+      path: toContractPath(ApiPath[`${API_BASE}/ports/bindings`]),
+      responses: {
+        200: PortBindingsResponseSchema,
+        ...errorResponses,
+      },
+    },
+    killPortProcesses: {
+      method: "POST",
+      path: toContractPath(ApiPath[`${API_BASE}/ports/processes/kill`]),
+      body: KillPortProcessesBodySchema,
+      responses: {
+        200: KillPortProcessesResponseSchema,
         ...errorResponses,
       },
     },

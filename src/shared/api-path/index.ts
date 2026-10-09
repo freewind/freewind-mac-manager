@@ -6,6 +6,8 @@ export const ApiPath = {
   [`${API_BASE}/disk-growth/entries`]: `${API_BASE}/disk-growth/entries`,
   [`${API_BASE}/disk-growth/scan-status`]: `${API_BASE}/disk-growth/scan-status`,
   [`${API_BASE}/disk-growth/scan`]: `${API_BASE}/disk-growth/scan`,
+  [`${API_BASE}/ports/bindings`]: `${API_BASE}/ports/bindings`,
+  [`${API_BASE}/ports/processes/kill`]: `${API_BASE}/ports/processes/kill`,
 } as const
 
 export type ApiPathKey = keyof typeof ApiPath

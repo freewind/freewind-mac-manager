@@ -50,7 +50,8 @@ import {
   TooltipTrigger,
 } from "@web/components/ui/tooltip"
 import { cn } from "@web/lib/utils"
-import type { PortBinding, PortGroup } from "@web/features/ports/mock-data"
+import type { PortBinding } from "@shared/api-contract"
+import type { PortGroup } from "@web/features/ports/domain"
 import type { usePorts } from "@web/features/ports/usePorts"
 
 type SortKey = "port" | "service" | "processCount"

@@ -3,11 +3,11 @@ import { useMemo, useState } from "react"
 import {
   buildPortGroups,
   type PortGroup,
-} from "@web/features/ports/mock-data"
+} from "@web/features/ports/domain"
 import {
   portKeys,
+  useKillPortProcesses,
   usePortBindings,
-  useTerminatePorts,
 } from "@web/features/ports/queries"
 import {
   PORT_VIEWS,
@@ -53,7 +53,7 @@ export const usePorts = () => {
   const [notice, setNotice] = useState<string | null>(null)
 
   const bindingsQuery = usePortBindings()
-  const terminatePorts = useTerminatePorts()
+  const killPortProcesses = useKillPortProcesses()
 
   const bindings = useMemo(
     () => bindingsQuery.data ?? [],
@@ -142,13 +142,19 @@ export const usePorts = () => {
   }
 
   const terminate = (port: number, pids: number[]) => {
-    terminatePorts.mutate(
+    killPortProcesses.mutate(
       { port, pids },
       {
-        onSuccess: () =>
+        onSuccess: (response) => {
+          const killed = response.results.filter(
+            (item) => item.succeeded
+          ).length
           notify(
-            `已结束端口 ${port} 上的 ${pids.length} 个进程：${pids.join(", ")}`
-          ),
+            `端口 ${port}：已结束 ${killed} 个进程，${pids.length - killed} 个跳过`
+          )
+        },
+        onError: (error) =>
+          notify(error instanceof Error ? error.message : String(error)),
       }
     )
   }
