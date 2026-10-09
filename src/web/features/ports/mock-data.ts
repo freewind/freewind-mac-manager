@@ -517,6 +517,10 @@ export const mockPortBindings: PortBinding[] = [
   }),
 ]
 
+/** 拉取端口绑定的异步入口；接后端时替换为 `@shared/client-api` 的调用。 */
+export const fetchPortBindings = async (): Promise<PortBinding[]> =>
+  mockPortBindings
+
 /** 按端口聚合套接字绑定，同一端口的多条记录（双栈、多进程）合成一组。 */
 export const buildPortGroups = (bindings: PortBinding[]): PortGroup[] => {
   const byPort = new Map<number, PortBinding[]>()
