@@ -1,13 +1,24 @@
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
-  ArrowRight01Icon,
+  ArrowUp01Icon,
   DashboardSpeed02Icon,
-  Delete02Icon,
+  Download01Icon,
   RefreshIcon,
+  Upload01Icon,
 } from "@hugeicons/core-free-icons"
-import { Fragment, useMemo, useState } from "react"
-import { formatBytes, formatTimestamp } from "@shared/format"
+import { useState, type ReactNode } from "react"
+import { formatBytes } from "@shared/format"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@web/components/ui/alert-dialog"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
@@ -17,55 +28,50 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
-import { ScrollArea } from "@web/components/ui/scroll-area"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@web/components/ui/table"
-import { cn } from "@web/lib/utils"
+import type { TrafficSnapshot } from "@web/features/traffic/mock-data"
 import { useTraffic } from "@web/features/traffic/useTraffic"
+import { ProcessTable } from "./ProcessTable"
+import { SnapshotList } from "./SnapshotList"
 
-type SortKey = "name" | "bytesIn" | "bytesOut" | "total"
+type PendingConfirm = {
+  title: string
+  description: string
+  confirmText: string
+  onConfirm: () => void
+}
 
 export const TrafficPage = () => {
   const model = useTraffic()
-  const [sortKey, setSortKey] = useState<SortKey>("total")
-  const [descending, setDescending] = useState(true)
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
+    null
+  )
 
-  const sortedGroups = useMemo(() => {
-    const factor = descending ? -1 : 1
-    return [...model.groups].sort((left, right) => {
-      if (sortKey === "name") {
-        return left.name.localeCompare(right.name) * factor
-      }
-      const leftValue =
-        sortKey === "bytesIn"
-          ? left.bytesIn
-          : sortKey === "bytesOut"
-            ? left.bytesOut
-            : left.bytesIn + left.bytesOut
-      const rightValue =
-        sortKey === "bytesIn"
-          ? right.bytesIn
-          : sortKey === "bytesOut"
-            ? right.bytesOut
-            : right.bytesIn + right.bytesOut
-      return (leftValue - rightValue) * factor
-    })
-  }, [model.groups, sortKey, descending])
+  const scopeText = model.isRealtime
+    ? "实时（当前正在跑的进程）"
+    : model.selectedSnapshotCount > 1
+      ? `快照合计（${model.selectedSnapshotCount} 份：${model.selectedSnapshots
+          .map((item) => item.rangeText)
+          .join("；")}）`
+      : model.selectedSnapshots[0]
+        ? `快照 ${model.selectedSnapshots[0].rangeText}`
+        : "未选择快照"
 
-  const toggleSort = (key: SortKey) => {
-    if (key === sortKey) {
-      setDescending((previous) => !previous)
-      return
+  const copyText = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      model.notify("已复制到剪贴板")
+    } catch {
+      model.notify("复制失败：浏览器拒绝了剪贴板访问")
     }
-    setSortKey(key)
-    setDescending(true)
   }
+
+  const requestDeleteSnapshot = (snapshot: TrafficSnapshot) =>
+    setPendingConfirm({
+      title: "删除这份快照？",
+      description: `${snapshot.rangeText} 的增量会并入它后面一份，不会被丢掉。`,
+      confirmText: "删除",
+      onConfirm: () => model.removeSnapshot(snapshot.id),
+    })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -94,239 +100,72 @@ export const TrafficPage = () => {
 
         <div className="grid gap-3 sm:grid-cols-3">
           <StatCard
-            title="实时下载"
-            value={`${formatBytes(model.status.downloadRate)}/s`}
-            description={`每 ${model.status.intervalSeconds} 秒采样一次`}
+            title={<IconLabel icon={ArrowDown01Icon} text="实时" />}
+            value={`${formatBytes(model.status?.downloadRate ?? 0)}/s`}
+            description={`每 ${model.status?.intervalSeconds ?? 5} 秒采样一次`}
           />
           <StatCard
-            title="实时上传"
-            value={`${formatBytes(model.status.uploadRate)}/s`}
-            description={`每 ${model.status.intervalSeconds} 秒采样一次`}
+            title={<IconLabel icon={ArrowUp01Icon} text="实时" />}
+            value={`${formatBytes(model.status?.uploadRate ?? 0)}/s`}
+            description={`每 ${model.status?.intervalSeconds ?? 5} 秒采样一次`}
           />
           <StatCard
-            title="本快照合计"
+            title={
+              model.isRealtime
+                ? "当前累计"
+                : model.selectedSnapshotCount > 1
+                  ? `${model.selectedSnapshotCount} 份快照合计`
+                  : "本快照合计"
+            }
             value={formatBytes(model.totals.total)}
-            description={`上传 ${formatBytes(model.totals.bytesIn)} · 下载 ${formatBytes(model.totals.bytesOut)}`}
+            description={
+              <span className="flex items-center gap-1">
+                <HugeiconsIcon icon={Upload01Icon} className="size-3" />
+                {formatBytes(model.totals.bytesIn)}
+                <HugeiconsIcon icon={Download01Icon} className="ml-1 size-3" />
+                {formatBytes(model.totals.bytesOut)}
+              </span>
+            }
           />
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-64 shrink-0 flex-col border-r">
-          <div className="flex items-center justify-between border-b px-3 py-2">
-            <span className="text-xs font-medium">快照（增量）</span>
-            <Button size="xs" variant="outline" onClick={model.saveSnapshot}>
-              保存快照
-            </Button>
-          </div>
-          <ScrollArea className="min-h-0 flex-1">
-            {model.snapshots.map((snapshot) => {
-              const active = snapshot.id === model.selectedSnapshotId
-              return (
-                <button
-                  key={snapshot.id}
-                  type="button"
-                  onClick={() => model.selectSnapshot(snapshot.id)}
-                  className={cn(
-                    "flex w-full flex-col gap-0.5 border-b px-3 py-2 text-left transition-colors hover:bg-muted/50",
-                    active && "bg-muted"
-                  )}
-                >
-                  <span className="flex items-center gap-1.5 text-xs font-medium">
-                    {formatTimestamp(Math.floor(snapshot.savedAt / 1000))}
-                    {snapshot.savedBy === "manual" ? (
-                      <Badge variant="secondary">手动</Badge>
-                    ) : null}
-                  </span>
-                  <span className="text-[0.6875rem] text-muted-foreground">
-                    合计 {formatBytes(snapshot.bytesIn + snapshot.bytesOut)}
-                  </span>
-                  <span className="text-[0.6875rem] text-muted-foreground/70">
-                    {snapshot.rangeText}
-                  </span>
-                </button>
-              )
-            })}
-          </ScrollArea>
-        </aside>
+        <SnapshotList
+          model={model}
+          onRequestDelete={requestDeleteSnapshot}
+          onRequestDeleteSelected={() =>
+            setPendingConfirm({
+              title: `删除选中的 ${model.selectedSnapshotCount} 份快照？`,
+              description: "这些快照的增量会依次并入各自后面一份，不会被丢掉。",
+              confirmText: "删除所选",
+              onConfirm: model.removeSelected,
+            })
+          }
+          onRequestMergeSelected={() =>
+            setPendingConfirm({
+              title: `把选中的 ${model.selectedSnapshotCount} 份快照合并成一份？`,
+              description:
+                "合并后会把它们覆盖的整段变成一份，原来的分份记录不再保留。",
+              confirmText: "合并",
+              onConfirm: model.mergeSelected,
+            })
+          }
+        />
 
-        <ScrollArea className="min-h-0 flex-1">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <SortButton
-                    label="进程"
-                    active={sortKey === "name"}
-                    descending={descending}
-                    onClick={() => toggleSort("name")}
-                  />
-                </TableHead>
-                <TableHead className="w-28">启动者</TableHead>
-                <TableHead className="w-32">PID</TableHead>
-                <TableHead className="w-20">状态</TableHead>
-                <TableHead className="w-24 text-right">
-                  <SortButton
-                    label="上传"
-                    active={sortKey === "bytesIn"}
-                    descending={descending}
-                    onClick={() => toggleSort("bytesIn")}
-                  />
-                </TableHead>
-                <TableHead className="w-24 text-right">
-                  <SortButton
-                    label="下载"
-                    active={sortKey === "bytesOut"}
-                    descending={descending}
-                    onClick={() => toggleSort("bytesOut")}
-                  />
-                </TableHead>
-                <TableHead className="w-24 text-right">
-                  <SortButton
-                    label="总计"
-                    active={sortKey === "total"}
-                    descending={descending}
-                    onClick={() => toggleSort("total")}
-                  />
-                </TableHead>
-                <TableHead>命令</TableHead>
-                <TableHead className="w-20" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedGroups.map((groupItem) => {
-                const expanded = model.isExpanded(groupItem.name)
-                const runningPids = groupItem.children
-                  .filter((item) => item.running)
-                  .flatMap((item) => item.pids)
-                return (
-                  <Fragment key={groupItem.name}>
-                    <TableRow
-                      className={cn(
-                        "cursor-pointer",
-                        model.selected === groupItem.name && "bg-muted/60"
-                      )}
-                      onClick={() => model.select(groupItem.name)}
-                    >
-                      <TableCell className="font-medium">
-                        <button
-                          type="button"
-                          className="mr-1 inline-flex align-middle text-muted-foreground hover:text-foreground"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            model.toggleExpanded(groupItem.name)
-                          }}
-                        >
-                          <HugeiconsIcon
-                            icon={expanded ? ArrowDown01Icon : ArrowRight01Icon}
-                            className="size-3.5"
-                          />
-                        </button>
-                        {groupItem.name}
-                      </TableCell>
-                      <TableCell />
-                      <TableCell className="text-muted-foreground">
-                        {groupItem.children.flatMap((item) => item.pids).length}{" "}
-                        个
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge running={runningPids.length > 0} />
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatBytes(groupItem.bytesIn)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatBytes(groupItem.bytesOut)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatBytes(groupItem.bytesIn + groupItem.bytesOut)}
-                      </TableCell>
-                      <TableCell className="max-w-0 truncate text-muted-foreground">
-                        {groupItem.children[0]?.command}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          disabled={runningPids.length === 0}
-                          title="结束进程"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            model.terminate(groupItem.name, runningPids)
-                          }}
-                        >
-                          <HugeiconsIcon icon={Delete02Icon} />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-
-                    {expanded &&
-                      groupItem.children.map((childItem) => (
-                        <TableRow
-                          key={groupItem.name + childItem.key}
-                          className={cn(
-                            "cursor-pointer bg-muted/20",
-                            model.selected === groupItem.name + childItem.key &&
-                              "bg-muted/60"
-                          )}
-                          onClick={() =>
-                            model.select(groupItem.name + childItem.key)
-                          }
-                        >
-                          <TableCell className="pl-8 text-xs">
-                            {childItem.scriptName}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {childItem.parent}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground tabular-nums">
-                            {childItem.pids.join(", ")}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge running={childItem.running} />
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatBytes(childItem.bytesIn)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatBytes(childItem.bytesOut)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatBytes(
-                              childItem.bytesIn + childItem.bytesOut
-                            )}
-                          </TableCell>
-                          <TableCell
-                            className="max-w-0 truncate text-muted-foreground"
-                            title={childItem.command}
-                          >
-                            {childItem.command}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              disabled={!childItem.running}
-                              title="结束进程"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                model.terminate(
-                                  childItem.scriptName,
-                                  childItem.pids
-                                )
-                              }}
-                            >
-                              <HugeiconsIcon icon={Delete02Icon} />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </Fragment>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </ScrollArea>
+        <ProcessTable
+          model={model}
+          scopeText={scopeText}
+          onCopy={copyText}
+          onRequestKill={(label, pids) =>
+            setPendingConfirm({
+              title: `结束 ${label} 的 ${pids.length} 个进程？`,
+              description: `PID: ${pids.join(", ")}。进程被结束后不可恢复。`,
+              confirmText: "结束进程",
+              onConfirm: () => model.terminate(label, pids),
+            })
+          }
+        />
       </div>
 
       <footer className="flex flex-wrap items-center gap-3 border-t px-4 py-2 text-xs text-muted-foreground">
@@ -340,19 +179,52 @@ export const TrafficPage = () => {
           <span className="text-foreground">{model.notice}</span>
         ) : null}
         <span className="ml-auto">
-          {model.selectedSnapshot
-            ? `快照区间 ${model.selectedSnapshot.rangeText}`
-            : "尚未选择快照"}
+          {model.isRealtime
+            ? `实时视图（每 ${model.status?.intervalSeconds ?? 5} 秒采样）`
+            : model.selectedSnapshotCount > 1
+              ? `已选 ${model.selectedSnapshotCount} 份快照，显示合计`
+              : model.selectedSnapshots[0]
+                ? `快照区间 ${model.selectedSnapshots[0].rangeText}`
+                : "尚未选择快照"}
         </span>
       </footer>
+
+      <AlertDialog
+        open={pendingConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingConfirm(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{pendingConfirm?.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingConfirm?.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                pendingConfirm?.onConfirm()
+                setPendingConfirm(null)
+              }}
+            >
+              {pendingConfirm?.confirmText ?? "确认"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
 
 type StatCardProps = {
-  title: string
+  title: ReactNode
   value: string
-  description: string
+  description: ReactNode
 }
 
 const StatCard = (props: StatCardProps) => {
@@ -370,35 +242,9 @@ const StatCard = (props: StatCardProps) => {
   )
 }
 
-type SortButtonProps = {
-  label: string
-  active: boolean
-  descending: boolean
-  onClick: () => void
-}
-
-const SortButton = (props: SortButtonProps) => {
-  const { label, active, descending, onClick } = props
-  return (
-    <Button
-      size="xs"
-      variant={active ? "secondary" : "ghost"}
-      className="-ml-2"
-      onClick={onClick}
-    >
-      {label}
-      {active ? (
-        <span className="text-[0.625rem]">{descending ? "▼" : "▲"}</span>
-      ) : null}
-    </Button>
-  )
-}
-
-const StatusBadge = (props: { running: boolean }) => (
-  <Badge
-    variant={props.running ? "secondary" : "outline"}
-    className={cn(props.running && "text-emerald-600")}
-  >
-    {props.running ? "运行中" : "已退出"}
-  </Badge>
+const IconLabel = (props: { icon: typeof RefreshIcon; text: string }) => (
+  <span className="flex items-center gap-1">
+    <HugeiconsIcon icon={props.icon} className="size-3" />
+    {props.text}
+  </span>
 )
