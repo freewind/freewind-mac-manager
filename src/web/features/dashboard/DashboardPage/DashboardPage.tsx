@@ -9,7 +9,7 @@ import {
   NetworkIcon,
   RefreshIcon,
 } from "@hugeicons/core-free-icons"
-import { useMemo, type ReactNode } from "react"
+import type { ReactNode } from "react"
 import { formatBytes } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -21,6 +21,16 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@web/components/ui/empty"
+import { Progress } from "@web/components/ui/progress"
+import { Separator } from "@web/components/ui/separator"
+import { Skeleton } from "@web/components/ui/skeleton"
+import {
   Table,
   TableBody,
   TableCell,
@@ -29,197 +39,209 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import { cn } from "@web/lib/utils"
-import type { DiskVolume, MemoryInfo } from "@web/features/dashboard/mock-data"
+import type { DiskVolume } from "@web/features/dashboard/mock-data"
 import { useDashboard } from "@web/features/dashboard/useDashboard"
 
 export const DashboardPage = () => {
-  const { overview, refresh, paused, setPaused } = useDashboard()
-  const { system, cpu, memory, disk, network } = overview
-
-  const processes = useMemo(
-    () => [...overview.processes].sort((left, right) => right.cpu - left.cpu),
-    [overview.processes]
-  )
-
-  const pressure = describeMemoryPressure(memory)
+  const model = useDashboard()
+  const snapshot = model.snapshot
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex flex-col gap-2 border-b px-4 py-3">
+      <header className="flex flex-col gap-2 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <HugeiconsIcon icon={CircleGaugeIcon} className="size-4" />
           <h1 className="text-sm font-medium">概览</h1>
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
-              更新于 {formatClock(overview.sampledAt)} · 每 3 秒自动刷新
+              {model.paused
+                ? "已暂停自动刷新"
+                : snapshot
+                  ? `更新于 ${formatClock(snapshot.sampledAt)} · 每 3 秒自动刷新`
+                  : "正在读取状态"}
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setPaused(!paused)}
-            >
-              {paused ? "继续刷新" : "暂停刷新"}
+            <Button size="sm" variant="outline" onClick={model.togglePaused}>
+              {model.paused ? "继续刷新" : "暂停刷新"}
             </Button>
-            <Button size="sm" variant="outline" onClick={refresh}>
+            <Button size="sm" variant="outline" onClick={model.refresh}>
               <HugeiconsIcon icon={RefreshIcon} />
               刷新
             </Button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span className="text-foreground">{system.hostname}</span>
-          <span>{system.model}</span>
-          <span>{system.chip}</span>
-          <span>{system.osVersion}</span>
-          <span>已开机 {formatDuration(system.uptimeSeconds)}</span>
-          <span>{system.userCount} 人登录</span>
-        </div>
+        {snapshot ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="text-foreground">{snapshot.system.hostname}</span>
+            <span>{snapshot.system.model}</span>
+            <span>{snapshot.system.chip}</span>
+            <span>{snapshot.system.osVersion}</span>
+            <span>已开机 {formatDuration(snapshot.system.uptimeSeconds)}</span>
+            <span>{snapshot.system.userCount} 人登录</span>
+          </div>
+        ) : (
+          <Skeleton className="h-4 w-96" />
+        )}
       </header>
+      <Separator />
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            icon={CpuIcon}
-            title="CPU 负载"
-            value={`${cpu.loadAverage[0]?.toFixed(2) ?? "0.00"}`}
-            description={`${cpu.coreCount} 核 · 1/5/15 分钟：${cpu.loadAverage
-              .map((value) => value.toFixed(2))
-              .join(" / ")}`}
-          >
-            <div className="grid grid-cols-4 gap-2">
-              {cpu.coreUsage.map((usage, index) => (
-                <div key={index} className="flex flex-col gap-1">
-                  <Bar ratio={usage / 100} />
-                  <span className="text-[0.625rem] text-muted-foreground tabular-nums">
-                    核 {index + 1} · {usage.toFixed(0)}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </MetricCard>
-
-          <MetricCard
-            icon={MemoryStickIcon}
-            title="内存"
-            value={`${formatBytes(memory.used)} / ${formatBytes(memory.total)}`}
-            description={
-              <PressureBadge label={pressure.label} level={pressure.level} />
-            }
-          >
-            <div className="flex flex-col gap-2">
-              <Bar ratio={memory.used / memory.total} />
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.6875rem] text-muted-foreground">
-                <span className="flex justify-between">
-                  <span>应用</span>
-                  <span className="text-foreground tabular-nums">
-                    {formatBytes(memory.used)}
-                  </span>
-                </span>
-                <span className="flex justify-between">
-                  <span>联动</span>
-                  <span className="text-foreground tabular-nums">
-                    {formatBytes(memory.wired)}
-                  </span>
-                </span>
-                <span className="flex justify-between">
-                  <span>压缩</span>
-                  <span className="text-foreground tabular-nums">
-                    {formatBytes(memory.compressed)}
-                  </span>
-                </span>
-                <span className="flex justify-between">
-                  <span>可用</span>
-                  <span className="text-foreground tabular-nums">
-                    {formatBytes(memory.free)}
-                  </span>
-                </span>
+        {snapshot ? (
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              icon={CpuIcon}
+              title="CPU 负载"
+              value={(snapshot.cpu.loadAverage[0] ?? 0).toFixed(2)}
+              description={`${snapshot.cpu.coreCount} 核 · 1/5/15 分钟：${snapshot.cpu.loadAverage
+                .map((value) => value.toFixed(2))
+                .join(" / ")}`}
+            >
+              <div className="grid grid-cols-4 gap-2">
+                {snapshot.cpu.coreUsage.map((usage, index) => (
+                  <div key={index} className="flex flex-col gap-1">
+                    <Progress value={usage} />
+                    <span className="text-[0.625rem] text-muted-foreground tabular-nums">
+                      核 {index + 1} · {usage.toFixed(0)}%
+                    </span>
+                  </div>
+                ))}
               </div>
-              <div className="flex flex-col gap-1">
-                <span className="flex items-center justify-between text-[0.6875rem] text-muted-foreground">
-                  <span>Swap</span>
-                  <span
-                    className={cn(
-                      "tabular-nums",
-                      memory.swapUsed / memory.swapTotal > 0.7 &&
-                        "text-destructive"
-                    )}
-                  >
-                    {formatBytes(memory.swapUsed)} /{" "}
-                    {formatBytes(memory.swapTotal)}
-                  </span>
-                </span>
-                <Bar
-                  ratio={memory.swapUsed / memory.swapTotal}
-                  tone={
-                    memory.swapUsed / memory.swapTotal > 0.7
-                      ? "danger"
-                      : "primary"
+            </MetricCard>
+
+            <MetricCard
+              icon={MemoryStickIcon}
+              title="内存"
+              value={`${formatBytes(snapshot.memory.used)} / ${formatBytes(snapshot.memory.total)}`}
+              description={
+                <Badge
+                  variant={
+                    model.pressure?.level === "ok" ? "secondary" : "destructive"
                   }
+                >
+                  内存压力{model.pressure?.label ?? "未知"}
+                </Badge>
+              }
+            >
+              <div className="flex flex-col gap-2">
+                <Progress
+                  value={ratio(snapshot.memory.used, snapshot.memory.total)}
                 />
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.6875rem] text-muted-foreground">
+                  <StatRow
+                    label="应用"
+                    value={formatBytes(snapshot.memory.used)}
+                  />
+                  <StatRow
+                    label="联动"
+                    value={formatBytes(snapshot.memory.wired)}
+                  />
+                  <StatRow
+                    label="压缩"
+                    value={formatBytes(snapshot.memory.compressed)}
+                  />
+                  <StatRow
+                    label="可用"
+                    value={formatBytes(snapshot.memory.free)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="flex items-center justify-between text-[0.6875rem] text-muted-foreground">
+                    <span>Swap</span>
+                    <span
+                      className={cn(
+                        "tabular-nums",
+                        swapTight(
+                          snapshot.memory.swapUsed,
+                          snapshot.memory.swapTotal
+                        ) && "text-destructive"
+                      )}
+                    >
+                      {formatBytes(snapshot.memory.swapUsed)} /{" "}
+                      {formatBytes(snapshot.memory.swapTotal)}
+                    </span>
+                  </span>
+                  <Progress
+                    value={ratio(
+                      snapshot.memory.swapUsed,
+                      snapshot.memory.swapTotal
+                    )}
+                  />
+                </div>
               </div>
-            </div>
-          </MetricCard>
+            </MetricCard>
 
-          <MetricCard
-            icon={HardDriveIcon}
-            title="磁盘"
-            value={formatBytes(disk.volumes[0]?.used ?? 0)}
-            description={`系统盘已用 ${formatPercent(
-              (disk.volumes[0]?.used ?? 0) / (disk.volumes[0]?.total ?? 1)
-            )} · 可用 ${formatBytes(disk.volumes[0]?.free ?? 0)}`}
-          >
-            <div className="flex flex-col gap-2">
-              {disk.volumes.map((volume) => (
-                <VolumeRow key={volume.mount} volume={volume} />
-              ))}
-            </div>
-          </MetricCard>
+            <MetricCard
+              icon={HardDriveIcon}
+              title="磁盘"
+              value={formatBytes(snapshot.disk[0]?.used ?? 0)}
+              description={`系统盘已用 ${formatPercent(
+                ratio(snapshot.disk[0]?.used ?? 0, snapshot.disk[0]?.total ?? 1)
+              )} · 可用 ${formatBytes(snapshot.disk[0]?.free ?? 0)}`}
+            >
+              <div className="flex flex-col gap-2">
+                {snapshot.disk.map((volume) => (
+                  <VolumeRow key={volume.mount} volume={volume} />
+                ))}
+              </div>
+            </MetricCard>
 
-          <MetricCard
-            icon={NetworkIcon}
-            title="网络"
-            value={`${formatBytes(network.downloadRate)}/s`}
-            description={`${network.interfaceName} · ${network.address}`}
-          >
-            <div className="flex flex-col gap-2 text-[0.6875rem]">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <HugeiconsIcon icon={ArrowDown01Icon} className="size-3" />
-                下载
-                <span className="text-foreground tabular-nums">
-                  {formatBytes(network.downloadRate)}/s
+            <MetricCard
+              icon={NetworkIcon}
+              title="网络"
+              value={`${formatBytes(snapshot.network.downloadRate)}/s`}
+              description={`${snapshot.network.interfaceName} · ${snapshot.network.address}`}
+            >
+              <div className="flex flex-col gap-2 text-[0.6875rem]">
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <HugeiconsIcon icon={ArrowDown01Icon} className="size-3" />
+                  下载
+                  <span className="text-foreground tabular-nums">
+                    {formatBytes(snapshot.network.downloadRate)}/s
+                  </span>
+                  <span className="ml-auto tabular-nums">
+                    累计 {formatBytes(snapshot.network.totalDown)}
+                  </span>
                 </span>
-                <span className="ml-auto tabular-nums">
-                  累计 {formatBytes(network.totalDown)}
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <HugeiconsIcon icon={ArrowUp01Icon} className="size-3" />
+                  上传
+                  <span className="text-foreground tabular-nums">
+                    {formatBytes(snapshot.network.uploadRate)}/s
+                  </span>
+                  <span className="ml-auto tabular-nums">
+                    累计 {formatBytes(snapshot.network.totalUp)}
+                  </span>
                 </span>
-              </span>
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <HugeiconsIcon icon={ArrowUp01Icon} className="size-3" />
-                上传
-                <span className="text-foreground tabular-nums">
-                  {formatBytes(network.uploadRate)}/s
-                </span>
-                <span className="ml-auto tabular-nums">
-                  累计 {formatBytes(network.totalUp)}
-                </span>
-              </span>
-            </div>
-          </MetricCard>
-        </div>
+              </div>
+            </MetricCard>
+          </div>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+            {[0, 1, 2, 3].map((index) => (
+              <Skeleton key={index} className="h-40" />
+            ))}
+          </div>
+        )}
 
         <div className="mt-3 grid gap-3 xl:grid-cols-2">
           <Card className="gap-0 py-0">
-            <CardHeader className="border-b py-3">
+            <CardHeader className="py-3">
               <CardTitle className="text-sm">资源占用最高进程</CardTitle>
               <CardDescription className="text-xs">
-                按 CPU 排序，共 {overview.processes.length} 个
+                点表头切换排序，共 {model.processes.length} 个
               </CardDescription>
             </CardHeader>
+            <Separator />
             <CardContent className="px-0">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[1%] whitespace-nowrap">
-                      进程
+                      <SortButton
+                        label="进程"
+                        active={model.processSortKey === "name"}
+                        descending={model.processDescending}
+                        onClick={() => model.setProcessSort("name")}
+                      />
                     </TableHead>
                     <TableHead className="w-[1%] whitespace-nowrap">
                       PID
@@ -228,16 +250,26 @@ export const DashboardPage = () => {
                       用户
                     </TableHead>
                     <TableHead className="w-28 text-right whitespace-nowrap">
-                      CPU
+                      <SortButton
+                        label="CPU"
+                        active={model.processSortKey === "cpu"}
+                        descending={model.processDescending}
+                        onClick={() => model.setProcessSort("cpu")}
+                      />
                     </TableHead>
                     <TableHead className="w-24 text-right whitespace-nowrap">
-                      内存
+                      <SortButton
+                        label="内存"
+                        active={model.processSortKey === "memory"}
+                        descending={model.processDescending}
+                        onClick={() => model.setProcessSort("memory")}
+                      />
                     </TableHead>
                     <TableHead className="w-full">命令</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {processes.map((item) => (
+                  {model.processes.map((item) => (
                     <TableRow key={item.pid}>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell className="text-muted-foreground tabular-nums">
@@ -262,16 +294,30 @@ export const DashboardPage = () => {
                   ))}
                 </TableBody>
               </Table>
+              {model.processes.length === 0 ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <HugeiconsIcon icon={CpuIcon} />
+                    </EmptyMedia>
+                    <EmptyTitle>暂无进程数据</EmptyTitle>
+                    <EmptyDescription>
+                      等一次采样完成，这里会列出占用最高的进程。
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : null}
             </CardContent>
           </Card>
 
           <Card className="gap-0 py-0">
-            <CardHeader className="border-b py-3">
+            <CardHeader className="py-3">
               <CardTitle className="text-sm">本机监听端口</CardTitle>
               <CardDescription className="text-xs">
-                共 {overview.ports.length} 个端口在监听
+                共 {model.ports.length} 个端口在监听
               </CardDescription>
             </CardHeader>
+            <Separator />
             <CardContent className="px-0">
               <Table>
                 <TableHeader>
@@ -289,7 +335,7 @@ export const DashboardPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {overview.ports.map((item) => (
+                  {model.ports.map((item) => (
                     <TableRow key={`${item.port}-${item.pid}`}>
                       <TableCell className="font-medium tabular-nums">
                         {item.port}
@@ -305,6 +351,19 @@ export const DashboardPage = () => {
                   ))}
                 </TableBody>
               </Table>
+              {model.ports.length === 0 ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <HugeiconsIcon icon={NetworkIcon} />
+                    </EmptyMedia>
+                    <EmptyTitle>没有端口在监听</EmptyTitle>
+                    <EmptyDescription>
+                      当前没有进程监听本机端口。
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : null}
             </CardContent>
           </Card>
         </div>
@@ -338,9 +397,16 @@ const MetricCard = (props: MetricCardProps) => {
   )
 }
 
+const StatRow = (props: { label: string; value: string }) => (
+  <span className="flex justify-between">
+    <span>{props.label}</span>
+    <span className="text-foreground tabular-nums">{props.value}</span>
+  </span>
+)
+
 const VolumeRow = (props: { volume: DiskVolume }) => {
   const { volume } = props
-  const ratio = volume.used / volume.total
+  const usage = ratio(volume.used, volume.total)
   return (
     <div className="flex flex-col gap-1">
       <span className="flex items-center justify-between text-[0.6875rem] text-muted-foreground">
@@ -349,50 +415,42 @@ const VolumeRow = (props: { volume: DiskVolume }) => {
           {formatBytes(volume.used)} / {formatBytes(volume.total)}
         </span>
       </span>
-      <Bar ratio={ratio} tone={ratio > 0.8 ? "danger" : "primary"} />
+      <Progress value={usage} />
     </div>
   )
 }
 
-const Bar = (props: { ratio: number; tone?: "primary" | "danger" }) => {
-  const { ratio, tone = "primary" } = props
-  const width = Math.max(0, Math.min(1, ratio)) * 100
+type SortButtonProps = {
+  label: string
+  active: boolean
+  descending: boolean
+  onClick: () => void
+}
+
+const SortButton = (props: SortButtonProps) => {
+  const { label, active, descending, onClick } = props
   return (
-    <span className="relative block h-2 w-full overflow-hidden rounded-sm bg-muted">
-      <span
-        className={cn(
-          "absolute inset-y-0 left-0 rounded-sm",
-          tone === "danger" ? "bg-destructive/80" : "bg-primary/70"
-        )}
-        style={{ width: `${width}%` }}
-      />
-    </span>
+    <Button
+      size="xs"
+      variant={active ? "secondary" : "ghost"}
+      className="-ml-2"
+      onClick={onClick}
+    >
+      {label}
+      {active ? (
+        <span className="text-[0.625rem]">{descending ? "▼" : "▲"}</span>
+      ) : null}
+    </Button>
   )
 }
 
-const PressureBadge = (props: {
-  label: string
-  level: "ok" | "warn" | "high"
-}) => (
-  <Badge
-    variant={props.level === "ok" ? "secondary" : "destructive"}
-    className={cn(props.level === "ok" && "text-muted-foreground")}
-  >
-    内存压力{props.label}
-  </Badge>
-)
+const ratio = (value: number, total: number): number =>
+  total <= 0 ? 0 : Math.max(0, Math.min(100, (value / total) * 100))
 
-const describeMemoryPressure = (
-  memory: MemoryInfo
-): { label: string; level: "ok" | "warn" | "high" } => {
-  const usage = (memory.used + memory.wired + memory.compressed) / memory.total
-  const swap = memory.swapUsed / memory.swapTotal
-  if (usage > 0.85 || swap > 0.85) return { label: "紧张", level: "high" }
-  if (usage > 0.7 || swap > 0.6) return { label: "偏高", level: "warn" }
-  return { label: "正常", level: "ok" }
-}
+const swapTight = (used: number, total: number): boolean =>
+  total > 0 && used / total > 0.7
 
-const formatPercent = (ratio: number): string => `${(ratio * 100).toFixed(0)}%`
+const formatPercent = (percent: number): string => `${percent.toFixed(0)}%`
 
 const formatClock = (milliseconds: number): string => {
   const date = new Date(milliseconds)
