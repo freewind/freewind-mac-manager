@@ -7,6 +7,7 @@ import {
   filesRouter,
   registerUploadEndpoint,
 } from "./files/handlers"
+import { frpContract, frpRouter } from "./frp/handlers"
 import { portsContract, portsRouter } from "./ports/handlers"
 import { processesContract, processesRouter } from "./processes/handlers"
 import {
@@ -38,6 +39,7 @@ export const createApp = (): express.Express => {
     app,
     options
   )
+  createExpressEndpoints(frpContract, frpRouter, app, options)
   registerUploadEndpoint(app)
 
   // dev 模式下 api 中间件只加载 createApp，采样在这里启动（重复调用是幂等的）。
