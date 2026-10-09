@@ -1,0 +1,18 @@
+{
+  "name": "Mac Manager",
+  "short_name": "Mac Manager",
+  "description": "个人 Mac 控制台",
+  "start_url": "/?feature=overview",
+  "display": "standalone",
+  "background_color": "#f7f7f5",
+  "theme_color": "#f7f7f5",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/mac-manager-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
