@@ -207,11 +207,42 @@ export const mockEntries = (
   return { current, entries }
 }
 
-export const mockStatus = (): ScanStatus => ({
+export const mockStatus = (latest: ScanSnapshot | undefined): ScanStatus => ({
   running: false,
-  phase: "示例数据（未连接后端）",
-  startedAt: null,
-  finishedAt: null,
-  scannedEntries: 0,
+  phase: latest ? `扇描完成，快照 #${latest.id}` : "尚未扇描",
+  startedAt: latest?.startedAt ?? null,
+  finishedAt: latest?.finishedAt ?? null,
+  scannedEntries: latest?.fileCount ?? 0,
   lastError: null,
 })
+
+/** 模拟一次扇描的过程文案，供界面展示进度。 */
+export const mockScanPhases = (): string[] => [
+  "开始扇描 6 个目标目录",
+  "已统计 200000 个文件",
+  "已统计 1400000 个文件",
+  "已统计 3200000 个文件",
+  "已统计 5200000 个文件",
+  "已统计 6880312 个文件",
+  "扇描完成：612871 个目录、6880312 个文件",
+  "写入快照",
+]
+
+/** 基于上一份快照造一份新的。 */
+export const mockNextSnapshot = (
+  latest: ScanSnapshot | undefined
+): ScanSnapshot => {
+  const id = (latest?.id ?? 0) + 1
+  const startedAt = Math.round(Date.now() / 1000)
+  const grownBytes = gb(3.4)
+  return {
+    id,
+    startedAt,
+    finishedAt: startedAt + 128,
+    totalSize: (latest?.totalSize ?? gb(1420.6)) + grownBytes,
+    dirCount: 613_112,
+    fileCount: 6_883_204,
+    errorCount: 12,
+    foldedCount: 2_848,
+  }
+}

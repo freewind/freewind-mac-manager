@@ -9,6 +9,8 @@ import {
 import {
   isMockMode,
   mockEntries,
+  mockNextSnapshot,
+  mockScanPhases,
   mockSnapshots,
   mockStatus,
 } from "@web/features/disk-growth/mock-data"
@@ -28,6 +30,13 @@ export const useDiskGrowth = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const wasRunning = useRef(false)
+  const mockTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (mockTimer.current) clearInterval(mockTimer.current)
+    }
+  }, [])
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -77,13 +86,13 @@ export const useDiskGrowth = () => {
     }
   }, [scanId, path, keyword])
 
-  // 示例模式：完全用本地假数据，不触碰后端。
+  // Mock 数据：直接当作本地数据源，不触碰后端。
   useEffect(() => {
     if (!mock) return
     const loaded = mockSnapshots()
     setSnapshots(loaded)
     setScanId(loaded[0]?.id ?? null)
-    setStatus(mockStatus())
+    setStatus(mockStatus(loaded[0]))
   }, [mock])
 
   useEffect(() => {
@@ -113,7 +122,41 @@ export const useDiskGrowth = () => {
 
   const scanNow = useCallback(async () => {
     if (mock) {
-      setError("当前是示例数据模式，不会真的扫描")
+      const phases = mockScanPhases()
+      const latest = snapshots[0]
+      setStatus({
+        running: true,
+        phase: "准备中",
+        startedAt: Date.now() / 1000,
+        finishedAt: null,
+        scannedEntries: 0,
+        lastError: null,
+      })
+      let index = 0
+      if (mockTimer.current) clearInterval(mockTimer.current)
+      mockTimer.current = setInterval(() => {
+        if (index < phases.length) {
+          const phase = phases[index]
+          index += 1
+          setStatus((previous) =>
+            previous ? { ...previous, phase } : previous
+          )
+          return
+        }
+        if (mockTimer.current) clearInterval(mockTimer.current)
+        mockTimer.current = null
+        const next = mockNextSnapshot(latest)
+        setSnapshots((previous) => [next, ...previous])
+        setScanId(next.id)
+        setStatus({
+          running: false,
+          phase: `扫描完成，快照 #${next.id}`,
+          startedAt: next.startedAt,
+          finishedAt: next.finishedAt ?? next.startedAt,
+          scannedEntries: next.fileCount,
+          lastError: null,
+        })
+      }, 700)
       return
     }
     try {
@@ -123,7 +166,7 @@ export const useDiskGrowth = () => {
     } catch (caught) {
       setError(toMessage(caught))
     }
-  }, [mock, refreshStatus])
+  }, [mock, refreshStatus, snapshots])
 
   const enterDirectory = useCallback((target: GrowthEntry) => {
     setKeyword("")

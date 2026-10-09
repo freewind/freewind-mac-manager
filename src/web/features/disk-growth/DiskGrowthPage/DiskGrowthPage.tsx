@@ -104,7 +104,6 @@ export const DiskGrowthPage = () => {
           </Button>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          {model.isMock ? <Badge variant="outline">示例数据</Badge> : null}
           <span>{model.status?.phase ?? "尚未扫描"}</span>
           {model.status?.lastError ? (
             <span className="text-destructive">{model.status.lastError}</span>
