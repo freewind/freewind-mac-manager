@@ -28,7 +28,12 @@ export type PortGroup = {
   bindings: PortBinding[]
 }
 
-/** 常见端口的服务识别表。 */
+/**
+ * 常见端口的服务识别表。
+ *
+ * 按端口号推断，不是实测结果：同一个端口上跑什么完全可能变了，
+ * 因此展示时只当作「常见用途」提示，不断言实际服务。
+ */
 const KNOWN_SERVICES: Record<number, PortService> = {
   22: { label: "SSH 远程登录", category: "system" },
   443: { label: "HTTPS 出站连接", category: "system" },
@@ -55,7 +60,9 @@ const KNOWN_SERVICES: Record<number, PortService> = {
 /** 未收录的端口按范围兜底：小于 1024 视为系统保留端口。 */
 export const describePort = (port: number): PortService => {
   const known = KNOWN_SERVICES[port]
-  if (known) return known
+  if (known) {
+    return { ...known, label: `通常为 ${known.label}` }
+  }
   if (port < 1024) return { label: "系统保留端口", category: "system" }
   return { label: "未识别服务", category: "app" }
 }

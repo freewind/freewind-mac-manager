@@ -118,7 +118,7 @@ export const PortTable = (props: PortTableProps) => {
             </TableHead>
             <TableHead className="w-[1%] whitespace-nowrap">
               <SortButton
-                label="服务"
+                label="常见用途"
                 active={sortKey === "service"}
                 descending={descending}
                 onClick={() => toggleSort("service")}
@@ -422,7 +422,7 @@ const buildGroupText = (group: PortGroup, view: string): string => {
         : "仅本机"
   const lines = [
     `端口: ${group.port}`,
-    `服务: ${group.service.label}`,
+    `常见用途: ${group.service.label}`,
     `分类: ${group.category}`,
     `范围: ${view}`,
     `监听地址: ${group.addresses.join(", ")}`,
