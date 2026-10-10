@@ -1,7 +1,15 @@
+import fs from "node:fs"
+import https from "node:https"
 import express from "express"
 import { createApp } from "./app"
 import { startScheduler } from "./disk-growth/service"
-import { resolveServerPort, WEB_DIST_DIR } from "./env"
+import {
+  HTTPS_CERT_FILE,
+  HTTPS_KEY_FILE,
+  resolveServerPort,
+  SERVER_HOST,
+  WEB_DIST_DIR,
+} from "./env"
 import { createTaskRuntime } from "./tasks/runtime"
 import { startTrafficSampler } from "./traffic/service"
 
@@ -14,16 +22,25 @@ app.use(express.static(WEB_DIST_DIR))
 // 启动时先校验端口，缺失合法的 APP_PORT 就直接失败退出。
 const port = resolveServerPort()
 
-// 不提供应用层访问门禁，只绑定本机回环地址，绝不暴露到局域网。
-const server = app.listen(port, "127.0.0.1", () => {
-  console.log(`[mac-manager] 服务已启动：http://127.0.0.1:${port}`)
-  startScheduler(tasks.runner)
-  startTrafficSampler()
-})
+const server = https
+  .createServer(
+    {
+      cert: fs.readFileSync(HTTPS_CERT_FILE),
+      key: fs.readFileSync(HTTPS_KEY_FILE),
+    },
+    app
+  )
+  .listen(port, SERVER_HOST, () => {
+    console.log(`[mac-manager] 服务已启动：https://${SERVER_HOST}:${port}`)
+    startScheduler(tasks.runner)
+    startTrafficSampler()
+  })
 
 // 端口来自 APP_PORT：被占用时直接启动失败，不自动换端口。
 server.on("error", (error) => {
-  console.error(`[mac-manager] 无法监听 127.0.0.1:${port}：${error.message}`)
+  console.error(
+    `[mac-manager] 无法监听 ${SERVER_HOST}:${port}：${error.message}`
+  )
   process.exit(1)
 })
 

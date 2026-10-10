@@ -26,6 +26,14 @@ export const DATABASE_FILE = path.join(DATA_DIR, "snapshots.sqlite3")
 const ENV_FILE = path.join(PROJECT_ROOT, ".env")
 if (fs.existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE)
 
+export const SERVER_HOST = process.env.SERVER_HOST ?? "0.0.0.0"
+export const HTTPS_CERT_FILE =
+  process.env.HTTPS_CERT_FILE ??
+  path.join(process.env.HOME ?? "", ".freewind-certs/192.168.1.59.pem")
+export const HTTPS_KEY_FILE =
+  process.env.HTTPS_KEY_FILE ??
+  path.join(process.env.HOME ?? "", ".freewind-certs/192.168.1.59-key.pem")
+
 /**
  * 文件管理可访问的根目录：默认整个文件系统，可用 FILE_ROOT 收窄到某个子目录。
  * 所有文件接口的入参路径都必须落在它之下。
