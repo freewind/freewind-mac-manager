@@ -4,13 +4,10 @@ import type {
   TrafficStatus,
 } from "@shared/api-contract"
 import {
-  deleteTrafficSnapshots,
   fetchTrafficGroups,
   fetchTrafficSnapshots,
   fetchTrafficStatus,
   killTrafficProcesses,
-  mergeTrafficSnapshots,
-  saveTrafficSnapshot,
 } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { REALTIME_SNAPSHOT_ID } from "@web/features/traffic/store"
@@ -62,40 +59,8 @@ const useInvalidateTraffic = () => {
   }
 }
 
-/** 手动保存一份快照。 */
-export const useSaveSnapshot = () => {
-  const invalidate = useInvalidateTraffic()
-  return useMutation({
-    mutationFn: async () => saveTrafficSnapshot(),
-    onSuccess: () => invalidate(),
-  })
-}
-
-/** 删除若干份快照，后继快照由后端重新计算。 */
-export const useDeleteSnapshots = () => {
-  const queryClient = useQueryClient()
-  const invalidate = useInvalidateTraffic()
-  return useMutation({
-    mutationFn: async (ids: string[]) => deleteTrafficSnapshots(ids),
-    onSuccess: (data) => {
-      queryClient.setQueryData(trafficKeys.snapshots, data.snapshots)
-      invalidate()
-    },
-  })
-}
-
-/** 把选中的多份快照合并成一份。 */
-export const useMergeSnapshots = () => {
-  const queryClient = useQueryClient()
-  const invalidate = useInvalidateTraffic()
-  return useMutation({
-    mutationFn: async (ids: string[]) => mergeTrafficSnapshots(ids),
-    onSuccess: (data) => {
-      queryClient.setQueryData(trafficKeys.snapshots, data.snapshots)
-      invalidate()
-    },
-  })
-}
+/** 快照写操作不再回传整份历史：完成后统一重新读取列表与明细。 */
+export const useInvalidateTrafficAll = () => useInvalidateTraffic()
 
 /** 结束进程。 */
 export const useKillProcesses = () => {

@@ -58,7 +58,8 @@ export class TrafficStore {
 
   constructor(file: string) {
     mkdirSync(path.dirname(file), { recursive: true })
-    this.db = new DatabaseSync(file)
+    // 采样在父进程、快照重算在后台执行器：两边可能同时写，需要忙等超时。
+    this.db = new DatabaseSync(file, { timeout: 5000 })
     this.db.exec("PRAGMA journal_mode = WAL")
     this.db.exec("PRAGMA synchronous = NORMAL")
     this.db.exec(`

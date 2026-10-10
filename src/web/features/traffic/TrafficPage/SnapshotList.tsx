@@ -7,6 +7,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { TrafficSnapshot } from "@shared/api-contract"
 import { formatBytes, formatTimestamp } from "@shared/format"
+import { ActionButton } from "@web/components/ActionButton"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { ButtonGroup } from "@web/components/ui/button-group"
@@ -68,9 +69,15 @@ export const SnapshotList = (props: SnapshotListProps) => {
             : null}
         </span>
         {model.selectionMode ? null : (
-          <Button size="xs" variant="outline" onClick={model.saveSnapshot}>
+          <ActionButton
+            size="xs"
+            variant="outline"
+            busy={model.saveSnapshot.busy}
+            busyLabel="保存中…"
+            onClick={() => void model.saveSnapshot.run()}
+          >
             保存快照
-          </Button>
+          </ActionButton>
         )}
       </div>
 
@@ -80,18 +87,22 @@ export const SnapshotList = (props: SnapshotListProps) => {
             <Button
               size="xs"
               variant="outline"
-              disabled={model.selectedSnapshotCount < 2}
+              disabled={
+                model.selectedSnapshotCount < 2 || model.snapshotWriteBusy
+              }
               onClick={onRequestMergeSelected}
             >
               合并为一份
             </Button>
-            <Button
+            <ActionButton
               size="xs"
               variant="destructive"
+              busy={model.snapshotWriteBusy}
+              busyLabel="删除中…"
               onClick={onRequestDeleteSelected}
             >
               删除所选
-            </Button>
+            </ActionButton>
             <Button size="xs" variant="secondary" onClick={model.exitSelection}>
               完成
             </Button>

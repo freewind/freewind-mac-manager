@@ -36,6 +36,8 @@ export type EntriesResponse = z.infer<typeof EntriesResponseSchema>
 export type ScanStartResponse = z.infer<typeof ScanStartResponseSchema>
 
 import type {
+  SnapshotMutationResultSchema,
+  SnapshotSaveResultSchema,
   TrafficChildSchema,
   TrafficGroupSchema,
   TrafficGroupsResponseSchema,
@@ -69,6 +71,10 @@ export type TaskListQuery = z.infer<typeof TaskListQuerySchema>
 export type TaskListQueryInput = z.input<typeof TaskListQuerySchema>
 export type TaskListResponse = z.infer<typeof TaskListResponseSchema>
 export type FileBatchResult = z.infer<typeof FileBatchResultSchema>
+export type SnapshotSaveResult = z.infer<typeof SnapshotSaveResultSchema>
+export type SnapshotMutationResult = z.infer<
+  typeof SnapshotMutationResultSchema
+>
 export type ScanTaskResult = z.infer<typeof ScanTaskResultSchema>
 /** 任务记录与种类只在 schemas/tasks.ts 定义一份，这里只转发。 */
 export type { TaskKind, TaskRecord } from "./schemas/tasks"

@@ -74,3 +74,17 @@ export const MergeSnapshotsBodySchema = z.object({
 export const DeleteSnapshotsQuerySchema = z.object({
   ids: idListQuery,
 })
+
+/**
+ * 写操作的完成结果只带定位与说明所需的最小信息：
+ * 不回传整份历史快照与进程明细，任务记录因此不会被撑大。
+ */
+export const SnapshotSaveResultSchema = z.object({
+  snapshotId: z.string().min(1),
+  rangeText: z.string(),
+})
+
+export const SnapshotMutationResultSchema = z.object({
+  /** 操作之后仍然存在的快照 id（按保存时间倒序）。 */
+  snapshotIds: z.array(z.string()).max(200),
+})

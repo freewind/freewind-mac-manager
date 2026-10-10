@@ -20,7 +20,8 @@ export class DiskGrowthStore {
 
   constructor(file: string) {
     mkdirSync(path.dirname(file), { recursive: true })
-    this.db = new DatabaseSync(file)
+    // 后台执行器可能与父进程同时写这份库，这里给出有界等待而不是立刻失败。
+    this.db = new DatabaseSync(file, { timeout: 5000 })
     this.db.exec("PRAGMA journal_mode = WAL")
     this.db.exec("PRAGMA synchronous = NORMAL")
     this.migrate()

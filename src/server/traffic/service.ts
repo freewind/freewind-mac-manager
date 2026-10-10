@@ -1,6 +1,7 @@
 import path from "node:path"
 import { DATA_DIR, DATABASE_FILE } from "@server/env"
 import type {
+  TaskProgress,
   TrafficChild,
   TrafficGroup,
   TrafficSnapshot,
@@ -24,7 +25,26 @@ export const SAMPLE_INTERVAL_SECONDS = 5
 const LEGACY_DATABASE_FILE = path.join(DATA_DIR, "traffic.sqlite3")
 
 const store = new TrafficStore(DATABASE_FILE)
-migrateTrafficDatabase(DATABASE_FILE, LEGACY_DATABASE_FILE)
+
+let initialized = false
+
+/**
+ * 迁库只在应用启动时执行一次。
+ * 后台执行器 import 本模块不会触发它，因此不会出现「执行器一启动就改库」。
+ */
+export const initializeTraffic = (): void => {
+  if (initialized) return
+  initialized = true
+  migrateTrafficDatabase(DATABASE_FILE, LEGACY_DATABASE_FILE)
+}
+
+/** 写操作的完成结果：只带定位与说明所需的最小信息。 */
+export type SnapshotSaveOutcome = {
+  snapshotId: string
+  rangeText: string
+}
+
+export type TrafficReport = (progress: TaskProgress) => void
 
 /** 上一轮各 pid 的累计值，用来算增量。 */
 let lastTotals = new Map<number, { bytesIn: number; bytesOut: number }>()
@@ -364,12 +384,31 @@ export const listSnapshots = async (): Promise<TrafficSnapshot[]> => {
 
 /** 手动或定时保存一份快照：把上次快照之后的采样聚合成一份增量。 */
 export const captureSnapshot = async (
-  savedBy: "scheduled" | "manual"
-): Promise<TrafficSnapshot> => {
+  savedBy: "scheduled" | "manual",
+  options?: { report?: TrafficReport; store?: TrafficStore }
+): Promise<SnapshotSaveOutcome> => {
+  const db = options?.store ?? store
+  const report = options?.report
   const now = seconds(Date.now())
   const fromAt = snapshotStartTime()
-  const samples = store.listSamples(fromAt, now + 1)
+  report?.({
+    done: 0,
+    total: null,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: "读取采样",
+    currentTarget: null,
+  })
+  const samples = db.listSamples(fromAt, now + 1)
   const pids = [...new Set(samples.map((row) => row.pid))]
+  report?.({
+    done: 0,
+    total: samples.length,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: `查询 ${pids.length} 个进程的端口`,
+    currentTarget: null,
+  })
   const ports = await snapshotPorts(pids)
   const entries = entryFromSamples(samples, ports)
 
@@ -383,10 +422,20 @@ export const captureSnapshot = async (
     bytesOut: entries.reduce((sum, entry) => sum + entry.bytesOut, 0),
   }
 
-  store.insertSnapshot(row, entries)
+  report?.({
+    done: samples.length,
+    total: samples.length,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: `写入 ${entries.length} 条明细`,
+    currentTarget: null,
+  })
+  db.insertSnapshot(row, entries)
 
-  const [active] = await Promise.all([runningPids()])
-  return toSnapshot(row, entries, active, ports)
+  return {
+    snapshotId: row.id,
+    rangeText: `${shortStamp(row.fromAt * 1000)} ~ ${shortStamp(row.toAt * 1000)}`,
+  }
 }
 
 /** 实时视图：最近一次采样的进程明细。 */
@@ -485,25 +534,39 @@ export const groupsForSnapshots = async (
  * （保存时间更晚的那份），后一份的起点改成被删快照的起点。
  */
 export const deleteSnapshots = async (
-  ids: string[]
-): Promise<TrafficSnapshot[]> => {
-  const rows = store.listSnapshotRows()
+  ids: string[],
+  options?: { report?: TrafficReport; store?: TrafficStore }
+): Promise<string[]> => {
+  const db = options?.store ?? store
+  const rows = db.listSnapshotRows()
   const ascending = [...rows].sort((a, b) => a.savedAt - b.savedAt)
+  const targets = ascending.filter((row) => ids.includes(row.id))
+  let processed = 0
 
+  const report = options?.report
   for (const row of ascending) {
     if (!ids.includes(row.id)) {
       continue
     }
+    processed += 1
+    report?.({
+      done: processed - 1,
+      total: targets.length,
+      bytesDone: null,
+      bytesTotal: null,
+      stage: "重算增量链",
+      currentTarget: row.id,
+    })
 
     const index = ascending.findIndex((item) => item.id === row.id)
     const following = ascending[index + 1]
 
     if (!following) {
-      store.deleteSnapshot(row.id)
+      db.deleteSnapshot(row.id)
       continue
     }
 
-    const followingEntries = store.listEntries([following.id]).map((entry) => ({
+    const followingEntries = db.listEntries([following.id]).map((entry) => ({
       name: entry.name,
       label: entry.label,
       parent: entry.parent,
@@ -513,7 +576,7 @@ export const deleteSnapshots = async (
       bytesIn: entry.bytesIn,
       bytesOut: entry.bytesOut,
     }))
-    const removedEntries = store.listEntries([row.id]).map((entry) => ({
+    const removedEntries = db.listEntries([row.id]).map((entry) => ({
       name: entry.name,
       label: entry.label,
       parent: entry.parent,
@@ -525,7 +588,7 @@ export const deleteSnapshots = async (
     }))
     const merged = mergeEntries(followingEntries, removedEntries)
 
-    store.replaceSnapshot(
+    db.replaceSnapshot(
       {
         ...following,
         fromAt: row.fromAt,
@@ -534,10 +597,10 @@ export const deleteSnapshots = async (
       },
       merged
     )
-    store.deleteSnapshot(row.id)
+    db.deleteSnapshot(row.id)
 
     // 后续判断要基于最新数据
-    const refreshed = store.listSnapshotRows()
+    const refreshed = db.listSnapshotRows()
     ascending.splice(
       0,
       ascending.length,
@@ -545,22 +608,41 @@ export const deleteSnapshots = async (
     )
   }
 
-  return listSnapshots()
+  report?.({
+    done: targets.length,
+    total: targets.length,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: "完成",
+    currentTarget: null,
+  })
+  return db.listSnapshotRows().map((row) => row.id)
 }
 
 /** 把多份快照合并成一份（保留最新那份的时间与 id）。 */
 export const mergeSnapshots = async (
-  ids: string[]
-): Promise<TrafficSnapshot[]> => {
-  const rows = store.listSnapshotRows().filter((row) => ids.includes(row.id))
+  ids: string[],
+  options?: { report?: TrafficReport; store?: TrafficStore }
+): Promise<string[]> => {
+  const db = options?.store ?? store
+  const report = options?.report
+  const rows = db.listSnapshotRows().filter((row) => ids.includes(row.id))
   if (rows.length < 2) {
-    return listSnapshots()
+    return db.listSnapshotRows().map((row) => row.id)
   }
 
   const first = rows[0]
   if (!first) {
-    return listSnapshots()
+    return db.listSnapshotRows().map((row) => row.id)
   }
+  report?.({
+    done: 0,
+    total: rows.length,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: `合并 ${rows.length} 份快照`,
+    currentTarget: null,
+  })
 
   const newest = rows.reduce(
     (max, row) => (row.savedAt > max.savedAt ? row : max),
@@ -571,7 +653,7 @@ export const mergeSnapshots = async (
     first.fromAt
   )
 
-  const entries = store.listEntries(rows.map((row) => row.id)).map((entry) => ({
+  const entries = db.listEntries(rows.map((row) => row.id)).map((entry) => ({
     name: entry.name,
     label: entry.label,
     parent: entry.parent,
@@ -583,7 +665,7 @@ export const mergeSnapshots = async (
   }))
   const merged = mergeEntries([], entries)
 
-  store.replaceSnapshot(
+  db.replaceSnapshot(
     {
       ...newest,
       fromAt: oldestFromAt,
@@ -595,11 +677,19 @@ export const mergeSnapshots = async (
 
   for (const row of rows) {
     if (row.id !== newest.id) {
-      store.deleteSnapshot(row.id)
+      db.deleteSnapshot(row.id)
     }
   }
 
-  return listSnapshots()
+  report?.({
+    done: rows.length,
+    total: rows.length,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: "完成",
+    currentTarget: null,
+  })
+  return db.listSnapshotRows().map((row) => row.id)
 }
 
 export const trafficSamplerError = (): string | null => lastError

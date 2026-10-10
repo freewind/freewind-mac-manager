@@ -1,6 +1,10 @@
 import { z } from "zod"
 import { ScanTaskResultSchema } from "./disk-growth"
 import { FileBatchResultSchema } from "./files"
+import {
+  SnapshotMutationResultSchema,
+  SnapshotSaveResultSchema,
+} from "./traffic"
 
 /**
  * 任务进度必须来自真实处理事件：done/bytesDone 是已经确认完成的数量，
@@ -29,6 +33,20 @@ export const TaskStatusSchema = z.enum([
   "unknown",
 ])
 
+/**
+ * 任务种类的唯一来源：契约里的字面量、服务端提交用的常量、前端按种类登记的
+ * 完成处理都取自这里，避免两边各写一份字符串。
+ */
+export const TASK_KINDS = {
+  diskScan: "disk_scan",
+  fileCopy: "file_copy",
+  fileDelete: "file_delete",
+  fileMove: "file_move",
+  trafficSnapshotSave: "traffic_snapshot_save",
+  trafficSnapshotMerge: "traffic_snapshot_merge",
+  trafficSnapshotDelete: "traffic_snapshot_delete",
+} as const
+
 const taskBase = {
   id: z.string().min(1),
   /** 客户端请求标识；执行前登记，断网后据此核实。为 NULL 表示不是由客户端请求发起（如每日定时扫描）。 */
@@ -48,26 +66,44 @@ const taskBase = {
 
 export const DiskScanTaskSchema = z.object({
   ...taskBase,
-  kind: z.literal("disk_scan"),
+  kind: z.literal(TASK_KINDS.diskScan),
   result: ScanTaskResultSchema.nullable(),
 })
 
 export const FileCopyTaskSchema = z.object({
   ...taskBase,
-  kind: z.literal("file_copy"),
+  kind: z.literal(TASK_KINDS.fileCopy),
   result: FileBatchResultSchema.nullable(),
 })
 
 export const FileDeleteTaskSchema = z.object({
   ...taskBase,
-  kind: z.literal("file_delete"),
+  kind: z.literal(TASK_KINDS.fileDelete),
   result: FileBatchResultSchema.nullable(),
 })
 
 export const FileMoveTaskSchema = z.object({
   ...taskBase,
-  kind: z.literal("file_move"),
+  kind: z.literal(TASK_KINDS.fileMove),
   result: FileBatchResultSchema.nullable(),
+})
+
+export const TrafficSnapshotSaveTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.trafficSnapshotSave),
+  result: SnapshotSaveResultSchema.nullable(),
+})
+
+export const TrafficSnapshotMergeTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.trafficSnapshotMerge),
+  result: SnapshotMutationResultSchema.nullable(),
+})
+
+export const TrafficSnapshotDeleteTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.trafficSnapshotDelete),
+  result: SnapshotMutationResultSchema.nullable(),
 })
 
 /** 每种任务的结果结构由 discriminated union 固定，禁止用任意 JSON 承载结果。 */
@@ -76,6 +112,9 @@ export const TaskRecordSchema = z.discriminatedUnion("kind", [
   FileCopyTaskSchema,
   FileDeleteTaskSchema,
   FileMoveTaskSchema,
+  TrafficSnapshotSaveTaskSchema,
+  TrafficSnapshotMergeTaskSchema,
+  TrafficSnapshotDeleteTaskSchema,
 ])
 
 export type TaskRecord = z.infer<typeof TaskRecordSchema>

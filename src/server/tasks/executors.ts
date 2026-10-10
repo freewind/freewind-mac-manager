@@ -3,6 +3,17 @@ import {
   SCAN_KIND,
   ScanPayloadSchema,
 } from "@server/disk-growth/task"
+import {
+  DeletePayloadSchema,
+  MergePayloadSchema,
+  runDeleteSnapshotsTask,
+  runMergeSnapshotsTask,
+  runSaveSnapshotTask,
+  SavePayloadSchema,
+  TRAFFIC_DELETE_KIND,
+  TRAFFIC_MERGE_KIND,
+  TRAFFIC_SAVE_KIND,
+} from "@server/traffic/task"
 import type { TaskProgress } from "@shared/api-contract"
 
 export type TaskExecutorOutcome = {
@@ -63,6 +74,42 @@ export const taskExecutors: TaskExecutor[] = [
         // 有不可读项时如实报部分完成，不报成完整成功。
         status: outcome.incomplete ? "partial" : "done",
       }
+    },
+  },
+  {
+    kind: TRAFFIC_SAVE_KIND,
+    run: async (payload, context) => {
+      const parsed = SavePayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("保存快照载荷非法")
+      const outcome = await runSaveSnapshotTask({
+        savedBy: parsed.data.savedBy,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: TRAFFIC_MERGE_KIND,
+    run: async (payload, context) => {
+      const parsed = MergePayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("合并快照载荷非法")
+      const outcome = await runMergeSnapshotsTask({
+        ids: parsed.data.ids,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: TRAFFIC_DELETE_KIND,
+    run: async (payload, context) => {
+      const parsed = DeletePayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("删除快照载荷非法")
+      const outcome = await runDeleteSnapshotsTask({
+        ids: parsed.data.ids,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
     },
   },
 ]

@@ -4,13 +4,16 @@ import {
   ApiErrorSchema,
   KillProcessesBodySchema,
   KillProcessesResponseSchema,
+  TaskAcceptedSchema,
+  TaskRequestIdHeadersSchema,
 } from "../schemas/common"
 import {
   DeleteSnapshotsQuerySchema,
   MergeSnapshotsBodySchema,
+  SnapshotMutationResultSchema,
+  SnapshotSaveResultSchema,
   TrafficGroupsQuerySchema,
   TrafficGroupsResponseSchema,
-  TrafficSnapshotResponseSchema,
   TrafficSnapshotsResponseSchema,
   TrafficStatusSchema,
 } from "../schemas/traffic"
@@ -46,12 +49,16 @@ export const trafficRoutes = {
       ...errorResponses,
     },
   },
+  // 保存、合并、删除都会重算增量链，因此共用一把域级锁，并且都是长任务。
   createTrafficSnapshot: {
     method: "POST",
     path: toContractPath(ApiPath.trafficSnapshots),
     body: c.noBody(),
+    headers: TaskRequestIdHeadersSchema,
     responses: {
-      201: TrafficSnapshotResponseSchema,
+      201: SnapshotSaveResultSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
       ...errorResponses,
     },
   },
@@ -59,8 +66,11 @@ export const trafficRoutes = {
     method: "PUT",
     path: toContractPath(ApiPath.trafficSnapshotsMerge),
     body: MergeSnapshotsBodySchema,
+    headers: TaskRequestIdHeadersSchema,
     responses: {
-      200: TrafficSnapshotsResponseSchema,
+      200: SnapshotMutationResultSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
       ...errorResponses,
     },
   },
@@ -68,8 +78,11 @@ export const trafficRoutes = {
     method: "DELETE",
     path: toContractPath(ApiPath.trafficSnapshots),
     query: DeleteSnapshotsQuerySchema,
+    headers: TaskRequestIdHeadersSchema,
     responses: {
-      200: TrafficSnapshotsResponseSchema,
+      200: SnapshotMutationResultSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
       ...errorResponses,
     },
   },

@@ -1,5 +1,9 @@
 import { DATABASE_FILE } from "@server/env"
-import type { ScanTaskResult, TaskProgress } from "@shared/api-contract"
+import {
+  type ScanTaskResult,
+  TASK_KINDS,
+  type TaskProgress,
+} from "@shared/api-contract"
 import { scanTaskTarget } from "@shared/task-targets"
 import { z } from "zod"
 import {
@@ -11,7 +15,7 @@ import {
 } from "./scanner"
 import { DiskGrowthStore } from "./store"
 
-export const SCAN_KIND = "disk_scan"
+export const SCAN_KIND = TASK_KINDS.diskScan
 
 /** 每日自动扫描与手动扫描共用同一把锁（scanTaskTarget("/")）。 */
 export { scanTaskTarget }

@@ -1,10 +1,20 @@
-import { describeError } from "@shared/format"
-import { useQueryClient } from "@tanstack/react-query"
 import {
-  useDeleteSnapshots,
+  type SnapshotMutationResult,
+  type SnapshotSaveResult,
+  TASK_KINDS,
+} from "@shared/api-contract"
+import {
+  deleteTrafficSnapshots,
+  mergeTrafficSnapshots,
+  saveTrafficSnapshot,
+} from "@shared/client-api"
+import { describeError } from "@shared/format"
+import { trafficSnapshotTaskTarget } from "@shared/task-targets"
+import { useQueryClient } from "@tanstack/react-query"
+import { registerTaskCompletion } from "@web/features/tasks/completion"
+import {
+  useInvalidateTrafficAll,
   useKillProcesses,
-  useMergeSnapshots,
-  useSaveSnapshot,
   useTrafficGroups,
   useTrafficSnapshots,
   useTrafficStatus,
@@ -14,7 +24,8 @@ import {
   REALTIME_SNAPSHOT_ID,
   useTrafficLocalStore,
 } from "@web/features/traffic/store"
-import { useMemo } from "react"
+import { useTaskAction } from "@web/hooks/use-task-action"
+import { useCallback, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 
 export { REALTIME_SNAPSHOT_ID }
@@ -42,9 +53,7 @@ export const useTraffic = () => {
   const statusQuery = useTrafficStatus()
   const groupsQuery = useTrafficGroups(local.selectedIds)
 
-  const saveSnapshot = useSaveSnapshot()
-  const deleteSnapshots = useDeleteSnapshots()
-  const mergeSnapshots = useMergeSnapshots()
+  const invalidateTraffic = useInvalidateTrafficAll()
   const killProcesses = useKillProcesses()
 
   const snapshots = useMemo(
@@ -115,6 +124,54 @@ export const useTraffic = () => {
     local.setSelectedIds(order.slice(start, end + 1))
   }
 
+  /**
+   * 快照写操作完成后统一重新读取列表与明细。
+   * 慢路径（后台任务）由任务完成回调触发，快速路径由 onCompleted 触发。
+   */
+  const refreshSnapshots = useCallback(() => {
+    invalidateTraffic()
+  }, [invalidateTraffic])
+
+  useEffect(() => {
+    registerTaskCompletion(TASK_KINDS.trafficSnapshotSave, refreshSnapshots)
+    registerTaskCompletion(TASK_KINDS.trafficSnapshotMerge, refreshSnapshots)
+    registerTaskCompletion(TASK_KINDS.trafficSnapshotDelete, refreshSnapshots)
+  }, [refreshSnapshots])
+
+  const saveAction = useTaskAction<SnapshotSaveResult>({
+    kind: TASK_KINDS.trafficSnapshotSave,
+    target: trafficSnapshotTaskTarget(),
+    run: saveTrafficSnapshot,
+    onCompleted: (result) => {
+      local.setSelectedIds([result.snapshotId])
+      notify(`已保存快照 ${result.rangeText}`)
+      refreshSnapshots()
+    },
+  })
+
+  const mergeAction = useTaskAction<SnapshotMutationResult>({
+    kind: TASK_KINDS.trafficSnapshotMerge,
+    target: trafficSnapshotTaskTarget(),
+    run: (requestId) => mergeTrafficSnapshots(requestId, local.selectedIds),
+    onCompleted: () => {
+      local.setSelectedIds(local.selectedIds.slice(0, 1))
+      notify(`已把 ${local.selectedIds.length} 份快照合并成一份`)
+      refreshSnapshots()
+    },
+  })
+
+  const deleteAction = useTaskAction<SnapshotMutationResult>({
+    kind: TASK_KINDS.trafficSnapshotDelete,
+    target: trafficSnapshotTaskTarget(),
+    run: (requestId) => deleteTrafficSnapshots(requestId, local.selectedIds),
+    onCompleted: () => {
+      local.setSelectedIds([REALTIME_SNAPSHOT_ID])
+      local.setSelectionMode(false)
+      notify("已删除快照，后继快照已重新计算为合并区间")
+      refreshSnapshots()
+    },
+  })
+
   const startSelection = (id: string) => {
     local.setSelectionMode(true)
     local.setSelectedIds([id])
@@ -145,52 +202,18 @@ export const useTraffic = () => {
     local.setSelectedIds(order.slice(start, end + 1))
   }
 
-  const selectedSnapshotIds = local.selectedIds.filter(
-    (id) => id !== REALTIME_SNAPSHOT_ID
-  )
-
-  const handleSaveSnapshot = () => {
-    saveSnapshot.mutate(undefined, {
-      onSuccess: (data) => {
-        local.setSelectedIds([data.snapshot.id])
-        notify(`已保存快照 ${data.snapshot.rangeText}`)
-      },
-      onError: (error) => toast.error(`保存快照失败：${describeError(error)}`),
-    })
-  }
-
+  /** 只删除一份时先把它选中，动作编排统一按当前选择执行。 */
   const handleRemoveSnapshot = (id: string) => {
-    deleteSnapshots.mutate([id], {
-      onSuccess: () => {
-        const next = local.selectedIds.filter((item) => item !== id)
-        local.setSelectedIds(next.length > 0 ? next : [REALTIME_SNAPSHOT_ID])
-        notify("已删除快照，其后一份已重新计算为合并区间")
-      },
-      onError: (error) => toast.error(`删除快照失败：${describeError(error)}`),
-    })
+    local.setSelectedIds([id])
+    void deleteAction.run()
   }
 
   const handleRemoveSelected = () => {
-    deleteSnapshots.mutate(selectedSnapshotIds, {
-      onSuccess: () => {
-        local.setSelectedIds([REALTIME_SNAPSHOT_ID])
-        local.setSelectionMode(false)
-        notify(
-          `已删除 ${selectedSnapshotIds.length} 份快照，受影响的后继快照已重新计算`
-        )
-      },
-      onError: (error) => toast.error(`删除快照失败：${describeError(error)}`),
-    })
+    void deleteAction.run()
   }
 
   const handleMergeSelected = () => {
-    mergeSnapshots.mutate(selectedSnapshotIds, {
-      onSuccess: () => {
-        local.setSelectedIds([selectedSnapshotIds[0]])
-        notify(`已把 ${selectedSnapshotIds.length} 份快照合并成一份`)
-      },
-      onError: (error) => toast.error(`合并快照失败：${describeError(error)}`),
-    })
+    void mergeAction.run()
   }
 
   const terminate = (label: string, pids: number[]) => {
@@ -241,10 +264,17 @@ export const useTraffic = () => {
     startSelection,
     exitSelection,
     toggleSelection,
-    saveSnapshot: handleSaveSnapshot,
+    saveSnapshot: {
+      run: saveAction.run,
+      busy: saveAction.busy,
+      task: saveAction.task,
+    },
     removeSnapshot: handleRemoveSnapshot,
     removeSelected: handleRemoveSelected,
     mergeSelected: handleMergeSelected,
+    /** 三种快照写操作共用一把域级锁，因此共用一个进行中状态。 */
+    snapshotWriteBusy: saveAction.busy || mergeAction.busy || deleteAction.busy,
+    snapshotTask: saveAction.task ?? mergeAction.task ?? deleteAction.task,
     terminate,
 
     // 页面级提示

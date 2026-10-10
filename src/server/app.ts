@@ -21,8 +21,8 @@ import {
 } from "./system-services/handlers"
 import { createTasksRouter, tasksContract } from "./tasks/handlers"
 import { createTaskRuntime, type TaskRuntime } from "./tasks/runtime"
-import { trafficContract, trafficRouter } from "./traffic/handlers"
-import { startTrafficSampler } from "./traffic/service"
+import { createTrafficRouter, trafficContract } from "./traffic/handlers"
+import { initializeTraffic, startTrafficSampler } from "./traffic/service"
 
 /** dev 与生产共用的 Express 应用（中间件形态，不监听端口）。 */
 export const createApp = (injected?: {
@@ -61,7 +61,14 @@ export const createApp = (injected?: {
     app,
     options
   )
-  createExpressEndpoints(trafficContract, trafficRouter, app, options)
+  // 迁库与采样只在应用进程里做；后台执行器不会重复执行它们。
+  initializeTraffic()
+  createExpressEndpoints(
+    trafficContract,
+    createTrafficRouter(taskRuntime),
+    app,
+    options
+  )
 
   // 任务查询在鉴权之后挂载：任务里会带本机路径，不能公开。
   createExpressEndpoints(
