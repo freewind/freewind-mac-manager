@@ -33,6 +33,25 @@ export type TaskRunnerHost = {
 const STDERR_LIMIT = 4096
 const KILL_GRACE_MS = 2000
 
+export class TaskHostError extends Error {
+  constructor(
+    readonly status: "failed" | "unknown",
+    message: string
+  ) {
+    super(message)
+    this.name = "TaskHostError"
+  }
+}
+
+type WaitingJob = {
+  resolve: () => void
+  reject: (error: TaskHostError) => void
+  signal: AbortSignal
+  onAbort: () => void
+}
+
+const ABORTED_BEFORE_START = "任务在执行前已中止，未启动执行进程"
+
 /** 测试用：同进程执行，不启动子进程。 */
 export const createInlineHost = (
   execute: TaskRunnerHost["execute"]
@@ -46,21 +65,48 @@ export const createProcessHost = (options: {
 }): TaskRunnerHost => {
   const maxConcurrency = options.maxConcurrency ?? TASK_MAX_CONCURRENCY
   let running = 0
-  const waiting: (() => void)[] = []
+  const waiting: WaitingJob[] = []
 
-  const acquire = async (): Promise<void> => {
+  const acquire = (signal: AbortSignal): Promise<void> => {
+    if (signal.aborted) {
+      return Promise.reject(new TaskHostError("unknown", ABORTED_BEFORE_START))
+    }
     if (running < maxConcurrency) {
       running += 1
-      return
+      return Promise.resolve()
     }
-    await new Promise<void>((resolve) => waiting.push(resolve))
-    running += 1
+    return new Promise<void>((resolve, reject) => {
+      const waiter: WaitingJob = {
+        resolve,
+        reject,
+        signal,
+        onAbort: () => {
+          const index = waiting.indexOf(waiter)
+          if (index >= 0) waiting.splice(index, 1)
+          signal.removeEventListener("abort", waiter.onAbort)
+          reject(new TaskHostError("unknown", ABORTED_BEFORE_START))
+        },
+      }
+      waiting.push(waiter)
+      signal.addEventListener("abort", waiter.onAbort, { once: true })
+      if (signal.aborted) waiter.onAbort()
+    })
   }
 
   const release = (): void => {
-    running -= 1
     const next = waiting.shift()
-    if (next) next()
+    if (next) {
+      next.signal.removeEventListener("abort", next.onAbort)
+      if (next.signal.aborted) {
+        next.reject(new TaskHostError("unknown", ABORTED_BEFORE_START))
+        release()
+        return
+      }
+      // 把当前并发槽直接交给下一个任务，不减少 running 计数。
+      next.resolve()
+      return
+    }
+    running -= 1
   }
 
   const runOnce = (
@@ -68,6 +114,10 @@ export const createProcessHost = (options: {
     context: TaskRunContext
   ): Promise<TaskOutcome> =>
     new Promise<TaskOutcome>((resolve, reject) => {
+      if (context.signal.aborted) {
+        reject(new TaskHostError("unknown", ABORTED_BEFORE_START))
+        return
+      }
       const child = spawn(options.command, options.args, {
         cwd: options.cwd,
         stdio: ["pipe", "pipe", "pipe"],
@@ -76,7 +126,9 @@ export const createProcessHost = (options: {
       })
 
       let outcome: TaskOutcome | null = null
-      let failure: string | null = null
+      let declaredFailure: string | null = null
+      let protocolFailure: string | null = null
+      let processFailure: TaskHostError | null = null
       let stderr = ""
       let buffer = ""
       let settled = false
@@ -93,44 +145,84 @@ export const createProcessHost = (options: {
         killTimer = setTimeout(() => child.kill("SIGKILL"), KILL_GRACE_MS)
       }
 
-      const finish = (): void => {
+      const finishWithError = (error: TaskHostError): void => {
         if (settled) return
         settled = true
         cleanup()
-        if (failure !== null) {
-          reject(new Error(failure))
+        reject(error)
+      }
+
+      const handleLine = (line: string): void => {
+        if (line.trim().length === 0) return
+        const message = parseWorkerMessage(line)
+        if (!message) {
+          protocolFailure ??= "执行进程返回了无法识别的消息"
           return
         }
-        if (outcome) {
+        if (outcome || declaredFailure) {
+          protocolFailure ??= "执行进程在终态消息后又返回了消息"
+          return
+        }
+        if (message.type === "progress") {
+          context.onProgress(message.progress)
+        } else if (message.type === "result") {
+          outcome = {
+            result: message.result,
+            message: message.message,
+            status: message.status,
+          }
+        } else {
+          declaredFailure = message.error
+        }
+      }
+
+      const finish = (
+        code: number | null,
+        signalName: NodeJS.Signals | null
+      ): void => {
+        if (settled) return
+        settled = true
+        cleanup()
+        if (protocolFailure) {
+          reject(new TaskHostError("unknown", protocolFailure))
+          return
+        }
+        if (processFailure) {
+          reject(processFailure)
+          return
+        }
+        if (declaredFailure !== null && outcome === null) {
+          reject(new TaskHostError("failed", declaredFailure))
+          return
+        }
+        if (outcome && code === 0 && signalName === null) {
           resolve(outcome)
           return
         }
-        reject(new Error("执行进程未返回结果就结束，结果未知"))
+        const detail = stderr.trim().split("\n").slice(-1)[0] ?? ""
+        if (outcome) {
+          reject(
+            new TaskHostError(
+              "unknown",
+              `执行进程在返回结果后异常结束${signalName ? `（信号 ${signalName}）` : `（退出码 ${code}）`}${detail ? `：${detail}` : ""}`
+            )
+          )
+          return
+        }
+        reject(
+          new TaskHostError(
+            "unknown",
+            `执行进程未返回结果${signalName ? `就被信号 ${signalName} 中止` : `就以退出码 ${code} 结束`}${detail ? `：${detail}` : ""}`
+          )
+        )
       }
-
-      context.signal.addEventListener("abort", onAbort, { once: true })
-
       child.stdout.setEncoding("utf8")
       child.stdout.on("data", (chunk: string) => {
         buffer += chunk
         let index = buffer.indexOf("\n")
         while (index >= 0) {
-          const line = buffer.slice(0, index)
+          handleLine(buffer.slice(0, index))
           buffer = buffer.slice(index + 1)
-          const message = parseWorkerMessage(line)
-          if (message?.type === "progress") {
-            context.onProgress(message.progress)
-          } else if (message?.type === "result") {
-            outcome = {
-              result: message.result,
-              message: message.message,
-              status: message.status,
-            }
-          } else if (message?.type === "failed") {
-            failure = message.error
-          } else if (line.trim().length > 0) {
-            failure = "执行进程返回了无法识别的消息"
-          }
           index = buffer.indexOf("\n")
         }
       })
@@ -141,31 +233,39 @@ export const createProcessHost = (options: {
       })
 
       child.on("error", (error) => {
-        failure = `无法启动执行进程：${error.message}`
-        finish()
+        const status = child.pid === undefined ? "failed" : "unknown"
+        processFailure = new TaskHostError(
+          status,
+          `${child.pid === undefined ? "无法启动" : "执行进程发生错误"}：${error.message}`
+        )
+        if (child.pid === undefined) finishWithError(processFailure)
       })
 
       child.on("close", (code, signalName) => {
-        if (failure === null && outcome === null) {
-          const detail = stderr.trim().split("\n").slice(-1)[0] ?? ""
-          failure = signalName
-            ? `执行进程被信号 ${signalName} 中止，结果未知`
-            : `执行进程退出码 ${code}${detail ? `：${detail}` : ""}`
-        }
-        finish()
+        if (buffer.trim().length > 0) handleLine(buffer)
+        finish(code, signalName)
       })
 
       child.stdin.on("error", () => {
         // 子进程可能已在读取前退出；错误由 close 分支统一报告。
       })
+
+      context.signal.addEventListener("abort", onAbort, { once: true })
+      if (context.signal.aborted) {
+        onAbort()
+        return
+      }
       child.stdin.write(`${JSON.stringify(job)}\n`)
       child.stdin.end()
     })
 
   return {
     execute: async (job, context) => {
-      await acquire()
+      await acquire(context.signal)
       try {
+        if (context.signal.aborted) {
+          throw new TaskHostError("unknown", ABORTED_BEFORE_START)
+        }
         return await runOnce(job, context)
       } finally {
         release()

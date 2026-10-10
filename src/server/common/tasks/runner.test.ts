@@ -4,11 +4,12 @@ import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { TaskRunner } from "./runner"
 import { TaskStore } from "./store"
-import type {
-  TaskJob,
-  TaskOutcome,
-  TaskRunContext,
-  TaskRunnerHost,
+import {
+  TaskHostError,
+  type TaskJob,
+  type TaskOutcome,
+  type TaskRunContext,
+  type TaskRunnerHost,
 } from "./worker-host"
 
 type Call = {
@@ -177,6 +178,68 @@ describe("task runner", () => {
     expect(replay.kind).toBe("completed")
     expect(calls).toHaveLength(1)
     expect(store.listActive()).toHaveLength(0)
+  })
+
+  it("rejects a request id reused for another operation or target", async () => {
+    const { runner, calls } = harness
+    const requestId = "req-0000000000000014"
+    const first = runner.submit({
+      kind: "file_delete",
+      target: "/tmp/a",
+      payload: { paths: ["/tmp/a"] },
+      requestId,
+      toCompletedResponse,
+    })
+    await waitFor(() => calls.length === 1)
+    calls[0].resolve(ok({ deleted: 1 }))
+    await first
+
+    const differentKind = await runner.submit({
+      kind: "file_copy",
+      target: "/tmp/a",
+      payload: { paths: ["/tmp/a"] },
+      requestId,
+      toCompletedResponse,
+    })
+    const differentTarget = await runner.submit({
+      kind: "file_delete",
+      target: "/tmp/b",
+      payload: { paths: ["/tmp/a"] },
+      requestId,
+      toCompletedResponse,
+    })
+    const differentLock = await runner.submit({
+      kind: "file_delete",
+      target: "/tmp/a",
+      lockTarget: "files:mutations",
+      payload: { paths: ["/tmp/a"] },
+      requestId,
+      toCompletedResponse,
+    })
+
+    expect(differentKind.kind).toBe("conflict")
+    expect(differentTarget.kind).toBe("conflict")
+    expect(differentLock.kind).toBe("conflict")
+    expect(calls).toHaveLength(1)
+  })
+
+  it("keeps an interrupted worker result unknown and does not replay it", async () => {
+    const { runner, calls, store } = harness
+    const request = {
+      kind: "file_copy" as const,
+      target: "/tmp/a",
+      payload: { source: "/tmp/a", destination: "/tmp/b" },
+      requestId: "req-0000000000000015",
+      toCompletedResponse,
+    }
+    const submission = runner.submit(request)
+    await waitFor(() => calls.length === 1)
+    calls[0].reject(new TaskHostError("unknown", "执行进程异常退出，结果未知"))
+
+    expect(await submission).toMatchObject({ kind: "unknown" })
+    expect(store.findByRequestId(request.requestId)?.status).toBe("unknown")
+    expect(await runner.submit(request)).toMatchObject({ kind: "unknown" })
+    expect(calls).toHaveLength(1)
   })
 
   it("reports the task id again for a repeated request while it is still running", async () => {

@@ -13,6 +13,7 @@ import {
   type TaskStoredRow,
 } from "./store"
 import type { TaskOutcome, TaskRunnerHost } from "./worker-host"
+import { TaskHostError } from "./worker-host"
 
 export type TaskSubmitRequest<TBody = unknown> = {
   kind: string
@@ -63,6 +64,17 @@ const toOutcome = (row: TaskStoredRow): TaskOutcome => ({
   status: row.status === "partial" ? "partial" : "done",
 })
 
+const sameRequest = (options: {
+  row: TaskStoredRow
+  request: TaskSubmitRequest
+  fingerprint: string
+  lockTarget: string
+}): boolean =>
+  options.row.kind === options.request.kind &&
+  options.row.target === options.request.target &&
+  options.row.lockTarget === options.lockTarget &&
+  options.row.requestFingerprint === options.fingerprint
+
 /**
  * 任务运行器（父进程侧）。
  *
@@ -102,41 +114,15 @@ export class TaskRunner {
     }
 
     const fingerprint = payloadFingerprint(request.payload)
+    const lockTarget = request.lockTarget ?? request.target
 
     if (request.requestId) {
       const existing = this.store.findByRequestId(request.requestId)
       if (existing) {
-        if (existing.requestFingerprint !== fingerprint) {
-          return {
-            kind: "conflict",
-            message: "该请求标识已用于另一次内容不同的操作",
-          }
-        }
-        if (existing.status === "running") {
-          return { kind: "accepted", body: this.acceptedOf(existing) }
-        }
-        if (existing.status === "unknown") {
-          return {
-            kind: "unknown",
-            message:
-              existing.error ?? "该请求的结果未知，请重新读取目标确认后再操作",
-          }
-        }
-        if (existing.status === "failed") {
-          return {
-            kind: "failed",
-            message: existing.error ?? "该请求此前执行失败，未重复执行",
-          }
-        }
-        return {
-          kind: "completed",
-          ...request.toCompletedResponse(toOutcome(existing)),
-        }
+        return this.replay(existing, request, fingerprint, lockTarget)
       }
     }
 
-    /** 冲突判定用的作用域；省略时使用展示目标。 */
-    const lockTarget = request.lockTarget ?? request.target
     const active = this.store.findActive(lockTarget)
     if (active) {
       return {
@@ -162,13 +148,10 @@ export class TaskRunner {
       const replay = request.requestId
         ? this.store.findByRequestId(request.requestId)
         : null
-      if (replay?.status === "running") {
-        return { kind: "accepted", body: this.acceptedOf(replay) }
+      if (replay) {
+        return this.replay(replay, request, fingerprint, lockTarget)
       }
-      return {
-        kind: "conflict",
-        message: describeError(error),
-      }
+      return { kind: "conflict", message: describeError(error) }
     }
 
     // 登记完成之后才真正开始执行。
@@ -223,6 +206,39 @@ export class TaskRunner {
     this.store.markInterrupted(nowSeconds())
   }
 
+  private replay<TBody>(
+    row: TaskStoredRow,
+    request: TaskSubmitRequest<TBody>,
+    fingerprint: string,
+    lockTarget: string
+  ): TaskSubmitResult<TBody> {
+    if (!sameRequest({ row, request, fingerprint, lockTarget })) {
+      return {
+        kind: "conflict",
+        message: "该请求标识已用于不同任务类型、目标或载荷",
+      }
+    }
+    if (row.status === "running") {
+      return { kind: "accepted", body: this.acceptedOf(row) }
+    }
+    if (row.status === "unknown") {
+      return {
+        kind: "unknown",
+        message: row.error ?? "该请求的结果未知，请重新读取目标确认后再操作",
+      }
+    }
+    if (row.status === "failed") {
+      return {
+        kind: "failed",
+        message: row.error ?? "该请求此前执行失败，未重复执行",
+      }
+    }
+    return {
+      kind: "completed",
+      ...request.toCompletedResponse(toOutcome(row)),
+    }
+  }
+
   private acceptedOf(row: TaskStoredRow): TaskAccepted {
     return {
       taskId: row.id,
@@ -272,8 +288,14 @@ export class TaskRunner {
         error: null,
       })
     } catch (error) {
+      const status =
+        error instanceof TaskHostError
+          ? error.status
+          : controller.signal.aborted
+            ? "unknown"
+            : "failed"
       this.finish(taskId, {
-        status: controller.signal.aborted ? "unknown" : "failed",
+        status,
         result: null,
         message: null,
         error: describeError(error),
