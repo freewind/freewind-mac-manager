@@ -58,3 +58,21 @@ export const SaveFileContentBodySchema = z.object({
 export const UploadResponseSchema = ActionResponseSchema.extend({
   file: FileEntrySchema,
 })
+
+/**
+ * 复制、删除、移动这类批量操作的结果：逐项可核实，允许部分完成。
+ * 不把整棵目录树的明细写进任务记录，只留已处理的条目与失败原因。
+ */
+export const FileBatchFailureSchema = z.object({
+  path: z.string(),
+  message: z.string(),
+})
+
+export const FileBatchResultSchema = z.object({
+  completed: z.array(z.string()),
+  failed: z.array(FileBatchFailureSchema),
+  /** 因为冲突或状态变化而没有执行的条目。 */
+  skipped: z.array(z.string()),
+  /** 复制/移动实际写入的字节数；删除等不适用时为 null。 */
+  bytes: z.number().min(0).nullable(),
+})

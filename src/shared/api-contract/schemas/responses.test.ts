@@ -3,8 +3,13 @@ import {
   ActionResponseSchema,
   ApiErrorSchema,
   KillProcessesBodySchema,
+  TaskAcceptedSchema,
 } from "./common"
-import { SaveFileContentBodySchema, TransferEntriesBodySchema } from "./files"
+import {
+  FileBatchResultSchema,
+  SaveFileContentBodySchema,
+  TransferEntriesBodySchema,
+} from "./files"
 import { KillPortProcessesBodySchema } from "./ports"
 import { ServiceTargetBodySchema } from "./system-services"
 
@@ -16,6 +21,33 @@ describe("shared API schemas", () => {
     )
     expect(ApiErrorSchema.safeParse({ error: "Failed" }).success).toBe(false)
     expect(ActionResponseSchema.safeParse({ ok: true }).success).toBe(false)
+  })
+
+  it("keeps the accepted reply and partial results distinguishable from success", () => {
+    expect(
+      TaskAcceptedSchema.safeParse({
+        taskId: "task-9",
+        kind: "file_copy",
+        status: "running",
+        startedAt: 100,
+      }).success
+    ).toBe(true)
+    expect(
+      FileBatchResultSchema.safeParse({
+        completed: ["/tmp/a"],
+        failed: [{ path: "/tmp/b", message: "权限不足" }],
+        skipped: ["/tmp/c"],
+        bytes: 512,
+      }).success
+    ).toBe(true)
+    expect(
+      FileBatchResultSchema.safeParse({
+        completed: ["/tmp/a"],
+        failed: ["/tmp/b"],
+        skipped: [],
+        bytes: 0,
+      }).success
+    ).toBe(false)
   })
 
   it("enforces dangerous operation input limits", () => {

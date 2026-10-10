@@ -9,6 +9,7 @@ import { healthRoutes } from "./routes/health"
 import { portsRoutes } from "./routes/ports"
 import { processesRoutes } from "./routes/processes"
 import { systemServicesRoutes } from "./routes/system-services"
+import { tasksRoutes } from "./routes/tasks"
 import { trafficRoutes } from "./routes/traffic"
 
 /** 按域拆到 routes/ 下，这里只做汇总，避免单文件越写越大。 */
@@ -24,6 +25,7 @@ export const contract = c.router(
     ...processesRoutes,
     ...systemServicesRoutes,
     ...frpRoutes,
+    ...tasksRoutes,
   },
   { pathPrefix: API_BASE }
 )

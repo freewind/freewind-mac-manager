@@ -4,6 +4,7 @@ import type {
   ApiErrorSchema,
   KillProcessesBodySchema,
   KillProcessesResponseSchema,
+  TaskAcceptedSchema,
 } from "./schemas/common"
 import type {
   EntriesResponseSchema,
@@ -12,16 +13,23 @@ import type {
   ScanStartResponseSchema,
   ScanStatusSchema,
   ScansResponseSchema,
+  ScanTaskResultSchema,
   TreeNodeWire,
   TreeResponseSchema,
 } from "./schemas/disk-growth"
 import type {
   DirectoryResponseSchema,
+  FileBatchResultSchema,
   FileContentResponseSchema,
   FileEntrySchema,
   UploadResponseSchema,
 } from "./schemas/files"
-
+import type {
+  TaskListQuerySchema,
+  TaskListResponseSchema,
+  TaskProgressSchema,
+  TaskStatusSchema,
+} from "./schemas/tasks"
 export type ScanSnapshot = z.infer<typeof ScanSnapshotSchema>
 export type GrowthEntry = z.infer<typeof GrowthEntrySchema>
 export type ScanStatus = z.infer<typeof ScanStatusSchema>
@@ -55,6 +63,15 @@ export type KillProcessesResponse = z.infer<typeof KillProcessesResponseSchema>
 
 export type ApiError = z.infer<typeof ApiErrorSchema>
 export type ActionResponse = z.infer<typeof ActionResponseSchema>
+export type TaskAccepted = z.infer<typeof TaskAcceptedSchema>
+export type TaskProgress = z.infer<typeof TaskProgressSchema>
+export type TaskStatus = z.infer<typeof TaskStatusSchema>
+export type TaskListQuery = z.infer<typeof TaskListQuerySchema>
+export type TaskListResponse = z.infer<typeof TaskListResponseSchema>
+export type FileBatchResult = z.infer<typeof FileBatchResultSchema>
+export type ScanTaskResult = z.infer<typeof ScanTaskResultSchema>
+/** 任务记录与种类只在 schemas/tasks.ts 定义一份，这里只转发。 */
+export type { TaskKind, TaskRecord } from "./schemas/tasks"
 export type TreeResponse = z.infer<typeof TreeResponseSchema>
 export type TreeNode = TreeNodeWire
 export type FileEntry = z.infer<typeof FileEntrySchema>

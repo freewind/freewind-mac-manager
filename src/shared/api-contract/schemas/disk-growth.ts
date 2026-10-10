@@ -33,6 +33,17 @@ export const ScansResponseSchema = z.object({
   snapshots: z.array(ScanSnapshotSchema),
 })
 
+/**
+ * 扫描任务完成后的结果：只带足以定位快照与说明规模的字段，
+ * 条文明细仍由 listEntries/subtree 按需读取，不进入任务记录。
+ */
+export const ScanTaskResultSchema = z.object({
+  snapshotId: z.number(),
+  fileCount: z.number(),
+  dirCount: z.number(),
+  totalSize: z.number(),
+})
+
 export const EntriesQuerySchema = z.object({
   scanId: z.coerce.number().int().positive(),
   baselineScanId: z.coerce.number().int().positive().optional(),

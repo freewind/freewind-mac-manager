@@ -42,6 +42,8 @@ export const ApiPath = {
   systemServicesReveal: `${API_BASE}/system-services/reveal`,
   frpConfig: `${API_BASE}/frp/config`,
   frpProbe: `${API_BASE}/frp/probe`,
+  tasks: `${API_BASE}/tasks`,
+  task: `${API_BASE}/tasks/:id`,
 } as const
 
 export type ApiPathKey = keyof typeof ApiPath
