@@ -14,8 +14,13 @@ import userEvent from "@testing-library/user-event"
 import { useTaskAction } from "@web/hooks/use-task-action"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { registerTaskCompletion } from "./completion"
-import { clearPendingRequests, listPendingRequests } from "./pending-requests"
+import {
+  clearPendingRequests,
+  listPendingRequests,
+  rememberPendingRequest,
+} from "./pending-requests"
 import { TaskCenter } from "./TaskCenter"
+import { useTaskRecovery } from "./useTaskRecovery"
 
 const { toastMock } = vi.hoisted(() => {
   const fn = Object.assign(vi.fn(), {
@@ -248,6 +253,106 @@ describe("useTaskAction", () => {
     expect(toastMock.error).toHaveBeenCalledTimes(1)
     expect(result.current.busy).toBe(false)
     expect(result.current.watchingTaskId).toBeNull()
+  })
+})
+
+describe("useTaskRecovery", () => {
+  const seedPending = (taskId: string | null): void => {
+    rememberPendingRequest({
+      requestId: "req_recovery0000000001",
+      kind: "file_delete",
+      target: "/tmp/a",
+      startedAt: 1000,
+      taskId,
+    })
+  }
+
+  it("verifies a pending operation by task id and clears it once terminal", async () => {
+    const completed: string[] = []
+    registerTaskCompletion("file_delete", (task) => {
+      completed.push(task.status)
+    })
+    seedPending("task-1")
+    detailStatus = "done"
+    const client = makeClient()
+    const { result } = renderHook(() => useTaskRecovery(true), {
+      wrapper: wrapper(client),
+    })
+
+    await waitFor(() => expect(completed).toEqual(["done"]))
+    await waitFor(() => expect(listPendingRequests()).toEqual([]))
+    // 只读核实：不会因为恢复而重发任何写请求
+    expect(fetchCalls.every((url) => url.startsWith("/api/tasks"))).toBe(true)
+    expect(result.current.unresolved).toBe(0)
+  })
+
+  it("keeps a pending operation while the task is still running", async () => {
+    seedPending("task-1")
+    const client = makeClient()
+    const { result } = renderHook(() => useTaskRecovery(true), {
+      wrapper: wrapper(client),
+    })
+    await waitFor(() => expect(result.current.verifying).toBe(false))
+    expect(listPendingRequests()).toHaveLength(1)
+    expect(result.current.unresolved).toBe(0)
+  })
+
+  it("reports an unverifiable operation instead of guessing or retrying", async () => {
+    seedPending("task-missing")
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        fetchCalls.push(input)
+        if (input.startsWith("/api/tasks?")) {
+          // 按请求标识也找不到任何记录
+          return json({ tasks: [], page: 1, pageSize: 1, total: 0 })
+        }
+        return json({ message: "没有找到该任务记录" }, 404)
+      })
+    )
+    const client = makeClient()
+    const { result } = renderHook(() => useTaskRecovery(true), {
+      wrapper: wrapper(client),
+    })
+    await waitFor(() => expect(result.current.unresolved).toBe(1))
+    // 查不到不能当成没执行，也不能自动重做：只读了两次（任务标识与请求标识）
+    expect(listPendingRequests()).toHaveLength(1)
+    expect(fetchCalls).toHaveLength(2)
+  })
+
+  it("finds a pending operation by request id when the task id is unknown", async () => {
+    seedPending(null)
+    detailStatus = "done"
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        fetchCalls.push(input)
+        if (input.startsWith("/api/tasks?")) {
+          return json({
+            tasks: [taskRecord({ status: "done", finishedAt: 1010 })],
+            page: 1,
+            pageSize: 1,
+            total: 1,
+          })
+        }
+        throw new Error(`未预期的请求：${input}`)
+      })
+    )
+    const client = makeClient()
+    const { result } = renderHook(() => useTaskRecovery(true), {
+      wrapper: wrapper(client),
+    })
+    await waitFor(() => expect(listPendingRequests()).toEqual([]))
+    expect(result.current.unresolved).toBe(0)
+  })
+
+  it("does not verify anything while offline", async () => {
+    seedPending("task-1")
+    const client = makeClient()
+    renderHook(() => useTaskRecovery(false), { wrapper: wrapper(client) })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(fetchCalls).toEqual([])
+    expect(listPendingRequests()).toHaveLength(1)
   })
 })
 

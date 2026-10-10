@@ -1,4 +1,6 @@
 import type { TaskRecord } from "@shared/api-contract"
+import { toast } from "sonner"
+import { taskKindLabel } from "./labels"
 
 type CompletionHandler = (task: TaskRecord) => void | Promise<void>
 
@@ -42,3 +44,26 @@ export const markTaskNotified = (taskId: string): boolean => {
 
 export const isTaskTerminal = (task: TaskRecord): boolean =>
   task.status !== "running"
+
+/**
+ * 终态提示：快速完成路径、任务查询路径、恢复核实路径共用这一处，
+ * 并由 markTaskNotified 保证同一个任务只提示一次。
+ * 受理不是成功，因此这里只描述真实终态。
+ */
+export const notifyTaskTerminal = (task: TaskRecord): void => {
+  if (task.status === "done") {
+    toast.success(`已完成：${taskKindLabel(task.kind)}`)
+    return
+  }
+  if (task.status === "partial") {
+    toast.warning(task.message ?? `部分完成：${taskKindLabel(task.kind)}`)
+    return
+  }
+  if (task.status === "failed") {
+    toast.error(task.error ?? `失败：${taskKindLabel(task.kind)}`)
+    return
+  }
+  if (task.status === "unknown") {
+    toast.error(task.error ?? "这次操作的结果无法确认，请重新读取目标")
+  }
+}

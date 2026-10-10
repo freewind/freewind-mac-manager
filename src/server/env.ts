@@ -33,11 +33,21 @@ if (fs.existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE)
 export const FILE_ROOT = path.resolve(process.env.FILE_ROOT ?? "/")
 
 /**
- * 服务端口固定为 51510：写死而不是读环境变量，避免同一台机器上跑出第二个实例
- * 各自采样、把同一份数据库写花。dev（vite strictPort）与生产（listen）都要求
- * 端口被占用时直接启动失败。
+ * 服务端口只由启动命令通过 APP_PORT 显式注入，代码里不留默认值：缺失或非法
+ * 一律直接抛错，避免静默退化到别的端口。dev（vite strictPort）与生产（listen）
+ * 都要求端口被占用时直接启动失败。
+ *
+ * 端口分档与具体取值见 package.json：dev 用 51509，生产（start）用 51510。
  */
-export const SERVER_PORT = 51510
+export const resolveServerPort = (): number => {
+  const port = Number(process.env.APP_PORT)
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Error(
+      "[mac-manager] 缺少合法的 APP_PORT 环境变量（端口必须显式指定）"
+    )
+  }
+  return port
+}
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production"
 

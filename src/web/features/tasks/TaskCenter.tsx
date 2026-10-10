@@ -22,6 +22,7 @@ import { usePwaStatus } from "@web/hooks/use-pwa-status"
 import { useState } from "react"
 import { useActiveTasks } from "./queries"
 import { TaskCard } from "./TaskCard"
+import { useTaskRecovery } from "./useTaskRecovery"
 
 /**
  * 任务中心的全局入口：顶栏一个按钮 + 进行中数量，点开用官方 Sheet 列出任务。
@@ -35,6 +36,8 @@ export const TaskCenter = () => {
   const query = useActiveTasks(online)
   const tasks = query.data?.tasks ?? []
   const count = tasks.length
+  // 恢复前台或重开应用后核实未确认结果的操作；只读，不重发动作。
+  const recovery = useTaskRecovery(online)
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -63,6 +66,19 @@ export const TaskCenter = () => {
             <p className="text-muted-foreground">
               当前离线，任务进度暂停查询。恢复网络后会自动继续。
             </p>
+          ) : null}
+          {recovery.unresolved > 0 ? (
+            <div className="rounded-md border border-destructive/40 p-2 text-destructive">
+              {recovery.unresolved}{" "}
+              次操作的结果无法确认，请重新读取目标后再决定是否重试。
+              <button
+                type="button"
+                className="ml-1 underline"
+                onClick={() => void recovery.verify()}
+              >
+                重新核实
+              </button>
+            </div>
           ) : null}
           {query.isLoading ? (
             <>

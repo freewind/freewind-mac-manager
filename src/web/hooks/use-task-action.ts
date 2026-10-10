@@ -1,4 +1,4 @@
-import type { TaskAccepted, TaskRecord } from "@shared/api-contract"
+import type { TaskAccepted } from "@shared/api-contract"
 import {
   ApiRequestError,
   type Execution,
@@ -8,6 +8,7 @@ import { describeError } from "@shared/format"
 import { useQueryClient } from "@tanstack/react-query"
 import {
   markTaskNotified,
+  notifyTaskTerminal,
   runTaskCompletion,
 } from "@web/features/tasks/completion"
 import { taskKindLabel } from "@web/features/tasks/labels"
@@ -32,27 +33,6 @@ export type TaskActionOptions<TPayload, TBody> = {
   onCompleted: (body: TBody, payload: TPayload) => void | Promise<void>
   /** 受理时的提示文案；不传用默认说明。这不是成功提示。 */
   onAccepted?: (accepted: TaskAccepted, payload: TPayload) => void
-}
-
-/**
- * 终态提示只发一次。快速完成路径与任务查询路径共用这个去重表，
- * 因此同一个动作不会被提示两遍。
- */
-const notifyTerminal = (task: TaskRecord): void => {
-  if (!markTaskNotified(task.id)) return
-  if (task.status === "done") {
-    toast.success(`已完成：${taskKindLabel(task.kind)}`)
-    return
-  }
-  if (task.status === "partial") {
-    toast.warning(task.message ?? `部分完成：${taskKindLabel(task.kind)}`)
-    return
-  }
-  if (task.status === "failed") {
-    toast.error(task.error ?? `失败：${taskKindLabel(task.kind)}`)
-    return
-  }
-  toast.error(task.error ?? "这次操作的结果无法确认，请重新读取目标")
 }
 
 /**
@@ -97,7 +77,7 @@ export const useTaskAction = <TBody, TPayload = undefined>(
     })
     void queryClient.invalidateQueries({ queryKey: taskKeys.active })
     void runTaskCompletion(task)
-    notifyTerminal(task)
+    if (markTaskNotified(task.id)) notifyTaskTerminal(task)
   }, [acceptedTaskId, task, detail.isError, queryClient])
 
   const run = async (payload: TPayload): Promise<void> => {

@@ -1,7 +1,7 @@
 import express from "express"
 import { createApp } from "./app"
 import { startScheduler } from "./disk-growth/service"
-import { SERVER_PORT, WEB_DIST_DIR } from "./env"
+import { resolveServerPort, WEB_DIST_DIR } from "./env"
 import { createTaskRuntime } from "./tasks/runtime"
 import { startTrafficSampler } from "./traffic/service"
 
@@ -11,18 +11,19 @@ const tasks = createTaskRuntime()
 const app = createApp({ tasks })
 app.use(express.static(WEB_DIST_DIR))
 
+// 启动时先校验端口，缺失合法的 APP_PORT 就直接失败退出。
+const port = resolveServerPort()
+
 // 不提供应用层访问门禁，只绑定本机回环地址，绝不暴露到局域网。
-const server = app.listen(SERVER_PORT, "127.0.0.1", () => {
-  console.log(`[mac-manager] 服务已启动：http://127.0.0.1:${SERVER_PORT}`)
+const server = app.listen(port, "127.0.0.1", () => {
+  console.log(`[mac-manager] 服务已启动：http://127.0.0.1:${port}`)
   startScheduler(tasks.runner)
   startTrafficSampler()
 })
 
-// 端口固定：被占用时直接启动失败，不自动换端口。
+// 端口来自 APP_PORT：被占用时直接启动失败，不自动换端口。
 server.on("error", (error) => {
-  console.error(
-    `[mac-manager] 无法监听 127.0.0.1:${SERVER_PORT}：${error.message}`
-  )
+  console.error(`[mac-manager] 无法监听 127.0.0.1:${port}：${error.message}`)
   process.exit(1)
 })
 
