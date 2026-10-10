@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { TaskRecordSchema } from "@shared/api-contract"
 import { ApiRequestError, type Execution } from "@shared/client-api"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import {
@@ -19,6 +20,8 @@ import {
   listPendingRequests,
   rememberPendingRequest,
 } from "./pending-requests"
+import { useActiveTasks } from "./queries"
+import { TaskCard } from "./TaskCard"
 import { TaskCenter } from "./TaskCenter"
 import { useTaskRecovery } from "./useTaskRecovery"
 
@@ -105,6 +108,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 const makeClient = () =>
@@ -133,6 +137,74 @@ describe("TaskCenter", () => {
     expect(screen.getByText(/已运行 \d+ 秒/)).toBeTruthy()
   })
 
+  it("closes the task sheet when browser back is pressed", async () => {
+    const client = makeClient()
+    render(<TaskCenter />, { wrapper: wrapper(client) })
+    await userEvent.click(screen.getByRole("button", { name: /任务/ }))
+    expect(await screen.findByRole("dialog")).toBeTruthy()
+
+    window.history.replaceState({}, "", window.location.href)
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: null }))
+    })
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+
+  it("shows structured task result details", () => {
+    render(
+      <TaskCard
+        task={TaskRecordSchema.parse(
+          taskRecord({
+            status: "done",
+            result: {
+              completed: ["/tmp/a"],
+              failed: [{ path: "/tmp/b", message: "权限不足" }],
+              skipped: [],
+              bytes: null,
+            },
+            finishedAt: 1010,
+          })
+        )}
+      />
+    )
+    expect(screen.getByText("已完成：/tmp/a")).toBeTruthy()
+    expect(screen.getByText("失败：/tmp/b，权限不足")).toBeTruthy()
+  })
+
+  it("shows completed task results in the task center", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        const activeOnly =
+          new URL(input, "http://localhost").searchParams.get("status") ===
+          "active"
+        return json({
+          tasks: activeOnly
+            ? []
+            : [
+                taskRecord({
+                  status: "partial",
+                  result: {
+                    completed: ["/tmp/a"],
+                    failed: [{ path: "/tmp/b", message: "权限不足" }],
+                    skipped: [],
+                    bytes: null,
+                  },
+                  finishedAt: 1010,
+                }),
+              ],
+          page: 1,
+          pageSize: 50,
+          total: activeOnly ? 0 : 1,
+        })
+      })
+    )
+    render(<TaskCenter />, { wrapper: wrapper(makeClient()) })
+    await userEvent.click(screen.getByRole("button", { name: /任务/ }))
+    expect(await screen.findByText("失败：/tmp/b，权限不足")).toBeTruthy()
+  })
+
   it("reports an unreadable task list instead of pretending there is none", async () => {
     vi.stubGlobal(
       "fetch",
@@ -147,6 +219,67 @@ describe("TaskCenter", () => {
 })
 
 describe("useTaskAction", () => {
+  it("persists the request before sending and clears it after completion", async () => {
+    let sentRequestId = ""
+    const runFn = vi.fn(async (requestId: string) => {
+      sentRequestId = requestId
+      expect(listPendingRequests()).toMatchObject([
+        { requestId, kind: "file_delete", target: "/tmp/a", taskId: null },
+      ])
+      return {
+        kind: "completed" as const,
+        status: 200,
+        body: { message: "已删除" },
+      }
+    })
+    const client = makeClient()
+    const { result } = renderHook(
+      () =>
+        useTaskAction<{ message: string }, undefined>({
+          kind: "file_delete",
+          target: "/tmp/a",
+          run: runFn,
+          onCompleted: vi.fn(),
+        }),
+      { wrapper: wrapper(client) }
+    )
+
+    await act(async () => {
+      await result.current.run(undefined)
+    })
+
+    expect(runFn).toHaveBeenCalledTimes(1)
+    expect(sentRequestId).toMatch(/^req_/)
+    expect(listPendingRequests()).toEqual([])
+  })
+
+  it("does not send a write when pending recovery cannot be persisted", async () => {
+    const runFn = vi.fn()
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota exceeded", "QuotaExceededError")
+    })
+    const client = makeClient()
+    const { result } = renderHook(
+      () =>
+        useTaskAction<{ message: string }, undefined>({
+          kind: "file_delete",
+          target: "/tmp/a",
+          run: runFn,
+          onCompleted: vi.fn(),
+        }),
+      { wrapper: wrapper(client) }
+    )
+
+    await act(async () => {
+      await result.current.run(undefined)
+    })
+
+    expect(runFn).not.toHaveBeenCalled()
+    expect(toastMock.error).toHaveBeenCalledWith(
+      expect.stringContaining("操作未发送")
+    )
+  })
+
   it("handles a fast completion without waiting for a task", async () => {
     const onCompleted = vi.fn()
     const client = makeClient()
@@ -173,6 +306,87 @@ describe("useTaskAction", () => {
     expect(result.current.busy).toBe(false)
     expect(fetchCalls).toEqual([])
     expect(listPendingRequests()).toEqual([])
+  })
+
+  it("clears a persisted intent when the server rejects the write", async () => {
+    const client = makeClient()
+    const { result } = renderHook(
+      () =>
+        useTaskAction<{ message: string }, undefined>({
+          kind: "file_delete",
+          target: "/tmp/a",
+          run: async () => {
+            throw new ApiRequestError("目标冲突", 409)
+          },
+          onCompleted: vi.fn(),
+        }),
+      { wrapper: wrapper(client) }
+    )
+
+    await act(async () => {
+      await result.current.run(undefined)
+    })
+
+    expect(listPendingRequests()).toEqual([])
+  })
+
+  it("refreshes the active list when a task is accepted", async () => {
+    const client = makeClient()
+    const runFn = vi.fn(async () => ({
+      kind: "accepted" as const,
+      body: {
+        taskId: "task-1",
+        kind: "file_delete",
+        status: "running" as const,
+        startedAt: 1000,
+      },
+    }))
+    const { result } = renderHook(
+      () => {
+        useActiveTasks(true)
+        return useTaskAction({
+          kind: "file_delete",
+          target: "/tmp/a",
+          run: runFn,
+          onCompleted: vi.fn(),
+        })
+      },
+      { wrapper: wrapper(client) }
+    )
+    await waitFor(() =>
+      expect(
+        fetchCalls.filter((url) => url.startsWith("/api/tasks?")).length
+      ).toBe(1)
+    )
+    await act(async () => {
+      await result.current.run(undefined)
+    })
+    await waitFor(() =>
+      expect(
+        fetchCalls.filter((url) => url.startsWith("/api/tasks?")).length
+      ).toBe(2)
+    )
+  })
+
+  it("restores a pending action guard after remounting", () => {
+    rememberPendingRequest({
+      requestId: "req_remount",
+      kind: "file_delete",
+      target: "/tmp/a",
+      taskId: null,
+      startedAt: 1000,
+    })
+    const { result } = renderHook(
+      () =>
+        useTaskAction({
+          kind: "file_delete",
+          target: "/tmp/a",
+          run: vi.fn(),
+          onCompleted: vi.fn(),
+        }),
+      { wrapper: wrapper(makeClient()) }
+    )
+    expect(result.current.busy).toBe(true)
   })
 
   it("keeps busy until the accepted task really finishes", async () => {
@@ -221,6 +435,50 @@ describe("useTaskAction", () => {
     await waitFor(() => expect(listPendingRequests()).toEqual([]))
   })
 
+  it("retains an accepted action while its task detail is temporarily unavailable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        fetchCalls.push(input)
+        return input.startsWith("/api/tasks/task-1")
+          ? json({ message: "暂时无法读取任务" }, 503)
+          : json({ tasks: [], page: 1, pageSize: 50, total: 0 })
+      })
+    )
+    const client = makeClient()
+    const { result } = renderHook(
+      () =>
+        useTaskAction<{ message: string }, undefined>({
+          kind: "file_delete",
+          target: "/tmp/a",
+          run: async (): Promise<Execution<{ message: string }>> => ({
+            kind: "accepted",
+            body: {
+              taskId: "task-1",
+              kind: "file_delete",
+              status: "running",
+              startedAt: 1000,
+            },
+          }),
+          onCompleted: vi.fn(),
+        }),
+      { wrapper: wrapper(client) }
+    )
+
+    await act(async () => {
+      await result.current.run(undefined)
+    })
+    expect(listPendingRequests()).toHaveLength(1)
+
+    await waitFor(() => expect(fetchCalls.length).toBeGreaterThan(0))
+    expect(listPendingRequests()).toHaveLength(1)
+    expect(result.current.busy).toBe(true)
+    await act(async () => {
+      await result.current.run(undefined)
+    })
+    expect(listPendingRequests()).toHaveLength(1)
+  })
+
   it("keeps the request id for verification when the result is unknown", async () => {
     const client = makeClient()
     const runFn = vi.fn(async () => {
@@ -251,8 +509,12 @@ describe("useTaskAction", () => {
     expect(runFn).toHaveBeenCalledTimes(1)
     expect(intents()).toHaveLength(1)
     expect(toastMock.error).toHaveBeenCalledTimes(1)
-    expect(result.current.busy).toBe(false)
+    expect(result.current.busy).toBe(true)
     expect(result.current.watchingTaskId).toBeNull()
+    await act(async () => {
+      await result.current.run(undefined)
+    })
+    expect(runFn).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -294,6 +556,60 @@ describe("useTaskRecovery", () => {
     })
     await waitFor(() => expect(result.current.verifying).toBe(false))
     expect(listPendingRequests()).toHaveLength(1)
+    expect(result.current.unresolved).toBe(0)
+  })
+
+  it("rechecks a restored running operation until it reaches a terminal state", async () => {
+    seedPending("task-1")
+    const client = makeClient()
+    renderHook(() => useTaskRecovery(true), { wrapper: wrapper(client) })
+    await waitFor(() => expect(fetchCalls).toHaveLength(1))
+    await waitFor(() => expect(fetchCalls.length).toBeGreaterThanOrEqual(2), {
+      timeout: 5000,
+    })
+
+    detailStatus = "done"
+    await waitFor(() => expect(listPendingRequests()).toEqual([]), {
+      timeout: 5000,
+    })
+  })
+
+  it("rechecks a temporarily unavailable task and keeps its pending record", async () => {
+    seedPending("task-1")
+    let unavailable = true
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        fetchCalls.push(input)
+        if (input.startsWith("/api/tasks/task-1")) {
+          return unavailable
+            ? json({ message: "暂时无法查询" }, 503)
+            : json(
+                taskRecord({
+                  status: "done",
+                  result: { completed: ["/tmp/a"] },
+                  message: "已删除 1 项",
+                  finishedAt: 1010,
+                  updatedAt: 1010,
+                })
+              )
+        }
+        throw new Error(`未预期的请求：${input}`)
+      })
+    )
+    const client = makeClient()
+    const { result } = renderHook(() => useTaskRecovery(true), {
+      wrapper: wrapper(client),
+    })
+
+    await waitFor(() => expect(result.current.unresolved).toBe(1))
+    expect(listPendingRequests()).toHaveLength(1)
+
+    unavailable = false
+    await act(async () => {
+      await result.current.verify()
+    })
+    await waitFor(() => expect(listPendingRequests()).toEqual([]))
     expect(result.current.unresolved).toBe(0)
   })
 
@@ -344,6 +660,49 @@ describe("useTaskRecovery", () => {
     })
     await waitFor(() => expect(listPendingRequests()).toEqual([]))
     expect(result.current.unresolved).toBe(0)
+  })
+
+  it("preserves an unknown terminal result and its action guard", async () => {
+    seedPending("task-unknown")
+    const run = vi.fn()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        json(
+          taskRecord({
+            id: "task-unknown",
+            status: "unknown",
+            error: "服务中断，结果未知",
+            finishedAt: 1010,
+          })
+        )
+      )
+    )
+    const { result } = renderHook(
+      () => ({
+        recovery: useTaskRecovery(true),
+        action: useTaskAction({
+          kind: "file_delete",
+          target: "/tmp/a",
+          run,
+          onCompleted: vi.fn(),
+        }),
+      }),
+      { wrapper: wrapper(makeClient()) }
+    )
+    await waitFor(() => expect(result.current.recovery.unresolved).toBe(1))
+    expect(listPendingRequests()).toHaveLength(1)
+    expect(result.current.action.busy).toBe(true)
+    await act(async () => {
+      await result.current.action.run(undefined)
+    })
+    expect(run).not.toHaveBeenCalled()
+    expect(toastMock.success).not.toHaveBeenCalled()
+    await act(async () => {
+      await result.current.recovery.verify()
+    })
+    expect(listPendingRequests()).toHaveLength(1)
+    expect(toastMock.error).toHaveBeenCalledTimes(1)
   })
 
   it("does not verify anything while offline", async () => {

@@ -18,9 +18,10 @@ import {
   SheetTrigger,
 } from "@web/components/ui/sheet"
 import { Skeleton } from "@web/components/ui/skeleton"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { usePwaStatus } from "@web/hooks/use-pwa-status"
 import { useState } from "react"
-import { useActiveTasks } from "./queries"
+import { useActiveTasks, useRecentTasks } from "./queries"
 import { TaskCard } from "./TaskCard"
 import { useTaskRecovery } from "./useTaskRecovery"
 
@@ -33,9 +34,11 @@ import { useTaskRecovery } from "./useTaskRecovery"
 export const TaskCenter = () => {
   const { online } = usePwaStatus()
   const [open, setOpen] = useState(false)
-  const query = useActiveTasks(online)
-  const tasks = query.data?.tasks ?? []
-  const count = tasks.length
+  const active = useActiveTasks(online)
+  const query = useRecentTasks(online && open)
+  const tasks = query.data?.tasks ?? active.data?.tasks ?? []
+  const count = active.data?.tasks.length ?? 0
+  useHistoryOverlay(open, () => setOpen(false))
   // 恢复前台或重开应用后核实未确认结果的操作；只读，不重发动作。
   const recovery = useTaskRecovery(online)
 
@@ -74,6 +77,7 @@ export const TaskCenter = () => {
               <button
                 type="button"
                 className="ml-1 underline"
+                disabled={!online || recovery.verifying}
                 onClick={() => void recovery.verify()}
               >
                 重新核实
@@ -91,10 +95,10 @@ export const TaskCenter = () => {
               读取任务失败：{describeError(query.error)}
             </p>
           ) : null}
-          {!query.isLoading && !query.isError && count === 0 ? (
+          {!query.isLoading && !query.isError && tasks.length === 0 ? (
             <Empty>
               <EmptyHeader>
-                <EmptyTitle>没有进行中的任务</EmptyTitle>
+                <EmptyTitle>没有近期任务</EmptyTitle>
                 <EmptyDescription>
                   长耗时操作会自动出现在这里。
                 </EmptyDescription>

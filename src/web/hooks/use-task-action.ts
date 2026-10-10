@@ -15,6 +15,7 @@ import { taskKindLabel } from "@web/features/tasks/labels"
 import {
   forgetPendingRequest,
   rememberPendingRequest,
+  usePendingRequests,
 } from "@web/features/tasks/pending-requests"
 import { taskKeys, useTaskDetail } from "@web/features/tasks/queries"
 import { useEffect, useRef, useState } from "react"
@@ -50,27 +51,29 @@ export const useTaskAction = <TBody, TPayload = undefined>(
   const [acceptedTaskId, setAcceptedTaskId] = useState<string | null>(null)
   const detail = useTaskDetail(acceptedTaskId)
   const task = detail.data ?? null
+  const pendingRequests = usePendingRequests()
+  const submitting = useRef(false)
   const optionsRef = useRef(options)
   optionsRef.current = options
 
   // 终结后仍保留 acceptedTaskId，但 busy 由任务状态推导，不在 effect 里回写状态。
   const unresolved =
     acceptedTaskId !== null &&
-    !detail.isError &&
-    (task === null || task.status === "running")
-  const busy = inFlight || unresolved
+    (task === null || task.status === "running" || task.status === "unknown")
+  const pendingForAction = pendingRequests.some(
+    (item) =>
+      item.kind === options.kind &&
+      (typeof options.target === "function" || item.target === options.target)
+  )
+  const busy = inFlight || unresolved || pendingForAction
 
   useEffect(() => {
     if (acceptedTaskId === null) return
-    if (detail.isError) {
-      if (markTaskNotified(acceptedTaskId)) {
-        toast.error("查不到这次操作的任务记录，请重新读取目标确定结果")
-        forgetPendingRequest({ taskId: acceptedTaskId })
-        void queryClient.invalidateQueries({ queryKey: taskKeys.active })
-      }
+    if (detail.isError || task === null || task.status === "running") return
+    if (task.status === "unknown") {
+      if (markTaskNotified(task.id)) notifyTaskTerminal(task)
       return
     }
-    if (task === null || task.status === "running") return
     forgetPendingRequest({
       requestId: task.requestId ?? undefined,
       taskId: task.id,
@@ -81,43 +84,60 @@ export const useTaskAction = <TBody, TPayload = undefined>(
   }, [acceptedTaskId, task, detail.isError, queryClient])
 
   const run = async (payload: TPayload): Promise<void> => {
-    if (busy) return
+    if (busy || submitting.current) return
     const requestId = newRequestId()
     const { kind, target } = optionsRef.current
     const targetValue = typeof target === "function" ? target(payload) : target
+    const pending = {
+      requestId,
+      kind,
+      target: targetValue,
+      startedAt: Date.now(),
+      taskId: null,
+    }
+    submitting.current = true
     setInFlight(true)
+    let requestSent = false
     try {
+      // 先持久化，再发送写请求。页面关闭或进程退出时仍可按标识核实。
+      rememberPendingRequest(pending)
+      requestSent = true
       const execution = await optionsRef.current.run(requestId, payload)
       if (execution.kind === "completed") {
+        setAcceptedTaskId(null)
+        forgetPendingRequest({ requestId })
         await optionsRef.current.onCompleted(execution.body, payload)
         return
       }
-      rememberPendingRequest({
-        requestId,
-        kind,
-        target: targetValue,
-        startedAt: Date.now(),
-        taskId: execution.body.taskId,
-      })
       setAcceptedTaskId(execution.body.taskId)
+      rememberPendingRequest({ ...pending, taskId: execution.body.taskId })
       if (optionsRef.current.onAccepted) {
         optionsRef.current.onAccepted(execution.body, payload)
       } else {
         toast(`已交给后台执行：${taskKindLabel(kind)}`)
       }
     } catch (error) {
-      if (error instanceof ApiRequestError && error.resultUnknown) {
-        // 已经登记过，只是这次响应没回来：保留标识用于核实，绝不重发。
-        rememberPendingRequest({
-          requestId,
-          kind,
-          target: targetValue,
-          startedAt: Date.now(),
-          taskId: null,
-        })
+      const rejectedBeforeExecution =
+        !requestSent ||
+        (error instanceof ApiRequestError &&
+          error.status !== null &&
+          error.status >= 400 &&
+          error.status < 500 &&
+          error.status !== 408)
+      if (rejectedBeforeExecution) {
+        forgetPendingRequest({ requestId })
       }
-      toast.error(describeError(error))
+      // 网络断开、服务端异常或响应格式错误都保留请求标识，不能安全重发。
+      toast.error(
+        requestSent
+          ? describeError(error)
+          : `操作未发送：${describeError(error)}`
+      )
     } finally {
+      submitting.current = false
+      void queryClient.invalidateQueries({ queryKey: taskKeys.active })
+      void queryClient.invalidateQueries({ queryKey: taskKeys.recent })
+      void queryClient.invalidateQueries({ queryKey: taskKeys.recovery })
       setInFlight(false)
     }
   }

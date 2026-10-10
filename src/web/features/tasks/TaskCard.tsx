@@ -4,6 +4,7 @@ import { TASK_ELAPSED_PREFIX } from "@shared/task-policy"
 import { Progress } from "@web/components/ui/progress"
 import { useClockSeconds } from "./clock"
 import { taskKindLabel, taskStatusLabel } from "./labels"
+import { TaskResult } from "./TaskResult"
 
 /**
  * 已用时间只说明等了多久，不是进度。进度数字完全来自任务上报，
@@ -95,6 +96,7 @@ export const TaskCard = ({
         </span>
         <span>更新于 {formatTimestamp(updatedAt)}</span>
       </div>
+      <TaskResult task={task} />
       {detail ? <div>{detail}</div> : null}
       {task.message ? <div>{task.message}</div> : null}
       {task.error ? <div className="text-destructive">{task.error}</div> : null}
