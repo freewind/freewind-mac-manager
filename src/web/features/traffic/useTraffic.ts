@@ -82,7 +82,7 @@ export const useTraffic = () => {
 
   const isRealtime = local.selectedIds.includes(REALTIME_SNAPSHOT_ID)
 
-  /** 手动刷新：让缓存里的数据重新拉一次（后端就绪后即重新采样）。 */
+  /** 手动刷新：让缓存里的数据重新拉一次，取到后端最新一轮采样。 */
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["traffic"] })
     notify("已刷新")

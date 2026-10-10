@@ -19,7 +19,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@web/components/ui/alert-dialog"
-import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
@@ -83,7 +82,6 @@ export const TrafficPage = () => {
         <div className="flex flex-wrap items-center gap-2">
           <HugeiconsIcon icon={DashboardSpeed02Icon} className="size-4" />
           <h1 className="text-sm font-medium">流量监控</h1>
-          <Badge variant="outline">演示数据</Badge>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
