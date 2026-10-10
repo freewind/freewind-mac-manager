@@ -121,6 +121,34 @@ const wrapper =
   )
 
 describe("TaskCenter", () => {
+  it.each([
+    ["file_delete", "删除中", "已删除"],
+    ["disk_scan", "统计文件", "已统计"],
+    ["file_copy", "复制中", "已复制到临时副本"],
+    ["file_move", "删除中", "已删除"],
+  ])("uses real byte semantics for %s", (kind, stage, verb) => {
+    render(
+      <TaskCard
+        task={TaskRecordSchema.parse(
+          taskRecord({
+            kind,
+            progress: {
+              done: 1,
+              total: null,
+              bytesDone: 1024,
+              bytesTotal: null,
+              stage,
+              currentTarget: null,
+            },
+          })
+        )}
+      />
+    )
+    expect(screen.getByText(new RegExp(`${verb} 1\\.0 KB`))).toBeTruthy()
+    expect(screen.queryByText(/已写入/)).toBeNull()
+    expect(screen.queryByText(/预计|估计/)).toBeNull()
+  })
+
   it("shows the in-progress count and the real progress numbers", async () => {
     const client = makeClient()
     render(<TaskCenter />, { wrapper: wrapper(client) })

@@ -1,4 +1,4 @@
-import type { TaskRecord } from "@shared/api-contract"
+import { TASK_KINDS, type TaskRecord } from "@shared/api-contract"
 import { formatBytes, formatTimestamp } from "@shared/format"
 import { TASK_ELAPSED_PREFIX } from "@shared/task-policy"
 import { Progress } from "@web/components/ui/progress"
@@ -22,10 +22,19 @@ const progressText = (task: TaskRecord): string | null => {
     )
   }
   if (progress.bytesDone !== null && progress.bytesDone > 0) {
+    const verb =
+      task.kind === TASK_KINDS.diskScan
+        ? "已统计"
+        : task.kind === TASK_KINDS.fileDelete || progress.stage === "删除中"
+          ? "已删除"
+          : task.kind === TASK_KINDS.fileCopy ||
+              task.kind === TASK_KINDS.fileMove
+            ? "已复制到临时副本"
+            : "已写入"
     parts.push(
       progress.bytesTotal === null
-        ? `已写入 ${formatBytes(progress.bytesDone)}`
-        : `${formatBytes(progress.bytesDone)} / ${formatBytes(progress.bytesTotal)}`
+        ? `${verb} ${formatBytes(progress.bytesDone)}`
+        : `${verb} ${formatBytes(progress.bytesDone)} / ${formatBytes(progress.bytesTotal)}`
     )
   }
   if (parts.length === 0) return progress.stage

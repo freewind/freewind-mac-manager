@@ -7,10 +7,11 @@ import {
   existsSync,
 } from "node:fs"
 import {
-  copyFile,
+  type copyFile,
   link,
   lstat,
   mkdir,
+  open,
   readdir,
   readFile,
   realpath,
@@ -47,8 +48,8 @@ const STAT_BATCH_SIZE = 64
 const TRANSFER_CONCURRENCY = 8
 
 /**
- * 文件操作进度：done/bytesDone 只统计确实处理完的条目，
- * total 只在能便宜拿到时才给（复制、移动不预先全盘统计，因此为 null）。
+ * 文件操作进度：done 统计完成条目，bytesDone 统计已完成写入或删除的字节，
+ * 分块写入的进度不代表目标已发布；扫描不预先统计，因此 total 可以为 null。
  */
 export type FileOperationProgress = {
   done: number
@@ -494,13 +495,75 @@ export const deleteEntries = async (
   return { completed, failed, partial, skipped: [], bytes: null }
 }
 
+const copyRegularFile = async (
+  source: string,
+  destination: string,
+  counter: TransferCounter,
+  report: (progress: FileOperationProgress) => void,
+  copyFileTo?: typeof copyFile
+): Promise<void> => {
+  const reportWritten = (bytes: number) => {
+    counter.bytes += bytes
+    report({
+      done: counter.done,
+      total: null,
+      bytesDone: counter.bytes,
+      stage: "复制中",
+      currentTarget: source,
+    })
+  }
+  if (copyFileTo) {
+    // 受控测试注入只能在整文件复制成功后报告字节。
+    await copyFileTo(source, destination, constants.COPYFILE_EXCL)
+    reportWritten((await lstat(destination)).size)
+  } else {
+    const input = await open(source, "r")
+    try {
+      const info = await input.stat()
+      if (!info.isFile()) throw new Error("不支持复制非普通文件")
+      const output = await open(destination, "wx", info.mode)
+      try {
+        const buffer = Buffer.alloc(256 * 1024)
+        for (;;) {
+          const { bytesRead } = await input.read(buffer, 0, buffer.length, null)
+          if (bytesRead === 0) break
+          let offset = 0
+          while (offset < bytesRead) {
+            const { bytesWritten } = await output.write(
+              buffer,
+              offset,
+              bytesRead - offset,
+              null
+            )
+            if (bytesWritten === 0) throw new Error("复制写入未取得进展")
+            offset += bytesWritten
+            reportWritten(bytesWritten)
+          }
+        }
+      } finally {
+        await output.close()
+      }
+    } finally {
+      await input.close()
+    }
+  }
+  counter.done += 1
+  report({
+    done: counter.done,
+    total: null,
+    bytesDone: counter.bytes,
+    stage: "复制中",
+    currentTarget: source,
+  })
+}
+
 const copyRecursive = async (
   source: string,
   destination: string,
   counter: TransferCounter,
   report: (progress: FileOperationProgress) => void,
   context: TransferContext,
-  copyFileTo: typeof copyFile
+  copyFileTo?: typeof copyFile
 ): Promise<void> => {
   const sourceInfo = await runTransferLimited(context, () => lstat(source))
   if (sourceInfo.isSymbolicLink()) {
@@ -530,17 +593,8 @@ const copyRecursive = async (
     throw new Error("不支持复制非普通文件")
   }
   await runTransferLimited(context, () =>
-    copyFileTo(source, destination, constants.COPYFILE_EXCL)
+    copyRegularFile(source, destination, counter, report, copyFileTo)
   )
-  counter.done += 1
-  counter.bytes += sourceInfo.size
-  report({
-    done: counter.done,
-    total: null,
-    bytesDone: counter.bytes,
-    stage: "复制中",
-    currentTarget: source,
-  })
 }
 
 type PublishedEntries = {
@@ -654,7 +708,7 @@ const copyToDestination = async (
   options?: OperationOptions
 ): Promise<void> => {
   const context = createTransferContext()
-  const copyFileTo = options?.io?.copyFile ?? copyFile
+  const copyFileTo = options?.io?.copyFile
   const linkFile = options?.io?.link ?? link
   const staging = path.join(
     path.dirname(destination),
@@ -692,17 +746,8 @@ const copyToDestination = async (
     } else if (info.isFile()) {
       const stagedFile = path.join(staging, "content")
       await runTransferLimited(context, () =>
-        copyFileTo(source, stagedFile, constants.COPYFILE_EXCL)
+        copyRegularFile(source, stagedFile, counter, report, copyFileTo)
       )
-      counter.done += 1
-      counter.bytes += info.size
-      report({
-        done: counter.done,
-        total: null,
-        bytesDone: counter.bytes,
-        stage: "复制中",
-        currentTarget: source,
-      })
       const stagedInfo = await runTransferLimited(context, () =>
         lstat(stagedFile)
       )
@@ -838,8 +883,8 @@ export const moveEntries = async (
         writtenBytes += progress.bytes - bytesBeforeCopy
 
         const deletion: DeleteCounter = {
-          done: progress.done,
-          bytes: progress.bytes,
+          done: 0,
+          bytes: 0,
           removed: 0,
         }
         try {
@@ -850,11 +895,7 @@ export const moveEntries = async (
             createTransferContext(),
             removeFile
           )
-          progress.done = deletion.done
-          progress.bytes = deletion.bytes
         } catch (deleteError) {
-          progress.done = deletion.done
-          progress.bytes = deletion.bytes
           partial.push({
             path: item,
             destination: target,

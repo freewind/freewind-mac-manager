@@ -77,6 +77,32 @@ describe("file batch operations", () => {
     expect(progress.at(-1)?.total).toBeNull()
   })
 
+  it("reports written chunks before a large file is completed or published", async () => {
+    mkdirSync(source)
+    const file = path.join(source, "large.bin")
+    const data = Buffer.alloc(1024 * 1024, 42)
+    writeFileSync(file, data)
+    const progress: FileOperationProgress[] = []
+    const outcome = await copyEntries([file], destination, {
+      report: (item) => {
+        progress.push(item)
+        if (item.done === 0) {
+          expect(existsSync(path.join(destination, "large.bin"))).toBe(false)
+        }
+      },
+    })
+    const intermediate = progress.filter(
+      (item) =>
+        item.done === 0 && item.bytesDone > 0 && item.bytesDone < data.length
+    )
+    expect(intermediate.length).toBeGreaterThan(1)
+    const bytes = progress.map((item) => item.bytesDone)
+    expect(bytes).toEqual([...bytes].sort((a, b) => a - b))
+    expect(progress.at(-1)).toMatchObject({ done: 1, bytesDone: data.length })
+    expect(outcome.bytes).toBe(data.length)
+    expect(readFileSync(path.join(destination, "large.bin"))).toEqual(data)
+  })
+
   it("stages a failed partial file write without publishing it", async () => {
     makeTree()
     let startedCopies = 0
