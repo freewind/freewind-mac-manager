@@ -547,6 +547,92 @@ describe("useTaskAction", () => {
 })
 
 describe("useTaskRecovery", () => {
+  it.each([
+    ["service_action", "系统服务操作"],
+    ["disk_entry_reveal", "在访达中定位"],
+    ["disk_entry_trash", "移到废纸篓"],
+  ])("recovers action results and guards for %s", async (kind, label) => {
+    let status = "running"
+    const id = `task-${kind}`
+    const requestId = `req_${kind}_recovery`
+    const completed = vi.fn()
+    const run = vi.fn()
+    registerTaskCompletion(kind, completed)
+    rememberPendingRequest({
+      requestId,
+      kind,
+      target: "/tmp/audit",
+      startedAt: 1000,
+      taskId: id,
+    })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        json(
+          TaskRecordSchema.parse(
+            taskRecord({
+              id,
+              requestId,
+              kind,
+              target: "/tmp/audit",
+              status,
+              result: status === "done" ? { message: "动作已完成" } : null,
+              finishedAt: status === "running" ? null : 1010,
+            })
+          )
+        )
+      )
+    )
+    const client = makeClient()
+    const { result } = renderHook(
+      () => ({
+        recovery: useTaskRecovery(true),
+        action: useTaskAction({
+          kind,
+          target: "/tmp/audit",
+          run,
+          onCompleted: vi.fn(),
+        }),
+      }),
+      { wrapper: wrapper(client) }
+    )
+    await waitFor(() => expect(result.current.recovery.verifying).toBe(false))
+    expect(result.current.action.busy).toBe(true)
+    status = "unknown"
+    await act(async () => {
+      await result.current.recovery.verify()
+    })
+    await waitFor(() => expect(result.current.recovery.unresolved).toBe(1))
+    expect(listPendingRequests()).toHaveLength(1)
+    expect(result.current.action.busy).toBe(true)
+    expect(completed).not.toHaveBeenCalled()
+    expect(toastMock.success).not.toHaveBeenCalled()
+
+    status = "done"
+    await act(async () => {
+      await result.current.recovery.verify()
+    })
+    await waitFor(() => expect(result.current.action.busy).toBe(false))
+    expect(listPendingRequests()).toEqual([])
+    expect(completed).toHaveBeenCalledWith(
+      expect.objectContaining({ kind, status: "done" })
+    )
+    expect(run).not.toHaveBeenCalled()
+    render(
+      <TaskCard
+        task={TaskRecordSchema.parse(
+          taskRecord({
+            kind,
+            status: "done",
+            result: { message: "动作已完成" },
+          })
+        )}
+      />
+    )
+    expect(screen.getByText(label)).toBeTruthy()
+    expect(screen.getByText("动作已完成")).toBeTruthy()
+  })
+
   const seedPending = (taskId: string | null): void => {
     rememberPendingRequest({
       requestId: "req_recovery0000000001",

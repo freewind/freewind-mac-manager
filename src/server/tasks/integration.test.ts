@@ -5,7 +5,12 @@ import path from "node:path"
 import { createApp } from "@server/app"
 import { TaskStore } from "@server/common/tasks/store"
 import type { TaskOutcome } from "@server/common/tasks/worker-host"
-import { TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
+import {
+  TASK_KINDS,
+  TASK_REQUEST_ID_HEADER,
+  TaskRecordSchema,
+} from "@shared/api-contract"
+import { ApiPath } from "@shared/api-path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const { businessStore, command, migrate } = vi.hoisted(() => ({
@@ -83,6 +88,73 @@ const get = async (url: string) => {
 }
 
 describe("task wiring through the real app", () => {
+  it.each([
+    {
+      kind: TASK_KINDS.serviceAction,
+      url: ApiPath.systemServicesRestart,
+      method: "POST",
+      body: { label: "com.example.audit", domain: "user" },
+    },
+    {
+      kind: TASK_KINDS.diskEntryReveal,
+      url: ApiPath.diskGrowthReveal,
+      method: "POST",
+      body: { path: "/tmp/audit" },
+    },
+    {
+      kind: TASK_KINDS.diskEntryTrash,
+      url: `${ApiPath.diskGrowthEntry}?path=${encodeURIComponent("/tmp/audit")}`,
+      method: "DELETE",
+      body: undefined,
+    },
+  ])("exposes accepted and completed $kind actions", async (action) => {
+    const requestId = `req_${action.kind}_audit`
+    const response = await fetch(`${baseUrl}${action.url}`, {
+      method: action.method,
+      headers: {
+        [TASK_REQUEST_ID_HEADER]: requestId,
+        "content-type": "application/json",
+      },
+      body: action.body ? JSON.stringify(action.body) : undefined,
+    })
+    expect(response.status).toBe(202)
+    const accepted = await response.json()
+    expect(accepted.kind).toBe(action.kind)
+    expect(dispatched).toHaveLength(1)
+
+    const active = await get(ApiPath.tasks)
+    expect(active.body.total).toBe(1)
+    expect(active.body.tasks).toHaveLength(1)
+    const running = await get(`${ApiPath.tasks}/${accepted.taskId}`)
+    expect(running.status).toBe(200)
+    expect(TaskRecordSchema.parse(running.body).status).toBe("running")
+    const byRequest = await get(
+      `${ApiPath.tasks}?status=all&requestId=${requestId}`
+    )
+    expect(byRequest.body.tasks[0].id).toBe(accepted.taskId)
+
+    dispatched[0].resolve({
+      result: { message: "动作已完成" },
+      message: "动作已完成",
+      status: "done",
+    })
+    await expect.poll(() => store.get(accepted.taskId)?.status).toBe("done")
+    const done = await get(`${ApiPath.tasks}/${accepted.taskId}`)
+    expect(done.status).toBe(200)
+    expect(TaskRecordSchema.parse(done.body)).toMatchObject({
+      kind: action.kind,
+      status: "done",
+      result: { message: "动作已完成" },
+    })
+    expect((await get(ApiPath.tasks)).body.tasks).toEqual([])
+    const history = await get(
+      `${ApiPath.tasks}?status=all&requestId=${requestId}`
+    )
+    expect(history.body.total).toBe(1)
+    expect(history.body.tasks).toHaveLength(1)
+    expect(history.body.tasks[0].status).toBe("done")
+  })
+
   it("is reachable under /api and starts empty", async () => {
     const listed = await get("/api/tasks")
     expect(listed.status).toBe(200)

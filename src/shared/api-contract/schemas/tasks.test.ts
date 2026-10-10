@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { TaskAcceptedSchema, TaskRequestIdHeadersSchema } from "./common"
 import {
+  TASK_KINDS,
   TaskListQuerySchema,
   TaskListResponseSchema,
   TaskProgressSchema,
@@ -115,6 +116,41 @@ describe("task schemas", () => {
         kind: "unknown_kind",
         result: null,
       }).success
+    ).toBe(false)
+  })
+
+  it.each(Object.values(TASK_KINDS))(
+    "accepts every registered kind in queryable states: %s",
+    (kind) => {
+      for (const status of ["running", "done", "failed", "unknown"]) {
+        expect(
+          TaskRecordSchema.safeParse({
+            ...baseTask,
+            kind,
+            status,
+            result: null,
+          }).success
+        ).toBe(true)
+      }
+    }
+  )
+
+  it.each([
+    TASK_KINDS.serviceAction,
+    TASK_KINDS.diskEntryReveal,
+    TASK_KINDS.diskEntryTrash,
+  ])("validates action results for %s", (kind) => {
+    expect(
+      TaskRecordSchema.safeParse({
+        ...baseTask,
+        kind,
+        status: "done",
+        result: { message: "动作已完成" },
+      }).success
+    ).toBe(true)
+    expect(
+      TaskRecordSchema.safeParse({ ...baseTask, kind, result: { removed: 1 } })
+        .success
     ).toBe(false)
   })
 
