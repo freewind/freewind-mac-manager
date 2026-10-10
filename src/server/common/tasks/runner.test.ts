@@ -255,7 +255,7 @@ describe("task runner", () => {
     calls[0].reject(new Error("权限不足"))
 
     const result = await submission
-    expect(result).toMatchObject({ kind: "conflict", message: "权限不足" })
+    expect(result).toMatchObject({ kind: "failed", message: "权限不足" })
     const row = store.findByRequestId("req-0000000000000008")
     expect(row?.status).toBe("failed")
     // 失败的请求不会自动重做
@@ -266,7 +266,7 @@ describe("task runner", () => {
       requestId: "req-0000000000000008",
       toCompletedResponse,
     })
-    expect(retry.kind).toBe("conflict")
+    expect(retry.kind).toBe("failed")
     expect(calls).toHaveLength(1)
   })
 

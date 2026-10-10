@@ -14,7 +14,7 @@ import {
 } from "./store"
 import type { TaskOutcome, TaskRunnerHost } from "./worker-host"
 
-export type TaskSubmitRequest = {
+export type TaskSubmitRequest<TBody = unknown> = {
   kind: string
   /** 冲突判定用的作用域，例如文件路径或配置路径。 */
   target: string
@@ -24,14 +24,19 @@ export type TaskSubmitRequest = {
   /** 把完成结果转成该端点自己的完成响应（200/201 与 body）。 */
   toCompletedResponse: (outcome: TaskOutcome) => {
     status: 200 | 201
-    body: unknown
+    body: TBody
   }
 }
 
-export type TaskSubmitResult =
-  | { kind: "completed"; status: 200 | 201; body: unknown }
+export type TaskSubmitResult<TBody = unknown> =
+  | { kind: "completed"; status: 200 | 201; body: TBody }
   | { kind: "accepted"; body: TaskAccepted }
+  /** 目标或请求标识冲突：尚未开始，客户端不应自动重试。 */
   | { kind: "conflict"; message: string }
+  /** 动作确实执行了但失败：这是一次真实失败，不是排队冲突。 */
+  | { kind: "failed"; message: string }
+  /** 结果无法确认（服务中断、响应丢失）：既不能说成功，也不能直接重做。 */
+  | { kind: "unknown"; message: string }
 
 type Running = {
   taskId: string
@@ -87,7 +92,9 @@ export class TaskRunner {
     return this.store.markInterrupted(nowSeconds())
   }
 
-  async submit(request: TaskSubmitRequest): Promise<TaskSubmitResult> {
+  async submit<TBody>(
+    request: TaskSubmitRequest<TBody>
+  ): Promise<TaskSubmitResult<TBody>> {
     if (this.shuttingDown) {
       return { kind: "conflict", message: "服务正在关闭，未开始新的操作" }
     }
@@ -108,14 +115,14 @@ export class TaskRunner {
         }
         if (existing.status === "unknown") {
           return {
-            kind: "conflict",
+            kind: "unknown",
             message:
               existing.error ?? "该请求的结果未知，请重新读取目标确认后再操作",
           }
         }
         if (existing.status === "failed") {
           return {
-            kind: "conflict",
+            kind: "failed",
             message: existing.error ?? "该请求此前执行失败，未重复执行",
           }
         }
@@ -178,11 +185,20 @@ export class TaskRunner {
 
     const final = this.store.get(taskId)
     if (!final) {
-      return { kind: "conflict", message: "任务记录丢失，请重新读取目标确认" }
-    }
-    if (final.status === "failed" || final.status === "unknown") {
       return {
-        kind: "conflict",
+        kind: "unknown",
+        message: "任务记录丢失，请重新读取目标确认结果",
+      }
+    }
+    if (final.status === "unknown") {
+      return {
+        kind: "unknown",
+        message: final.error ?? "结果无法确认，请重新读取目标",
+      }
+    }
+    if (final.status === "failed") {
+      return {
+        kind: "failed",
         message: final.error ?? "操作失败",
       }
     }
@@ -218,9 +234,9 @@ export class TaskRunner {
     })
   }
 
-  private async execute(
+  private async execute<TBody>(
     taskId: string,
-    request: TaskSubmitRequest
+    request: TaskSubmitRequest<TBody>
   ): Promise<void> {
     const controller = new AbortController()
     const state: Running = {

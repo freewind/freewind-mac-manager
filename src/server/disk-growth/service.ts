@@ -1,79 +1,61 @@
+import type { TaskRunner, TaskSubmitResult } from "@server/common/tasks/runner"
 import { DATABASE_FILE } from "@server/env"
-import type { ScanStatus } from "@shared/api-contract"
-import { describeError } from "@shared/format"
-import { defaultScanConfig, scanFileSystem } from "./scanner"
+import type { ScanTaskResult } from "@shared/api-contract"
+import { ScanTaskResultSchema } from "@shared/api-contract/schemas/disk-growth"
+import { scanTaskTarget } from "@shared/task-targets"
 import { DiskGrowthStore } from "./store"
+import { SCAN_KIND, type ScanOutcome } from "./task"
 
-const KEEP_SNAPSHOTS = 90
 /** 每日自动扫描时刻（本地时间）。 */
 export const SCHEDULED_HOUR = 6
 
+/** 扫描根：固定整盘，保持与既有快照的历史一致。 */
+export const SCAN_ROOT = "/"
+
 const store = new DiskGrowthStore(DATABASE_FILE)
 
-let state: ScanStatus = {
-  running: false,
-  phase: "尚未扫描",
-  startedAt: null,
-  finishedAt: null,
-  scannedEntries: 0,
-  lastError: null,
-}
-
+/** 读接口共用的存储连接（只读路径）；扫描写入在后台执行器里独立完成。 */
 export const diskGrowthStore = store
 
-export const getScanStatus = (): ScanStatus => ({ ...state })
-
-export const startScan = (): { started: boolean; message: string } => {
-  if (state.running) {
-    return { started: false, message: "已有扫描正在进行中" }
+/** 执行器返回的结果必须是契约里的形状，否则不能当成完成结果返回给客户端。 */
+const toCompletedResponse = (outcome: {
+  result: unknown
+}): { status: 201; body: ScanTaskResult } => {
+  const parsed = ScanTaskResultSchema.safeParse(outcome.result)
+  if (!parsed.success) {
+    throw new Error("扫描结果不符合契约，无法作为完成结果返回")
   }
-  state = {
-    running: true,
-    phase: "准备中",
-    startedAt: Date.now() / 1000,
-    finishedAt: null,
-    scannedEntries: 0,
-    lastError: null,
-  }
-  void runScan()
-  return { started: true, message: "扫描已开始" }
+  return { status: 201, body: parsed.data }
 }
 
-const runScan = async (): Promise<void> => {
-  const startedAt = state.startedAt ?? Date.now() / 1000
-  try {
-    const result = await scanFileSystem(defaultScanConfig(), (phase) => {
-      state.phase = phase
-    })
-    state.phase = "写入快照"
-    const finishedAt = Date.now() / 1000
-    const scanId = store.insertSnapshot(result, {
-      startedAt,
-      finishedAt,
-      root: "/",
-    })
-    store.pruneSnapshots(KEEP_SNAPSHOTS)
-    state = {
-      running: false,
-      phase: `扫描完成，快照 #${scanId}`,
-      startedAt,
-      finishedAt,
-      scannedEntries: result.fileCount,
-      lastError: null,
-    }
-  } catch (error) {
-    state = {
-      ...state,
-      running: false,
-      phase: "扫描失败",
-      finishedAt: Date.now() / 1000,
-      lastError: describeError(error),
-    }
+/**
+ * 提交一次扫描任务。
+ *
+ * requestId 为空表示不是客户端请求发起（例如每日定时扫描）；两者共用同一个
+ * 目标锁，因此定时扫描与手动扫描不会同时跑。
+ */
+export const submitScanTask = (
+  runner: TaskRunner,
+  requestId: string | null
+): Promise<TaskSubmitResult<ScanTaskResult>> =>
+  runner.submit({
+    kind: SCAN_KIND,
+    target: scanTaskTarget(SCAN_ROOT),
+    payload: { root: SCAN_ROOT },
+    requestId,
+    toCompletedResponse,
+  })
+
+const describeOutcome = (outcome: TaskSubmitResult<ScanTaskResult>): string => {
+  if (outcome.kind === "completed") {
+    return `已完成（快照 #${outcome.body.snapshotId}）`
   }
+  if (outcome.kind === "accepted") return "已转入后台执行"
+  return outcome.message
 }
 
-/** 等到下一个 6:00 执行扫描，完成后继续排下一次。 */
-export const startScheduler = (): void => {
+/** 等到下一个 6:00 提交扫描任务，不等待它执行完，然后继续排下一次。 */
+export const startScheduler = (runner: TaskRunner): void => {
   const scheduleNext = (): void => {
     const now = new Date()
     const next = new Date(now)
@@ -86,9 +68,15 @@ export const startScheduler = (): void => {
       `[mac-manager] 下次自动扫描：${next.toLocaleString("zh-CN")}（${Math.round(delay / 1000)} 秒后）`
     )
     setTimeout(() => {
-      startScan()
+      void submitScanTask(runner, null).then(
+        (outcome) =>
+          console.log(`[mac-manager] 定时扫描：${describeOutcome(outcome)}`),
+        (error) => console.error(`[mac-manager] 定时扫描失败：${error}`)
+      )
       scheduleNext()
     }, delay)
   }
   scheduleNext()
 }
+
+export type { ScanOutcome }

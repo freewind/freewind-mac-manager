@@ -71,10 +71,12 @@ export const newRequestId = (): string => {
   return `req_${hex}`
 }
 
-/** 把请求标识放进 extraHeaders：它不属于任何单个端点的契约，是跨域的传输约定。 */
+/** 写操作的请求标识头；键取自契约里的常量，保证与服务端校验一致。 */
 export const taskRequestHeaders = (
   requestId: string
-): Record<string, string> => ({ [TASK_REQUEST_ID_HEADER]: requestId })
+): { [TASK_REQUEST_ID_HEADER]: string } => ({
+  [TASK_REQUEST_ID_HEADER]: requestId,
+})
 
 /** 请求是写操作：结果未知时的措辞与重试策略都不同。 */
 export const isWriteMethod = (method: string): boolean =>

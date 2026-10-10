@@ -8,7 +8,6 @@ export const ApiPath = {
   health: `${API_BASE}/health`,
   diskGrowthScans: `${API_BASE}/disk-growth/scans`,
   diskGrowthEntries: `${API_BASE}/disk-growth/entries`,
-  diskGrowthScanStatus: `${API_BASE}/disk-growth/scan-status`,
   diskGrowthTree: `${API_BASE}/disk-growth/tree`,
   diskGrowthScan: `${API_BASE}/disk-growth/scan`,
   diskGrowthReveal: `${API_BASE}/disk-growth/reveal`,

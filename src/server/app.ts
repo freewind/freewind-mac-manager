@@ -2,7 +2,10 @@ import { createExpressEndpoints } from "@ts-rest/express"
 import express from "express"
 import { authContract, createAuthManager, createAuthRouter } from "./auth"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
-import { diskGrowthContract, diskGrowthRouter } from "./disk-growth/handlers"
+import {
+  createDiskGrowthRouter,
+  diskGrowthContract,
+} from "./disk-growth/handlers"
 import {
   filesContract,
   filesRouter,
@@ -34,12 +37,19 @@ export const createApp = (injected?: {
   app.use(express.json({ limit: "32mb" }))
   // 不开 jsonQuery：client 默认发普通 query string，schema 里用 z.coerce 接收数字。
   const options = { logInitialization: false }
+  // 任务运行时先建好：长任务端点（如磁盘扫描）需要提交任务。
+  const taskRuntime = injected?.tasks ?? createTaskRuntime()
   const auth = createAuthManager()
   createExpressEndpoints(authContract, createAuthRouter(auth), app, options)
   app.use(auth.middleware)
   createExpressEndpoints(healthContract, healthRouter, app, options)
   createExpressEndpoints(dashboardContract, dashboardRouter, app, options)
-  createExpressEndpoints(diskGrowthContract, diskGrowthRouter, app, options)
+  createExpressEndpoints(
+    diskGrowthContract,
+    createDiskGrowthRouter(taskRuntime),
+    app,
+    options
+  )
   createExpressEndpoints(filesContract, filesRouter, app, options)
   registerUploadEndpoint(app)
   createExpressEndpoints(frpContract, frpRouter, app, options)
@@ -54,7 +64,6 @@ export const createApp = (injected?: {
   createExpressEndpoints(trafficContract, trafficRouter, app, options)
 
   // 任务查询在鉴权之后挂载：任务里会带本机路径，不能公开。
-  const taskRuntime = injected?.tasks ?? createTaskRuntime()
   createExpressEndpoints(
     tasksContract,
     createTasksRouter(taskRuntime.store),

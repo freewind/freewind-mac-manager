@@ -1,13 +1,11 @@
-import type { GrowthEntry, ScanStatus, TreeNode } from "@shared/api-contract"
+import type { GrowthEntry, TreeNode } from "@shared/api-contract"
 import {
   deleteScans as deleteScansApi,
   fetchEntries,
-  fetchScanStatus,
   fetchScans,
   fetchTree,
   revealEntry as revealEntryApi,
   trashEntry as trashEntryApi,
-  triggerScan,
 } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
@@ -15,7 +13,6 @@ import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 export const diskGrowthKeys = {
   all: ["disk-growth"] as const,
   snapshots: ["disk-growth", "snapshots"] as const,
-  status: ["disk-growth", "scan-status"] as const,
   entries: (scanId: number, baseline: number | null, path: string) =>
     ["disk-growth", "entries", scanId, baseline, path] as const,
   search: (scanId: number, baseline: number | null, keyword: string) =>
@@ -55,25 +52,6 @@ export const useSelectionRange = (
   const to = Math.max(...indexes)
   const ids = snapshots.slice(from, to + 1).map((snapshot) => snapshot.id)
   return { ids, scanId: ids[0], baselineScanId: snapshots[to + 1]?.id ?? null }
-}
-
-const IDLE_STATUS: ScanStatus = {
-  running: false,
-  phase: "尚未扫描",
-  startedAt: null,
-  finishedAt: null,
-  scannedEntries: 0,
-  lastError: null,
-}
-
-export const useScanStatus = (): ScanStatus => {
-  const query = useQuery({
-    queryKey: diskGrowthKeys.status,
-    queryFn: fetchScanStatus,
-    refetchInterval: (query) =>
-      query.state.data?.running === true ? 2000 : false,
-  })
-  return query.data ?? IDLE_STATUS
 }
 
 export const useChildren = (options: {
@@ -145,24 +123,6 @@ export const useSubtree = (options: {
     },
   })
   return { root: query.data ?? null, isLoading: query.isLoading }
-}
-
-export const useStartScan = () => {
-  const client = useQueryClient()
-  const resetForNewSnapshot = useDiskGrowthLocalStore(
-    (state) => state.resetForNewSnapshot
-  )
-  return useMutation({
-    mutationFn: async (): Promise<string> => {
-      const result = await triggerScan()
-      client.invalidateQueries({ queryKey: diskGrowthKeys.status })
-      return result.message
-    },
-    onSuccess: () => {
-      resetForNewSnapshot()
-      client.invalidateQueries({ queryKey: diskGrowthKeys.snapshots })
-    },
-  })
 }
 
 export const useDeleteScans = () => {

@@ -72,7 +72,8 @@ export class DiskGrowthStore {
         Math.round(result.totalSize),
         result.dirCount,
         result.fileCount,
-        0,
+        // 记录本次扫描是否碰到不可读项：不完整的结果不能当成完整的全盘结果。
+        result.incomplete ? 1 : 0,
         result.foldedCount
       )
       const scanId = Number(scanResult.lastInsertRowid)
@@ -92,6 +93,11 @@ export class DiskGrowthStore {
       this.db.exec("ROLLBACK")
       throw error
     }
+  }
+
+  /** 关闭连接：后台执行器完成任务后必须释放，避免多个进程长期占用同一份库。 */
+  close(): void {
+    this.db.close()
   }
 
   listSnapshots(): ScanSnapshot[] {

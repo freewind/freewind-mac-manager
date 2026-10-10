@@ -65,8 +65,8 @@ describe("request identity", () => {
       ids.add(id)
     }
     expect(ids.size).toBe(20)
-    expect(taskRequestHeaders("req_1")).toEqual({
-      [TASK_REQUEST_ID_HEADER]: "req_1",
+    expect(taskRequestHeaders("req_0123456789abcdef")).toEqual({
+      [TASK_REQUEST_ID_HEADER]: "req_0123456789abcdef",
     })
   })
 
@@ -89,7 +89,7 @@ describe("request identity", () => {
     )
 
     const response = await apiClient.startScan({
-      extraHeaders: taskRequestHeaders("req_0123456789abcdef"),
+      headers: taskRequestHeaders("req_0123456789abcdef"),
     })
 
     expect(response.status).toBe(202)
@@ -107,7 +107,7 @@ describe("request identity", () => {
 
     try {
       await apiClient.startScan({
-        extraHeaders: taskRequestHeaders("req_0123456789abcdef"),
+        headers: taskRequestHeaders("req_0123456789abcdef"),
       })
       throw new Error("expected a failure")
     } catch (error) {
@@ -132,10 +132,14 @@ describe("request identity", () => {
     )
 
     await expect(
-      apiClient.startScan({ extraHeaders: taskRequestHeaders("req_1") })
+      apiClient.startScan({
+        headers: taskRequestHeaders("req_0123456789abcdef"),
+      })
     ).rejects.toMatchObject({ resultUnknown: true })
     await expect(
-      apiClient.startScan({ extraHeaders: taskRequestHeaders("req_1") })
+      apiClient.startScan({
+        headers: taskRequestHeaders("req_0123456789abcdef"),
+      })
     ).rejects.toThrow(/超时/)
 
     vi.stubGlobal(
@@ -167,7 +171,7 @@ describe("request identity", () => {
 
     const controller = new AbortController()
     const promise = apiClient.startScan({
-      extraHeaders: taskRequestHeaders("req_0123456789abcdef"),
+      headers: taskRequestHeaders("req_0123456789abcdef"),
       fetchOptions: { signal: controller.signal },
     })
     const assertion = expect(promise).rejects.toMatchObject({
@@ -193,7 +197,7 @@ describe("request identity", () => {
       )
     )
     const response = await apiClient.startScan({
-      extraHeaders: taskRequestHeaders("req_1"),
+      headers: taskRequestHeaders("req_0123456789abcdef"),
     })
     expect(response.status).toBe(401)
     expect(() => unwrap(response)).toThrow(ApiRequestError)

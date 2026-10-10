@@ -13,13 +13,17 @@ import {
   TrashIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import type { GrowthEntry } from "@shared/api-contract"
+import type { GrowthEntry, ScanTaskResult } from "@shared/api-contract"
+import { triggerScan } from "@shared/client-api"
 import {
   describeError,
   formatBytes,
   formatSignedBytes,
   formatTimestamp,
 } from "@shared/format"
+import { scanTaskTarget } from "@shared/task-targets"
+import { useQueryClient } from "@tanstack/react-query"
+import { ActionButton } from "@web/components/ActionButton"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,26 +71,38 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { IcicleChart } from "@web/features/disk-growth/IcicleChart"
 import {
+  diskGrowthKeys,
   useChildren,
   useDeleteScans,
   useRevealEntry,
-  useScanStatus,
   useSearch,
   useSelectionRange,
   useSnapshots,
-  useStartScan,
   useTrashEntry,
 } from "@web/features/disk-growth/queries"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
+import { registerTaskCompletion } from "@web/features/tasks/completion"
+import { TaskCard } from "@web/features/tasks/TaskCard"
+import { useTaskAction } from "@web/hooks/use-task-action"
 import { cn } from "@web/lib/utils"
-import { type ComponentType, type ReactNode, useMemo, useState } from "react"
+import {
+  type ComponentType,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
 import { toast } from "sonner"
 
 const INDENT = 14
 
 export const DiskGrowthPage = () => {
   const { snapshots, isLoading } = useSnapshots()
-  const status = useScanStatus()
+  const queryClient = useQueryClient()
+  const resetForNewSnapshot = useDiskGrowthLocalStore(
+    (state) => state.resetForNewSnapshot
+  )
   const view = useDiskGrowthLocalStore((state) => state.view)
   const setView = useDiskGrowthLocalStore((state) => state.setView)
   const keyword = useDiskGrowthLocalStore((state) => state.keyword)
@@ -106,7 +122,23 @@ export const DiskGrowthPage = () => {
     return days > 0 ? days : 1
   }, [snapshots, range.scanId, range.baselineScanId])
 
-  const startScan = useStartScan()
+  /** 扫描完成后快照列表才需要刷新；扫描进行中保留旧快照，不显示半成品。 */
+  const refreshAfterScan = useCallback(() => {
+    resetForNewSnapshot()
+    void queryClient.invalidateQueries({ queryKey: diskGrowthKeys.snapshots })
+  }, [queryClient, resetForNewSnapshot])
+
+  // 定时扫描不由本页发起，因此统一登记一份完成处理，两条路径都能刷新。
+  useEffect(() => {
+    registerTaskCompletion("disk_scan", refreshAfterScan)
+  }, [refreshAfterScan])
+
+  const scan = useTaskAction<ScanTaskResult>({
+    kind: "disk_scan",
+    target: scanTaskTarget("/"),
+    run: triggerScan,
+    onCompleted: refreshAfterScan,
+  })
   const isSearching = keyword.trim().length > 0
 
   return (
@@ -140,30 +172,22 @@ export const DiskGrowthPage = () => {
           <Button variant="outline" size="sm" onClick={collapseAll}>
             全部收起
           </Button>
-          <Button
+          <ActionButton
             size="sm"
-            onClick={() =>
-              startScan.mutate(undefined, {
-                onSuccess: (message) => notify(message),
-                onError: (error) =>
-                  toast.error(`扫描启动失败：${describeError(error)}`),
-              })
-            }
-            disabled={status.running}
+            busy={scan.busy}
+            busyLabel="扫描中…"
+            onClick={() => void scan.run()}
           >
             <HugeiconsIcon icon={RefreshIcon} />
             立即扫描
-          </Button>
+          </ActionButton>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span>{status.phase}</span>
-          {status.lastError ? (
-            <span className="text-destructive">{status.lastError}</span>
-          ) : null}
           <span>
             区间 {range.ids.length} 份 / {spanDays.toFixed(1)} 天
           </span>
         </div>
+        {scan.task ? <TaskCard task={scan.task} /> : null}
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -171,7 +195,7 @@ export const DiskGrowthPage = () => {
           snapshots={snapshots}
           isLoading={isLoading}
           onNotice={notify}
-          busiest={startScan.isPending}
+          busiest={scan.busy}
         />
 
         {view === "icicle" ? (

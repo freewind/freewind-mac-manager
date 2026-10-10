@@ -135,5 +135,11 @@ export const useTaskAction = <T>(options: TaskActionOptions<T>) => {
     }
   }
 
-  return { busy, run, watchingTaskId: unresolved ? acceptedTaskId : null }
+  return {
+    busy,
+    run,
+    /** 正在跟踪的任务记录（含真实进度）；无任务时为 null。 */
+    task,
+    watchingTaskId: unresolved ? acceptedTaskId : null,
+  }
 }

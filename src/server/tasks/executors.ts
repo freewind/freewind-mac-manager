@@ -1,3 +1,8 @@
+import {
+  runScanTask,
+  SCAN_KIND,
+  ScanPayloadSchema,
+} from "@server/disk-growth/task"
 import type { TaskProgress } from "@shared/api-contract"
 
 export type TaskExecutorOutcome = {
@@ -38,5 +43,26 @@ export const createExecutorRegistry = (
   }
 }
 
-/** 各域的实现按接入顺序登记在这里；未登记的 kind 直接报错，不做隐式回退。 */
-export const taskExecutors: TaskExecutor[] = []
+/**
+ * 各域的实现按接入顺序登记在这里；未登记的 kind 直接报错。
+ * 载荷必须先按该种类自己的 schema 校验，再交给实现。
+ */
+export const taskExecutors: TaskExecutor[] = [
+  {
+    kind: SCAN_KIND,
+    run: async (payload, context) => {
+      const parsed = ScanPayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("扫描任务载荷非法")
+      const outcome = await runScanTask({
+        root: parsed.data.root,
+        report: context.report,
+      })
+      return {
+        result: outcome.result,
+        message: outcome.message,
+        // 有不可读项时如实报部分完成，不报成完整成功。
+        status: outcome.incomplete ? "partial" : "done",
+      }
+    },
+  },
+]

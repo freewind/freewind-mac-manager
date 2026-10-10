@@ -1,15 +1,19 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
 import { c } from "../init"
-import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
+import {
+  ActionResponseSchema,
+  ApiErrorSchema,
+  TaskAcceptedSchema,
+  TaskRequestIdHeadersSchema,
+} from "../schemas/common"
 import {
   DeleteScansQuerySchema,
   EntriesQuerySchema,
   EntriesResponseSchema,
   EntryPathBodySchema,
   EntryPathQuerySchema,
-  ScanStartResponseSchema,
-  ScanStatusSchema,
   ScansResponseSchema,
+  ScanTaskResultSchema,
   TreeQuerySchema,
   TreeResponseSchema,
 } from "../schemas/disk-growth"
@@ -46,20 +50,17 @@ export const diskGrowthRoutes = {
       ...errorResponses,
     },
   },
-  scanStatus: {
-    method: "GET",
-    path: toContractPath(ApiPath.diskGrowthScanStatus),
-    responses: {
-      200: ScanStatusSchema,
-      ...errorResponses,
-    },
-  },
+  // 扫描是长任务：阈值内完成返回 201 与快照信息，否则返回 202 与任务标识。
+  // 请求标识由契约强制要求，客户端据此复用任务，网络重试不会变成第二次扫描。
   startScan: {
     method: "POST",
     path: toContractPath(ApiPath.diskGrowthScan),
     body: c.noBody(),
+    headers: TaskRequestIdHeadersSchema,
     responses: {
-      202: ScanStartResponseSchema,
+      201: ScanTaskResultSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
       ...errorResponses,
     },
   },

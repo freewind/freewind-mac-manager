@@ -11,7 +11,6 @@ import type {
   GrowthEntrySchema,
   ScanSnapshotSchema,
   ScanStartResponseSchema,
-  ScanStatusSchema,
   ScansResponseSchema,
   ScanTaskResultSchema,
   TreeNodeWire,
@@ -32,7 +31,6 @@ import type {
 } from "./schemas/tasks"
 export type ScanSnapshot = z.infer<typeof ScanSnapshotSchema>
 export type GrowthEntry = z.infer<typeof GrowthEntrySchema>
-export type ScanStatus = z.infer<typeof ScanStatusSchema>
 export type ScansResponse = z.infer<typeof ScansResponseSchema>
 export type EntriesResponse = z.infer<typeof EntriesResponseSchema>
 export type ScanStartResponse = z.infer<typeof ScanStartResponseSchema>

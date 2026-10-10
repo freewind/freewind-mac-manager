@@ -20,15 +20,6 @@ export const GrowthEntrySchema = z.object({
   folded: z.boolean(),
 })
 
-export const ScanStatusSchema = z.object({
-  running: z.boolean(),
-  phase: z.string(),
-  startedAt: z.number().nullable(),
-  finishedAt: z.number().nullable(),
-  scannedEntries: z.number(),
-  lastError: z.string().nullable(),
-})
-
 export const ScansResponseSchema = z.object({
   snapshots: z.array(ScanSnapshotSchema),
 })
