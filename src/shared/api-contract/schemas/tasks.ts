@@ -49,6 +49,8 @@ export const TASK_KINDS = {
   fileWriteContent: "file_write_content",
   frpConfigSave: "frp_config_save",
   serviceAction: "service_action",
+  diskEntryReveal: "disk_entry_reveal",
+  diskEntryTrash: "disk_entry_trash",
   trafficSnapshotSave: "traffic_snapshot_save",
   trafficSnapshotMerge: "traffic_snapshot_merge",
   trafficSnapshotDelete: "traffic_snapshot_delete",
@@ -155,6 +157,18 @@ export const FrpConfigSaveTaskSchema = z.object({
 export const ServiceActionTaskSchema = z.object({
   ...taskBase,
   kind: z.literal(TASK_KINDS.serviceAction),
+  result: ActionResponseSchema.nullable(),
+})
+
+export const DiskEntryRevealTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.diskEntryReveal),
+  result: ActionResponseSchema.nullable(),
+})
+
+export const DiskEntryTrashTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.diskEntryTrash),
   result: ActionResponseSchema.nullable(),
 })
 

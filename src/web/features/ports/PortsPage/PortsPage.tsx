@@ -168,6 +168,7 @@ export const PortsPage = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
+              disabled={model.killBusy}
               onClick={() => {
                 pendingConfirm?.onConfirm()
                 setPendingConfirm(null)

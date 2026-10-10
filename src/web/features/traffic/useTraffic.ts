@@ -278,6 +278,8 @@ export const useTraffic = () => {
     snapshotWriteBusy: saveAction.busy || mergeAction.busy || deleteAction.busy,
     snapshotTask: saveAction.task ?? mergeAction.task ?? deleteAction.task,
     terminate,
+    /** 结束进程进行中：同一次操作不能重复提交。 */
+    killBusy: killProcesses.isPending,
 
     // 页面级提示
     notify,

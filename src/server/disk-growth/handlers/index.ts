@@ -1,10 +1,10 @@
 import type { TaskRuntime } from "@server/tasks/runtime"
 import { contract } from "@shared/api-contract"
 import { initServer } from "@ts-rest/express"
-import { trashEntry } from "./entry.delete"
+import { createTrashEntryHandler } from "./entry.delete"
 import { listEntries } from "./list-entries.get"
 import { listScans } from "./list-scans.get"
-import { revealEntry } from "./reveal.post"
+import { createRevealEntryHandler } from "./reveal.post"
 import { createStartScanHandler } from "./scan.post"
 import { createDeleteScansHandler } from "./scans.delete"
 import { subtree } from "./subtree.get"
@@ -34,7 +34,7 @@ export const createDiskGrowthRouter = (runtime: TaskRuntime) =>
     listEntries,
     subtree,
     startScan: createStartScanHandler(runtime),
-    revealEntry,
+    revealEntry: createRevealEntryHandler(runtime),
     deleteScans: createDeleteScansHandler(runtime),
-    trashEntry,
+    trashEntry: createTrashEntryHandler(runtime),
   })

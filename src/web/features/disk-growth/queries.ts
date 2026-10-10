@@ -1,4 +1,5 @@
 import {
+  type ActionResponse,
   type DiskSnapshotDeleteResult,
   type GrowthEntry,
   TASK_KINDS,
@@ -12,7 +13,8 @@ import {
   revealEntry as revealEntryApi,
   trashEntry as trashEntryApi,
 } from "@shared/client-api"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { fileTaskTarget } from "@shared/task-targets"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
 import { useTaskAction } from "@web/hooks/use-task-action"
@@ -170,15 +172,38 @@ export const useDeleteScans = () => {
   })
 }
 
+/**
+ * 访达定位与移到废纸篓：受理时不动缓存，只有真正完成才刷新；
+ * 废纸篓会改变目录结构，因此完成后整域缓存失效。
+ */
 export const useRevealEntry = () =>
-  useMutation({ mutationFn: (path: string) => revealEntryApi(path) })
+  useTaskAction<ActionResponse, string>({
+    kind: TASK_KINDS.diskEntryReveal,
+    target: (path) => fileTaskTarget([path]),
+    run: (requestId, path) => revealEntryApi(requestId, path),
+    onCompleted: (result) => {
+      toast.success(result.message)
+    },
+  })
 
 export const useTrashEntry = () => {
   const client = useQueryClient()
-  return useMutation({
-    mutationFn: (path: string) => trashEntryApi(path),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: diskGrowthKeys.all })
+
+  const refresh = useCallback((): void => {
+    void client.invalidateQueries({ queryKey: diskGrowthKeys.all })
+  }, [client])
+
+  useEffect(() => {
+    registerTaskCompletion(TASK_KINDS.diskEntryTrash, refresh)
+  }, [refresh])
+
+  return useTaskAction<ActionResponse, string>({
+    kind: TASK_KINDS.diskEntryTrash,
+    target: (path) => fileTaskTarget([path]),
+    run: (requestId, path) => trashEntryApi(requestId, path),
+    onCompleted: (result) => {
+      refresh()
+      toast.success(result.message)
     },
   })
 }

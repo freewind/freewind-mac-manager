@@ -524,12 +524,8 @@ const BranchRow = ({
                 复制本行信息
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() =>
-                  void reveal.mutateAsync(entry.path).then(
-                    (result) => onNotice(result.message),
-                    (error: unknown) => onNotice(describeError(error))
-                  )
-                }
+                disabled={reveal.busy}
+                onClick={() => void reveal.run(entry.path)}
               >
                 <HugeiconsIcon icon={FolderOpenIcon} />
                 在访达中打开
@@ -554,12 +550,10 @@ const BranchRow = ({
                 <AlertDialogCancel>取消</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
+                  disabled={trash.busy}
                   onClick={() => {
                     setConfirmOpen(false)
-                    void trash.mutateAsync(entry.path).then(
-                      (result) => onNotice(result.message),
-                      (error: unknown) => onNotice(describeError(error))
-                    )
+                    void trash.run(entry.path)
                   }}
                 >
                   移到废纸篓

@@ -4,8 +4,9 @@ import {
   TASK_KINDS,
   type TaskProgress,
 } from "@shared/api-contract"
-import { scanTaskTarget } from "@shared/task-targets"
+import { fileTaskTarget, scanTaskTarget } from "@shared/task-targets"
 import { z } from "zod"
+import { moveToTrash, revealInFinder } from "./file-actions.ts"
 import {
   defaultScanConfig,
   type ScanConfig,
@@ -21,6 +22,64 @@ export const SCAN_KIND = TASK_KINDS.diskScan
 export { scanTaskTarget }
 
 export const DISCARD_KIND = TASK_KINDS.diskSnapshotDelete
+export const REVEAL_KIND = TASK_KINDS.diskEntryReveal
+export const TRASH_KIND = TASK_KINDS.diskEntryTrash
+
+/** 访达与废纸篓只接受一个绝对路径，不接受命令或参数。 */
+export const EntryPathPayloadSchema = z.object({
+  path: z.string().min(1),
+})
+
+/** 与文件域共用同一把按路径的作用域锁：同一个文件不会被两处同时操作。 */
+export { fileTaskTarget as entryTaskTarget }
+
+export const runRevealEntryTask = async (options: {
+  path: string
+  report: (progress: TaskProgress) => void
+}): Promise<{ result: { message: string }; message: string }> => {
+  options.report({
+    done: 0,
+    total: 1,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: "在访达中显示",
+    currentTarget: options.path,
+  })
+  const message = await revealInFinder(options.path)
+  options.report({
+    done: 1,
+    total: 1,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: "完成",
+    currentTarget: null,
+  })
+  return { result: { message }, message }
+}
+
+export const runTrashEntryTask = async (options: {
+  path: string
+  report: (progress: TaskProgress) => void
+}): Promise<{ result: { message: string }; message: string }> => {
+  options.report({
+    done: 0,
+    total: 1,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: "移到废纸篓",
+    currentTarget: options.path,
+  })
+  const message = await moveToTrash(options.path)
+  options.report({
+    done: 1,
+    total: 1,
+    bytesDone: null,
+    bytesTotal: null,
+    stage: "完成",
+    currentTarget: null,
+  })
+  return { result: { message }, message }
+}
 
 export const DeleteSnapshotsPayloadSchema = z.object({
   scanIds: z.array(z.number().int().positive()).min(1).max(200),

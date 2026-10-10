@@ -222,6 +222,7 @@ export const ProcessesPage = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
+              disabled={model.killBusy}
               variant="destructive"
               onClick={() => {
                 const action = pending

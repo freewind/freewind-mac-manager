@@ -9,9 +9,12 @@ import { DiskGrowthStore } from "./store"
 import {
   DeleteSnapshotsPayloadSchema,
   DISCARD_KIND,
+  EntryPathPayloadSchema,
+  REVEAL_KIND,
   runDeleteScansTask,
   runScanTask,
   SCAN_KIND,
+  TRASH_KIND,
 } from "./task"
 
 let dir: string
@@ -190,6 +193,37 @@ describe("runDeleteScansTask", () => {
     expect(
       DeleteSnapshotsPayloadSchema.safeParse({ scanIds: ["1"] }).success
     ).toBe(false)
+  })
+})
+
+describe("entry reveal and trash payloads", () => {
+  it("accepts only a single path and rejects anything else", () => {
+    expect(EntryPathPayloadSchema.safeParse({ path: "/tmp/a" }).success).toBe(
+      true
+    )
+    expect(EntryPathPayloadSchema.safeParse({ path: "" }).success).toBe(false)
+    expect(EntryPathPayloadSchema.safeParse({}).success).toBe(false)
+    // 不接受命令或参数：外部输入无法指定要执行什么
+    expect(
+      EntryPathPayloadSchema.safeParse({ path: "/tmp/a", script: "rm -rf /" })
+        .success
+    ).toBe(true)
+  })
+
+  it("rejects a malformed payload before touching the filesystem", async () => {
+    const registry = createExecutorRegistry(taskExecutors)
+    await expect(
+      registry.get(TRASH_KIND)?.run({ path: "" }, { report: () => undefined })
+    ).rejects.toThrow("移到废纸篓载荷非法")
+    await expect(
+      registry.get(REVEAL_KIND)?.run({}, { report: () => undefined })
+    ).rejects.toThrow("访达定位载荷非法")
+  })
+
+  it("registers both kinds", () => {
+    const kinds = createExecutorRegistry(taskExecutors).kinds()
+    expect(kinds).toContain(TRASH_KIND)
+    expect(kinds).toContain(REVEAL_KIND)
   })
 })
 

@@ -31,11 +31,28 @@ export const triggerScan = async (
     apiClient.startScan({ headers: taskRequestHeaders(requestId) })
   )
 
-export const revealEntry = async (path: string): Promise<ActionResponse> =>
-  unwrap<ActionResponse>(await apiClient.revealEntry({ body: { path } }))
+/** 访达定位与移到废纸篓都走任务：请求标识由服务端用来复用任务。 */
+export const revealEntry = async (
+  requestId: string,
+  path: string
+): Promise<Execution<ActionResponse>> =>
+  runExecution<ActionResponse>(() =>
+    apiClient.revealEntry({
+      body: { path },
+      headers: taskRequestHeaders(requestId),
+    })
+  )
 
-export const trashEntry = async (path: string): Promise<ActionResponse> =>
-  unwrap<ActionResponse>(await apiClient.trashEntry({ query: { path } }))
+export const trashEntry = async (
+  requestId: string,
+  path: string
+): Promise<Execution<ActionResponse>> =>
+  runExecution<ActionResponse>(() =>
+    apiClient.trashEntry({
+      query: { path },
+      headers: taskRequestHeaders(requestId),
+    })
+  )
 
 /** 删除快照同样是任务：请求标识由服务端用来复用，结果要么完成要么受理。 */
 export const deleteScans = async (

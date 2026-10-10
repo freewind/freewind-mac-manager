@@ -1,10 +1,15 @@
 import {
   DeleteSnapshotsPayloadSchema,
   DISCARD_KIND,
+  EntryPathPayloadSchema,
+  REVEAL_KIND,
   runDeleteScansTask,
+  runRevealEntryTask,
   runScanTask,
+  runTrashEntryTask,
   SCAN_KIND,
   ScanPayloadSchema,
+  TRASH_KIND,
 } from "@server/disk-growth/task"
 import {
   FILE_COPY_KIND,
@@ -117,6 +122,30 @@ export const taskExecutors: TaskExecutor[] = [
         // 有不可读项时如实报部分完成，不报成完整成功。
         status: outcome.incomplete ? "partial" : "done",
       }
+    },
+  },
+  {
+    kind: REVEAL_KIND,
+    run: async (payload, context) => {
+      const parsed = EntryPathPayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("访达定位载荷非法")
+      const outcome = await runRevealEntryTask({
+        path: parsed.data.path,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: TRASH_KIND,
+    run: async (payload, context) => {
+      const parsed = EntryPathPayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("移到废纸篓载荷非法")
+      const outcome = await runTrashEntryTask({
+        path: parsed.data.path,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
     },
   },
   {

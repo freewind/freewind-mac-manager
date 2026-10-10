@@ -173,6 +173,8 @@ export const useProcesses = () => {
     // 动作与派生量
     refresh,
     terminate,
+    /** 结束进程进行中：同一次操作不能重复提交。 */
+    killBusy: killMutation.isPending,
     checkedProcesses,
     checkedSummary,
   }
