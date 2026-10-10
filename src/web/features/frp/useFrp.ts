@@ -5,7 +5,10 @@ import {
   type FrpProxy,
   TASK_KINDS,
 } from "@shared/api-contract"
-import { saveFrpConfig as saveFrpConfigApi } from "@shared/client-api"
+import {
+  fetchFrpConfig,
+  saveFrpConfig as saveFrpConfigApi,
+} from "@shared/client-api"
 import { describeError } from "@shared/format"
 import { configSignature, serializeFrpcToml } from "@shared/frp-format"
 import { frpConfigTaskTarget } from "@shared/task-targets"
@@ -19,8 +22,9 @@ import {
   useUpdateProxy,
 } from "@web/features/frp/queries"
 import { useFrpLocalStore } from "@web/features/frp/store"
+import { registerTaskCompletion } from "@web/features/tasks/completion"
 import { useTaskAction } from "@web/hooks/use-task-action"
-import { useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { toast } from "sonner"
 
 /**
@@ -157,10 +161,31 @@ export const useFrp = () => {
     }
   }
 
-  /** 重新读取 frpc 配置。 */
-  const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: frpKeys.config })
-    toast.info("已重新读取 frpc 配置")
+  /** 后台成功后仅核实磁盘指纹，保留用户当前的草稿。 */
+  const reconcileSaved = useCallback(async () => {
+    try {
+      const persisted = await fetchFrpConfig()
+      queryClient.setQueryData<FrpConfig>(frpKeys.config, (previous) =>
+        previous
+          ? { ...previous, savedSignature: persisted.savedSignature }
+          : persisted
+      )
+    } catch (error) {
+      toast.error(`保存任务已完成，但读取保存状态失败：${describeError(error)}`)
+    }
+  }, [queryClient])
+
+  useEffect(() => {
+    registerTaskCompletion(TASK_KINDS.frpConfigSave, async (task) => {
+      if (task.status === "done") await reconcileSaved()
+    })
+  }, [reconcileSaved])
+
+  /** 重新读取 frpc 配置，结束后才反馈真实结果。 */
+  const refresh = async () => {
+    const result = await configQuery.refetch()
+    if (result.isError) toast.error(`读取失败：${describeError(result.error)}`)
+    else toast.info("已重新读取 frpc 配置")
   }
 
   const saveAction = useTaskAction<ActionResponse, FrpConfigInput>({

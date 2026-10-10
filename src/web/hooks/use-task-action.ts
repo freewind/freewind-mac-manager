@@ -81,7 +81,12 @@ export const useTaskAction = <TBody, TPayload = undefined>(
     })
     void queryClient.invalidateQueries({ queryKey: taskKeys.active })
     void runTaskCompletion(task)
-    if (markTaskNotified(task.id)) notifyTaskTerminal(task)
+      .then(() => {
+        if (markTaskNotified(task.id)) notifyTaskTerminal(task)
+      })
+      .catch((error: unknown) => {
+        toast.error(`操作已终结，但读取结果失败：${describeError(error)}`)
+      })
   }, [acceptedTaskId, task, detail.isError, queryClient])
 
   const run = async (payload: TPayload): Promise<boolean> => {
