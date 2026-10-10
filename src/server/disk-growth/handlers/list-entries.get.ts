@@ -10,17 +10,18 @@ export const listEntries = async ({
     keyword?: string
   }
 }) => {
+  const store = diskGrowthStore()
   const baselineScanId =
-    query.baselineScanId ?? diskGrowthStore.previousScanId(query.scanId)
+    query.baselineScanId ?? store.previousScanId(query.scanId)
   const keyword = query.keyword?.trim()
   const current = keyword
     ? null
-    : diskGrowthStore.getEntry({
+    : store.getEntry({
         scanId: query.scanId,
         previousScanId: baselineScanId,
         path: query.path,
       })
-  const entries = diskGrowthStore.listEntries({
+  const entries = store.listEntries({
     scanId: query.scanId,
     baselineScanId,
     parent: query.path,

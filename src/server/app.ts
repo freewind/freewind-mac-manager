@@ -27,6 +27,8 @@ import { initializeTraffic, startTrafficSampler } from "./traffic/service"
 export const createApp = (injected?: {
   /** 注入任务运行时；缺省时使用真实数据库与子进程执行器。测试可传受控替身。 */
   tasks?: TaskRuntime
+  /** HTTP 测试关闭业务迁移与采样；生产默认执行初始化。 */
+  initializeBusiness?: boolean
 }): express.Express => {
   const app = express()
   // 文件管理的删除接口用数组 query，ts-rest client 发的是 paths[0]=… ，
@@ -68,7 +70,7 @@ export const createApp = (injected?: {
     options
   )
   // 迁库与采样只在应用进程里做；后台执行器不会重复执行它们。
-  initializeTraffic()
+  if (injected?.initializeBusiness !== false) initializeTraffic()
   createExpressEndpoints(
     trafficContract,
     createTrafficRouter(taskRuntime),
@@ -84,6 +86,6 @@ export const createApp = (injected?: {
   )
 
   // dev 模式下 api 中间件只加载 createApp，采样在这里启动（重复调用是幂等的）。
-  startTrafficSampler()
+  if (injected?.initializeBusiness !== false) startTrafficSampler()
   return app
 }

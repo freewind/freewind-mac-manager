@@ -12,10 +12,13 @@ export const SCHEDULED_HOUR = 6
 /** 扫描根：固定整盘，保持与既有快照的历史一致。 */
 export const SCAN_ROOT = "/"
 
-const store = new DiskGrowthStore(DATABASE_FILE)
+let store: DiskGrowthStore | null = null
 
 /** 读接口共用的存储连接（只读路径）；扫描写入在后台执行器里独立完成。 */
-export const diskGrowthStore = store
+export const diskGrowthStore = (): DiskGrowthStore => {
+  store ??= new DiskGrowthStore(DATABASE_FILE)
+  return store
+}
 
 /** 执行器返回的结果必须是契约里的形状，否则不能当成完成结果返回给客户端。 */
 const toCompletedResponse = (outcome: {

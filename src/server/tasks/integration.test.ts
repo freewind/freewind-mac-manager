@@ -6,7 +6,28 @@ import { createApp } from "@server/app"
 import { TaskStore } from "@server/common/tasks/store"
 import type { TaskOutcome } from "@server/common/tasks/worker-host"
 import { TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const { businessStore, command, migrate } = vi.hoisted(() => ({
+  businessStore: vi.fn(() => {
+    throw new Error("测试禁止打开业务数据库")
+  }),
+  command: vi.fn(() => {
+    throw new Error("测试禁止执行真实命令")
+  }),
+  migrate: vi.fn(() => {
+    throw new Error("测试禁止迁移业务数据库")
+  }),
+}))
+vi.mock("@server/traffic/store", () => ({ TrafficStore: businessStore }))
+vi.mock("@server/disk-growth/store", () => ({ DiskGrowthStore: businessStore }))
+vi.mock("@server/traffic/migrate", () => ({ migrateTrafficDatabase: migrate }))
+vi.mock("node:child_process", () => ({
+  execFile: command,
+  spawn: command,
+  execFileSync: command,
+}))
+
 import { createTaskRuntime, type TaskRuntime } from "./runtime"
 
 /**
@@ -38,7 +59,7 @@ beforeEach(async () => {
         }),
     },
   })
-  const app = createApp({ tasks: runtime })
+  const app = createApp({ tasks: runtime, initializeBusiness: false })
   server = app.listen(0)
   await new Promise((resolve) => server.once("listening", resolve))
   const address = server.address()
@@ -51,6 +72,9 @@ afterEach(async () => {
   await new Promise((resolve) => server.close(resolve))
   store.close()
   rmSync(dir, { recursive: true, force: true })
+  expect(businessStore).not.toHaveBeenCalled()
+  expect(command).not.toHaveBeenCalled()
+  expect(migrate).not.toHaveBeenCalled()
 })
 
 const get = async (url: string) => {

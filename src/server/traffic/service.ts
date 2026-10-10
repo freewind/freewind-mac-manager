@@ -24,7 +24,12 @@ export const SAMPLE_INTERVAL_SECONDS = 5
 
 const LEGACY_DATABASE_FILE = path.join(DATA_DIR, "traffic.sqlite3")
 
-const store = new TrafficStore(DATABASE_FILE)
+let store: TrafficStore | null = null
+
+const trafficStore = (): TrafficStore => {
+  store ??= new TrafficStore(DATABASE_FILE)
+  return store
+}
 
 let initialized = false
 
@@ -34,8 +39,9 @@ let initialized = false
  */
 export const initializeTraffic = (): void => {
   if (initialized) return
-  initialized = true
+  trafficStore()
   migrateTrafficDatabase(DATABASE_FILE, LEGACY_DATABASE_FILE)
+  initialized = true
 }
 
 /** 写操作的完成结果：只带定位与说明所需的最小信息。 */
@@ -220,7 +226,7 @@ export const sampleOnce = async (): Promise<void> => {
     }
 
     lastTotals = nextTotals
-    store.insertSamples(rows)
+    trafficStore().insertSamples(rows)
     lastError = null
   } catch (error) {
     lastError = describeError(error)
@@ -247,11 +253,12 @@ export const stopTrafficSampler = (): void => {
 }
 
 export const getTrafficStatus = (): TrafficStatus => {
-  const { bytesIn, bytesOut } = store.latestSampleDelta()
+  const db = trafficStore()
+  const { bytesIn, bytesOut } = db.latestSampleDelta()
   return {
     running: timer !== null,
     intervalSeconds: SAMPLE_INTERVAL_SECONDS,
-    sampledAt: store.latestSampleTimestamp(),
+    sampledAt: db.latestSampleTimestamp(),
     downloadRate: bytesOut / SAMPLE_INTERVAL_SECONDS,
     uploadRate: bytesIn / SAMPLE_INTERVAL_SECONDS,
   }
@@ -358,12 +365,13 @@ const toSnapshot = (
 }
 
 export const listSnapshots = async (): Promise<TrafficSnapshot[]> => {
-  const rows = store.listSnapshotRows()
+  const db = trafficStore()
+  const rows = db.listSnapshotRows()
   if (rows.length === 0) {
     return []
   }
 
-  const entries = store.listEntries(rows.map((row) => row.id))
+  const entries = db.listEntries(rows.map((row) => row.id))
   const bySnapshot = new Map<string, Omit<SnapshotEntryRow, "snapshotId">[]>()
   for (const entry of entries) {
     const list = bySnapshot.get(entry.snapshotId) ?? []
@@ -387,7 +395,7 @@ export const captureSnapshot = async (
   savedBy: "scheduled" | "manual",
   options?: { report?: TrafficReport; store?: TrafficStore }
 ): Promise<SnapshotSaveOutcome> => {
-  const db = options?.store ?? store
+  const db = options?.store ?? trafficStore()
   const report = options?.report
   const now = seconds(Date.now())
   const fromAt = snapshotStartTime(db)
@@ -461,12 +469,13 @@ export const realtimeGroups = async (): Promise<{
   scope: string
   groups: TrafficGroup[]
 }> => {
-  const ts = store.latestSampleTimestamp()
+  const db = trafficStore()
+  const ts = db.latestSampleTimestamp()
   if (ts === null) {
     return { scope: "实时（还没有采样）", groups: [] }
   }
 
-  const samples = store.listSamples(ts, ts + 1)
+  const samples = db.listSamples(ts, ts + 1)
   const pids = [...new Set(samples.map((row) => row.pid))]
   const [active, ports] = await Promise.all([
     runningPids(),
@@ -500,12 +509,13 @@ export const groupsForSnapshots = async (
   scope: string
   groups: TrafficGroup[]
 }> => {
-  const rows = store.listSnapshotRows().filter((row) => ids.includes(row.id))
+  const db = trafficStore()
+  const rows = db.listSnapshotRows().filter((row) => ids.includes(row.id))
   if (rows.length === 0) {
     return { scope: "未选择快照", groups: [] }
   }
 
-  const entries = store.listEntries(rows.map((row) => row.id))
+  const entries = db.listEntries(rows.map((row) => row.id))
   const pids = [...new Set(entries.flatMap((entry) => entry.pids))]
   const [active, ports] = await Promise.all([
     runningPids(),
@@ -555,7 +565,7 @@ export const deleteSnapshots = async (
   ids: string[],
   options?: { report?: TrafficReport; store?: TrafficStore }
 ): Promise<string[]> => {
-  const db = options?.store ?? store
+  const db = options?.store ?? trafficStore()
   let total = 0
   const remaining = db.transaction(() => {
     const rows = db.listSnapshotRows()
@@ -641,7 +651,7 @@ export const mergeSnapshots = async (
   ids: string[],
   options?: { report?: TrafficReport; store?: TrafficStore }
 ): Promise<string[]> => {
-  const db = options?.store ?? store
+  const db = options?.store ?? trafficStore()
   const report = options?.report
   let total = 0
   const remaining = db.transaction(() => {

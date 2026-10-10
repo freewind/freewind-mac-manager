@@ -10,13 +10,14 @@ export const subtree = async ({
     depth: number
   }
 }) => {
+  const store = diskGrowthStore()
   const baselineScanId =
-    query.baselineScanId ?? diskGrowthStore.previousScanId(query.scanId)
+    query.baselineScanId ?? store.previousScanId(query.scanId)
   const target = query.path === "" ? "/" : query.path
   return {
     status: 200 as const,
     body: {
-      root: diskGrowthStore.subtree({
+      root: store.subtree({
         scanId: query.scanId,
         baselineScanId,
         path: target,
