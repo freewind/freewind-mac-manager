@@ -1,4 +1,5 @@
-import type { ServiceDomain } from "@shared/api-contract"
+import type { ActionResponse, ServiceDomain } from "@shared/api-contract"
+import type { Execution } from "@shared/client-api"
 import {
   fetchSystemServices,
   loadSystemService,
@@ -8,7 +9,7 @@ import {
   stopSystemService,
   uninstallSystemService,
 } from "@shared/client-api"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import type { ServiceAction } from "@web/features/system-services/actions"
 
 /** 远程状态统一走 TanStack Query，数据来源是后端 /api/system-services。 */
@@ -28,34 +29,29 @@ export type ServiceActionInput = {
   action: ServiceAction
 }
 
-const callAction = (
+/**
+ * 发起一次 launchctl 动作：请求标识由动作编排生成，服务端据此复用任务。
+ * 完成只代表命令执行完，真实状态由列表重新读取确认。
+ */
+export const callServiceAction = (
+  requestId: string,
   input: ServiceActionInput
-): Promise<{ message: string }> => {
+): Promise<Execution<ActionResponse>> => {
   const target = { label: input.label, domain: input.domain }
   switch (input.action) {
     case "start":
-      return startSystemService(target)
+      return startSystemService(requestId, target)
     case "stop":
-      return stopSystemService(target)
+      return stopSystemService(requestId, target)
     case "restart":
-      return restartSystemService(target)
+      return restartSystemService(requestId, target)
     case "load":
-      return loadSystemService(target)
+      return loadSystemService(requestId, target)
     case "unload":
-      return uninstallSystemService(target)
+      return uninstallSystemService(requestId, target)
     case "disable":
-      return setSystemServiceEnabled({ ...target, disabled: true })
+      return setSystemServiceEnabled(requestId, { ...target, disabled: true })
     case "enable":
-      return setSystemServiceEnabled({ ...target, disabled: false })
+      return setSystemServiceEnabled(requestId, { ...target, disabled: false })
   }
-}
-
-/** 执行一次 launchctl 操作，成功后让列表重新拉取真实状态。 */
-export const useServiceAction = () => {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: callAction,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: systemServiceKeys.list }),
-  })
 }

@@ -48,6 +48,7 @@ export const TASK_KINDS = {
   fileRename: "file_rename",
   fileWriteContent: "file_write_content",
   frpConfigSave: "frp_config_save",
+  serviceAction: "service_action",
   trafficSnapshotSave: "traffic_snapshot_save",
   trafficSnapshotMerge: "traffic_snapshot_merge",
   trafficSnapshotDelete: "traffic_snapshot_delete",
@@ -148,6 +149,12 @@ export const FileWriteContentTaskSchema = z.object({
 export const FrpConfigSaveTaskSchema = z.object({
   ...taskBase,
   kind: z.literal(TASK_KINDS.frpConfigSave),
+  result: ActionResponseSchema.nullable(),
+})
+
+export const ServiceActionTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.serviceAction),
   result: ActionResponseSchema.nullable(),
 })
 

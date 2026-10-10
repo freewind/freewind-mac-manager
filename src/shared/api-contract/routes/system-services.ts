@@ -1,5 +1,10 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
-import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
+import {
+  ActionResponseSchema,
+  ApiErrorSchema,
+  TaskAcceptedSchema,
+  TaskRequestIdHeadersSchema,
+} from "../schemas/common"
 import {
   ServiceEnabledBodySchema,
   ServicesResponseSchema,
@@ -27,42 +32,84 @@ export const systemServicesRoutes = {
     method: "PUT",
     path: toContractPath(ApiPath.systemServicesRun),
     body: ServiceTargetBodySchema,
-    responses: { 200: ActionResponseSchema, ...serviceErrorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...serviceErrorResponses,
+    },
   },
   stopSystemService: {
     method: "DELETE",
     path: toContractPath(ApiPath.systemServicesRun),
     query: ServiceTargetQuerySchema,
-    responses: { 200: ActionResponseSchema, ...serviceErrorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...serviceErrorResponses,
+    },
   },
   restartSystemService: {
     method: "POST",
     path: toContractPath(ApiPath.systemServicesRestart),
     body: ServiceTargetBodySchema,
-    responses: { 200: ActionResponseSchema, ...serviceErrorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...serviceErrorResponses,
+    },
   },
   loadSystemService: {
     method: "PUT",
     path: toContractPath(ApiPath.systemServicesLoaded),
     body: ServiceTargetBodySchema,
-    responses: { 200: ActionResponseSchema, ...serviceErrorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...serviceErrorResponses,
+    },
   },
   uninstallSystemService: {
     method: "DELETE",
     path: toContractPath(ApiPath.systemService),
     query: ServiceTargetQuerySchema,
-    responses: { 200: ActionResponseSchema, ...serviceErrorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...serviceErrorResponses,
+    },
   },
   setSystemServiceEnabled: {
     method: "PATCH",
     path: toContractPath(ApiPath.systemService),
     body: ServiceEnabledBodySchema,
-    responses: { 200: ActionResponseSchema, ...serviceErrorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...serviceErrorResponses,
+    },
   },
   revealSystemService: {
     method: "POST",
     path: toContractPath(ApiPath.systemServicesReveal),
     body: ServiceTargetBodySchema,
-    responses: { 200: ActionResponseSchema, ...serviceErrorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...serviceErrorResponses,
+    },
   },
 } as const

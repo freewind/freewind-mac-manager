@@ -1,18 +1,27 @@
-import type { ServiceDomain, SystemService } from "@shared/api-contract"
+import {
+  type ActionResponse,
+  type ServiceDomain,
+  type SystemService,
+  TASK_KINDS,
+} from "@shared/api-contract"
 import { revealSystemService } from "@shared/client-api"
 import { describeError } from "@shared/format"
+import { serviceTaskTarget } from "@shared/task-targets"
 import { useQueryClient } from "@tanstack/react-query"
 import {
   CONFIRM_REQUIRED,
   type ServiceAction,
 } from "@web/features/system-services/actions"
 import {
+  callServiceAction,
+  type ServiceActionInput,
   systemServiceKeys,
-  useServiceAction,
   useServicesQuery,
 } from "@web/features/system-services/queries"
 import { useSystemServicesLocalStore } from "@web/features/system-services/store"
-import { useMemo, useState } from "react"
+import { registerTaskCompletion } from "@web/features/tasks/completion"
+import { useTaskAction } from "@web/hooks/use-task-action"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 export type PendingAction = {
@@ -34,7 +43,25 @@ export const useSystemServices = () => {
   const [pending, setPending] = useState<PendingAction | null>(null)
 
   const servicesQuery = useServicesQuery()
-  const serviceAction = useServiceAction()
+
+  // 动作完成后列表重新读取真实状态；慢路径由按种类登记的完成处理刷新。
+  const refreshServices = useCallback((): void => {
+    void queryClient.invalidateQueries({ queryKey: systemServiceKeys.list })
+  }, [queryClient])
+
+  useEffect(() => {
+    registerTaskCompletion(TASK_KINDS.serviceAction, refreshServices)
+  }, [refreshServices])
+
+  const serviceAction = useTaskAction<ActionResponse, ServiceActionInput>({
+    kind: TASK_KINDS.serviceAction,
+    target: (payload) => serviceTaskTarget(payload.domain, payload.label),
+    run: (requestId, payload) => callServiceAction(requestId, payload),
+    onCompleted: (result) => {
+      refreshServices()
+      toast.success(result.message)
+    },
+  })
 
   const services = useMemo(
     () => servicesQuery.data?.services ?? [],
@@ -81,13 +108,11 @@ export const useSystemServices = () => {
   )
 
   const run = (action: ServiceAction, target: SystemService) => {
-    serviceAction.mutate(
-      { label: target.label, domain: target.domain, action },
-      {
-        onSuccess: (data) => toast.success(data.message),
-        onError: (error) => toast.error(describeError(error)),
-      }
-    )
+    void serviceAction.run({
+      label: target.label,
+      domain: target.domain,
+      action,
+    })
   }
 
   /** 入口：需要确认的先弹窗，其余直接执行。 */
@@ -118,15 +143,25 @@ export const useSystemServices = () => {
     setPending(null)
   }
 
+  const revealAction = useTaskAction<
+    ActionResponse,
+    { label: string; domain: ServiceDomain }
+  >({
+    kind: TASK_KINDS.serviceAction,
+    target: (payload) => serviceTaskTarget(payload.domain, payload.label),
+    run: (requestId, payload) => revealSystemService(requestId, payload),
+    onCompleted: (result) => {
+      toast.success(result.message)
+    },
+  })
+
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: systemServiceKeys.list })
     toast.success(`已重新读取 ${services.length} 个 plist 与 launchd 状态`)
   }
 
   const reveal = (target: SystemService) => {
-    void revealSystemService({ label: target.label, domain: target.domain })
-      .then((result) => toast.success(result.message))
-      .catch((error) => toast.error(describeError(error)))
+    void revealAction.run({ label: target.label, domain: target.domain })
   }
 
   const copy = (text: string, what: string) => {
@@ -146,7 +181,7 @@ export const useSystemServices = () => {
     isLoading: servicesQuery.isLoading,
     isFetching: servicesQuery.isFetching,
     error: servicesQuery.isError ? describeError(servicesQuery.error) : null,
-    isPending: serviceAction.isPending,
+    isPending: serviceAction.busy || revealAction.busy,
 
     // 本地共享状态
     selectedLabel: selected?.label ?? null,

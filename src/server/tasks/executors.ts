@@ -27,6 +27,10 @@ import {
 } from "@server/files/task"
 import { FRP_SAVE_KIND, runSaveFrpTask } from "@server/frp/task"
 import {
+  runServiceActionTask,
+  SERVICE_ACTION_KIND,
+} from "@server/system-services/task"
+import {
   runDeleteSnapshotsTask,
   runMergeSnapshotsTask,
   runSaveSnapshotTask,
@@ -113,6 +117,16 @@ export const taskExecutors: TaskExecutor[] = [
         // 有不可读项时如实报部分完成，不报成完整成功。
         status: outcome.incomplete ? "partial" : "done",
       }
+    },
+  },
+  {
+    kind: SERVICE_ACTION_KIND,
+    run: async (payload, context) => {
+      const outcome = await runServiceActionTask({
+        payload,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
     },
   },
   {

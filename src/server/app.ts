@@ -15,8 +15,8 @@ import { healthContract, healthRouter } from "./health/handlers"
 import { portsContract, portsRouter } from "./ports/handlers"
 import { processesContract, processesRouter } from "./processes/handlers"
 import {
+  createSystemServicesRouter,
   systemServicesContract,
-  systemServicesRouter,
 } from "./system-services/handlers"
 import { createTasksRouter, tasksContract } from "./tasks/handlers"
 import { createTaskRuntime, type TaskRuntime } from "./tasks/runtime"
@@ -63,7 +63,7 @@ export const createApp = (injected?: {
   createExpressEndpoints(processesContract, processesRouter, app, options)
   createExpressEndpoints(
     systemServicesContract,
-    systemServicesRouter,
+    createSystemServicesRouter(taskRuntime),
     app,
     options
   )
