@@ -57,6 +57,19 @@ describe("client response handling", () => {
 })
 
 describe("request identity", () => {
+  it("rejects offline writes before calling fetch and still permits reads", async () => {
+    vi.stubGlobal("navigator", { onLine: false })
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+    await expect(
+      apiClient.startScan({
+        headers: taskRequestHeaders("req_0123456789abcdef"),
+      })
+    ).rejects.toMatchObject({ status: 0, resultUnknown: false })
+    expect(fetchMock).not.toHaveBeenCalled()
+    await apiClient.getTrafficStatus()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
   it("generates url-safe identifiers accepted by the server contract", () => {
     const ids = new Set<string>()
     for (let index = 0; index < 20; index += 1) {

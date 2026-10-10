@@ -1,5 +1,6 @@
 import { contract, TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
 import { initClient } from "@ts-rest/core"
+import { beginWrite } from "./write-activity"
 
 /**
  * 客户端等待的上限：超过就不再等这一次响应。
@@ -67,6 +68,12 @@ export const taskRequestHeaders = (
 })
 
 /** 请求是写操作：结果未知时的措辞与重试策略都不同。 */
+export const assertWriteOnline = (): void => {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new ApiRequestError("当前离线，操作未发送", 0)
+  }
+}
+
 export const isWriteMethod = (method: string): boolean =>
   WRITE_METHODS.includes(method.toUpperCase())
 
@@ -77,50 +84,71 @@ export const apiClient = initClient(contract, {
     const requestHeaders = new Headers(headers)
     const write = isWriteMethod(method)
     const requestId = requestHeaders.get(TASK_REQUEST_ID_HEADER)
-
-    const timeoutSignal = AbortSignal.timeout(NETWORK_WAIT_MS)
-    const combined = signal
-      ? AbortSignal.any([signal, timeoutSignal])
-      : timeoutSignal
-
-    let response: Response
+    if (write) assertWriteOnline()
+    const endWrite = write ? beginWrite() : () => {}
     try {
-      response = await fetch(path, {
-        method,
-        headers: requestHeaders,
-        body: body as BodyInit | undefined,
-        credentials: "same-origin",
-        signal: combined,
-      })
-    } catch (error) {
-      const exceeded =
-        timeoutSignal.aborted ||
-        (error instanceof Error && error.name === "TimeoutError")
-      const message = exceeded
-        ? write
-          ? "等待响应超时，结果未知，请重新读取确认"
-          : "请求超时"
-        : write
-          ? "请求结果未知，请重新读取确认"
-          : "网络请求失败"
-      throw new ApiRequestError(
-        message,
-        null,
-        undefined,
-        error,
-        write,
-        requestId
-      )
-    }
-    const text = await response.text()
-    let parsed: unknown
-    if (text) {
+      const timeoutSignal = AbortSignal.timeout(NETWORK_WAIT_MS)
+      const combined = signal
+        ? AbortSignal.any([signal, timeoutSignal])
+        : timeoutSignal
+
+      let response: Response
       try {
-        parsed = JSON.parse(text)
-      } catch {
-        parsed = text
+        response = await fetch(path, {
+          method,
+          headers: requestHeaders,
+          body: body as BodyInit | undefined,
+          credentials: "same-origin",
+          signal: combined,
+        })
+      } catch (error) {
+        const exceeded =
+          timeoutSignal.aborted ||
+          (error instanceof Error && error.name === "TimeoutError")
+        const message = exceeded
+          ? write
+            ? "等待响应超时，结果未知，请重新读取确认"
+            : "请求超时"
+          : write
+            ? "请求结果未知，请重新读取确认"
+            : "网络请求失败"
+        throw new ApiRequestError(
+          message,
+          null,
+          undefined,
+          error,
+          write,
+          requestId
+        )
       }
+      let text: string
+      try {
+        text = await response.text()
+      } catch (error) {
+        throw new ApiRequestError(
+          write ? "响应中断，结果未知，请重新读取确认" : "响应读取失败",
+          null,
+          undefined,
+          error,
+          write,
+          requestId
+        )
+      }
+      let parsed: unknown
+      if (text) {
+        try {
+          parsed = JSON.parse(text)
+        } catch {
+          parsed = text
+        }
+      }
+      return {
+        status: response.status,
+        body: parsed,
+        headers: response.headers,
+      }
+    } finally {
+      endWrite()
     }
-    return { status: response.status, body: parsed, headers: response.headers }
   },
 })

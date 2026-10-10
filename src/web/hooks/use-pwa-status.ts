@@ -1,3 +1,6 @@
+import { activeWriteCount } from "@shared/client-api"
+import { useQueryClient } from "@tanstack/react-query"
+import { listPendingRequests } from "@web/features/tasks/pending-requests"
 import { useSyncExternalStore } from "react"
 
 type PwaState = {
@@ -64,7 +67,8 @@ const subscribeOnline = (onChange: () => void) => {
 const getOnline = () => navigator.onLine
 const getOnlineServer = () => true
 
-export const usePwaStatus = (): PwaState => {
+export const usePwaStatus = (updateBlocked = false): PwaState => {
+  const queryClient = useQueryClient()
   const online = useSyncExternalStore(
     subscribeOnline,
     getOnline,
@@ -77,7 +81,15 @@ export const usePwaStatus = (): PwaState => {
   )
 
   const applyUpdate = () => {
-    if (!waiting) return
+    if (
+      !waiting ||
+      !navigator.onLine ||
+      updateBlocked ||
+      activeWriteCount() > 0 ||
+      queryClient.isMutating() > 0 ||
+      listPendingRequests().length > 0
+    )
+      return
     const reload = () => window.location.reload()
     navigator.serviceWorker.addEventListener("controllerchange", reload, {
       once: true,

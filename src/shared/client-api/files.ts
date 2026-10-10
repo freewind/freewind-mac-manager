@@ -5,9 +5,17 @@ import type {
   FileContentResponse,
   FileEntry,
 } from "@shared/api-contract"
+import { UploadResponseSchema } from "@shared/api-contract/schemas/files"
 import { ApiPath } from "@shared/api-path"
-import { apiClient, taskRequestHeaders, unwrap } from "./client"
+import {
+  ApiRequestError,
+  apiClient,
+  assertWriteOnline,
+  taskRequestHeaders,
+  unwrap,
+} from "./client"
 import { type Execution, runExecution } from "./execution"
+import { beginWrite } from "./write-activity"
 
 export const fetchDirectory = async (
   path: string
@@ -121,17 +129,36 @@ export type UploadProgress = {
   total: number
 }
 
-type UploadResponseBody = {
-  message?: string
-  file?: FileEntry
+const unresolvedUploads = new Map<string, UploadResultUnknownError>()
+const activeUploads = new Set<string>()
+const uploadKey = (target: string, relative: string) =>
+  JSON.stringify([target.replace(/\/$/, ""), relative])
+
+export class UploadResultUnknownError extends ApiRequestError {
+  constructor(
+    readonly targetPath: string,
+    readonly relativePath: string,
+    readonly size: number
+  ) {
+    super(
+      "上传结果未知，请读取目标目录核实，禁止盲目重传",
+      null,
+      undefined,
+      undefined,
+      true
+    )
+  }
 }
 
-const parseUploadResponse = (text: string): UploadResponseBody | null => {
-  try {
-    return JSON.parse(text) as UploadResponseBody
-  } catch {
-    return null
-  }
+/** 只观察目标是否存在及大小；存在不等于已确认该上传的内容与完成状态。 */
+export const inspectUploadTarget = async (
+  error: UploadResultUnknownError
+): Promise<FileEntry | null> => {
+  const segments = error.relativePath.split("/")
+  const name = segments.pop()
+  const directory = [error.targetPath.replace(/\/$/, ""), ...segments].join("/")
+  const listing = await fetchDirectory(directory)
+  return listing.entries.find((entry) => entry.name === name) ?? null
 }
 
 /**
@@ -148,13 +175,48 @@ export const uploadFile = (
   }
 ): Promise<FileEntry> =>
   new Promise((resolve, reject) => {
+    assertWriteOnline()
+    if (options?.signal?.aborted) {
+      reject(new ApiRequestError("上传未发送：已取消", 0))
+      return
+    }
+    const relativePath = options?.relativePath ?? file.name
+    const key = uploadKey(targetPath, relativePath)
+    const unresolved = unresolvedUploads.get(key)
+    if (unresolved) {
+      reject(unresolved)
+      return
+    }
+    if (activeUploads.has(key)) {
+      reject(new ApiRequestError("该目标正在上传，禁止重复提交", 0))
+      return
+    }
+    activeUploads.add(key)
+    const endWrite = beginWrite()
     const query = new URLSearchParams({
       targetPath,
-      relativePath: options?.relativePath ?? file.name,
+      relativePath,
     })
     const request = new XMLHttpRequest()
     request.open("POST", `${ApiPath.filesUploads}?${query}`)
     request.setRequestHeader("content-type", "application/octet-stream")
+    request.timeout = 10 * 60 * 1000
+    const abort = () => request.abort()
+    const finish = () => {
+      activeUploads.delete(key)
+      endWrite()
+      options?.signal?.removeEventListener("abort", abort)
+    }
+    const unknown = () => {
+      finish()
+      const error = new UploadResultUnknownError(
+        targetPath,
+        relativePath,
+        file.size
+      )
+      unresolvedUploads.set(key, error)
+      reject(error)
+    }
 
     request.upload.addEventListener("progress", (event) => {
       if (event.lengthComputable) {
@@ -162,19 +224,43 @@ export const uploadFile = (
       }
     })
     request.addEventListener("load", () => {
-      const parsed = parseUploadResponse(request.responseText)
-      if (request.status >= 200 && request.status < 300 && parsed?.file) {
-        resolve(parsed.file)
+      let body: unknown
+      try {
+        body = JSON.parse(request.responseText)
+      } catch {
+        body = null
+      }
+      const parsed = UploadResponseSchema.safeParse(body)
+      if (request.status >= 200 && request.status < 300 && parsed.success) {
+        finish()
+        resolve(parsed.data.file)
         return
       }
-      reject(new Error(parsed?.message ?? `上传失败（HTTP ${request.status}）`))
+      if (
+        request.status >= 400 &&
+        request.status < 500 &&
+        request.status !== 408
+      ) {
+        finish()
+        reject(
+          new ApiRequestError(
+            `上传被拒绝（HTTP ${request.status}）`,
+            request.status,
+            body
+          )
+        )
+        return
+      }
+      unknown()
     })
-    request.addEventListener("error", () => {
-      reject(new Error("上传失败：网络错误"))
-    })
-    request.addEventListener("abort", () => {
-      reject(new Error("上传已取消"))
-    })
-    options?.signal?.addEventListener("abort", () => request.abort())
-    request.send(file)
+    request.addEventListener("error", unknown)
+    request.addEventListener("abort", unknown)
+    request.addEventListener("timeout", unknown)
+    options?.signal?.addEventListener("abort", abort, { once: true })
+    try {
+      request.send(file)
+    } catch (error) {
+      finish()
+      reject(new ApiRequestError("上传未发送", 0, undefined, error))
+    }
   })

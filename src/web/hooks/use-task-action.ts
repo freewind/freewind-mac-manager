@@ -1,6 +1,7 @@
 import type { TaskAccepted } from "@shared/api-contract"
 import {
   ApiRequestError,
+  assertWriteOnline,
   type Execution,
   newRequestId,
 } from "@shared/client-api"
@@ -99,6 +100,7 @@ export const useTaskAction = <TBody, TPayload = undefined>(
     setInFlight(true)
     let requestSent = false
     try {
+      assertWriteOnline()
       // 先持久化，再发送写请求。页面关闭或进程退出时仍可按标识核实。
       rememberPendingRequest(pending)
       requestSent = true
@@ -122,9 +124,10 @@ export const useTaskAction = <TBody, TPayload = undefined>(
         !requestSent ||
         (error instanceof ApiRequestError &&
           error.status !== null &&
-          error.status >= 400 &&
-          error.status < 500 &&
-          error.status !== 408)
+          (error.status === 0 ||
+            (error.status >= 400 &&
+              error.status < 500 &&
+              error.status !== 408)))
       if (rejectedBeforeExecution) {
         forgetPendingRequest({ requestId })
       }

@@ -1,6 +1,7 @@
 export {
   ApiRequestError,
   apiClient,
+  assertWriteOnline,
   isWriteMethod,
   newRequestId,
   taskRequestHeaders,
@@ -16,3 +17,4 @@ export * from "./processes"
 export * from "./system-services"
 export * from "./tasks"
 export * from "./traffic"
+export { activeWriteCount, subscribeWrites } from "./write-activity"
