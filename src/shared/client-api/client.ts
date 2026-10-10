@@ -1,5 +1,13 @@
-import { contract } from "@shared/api-contract"
+import { contract, TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
 import { initClient } from "@ts-rest/core"
+
+/**
+ * 客户端等待的上限：超过就不再等这一次响应。
+ * 它只解除等待，不等于服务端停止工作，也不触发重发——结果未知时必须去核实。
+ */
+const NETWORK_WAIT_MS = 60_000
+
+const WRITE_METHODS = ["POST", "PUT", "PATCH", "DELETE"]
 
 export class ApiRequestError extends Error {
   constructor(
@@ -7,7 +15,10 @@ export class ApiRequestError extends Error {
     readonly status: number | null,
     readonly responseBody?: unknown,
     cause?: unknown,
-    readonly resultUnknown = false
+    /** 写操作在结果无法确认时为 true：不能提示成功，也不能自动重试。 */
+    readonly resultUnknown = false,
+    /** 已登记的请求标识：即使这次响应丢失，也能据此查回任务。 */
+    readonly requestId: string | null = null
   ) {
     super(message, { cause })
     this.name = "ApiRequestError"
@@ -47,15 +58,51 @@ const readCsrfToken = (): string => {
   return match ? decodeURIComponent(match[1]) : ""
 }
 
-/** 前端统一走相对路径，并在写请求中附带 CSRF token。 */
+/**
+ * 生成一次写操作的请求标识。服务端据此复用任务记录：网络重试不会变成第二次执行，
+ * 响应丢失也能按这个标识查回任务。
+ */
+export const newRequestId = (): string => {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  const hex = [...bytes]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+  return `req_${hex}`
+}
+
+/** 把请求标识放进 extraHeaders：它不属于任何单个端点的契约，是跨域的传输约定。 */
+export const taskRequestHeaders = (
+  requestId: string
+): Record<string, string> => ({ [TASK_REQUEST_ID_HEADER]: requestId })
+
+/** 请求是写操作：结果未知时的措辞与重试策略都不同。 */
+export const isWriteMethod = (method: string): boolean =>
+  WRITE_METHODS.includes(method.toUpperCase())
+
+/** 前端统一走相对路径，并在写请求中附带 CSRF 与请求标识。 */
 export const apiClient = initClient(contract, {
   baseUrl: "",
-  api: async ({ path, method, headers, body }) => {
+  api: async ({ path, method, headers, body, signal }) => {
     const requestHeaders = new Headers(headers)
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())) {
+    const write = isWriteMethod(method)
+    if (write) {
       const csrfToken = readCsrfToken()
       if (csrfToken) requestHeaders.set("x-csrf-token", csrfToken)
     }
+    const requestId = requestHeaders.get(TASK_REQUEST_ID_HEADER)
+
+    // 手写组合中止信号：不依赖 AbortSignal.any / AbortSignal.timeout，
+    // 旧版手机浏览器缺这两个 API 时不会让所有请求直接报错。
+    const controller = new AbortController()
+    let timedOut = false
+    const onCallerAbort = (): void => controller.abort()
+    signal?.addEventListener("abort", onCallerAbort, { once: true })
+    const timer = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, NETWORK_WAIT_MS)
+
     let response: Response
     try {
       response = await fetch(path, {
@@ -63,17 +110,29 @@ export const apiClient = initClient(contract, {
         headers: requestHeaders,
         body: body as BodyInit | undefined,
         credentials: "same-origin",
+        signal: controller.signal,
       })
     } catch (error) {
-      throw new ApiRequestError(
-        ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())
+      const exceeded =
+        timedOut || (error instanceof Error && error.name === "TimeoutError")
+      const message = exceeded
+        ? write
+          ? "等待响应超时，结果未知，请重新读取确认"
+          : "请求超时"
+        : write
           ? "请求结果未知，请重新读取确认"
-          : "网络请求失败",
+          : "网络请求失败"
+      throw new ApiRequestError(
+        message,
         null,
         undefined,
         error,
-        ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())
+        write,
+        requestId
       )
+    } finally {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", onCallerAbort)
     }
     if (
       response.status === 401 &&

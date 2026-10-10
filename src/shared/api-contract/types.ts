@@ -67,6 +67,8 @@ export type TaskAccepted = z.infer<typeof TaskAcceptedSchema>
 export type TaskProgress = z.infer<typeof TaskProgressSchema>
 export type TaskStatus = z.infer<typeof TaskStatusSchema>
 export type TaskListQuery = z.infer<typeof TaskListQuerySchema>
+/** 请求侧的入参类型：带默认值的字段在这里是可选的。 */
+export type TaskListQueryInput = z.input<typeof TaskListQuerySchema>
 export type TaskListResponse = z.infer<typeof TaskListResponseSchema>
 export type FileBatchResult = z.infer<typeof FileBatchResultSchema>
 export type ScanTaskResult = z.infer<typeof ScanTaskResultSchema>
