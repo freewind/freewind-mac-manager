@@ -17,6 +17,7 @@ import { FrpPage } from "@web/features/frp/FrpPage"
 import { PortsPage } from "@web/features/ports/PortsPage"
 import { ProcessesPage } from "@web/features/processes/ProcessesPage"
 import { SystemServicesPage } from "@web/features/system-services/SystemServicesPage"
+import { TaskCenter } from "@web/features/tasks/TaskCenter"
 import { TrafficPage } from "@web/features/traffic/TrafficPage"
 import {
   markAuthenticated,
@@ -160,7 +161,8 @@ export const App = () => {
               <HugeiconsIcon icon={ArrowLeft01Icon} />
             </Button>
           ) : null}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <TaskCenter authenticated={authStatus.authenticated} />
             <Button size="sm" variant="outline" onClick={() => void signOut()}>
               退出登录
             </Button>
