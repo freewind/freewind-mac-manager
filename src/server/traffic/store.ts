@@ -106,6 +106,19 @@ export class TrafficStore {
     this.db.close()
   }
 
+  /** 同步组合写入持有整次操作的事务，内部单项写入使用保存点。 */
+  transaction<T>(run: () => T): T {
+    this.db.exec("BEGIN IMMEDIATE")
+    try {
+      const result = run()
+      this.db.exec("COMMIT")
+      return result
+    } catch (error) {
+      this.db.exec("ROLLBACK")
+      throw error
+    }
+  }
+
   insertSamples(rows: SampleRow[]): void {
     if (rows.length === 0) {
       return
@@ -191,8 +204,7 @@ export class TrafficStore {
     row: SnapshotRow,
     entries: Omit<SnapshotEntryRow, "snapshotId">[]
   ): void {
-    this.db.exec("BEGIN IMMEDIATE")
-    try {
+    this.writeSnapshot(() => {
       this.db
         .prepare(
           `INSERT INTO traffic_snapshots (id, saved_at, from_at, to_at, saved_by, bytes_in, bytes_out)
@@ -208,19 +220,14 @@ export class TrafficStore {
           row.bytesOut
         )
       this.writeEntries(row.id, entries)
-      this.db.exec("COMMIT")
-    } catch (error) {
-      this.db.exec("ROLLBACK")
-      throw error
-    }
+    })
   }
 
   replaceSnapshot(
     row: SnapshotRow,
     entries: Omit<SnapshotEntryRow, "snapshotId">[]
   ): void {
-    this.db.exec("BEGIN IMMEDIATE")
-    try {
+    this.writeSnapshot(() => {
       this.db
         .prepare(
           `UPDATE traffic_snapshots SET saved_at = ?, from_at = ?, to_at = ?, saved_by = ?, bytes_in = ?, bytes_out = ?
@@ -239,23 +246,25 @@ export class TrafficStore {
         .prepare("DELETE FROM traffic_snapshot_entries WHERE snapshot_id = ?")
         .run(row.id)
       this.writeEntries(row.id, entries)
-      this.db.exec("COMMIT")
-    } catch (error) {
-      this.db.exec("ROLLBACK")
-      throw error
-    }
+    })
   }
 
   deleteSnapshot(id: string): void {
-    this.db.exec("BEGIN IMMEDIATE")
-    try {
+    this.writeSnapshot(() => {
       this.db
         .prepare("DELETE FROM traffic_snapshot_entries WHERE snapshot_id = ?")
         .run(id)
       this.db.prepare("DELETE FROM traffic_snapshots WHERE id = ?").run(id)
-      this.db.exec("COMMIT")
+    })
+  }
+
+  private writeSnapshot(run: () => void): void {
+    this.db.exec("SAVEPOINT traffic_write")
+    try {
+      run()
+      this.db.exec("RELEASE traffic_write")
     } catch (error) {
-      this.db.exec("ROLLBACK")
+      this.db.exec("ROLLBACK TO traffic_write; RELEASE traffic_write")
       throw error
     }
   }

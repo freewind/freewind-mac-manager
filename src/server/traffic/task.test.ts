@@ -3,7 +3,20 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { createExecutorRegistry, taskExecutors } from "@server/tasks/executors"
 import { TASK_KINDS, type TaskProgress } from "@shared/api-contract"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+vi.mock("./ports", () => ({
+  snapshotPorts: vi.fn(
+    async (
+      pids: number[],
+      options?: { onProgress?: (done: number, total: number) => void }
+    ) => {
+      options?.onProgress?.(pids.length, pids.length)
+      return new Map<number, number[]>()
+    }
+  ),
+}))
+
 import { captureSnapshot, deleteSnapshots, mergeSnapshots } from "./service"
 import { TrafficStore } from "./store"
 import {
