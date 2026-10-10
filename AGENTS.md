@@ -202,8 +202,9 @@ src/
 以下是目标约定；未接入的工具、脚本和提交钩子不能当作当前已经可用。
 
 ```bash
-pnpm dev                 # OpenAPI 生成 + Vite 开发，固定端口 51510，占用即失败
+pnpm dev                 # OpenAPI 生成 + Vite 开发，端口由 APP_PORT=51509 注入，占用即失败
 pnpm build               # OpenAPI 生成 + pnpm typecheck + 前后端构建
+pnpm start               # 生产启动，端口由 APP_PORT=51510 注入
 pnpm typecheck           # TypeScript 7：tsc --noEmit
 pnpm lint                # Biome：biome check .（只读）
 pnpm lint:fix            # Biome：biome check --write .（仅安全修复）

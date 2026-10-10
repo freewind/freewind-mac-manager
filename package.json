@@ -5,9 +5,9 @@
   "type": "module",
   "packageManager": "pnpm@12.4.1",
   "scripts": {
-    "dev": "pnpm generate:openapi && vite --open",
+    "dev": "pnpm generate:openapi && APP_PORT=51509 vite --open",
     "build": "pnpm generate:openapi && pnpm typecheck && vite build && vite build --ssr src/server/main.ts --outDir dist-ssr/server && VITE_KEEP_OUT_DIR=1 vite build --ssr src/server/task-worker.ts --outDir dist-ssr/server",
-    "start": "NODE_ENV=production node dist-ssr/server/main.js",
+    "start": "APP_PORT=51510 NODE_ENV=production node dist-ssr/server/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
