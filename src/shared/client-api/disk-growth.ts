@@ -1,5 +1,6 @@
 import type {
   ActionResponse,
+  DiskSnapshotDeleteResult,
   EntriesResponse,
   ScansResponse,
   ScanTaskResult,
@@ -36,9 +37,16 @@ export const revealEntry = async (path: string): Promise<ActionResponse> =>
 export const trashEntry = async (path: string): Promise<ActionResponse> =>
   unwrap<ActionResponse>(await apiClient.trashEntry({ query: { path } }))
 
-export const deleteScans = async (scanIds: number[]): Promise<ActionResponse> =>
-  unwrap<ActionResponse>(
-    await apiClient.deleteScans({ query: { scanIds: scanIds.join(",") } })
+/** 删除快照同样是任务：请求标识由服务端用来复用，结果要么完成要么受理。 */
+export const deleteScans = async (
+  requestId: string,
+  scanIds: number[]
+): Promise<Execution<DiskSnapshotDeleteResult>> =>
+  runExecution<DiskSnapshotDeleteResult>(() =>
+    apiClient.deleteScans({
+      query: { scanIds: scanIds.join(",") },
+      headers: taskRequestHeaders(requestId),
+    })
   )
 
 export const fetchTree = async (options: {

@@ -656,12 +656,7 @@ type SidebarProps = {
   busiest: boolean
 }
 
-const SnapshotSidebar = ({
-  snapshots,
-  isLoading,
-  onNotice,
-  busiest,
-}: SidebarProps) => {
+const SnapshotSidebar = ({ snapshots, isLoading, busiest }: SidebarProps) => {
   const store = useDiskGrowthLocalStore()
   const deleteScans = useDeleteScans()
   const [pending, setPending] = useState<
@@ -691,12 +686,8 @@ const SnapshotSidebar = ({
     store.setSelection(ids)
   }
 
-  const runDelete = async (ids: number[]): Promise<void> => {
-    try {
-      onNotice(await deleteScans.mutateAsync(ids))
-    } catch (error) {
-      toast.error(`删除快照失败：${describeError(error)}`)
-    }
+  const runDelete = (ids: number[]): void => {
+    void deleteScans.run(ids)
   }
 
   return (
@@ -877,14 +868,13 @@ const SnapshotSidebar = ({
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              disabled={busiest}
+              disabled={busiest || deleteScans.busy}
               onClick={() => {
                 const action = pending
                 setPending(null)
                 if (action?.kind === "merge") {
-                  void runDelete(rangeIds.slice(1)).then(() =>
-                    store.setMultiSelect(false)
-                  )
+                  runDelete(rangeIds.slice(1))
+                  store.setMultiSelect(false)
                 }
                 if (action?.kind === "delete") {
                   void runDelete([action.id])

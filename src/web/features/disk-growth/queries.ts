@@ -1,4 +1,9 @@
-import type { GrowthEntry, TreeNode } from "@shared/api-contract"
+import {
+  type DiskSnapshotDeleteResult,
+  type GrowthEntry,
+  TASK_KINDS,
+  type TreeNode,
+} from "@shared/api-contract"
 import {
   deleteScans as deleteScansApi,
   fetchEntries,
@@ -9,6 +14,10 @@ import {
 } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
+import { registerTaskCompletion } from "@web/features/tasks/completion"
+import { useTaskAction } from "@web/hooks/use-task-action"
+import { useCallback, useEffect } from "react"
+import { toast } from "sonner"
 
 export const diskGrowthKeys = {
   all: ["disk-growth"] as const,
@@ -125,19 +134,38 @@ export const useSubtree = (options: {
   return { root: query.data ?? null, isLoading: query.isLoading }
 }
 
+/**
+ * 删除快照：受理时不动缓存，只有真正完成才刷新列表并重置选择。
+ * 慢路径的刷新由按种类登记的完成处理负责。
+ */
 export const useDeleteScans = () => {
   const client = useQueryClient()
   const resetForNewSnapshot = useDiskGrowthLocalStore(
     (state) => state.resetForNewSnapshot
   )
-  return useMutation({
-    mutationFn: async (ids: number[]): Promise<string> => {
-      const result = await deleteScansApi(ids)
-      return result.message
-    },
-    onSuccess: () => {
+
+  // 慢路径（后台任务）完成时刷新列表；刷新逻辑独立成回调，effect 里只做登记。
+  const refreshSnapshots = useCallback(() => {
+    resetForNewSnapshot()
+    void client.invalidateQueries({ queryKey: diskGrowthKeys.snapshots })
+  }, [client, resetForNewSnapshot])
+
+  useEffect(() => {
+    registerTaskCompletion(TASK_KINDS.diskSnapshotDelete, refreshSnapshots)
+  }, [refreshSnapshots])
+
+  return useTaskAction<DiskSnapshotDeleteResult, number[]>({
+    kind: TASK_KINDS.diskSnapshotDelete,
+    target: "disk-growth:snapshots",
+    run: (requestId, ids) => deleteScansApi(requestId, ids),
+    onCompleted: (result) => {
+      toast.success(
+        result.removed === 0
+          ? "指定的快照已不存在"
+          : `已删除 ${result.removed} 份快照，相邻快照的差值已自动跨过被删区间`
+      )
       resetForNewSnapshot()
-      client.invalidateQueries({ queryKey: diskGrowthKeys.snapshots })
+      void client.invalidateQueries({ queryKey: diskGrowthKeys.snapshots })
     },
   })
 }

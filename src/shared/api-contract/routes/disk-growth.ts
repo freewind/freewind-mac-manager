@@ -17,6 +17,7 @@ import {
   TreeQuerySchema,
   TreeResponseSchema,
 } from "../schemas/disk-growth"
+import { DiskSnapshotDeleteResultSchema } from "../schemas/tasks"
 
 const errorResponses = {
   400: ApiErrorSchema,
@@ -73,12 +74,16 @@ export const diskGrowthRoutes = {
       ...errorResponses,
     },
   },
+  // 快照明细可能很多，删除是一次同步写库的重活：同样按长任务处理。
   deleteScans: {
     method: "DELETE",
     path: toContractPath(ApiPath.diskGrowthScans),
     query: DeleteScansQuerySchema,
+    headers: TaskRequestIdHeadersSchema,
     responses: {
-      202: ActionResponseSchema,
+      200: DiskSnapshotDeleteResultSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
       ...errorResponses,
     },
   },

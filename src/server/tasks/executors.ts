@@ -1,4 +1,7 @@
 import {
+  DeleteSnapshotsPayloadSchema,
+  DISCARD_KIND,
+  runDeleteScansTask,
   runScanTask,
   SCAN_KIND,
   ScanPayloadSchema,
@@ -14,15 +17,15 @@ import {
   runMoveTask,
 } from "@server/files/task"
 import {
-  DeletePayloadSchema,
-  MergePayloadSchema,
   runDeleteSnapshotsTask,
   runMergeSnapshotsTask,
   runSaveSnapshotTask,
-  SavePayloadSchema,
   TRAFFIC_DELETE_KIND,
   TRAFFIC_MERGE_KIND,
   TRAFFIC_SAVE_KIND,
+  DeletePayloadSchema as TrafficDeletePayloadSchema,
+  MergePayloadSchema as TrafficMergePayloadSchema,
+  SavePayloadSchema as TrafficSavePayloadSchema,
 } from "@server/traffic/task"
 import type { TaskProgress } from "@shared/api-contract"
 
@@ -103,6 +106,18 @@ export const taskExecutors: TaskExecutor[] = [
     },
   },
   {
+    kind: DISCARD_KIND,
+    run: async (payload, context) => {
+      const parsed = DeleteSnapshotsPayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("删除快照任务载荷非法")
+      const outcome = await runDeleteScansTask({
+        scanIds: parsed.data.scanIds,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
     kind: FILE_DELETE_KIND,
     run: async (payload, context) => {
       const parsed = FileDeletePayloadSchema.safeParse(payload)
@@ -155,7 +170,7 @@ export const taskExecutors: TaskExecutor[] = [
   {
     kind: TRAFFIC_SAVE_KIND,
     run: async (payload, context) => {
-      const parsed = SavePayloadSchema.safeParse(payload)
+      const parsed = TrafficSavePayloadSchema.safeParse(payload)
       if (!parsed.success) throw new Error("保存快照载荷非法")
       const outcome = await runSaveSnapshotTask({
         savedBy: parsed.data.savedBy,
@@ -167,7 +182,7 @@ export const taskExecutors: TaskExecutor[] = [
   {
     kind: TRAFFIC_MERGE_KIND,
     run: async (payload, context) => {
-      const parsed = MergePayloadSchema.safeParse(payload)
+      const parsed = TrafficMergePayloadSchema.safeParse(payload)
       if (!parsed.success) throw new Error("合并快照载荷非法")
       const outcome = await runMergeSnapshotsTask({
         ids: parsed.data.ids,
@@ -179,7 +194,7 @@ export const taskExecutors: TaskExecutor[] = [
   {
     kind: TRAFFIC_DELETE_KIND,
     run: async (payload, context) => {
-      const parsed = DeletePayloadSchema.safeParse(payload)
+      const parsed = TrafficDeletePayloadSchema.safeParse(payload)
       if (!parsed.success) throw new Error("删除快照载荷非法")
       const outcome = await runDeleteSnapshotsTask({
         ids: parsed.data.ids,

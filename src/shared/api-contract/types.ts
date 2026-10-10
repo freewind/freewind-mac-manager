@@ -24,6 +24,7 @@ import type {
   UploadResponseSchema,
 } from "./schemas/files"
 import type {
+  DiskSnapshotDeleteResultSchema,
   TaskListQuerySchema,
   TaskListResponseSchema,
   TaskProgressSchema,
@@ -72,6 +73,9 @@ export type TaskListQueryInput = z.input<typeof TaskListQuerySchema>
 export type TaskListResponse = z.infer<typeof TaskListResponseSchema>
 export type FileBatchResult = z.infer<typeof FileBatchResultSchema>
 export type SnapshotSaveResult = z.infer<typeof SnapshotSaveResultSchema>
+export type DiskSnapshotDeleteResult = z.infer<
+  typeof DiskSnapshotDeleteResultSchema
+>
 export type SnapshotMutationResult = z.infer<
   typeof SnapshotMutationResultSchema
 >

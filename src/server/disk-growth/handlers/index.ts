@@ -6,7 +6,7 @@ import { listEntries } from "./list-entries.get"
 import { listScans } from "./list-scans.get"
 import { revealEntry } from "./reveal.post"
 import { createStartScanHandler } from "./scan.post"
-import { deleteScans } from "./scans.delete"
+import { createDeleteScansHandler } from "./scans.delete"
 import { subtree } from "./subtree.get"
 
 const s = initServer()
@@ -35,6 +35,6 @@ export const createDiskGrowthRouter = (runtime: TaskRuntime) =>
     subtree,
     startScan: createStartScanHandler(runtime),
     revealEntry,
-    deleteScans,
+    deleteScans: createDeleteScansHandler(runtime),
     trashEntry,
   })

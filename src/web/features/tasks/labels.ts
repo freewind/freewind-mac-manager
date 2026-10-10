@@ -7,9 +7,13 @@ import type { TaskRecord } from "@shared/api-contract"
  */
 const KIND_LABELS: Record<string, string> = {
   disk_scan: "磁盘扫描",
+  disk_snapshot_delete: "删除快照",
   file_copy: "复制文件",
   file_delete: "删除文件",
   file_move: "移动文件",
+  traffic_snapshot_save: "保存流量快照",
+  traffic_snapshot_merge: "合并流量快照",
+  traffic_snapshot_delete: "删除流量快照",
 }
 
 const STATUS_LABELS: Record<TaskRecord["status"], string> = {

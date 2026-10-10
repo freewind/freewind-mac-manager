@@ -215,18 +215,24 @@ export class DiskGrowthStore {
   }
 
   /** 删除指定快照；剩下的快照差值会自动跨越被删区间。 */
+  /** 明细与快照必须在同一个事务里删掉，否则会留下没有归属的明细。 */
   deleteSnapshots(ids: number[]): number {
     if (ids.length === 0) return 0
     const placeholders = ids.map(() => "?").join(", ")
-    const entryResult = this.db
-      .prepare(`DELETE FROM entry WHERE scan_id IN (${placeholders})`)
-      .run(...ids)
-    const scanResult = this.db
-      .prepare(`DELETE FROM scan WHERE id IN (${placeholders})`)
-      .run(...ids)
-    return (
-      Number(scanResult.changes ?? 0) + Number(entryResult.changes ?? 0) * 0
-    )
+    this.db.exec("BEGIN IMMEDIATE")
+    try {
+      this.db
+        .prepare(`DELETE FROM entry WHERE scan_id IN (${placeholders})`)
+        .run(...ids)
+      const scanResult = this.db
+        .prepare(`DELETE FROM scan WHERE id IN (${placeholders})`)
+        .run(...ids)
+      this.db.exec("COMMIT")
+      return Number(scanResult.changes ?? 0)
+    } catch (error) {
+      this.db.exec("ROLLBACK")
+      throw error
+    }
   }
 
   /** 只保留最近 keep 份快照。 */

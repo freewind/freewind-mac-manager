@@ -6,7 +6,13 @@ import type { TaskProgress } from "@shared/api-contract"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { ScanResult } from "./scanner"
 import { DiskGrowthStore } from "./store"
-import { runScanTask, SCAN_KIND } from "./task"
+import {
+  DeleteSnapshotsPayloadSchema,
+  DISCARD_KIND,
+  runDeleteScansTask,
+  runScanTask,
+  SCAN_KIND,
+} from "./task"
 
 let dir: string
 let databaseFile: string
@@ -125,12 +131,75 @@ describe("runScanTask", () => {
   })
 })
 
+describe("runDeleteScansTask", () => {
+  const seedSnapshot = async (): Promise<number> => {
+    const outcome = await runScanTask({
+      root: "/",
+      databaseFile,
+      scan: async () => scanResult(),
+      report: () => undefined,
+    })
+    return outcome.result.snapshotId
+  }
+
+  it("removes the snapshot together with its entries in one transaction", async () => {
+    const snapshotId = await seedSnapshot()
+    const store = new DiskGrowthStore(databaseFile)
+    try {
+      expect(store.listSnapshots()).toHaveLength(1)
+    } finally {
+      store.close()
+    }
+
+    const progress: TaskProgress[] = []
+    const outcome = await runDeleteScansTask({
+      scanIds: [snapshotId],
+      databaseFile,
+      report: (item) => progress.push(item),
+    })
+
+    expect(outcome.result.removed).toBe(1)
+    expect(outcome.message).toContain("已删除 1 份快照")
+    // 进度是按真实份数走的
+    expect(progress.at(-1)).toMatchObject({ done: 1, total: 1, stage: "完成" })
+
+    const after = new DiskGrowthStore(databaseFile)
+    try {
+      expect(after.listSnapshots()).toEqual([])
+      // 明细不能留下孤儿行
+      expect(after.listEntries({ scanId: snapshotId, parent: "" })).toEqual([])
+    } finally {
+      after.close()
+    }
+  })
+
+  it("reports zero when the snapshot is already gone instead of pretending success", async () => {
+    const outcome = await runDeleteScansTask({
+      scanIds: [999_999],
+      databaseFile,
+      report: () => undefined,
+    })
+    expect(outcome.result.removed).toBe(0)
+    expect(outcome.message).toContain("已不存在")
+  })
+
+  it("rejects malformed delete payloads", () => {
+    expect(
+      DeleteSnapshotsPayloadSchema.safeParse({ scanIds: [] }).success
+    ).toBe(false)
+    expect(
+      DeleteSnapshotsPayloadSchema.safeParse({ scanIds: ["1"] }).success
+    ).toBe(false)
+  })
+})
+
 describe("executor registry", () => {
   it("registers the scan kind and rejects a payload that is not a scan request", async () => {
     const registry = createExecutorRegistry(taskExecutors)
     const executor = registry.get(SCAN_KIND)
     expect(executor).not.toBeNull()
     expect(registry.kinds()).toContain(SCAN_KIND)
+    expect(registry.kinds()).toContain(DISCARD_KIND)
     await expect(
       executor?.run({ module: "/etc/passwd" }, { report: () => undefined })
     ).rejects.toThrow("扫描任务载荷非法")

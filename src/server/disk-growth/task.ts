@@ -20,6 +20,52 @@ export const SCAN_KIND = TASK_KINDS.diskScan
 /** 每日自动扫描与手动扫描共用同一把锁（scanTaskTarget("/")）。 */
 export { scanTaskTarget }
 
+export const DISCARD_KIND = TASK_KINDS.diskSnapshotDelete
+
+export const DeleteSnapshotsPayloadSchema = z.object({
+  scanIds: z.array(z.number().int().positive()).min(1).max(200),
+})
+
+/**
+ * 删除若干份快照：明细与快照在同一事务里删掉，避免留下孤儿明细。
+ * 进度按真实处理的份数上报。
+ */
+export const runDeleteScansTask = async (options: {
+  scanIds: number[]
+  report: (progress: TaskProgress) => void
+  databaseFile?: string
+}): Promise<{ result: { removed: number }; message: string }> => {
+  const store = new DiskGrowthStore(options.databaseFile ?? DATABASE_FILE)
+  try {
+    options.report({
+      done: 0,
+      total: options.scanIds.length,
+      bytesDone: null,
+      bytesTotal: null,
+      stage: "删除快照",
+      currentTarget: null,
+    })
+    const removed = store.deleteSnapshots(options.scanIds)
+    options.report({
+      done: options.scanIds.length,
+      total: options.scanIds.length,
+      bytesDone: null,
+      bytesTotal: null,
+      stage: "完成",
+      currentTarget: null,
+    })
+    return {
+      result: { removed },
+      message:
+        removed === 0
+          ? "指定的快照已不存在"
+          : `已删除 ${removed} 份快照，相邻快照的差值已自动跨过被删区间`,
+    }
+  } finally {
+    store.close()
+  }
+}
+
 const toTaskProgress = (progress: ScanProgress): TaskProgress => ({
   done: progress.files,
   // 全盘文件总数无法预先得知，因此总量为 null；不伪造百分比。

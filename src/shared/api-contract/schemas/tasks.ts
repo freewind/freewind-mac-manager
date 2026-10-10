@@ -39,6 +39,7 @@ export const TaskStatusSchema = z.enum([
  */
 export const TASK_KINDS = {
   diskScan: "disk_scan",
+  diskSnapshotDelete: "disk_snapshot_delete",
   fileCopy: "file_copy",
   fileDelete: "file_delete",
   fileMove: "file_move",
@@ -68,6 +69,17 @@ export const DiskScanTaskSchema = z.object({
   ...taskBase,
   kind: z.literal(TASK_KINDS.diskScan),
   result: ScanTaskResultSchema.nullable(),
+})
+
+/** 删除快照的结果：只报真实删掉的份数，剩余快照由客户端重新读取。 */
+export const DiskSnapshotDeleteResultSchema = z.object({
+  removed: z.number().int().min(0),
+})
+
+export const DiskSnapshotDeleteTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.diskSnapshotDelete),
+  result: DiskSnapshotDeleteResultSchema.nullable(),
 })
 
 export const FileCopyTaskSchema = z.object({
@@ -109,6 +121,7 @@ export const TrafficSnapshotDeleteTaskSchema = z.object({
 /** 每种任务的结果结构由 discriminated union 固定，禁止用任意 JSON 承载结果。 */
 export const TaskRecordSchema = z.discriminatedUnion("kind", [
   DiskScanTaskSchema,
+  DiskSnapshotDeleteTaskSchema,
   FileCopyTaskSchema,
   FileDeleteTaskSchema,
   FileMoveTaskSchema,
