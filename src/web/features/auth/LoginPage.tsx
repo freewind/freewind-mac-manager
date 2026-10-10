@@ -49,7 +49,7 @@ export const LoginPage = ({ configured, onAuthenticated }: LoginPageProps) => {
             <Input
               id="password"
               autoComplete="current-password"
-              type="password"
+              type="text"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               disabled={submitting}
