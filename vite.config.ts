@@ -22,5 +22,7 @@ export default defineConfig(({ command }) => ({
     command === "serve" ? { port: SERVER_PORT, strictPort: true } : undefined,
   build: {
     outDir: "dist",
+    // 服务端要产出两个入口（主进程与任务执行子进程），第二次构建不能清空第一次的产物。
+    emptyOutDir: process.env.VITE_KEEP_OUT_DIR === "1" ? false : undefined,
   },
 }))

@@ -1,0 +1,288 @@
+import { randomUUID } from "node:crypto"
+import type { TaskAccepted, TaskProgress } from "@shared/api-contract"
+import { describeError } from "@shared/format"
+import {
+  TASK_HISTORY_KEEP,
+  TASK_PROGRESS_THROTTLE_MS,
+  TASK_RESPONSE_THRESHOLD_MS,
+} from "@shared/task-policy"
+import {
+  payloadFingerprint,
+  type TaskStatus,
+  type TaskStore,
+  type TaskStoredRow,
+} from "./store"
+import type { TaskOutcome, TaskRunnerHost } from "./worker-host"
+
+export type TaskSubmitRequest = {
+  kind: string
+  /** 冲突判定用的作用域，例如文件路径或配置路径。 */
+  target: string
+  payload: unknown
+  /** 客户端生成的请求标识；为空表示不是客户端请求发起（如定时任务）。 */
+  requestId: string | null
+  /** 把完成结果转成该端点自己的完成响应（200/201 与 body）。 */
+  toCompletedResponse: (outcome: TaskOutcome) => {
+    status: 200 | 201
+    body: unknown
+  }
+}
+
+export type TaskSubmitResult =
+  | { kind: "completed"; status: 200 | 201; body: unknown }
+  | { kind: "accepted"; body: TaskAccepted }
+  | { kind: "conflict"; message: string }
+
+type Running = {
+  taskId: string
+  controller: AbortController
+  lastProgressWrite: number
+}
+
+const nowSeconds = (): number => Date.now() / 1000
+
+const parseJson = (value: string | null): unknown => {
+  if (value === null) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+const toOutcome = (row: TaskStoredRow): TaskOutcome => ({
+  result: parseJson(row.result),
+  message: row.message,
+  status: row.status === "partial" ? "partial" : "done",
+})
+
+/**
+ * 任务运行器（父进程侧）。
+ *
+ * 职责边界：
+ * - 执行前就把任务登记进库，之后才启动执行，保证「请求到达」与「副作用开始」之间有记录。
+ * - 阈值只决定这次请求返回真实结果还是受理回执；真正的执行只启动一次。
+ * - 终态只写一次，迟到或重复的结束消息会被拒绝。
+ * - 不变量：任务表由父进程独占写入，子进程只上报消息。
+ */
+export class TaskRunner {
+  private readonly store: TaskStore
+  private readonly host: TaskRunnerHost
+  private readonly thresholdMs: number
+  private readonly running = new Map<string, Running>()
+  private shuttingDown = false
+
+  constructor(options: {
+    store: TaskStore
+    host: TaskRunnerHost
+    thresholdMs?: number
+  }) {
+    this.store = options.store
+    this.host = options.host
+    this.thresholdMs = options.thresholdMs ?? TASK_RESPONSE_THRESHOLD_MS
+  }
+
+  /** 服务启动时清理上一次进程遗留的运行中任务：它们的结果无法确认。 */
+  recoverInterrupted(): number {
+    return this.store.markInterrupted(nowSeconds())
+  }
+
+  async submit(request: TaskSubmitRequest): Promise<TaskSubmitResult> {
+    if (this.shuttingDown) {
+      return { kind: "conflict", message: "服务正在关闭，未开始新的操作" }
+    }
+
+    const fingerprint = payloadFingerprint(request.payload)
+
+    if (request.requestId) {
+      const existing = this.store.findByRequestId(request.requestId)
+      if (existing) {
+        if (existing.requestFingerprint !== fingerprint) {
+          return {
+            kind: "conflict",
+            message: "该请求标识已用于另一次内容不同的操作",
+          }
+        }
+        if (existing.status === "running") {
+          return { kind: "accepted", body: this.acceptedOf(existing) }
+        }
+        if (existing.status === "unknown") {
+          return {
+            kind: "conflict",
+            message:
+              existing.error ?? "该请求的结果未知，请重新读取目标确认后再操作",
+          }
+        }
+        if (existing.status === "failed") {
+          return {
+            kind: "conflict",
+            message: existing.error ?? "该请求此前执行失败，未重复执行",
+          }
+        }
+        return {
+          kind: "completed",
+          ...request.toCompletedResponse(toOutcome(existing)),
+        }
+      }
+    }
+
+    const active = this.store.findActive(request.kind, request.target)
+    if (active) {
+      return {
+        kind: "conflict",
+        message: "该目标已有任务在执行，请等它结束或先在任务里查看",
+      }
+    }
+
+    const startedAt = nowSeconds()
+    const taskId = randomUUID()
+    try {
+      this.store.insert({
+        id: taskId,
+        requestId: request.requestId,
+        requestFingerprint: request.requestId ? fingerprint : null,
+        kind: request.kind,
+        target: request.target,
+        startedAt,
+      })
+    } catch (error) {
+      // 并发下唯一索引才拦得住：落到这里说明另一个请求已经登记了同一目标或标识。
+      const replay = request.requestId
+        ? this.store.findByRequestId(request.requestId)
+        : null
+      if (replay?.status === "running") {
+        return { kind: "accepted", body: this.acceptedOf(replay) }
+      }
+      return {
+        kind: "conflict",
+        message: describeError(error),
+      }
+    }
+
+    // 登记完成之后才真正开始执行。
+    const execution = this.execute(taskId, request)
+    const raced = await Promise.race([
+      execution.then(() => "executed" as const),
+      this.delay(this.thresholdMs).then(() => "timeout" as const),
+    ])
+
+    if (raced === "timeout") {
+      const row = this.store.get(taskId)
+      return {
+        kind: "accepted",
+        body: row
+          ? this.acceptedOf(row)
+          : { taskId, kind: request.kind, status: "running", startedAt },
+      }
+    }
+
+    const final = this.store.get(taskId)
+    if (!final) {
+      return { kind: "conflict", message: "任务记录丢失，请重新读取目标确认" }
+    }
+    if (final.status === "failed" || final.status === "unknown") {
+      return {
+        kind: "conflict",
+        message: final.error ?? "操作失败",
+      }
+    }
+    return {
+      kind: "completed",
+      ...request.toCompletedResponse(toOutcome(final)),
+    }
+  }
+
+  /** 服务关闭：中止仍在执行的子进程，并把它们标成结果未知。 */
+  shutdown(): void {
+    this.shuttingDown = true
+    for (const running of this.running.values()) {
+      running.controller.abort()
+    }
+    this.running.clear()
+    this.store.markInterrupted(nowSeconds())
+  }
+
+  private acceptedOf(row: TaskStoredRow): TaskAccepted {
+    return {
+      taskId: row.id,
+      kind: row.kind,
+      status: "running",
+      startedAt: row.startedAt,
+    }
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(resolve, ms)
+      timer.unref?.()
+    })
+  }
+
+  private async execute(
+    taskId: string,
+    request: TaskSubmitRequest
+  ): Promise<void> {
+    const controller = new AbortController()
+    const state: Running = {
+      taskId,
+      controller,
+      lastProgressWrite: 0,
+    }
+    this.running.set(taskId, state)
+
+    try {
+      const outcome = await this.host.execute(
+        {
+          taskId,
+          kind: request.kind,
+          target: request.target,
+          requestId: request.requestId,
+          payload: request.payload,
+        },
+        {
+          signal: controller.signal,
+          onProgress: (progress) => this.writeProgress(state, progress),
+        }
+      )
+      this.finish(taskId, {
+        status: outcome.status,
+        result: outcome.result,
+        message: outcome.message,
+        error: null,
+      })
+    } catch (error) {
+      this.finish(taskId, {
+        status: controller.signal.aborted ? "unknown" : "failed",
+        result: null,
+        message: null,
+        error: describeError(error),
+      })
+    } finally {
+      this.running.delete(taskId)
+    }
+  }
+
+  private writeProgress(state: Running, progress: TaskProgress): void {
+    const now = Date.now()
+    if (now - state.lastProgressWrite < TASK_PROGRESS_THROTTLE_MS) return
+    state.lastProgressWrite = now
+    this.store.updateProgress(
+      state.taskId,
+      JSON.stringify(progress),
+      nowSeconds()
+    )
+  }
+
+  private finish(
+    taskId: string,
+    finish: {
+      status: Exclude<TaskStatus, "running">
+      result: unknown
+      message: string | null
+      error: string | null
+    }
+  ): void {
+    this.store.finish(taskId, { ...finish, finishedAt: nowSeconds() })
+    this.store.pruneFinished(TASK_HISTORY_KEEP)
+  }
+}

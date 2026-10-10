@@ -6,8 +6,8 @@
   "packageManager": "pnpm@12.4.1",
   "scripts": {
     "dev": "pnpm generate:openapi && vite --open",
-    "build": "pnpm generate:openapi && pnpm typecheck && vite build && vite build --ssr src/server/main.ts --outDir dist-ssr/server",
-    "start": "node dist-ssr/server/main.js",
+    "build": "pnpm generate:openapi && pnpm typecheck && vite build && vite build --ssr src/server/main.ts --outDir dist-ssr/server && VITE_KEEP_OUT_DIR=1 vite build --ssr src/server/task-worker.ts --outDir dist-ssr/server",
+    "start": "NODE_ENV=production node dist-ssr/server/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

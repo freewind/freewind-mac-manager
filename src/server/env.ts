@@ -44,3 +44,37 @@ export const FILE_ROOT = path.resolve(process.env.FILE_ROOT ?? "/")
  * 端口被占用时直接启动失败。
  */
 export const SERVER_PORT = 51510
+
+const IS_PRODUCTION = process.env.NODE_ENV === "production"
+
+const TASK_WORKER_SOURCE = path.join(PROJECT_ROOT, "src/server/task-worker.ts")
+const TASK_WORKER_DIST = path.join(
+  PROJECT_ROOT,
+  "dist-ssr/server/task-worker.js"
+)
+
+/**
+ * 后台任务子进程的启动方式。
+ *
+ * - 开发：直接用已安装的 tsx 运行源码，不需要先构建。
+ * - 生产：运行构建产物，不依赖 tsx。
+ *
+ * 判断依据是显式的 NODE_ENV，而不是「产物是否存在」：本地残留的旧产物不能
+ * 被开发服务当成现役代码使用。
+ */
+export const taskWorkerCommand = (): {
+  command: string
+  args: string[]
+  cwd: string
+} =>
+  IS_PRODUCTION
+    ? {
+        command: process.execPath,
+        args: [TASK_WORKER_DIST],
+        cwd: PROJECT_ROOT,
+      }
+    : {
+        command: process.execPath,
+        args: ["--import", "tsx", TASK_WORKER_SOURCE],
+        cwd: PROJECT_ROOT,
+      }
