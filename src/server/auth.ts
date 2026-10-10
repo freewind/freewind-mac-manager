@@ -1,9 +1,10 @@
 import { randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto"
 import { promisify } from "node:util"
-import { authRoutes } from "@shared/api-contract/routes/auth"
+import { contract } from "@shared/api-contract"
 import { API_BASE } from "@shared/api-path"
 import { initServer } from "@ts-rest/express"
 import type { NextFunction, Request, Response } from "express"
+import { getAuthPassword, isAuthConfigured } from "./env"
 
 const s = initServer()
 const SESSION_COOKIE = "mac_manager_session"
@@ -48,7 +49,7 @@ const appendCookie = (response: Response, cookie: string): void => {
 const createToken = (): string => randomBytes(32).toString("hex")
 
 export const createAuthManager = () => {
-  const configuredPassword = process.env.MAC_MANAGER_PASSWORD ?? ""
+  const configuredPassword = getAuthPassword()
   const passwordSalt = randomBytes(16)
   const passwordHash = configuredPassword
     ? scryptSync(configuredPassword, passwordSalt, 32)
@@ -193,8 +194,19 @@ export const createAuthManager = () => {
   }
 }
 
+/**
+ * 取共享 contract 里已带 /api 前缀的本域路由。express 挂载与客户端必须同源，
+ * 直接用 routes/auth.ts 的裸路径会注册到 /auth/*，与前端请求的 /api/auth/* 不一致。
+ */
+export const authContract = {
+  getAuthCsrf: contract.getAuthCsrf,
+  getAuthStatus: contract.getAuthStatus,
+  login: contract.login,
+  logout: contract.logout,
+}
+
 export const createAuthRouter = (manager: AuthManager) =>
-  s.router(authRoutes, {
+  s.router(authContract, {
     getAuthCsrf: async ({ req, res }) => ({
       status: 200 as const,
       body: { csrfToken: manager.issueCsrf(req, res) },
@@ -203,7 +215,7 @@ export const createAuthRouter = (manager: AuthManager) =>
       status: 200 as const,
       body: {
         authenticated: manager.getSession(req) !== null,
-        configured: Boolean(process.env.MAC_MANAGER_PASSWORD),
+        configured: isAuthConfigured(),
       },
     }),
     login: async ({ body, req, res }) => {

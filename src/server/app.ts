@@ -1,7 +1,6 @@
-import { authRoutes } from "@shared/api-contract/routes/auth"
 import { createExpressEndpoints } from "@ts-rest/express"
 import express from "express"
-import { createAuthManager, createAuthRouter } from "./auth"
+import { authContract, createAuthManager, createAuthRouter } from "./auth"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
 import { diskGrowthContract, diskGrowthRouter } from "./disk-growth/handlers"
 import {
@@ -31,7 +30,7 @@ export const createApp = (): express.Express => {
   // 不开 jsonQuery：client 默认发普通 query string，schema 里用 z.coerce 接收数字。
   const options = { logInitialization: false }
   const auth = createAuthManager()
-  createExpressEndpoints(authRoutes, createAuthRouter(auth), app, options)
+  createExpressEndpoints(authContract, createAuthRouter(auth), app, options)
   app.use(auth.middleware)
   createExpressEndpoints(healthContract, healthRouter, app, options)
   createExpressEndpoints(dashboardContract, dashboardRouter, app, options)
