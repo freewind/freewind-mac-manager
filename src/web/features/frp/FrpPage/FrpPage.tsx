@@ -13,6 +13,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { FrpProxy, FrpProxyType } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
+import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -178,14 +179,24 @@ export const FrpPage = () => {
             <Badge variant="outline" className="text-amber-600">
               有未保存的改动
             </Badge>
-          ) : (
+          ) : model.hasConfig ? (
             <Badge variant="ghost">已保存</Badge>
+          ) : (
+            <Badge variant="outline" className="text-muted-foreground">
+              配置未读到
+            </Badge>
           )}
         </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="flex flex-col gap-4 p-4">
+          {model.error ? (
+            <Alert variant="destructive">
+              <AlertTitle>读取 frpc 配置失败</AlertTitle>
+              <AlertDescription>{model.error}</AlertDescription>
+            </Alert>
+          ) : null}
           {server ? (
             <Card className="gap-3 py-4">
               <CardHeader className="px-4">

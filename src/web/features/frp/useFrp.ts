@@ -162,7 +162,9 @@ export const useFrp = () => {
     dirty,
     summary,
     isLoading: configQuery.isLoading,
-    error: configQuery.error,
+    /** 配置是否已成功读到；未读到时不宣称「已保存」。 */
+    hasConfig: config !== null,
+    error: configQuery.isError ? describeError(configQuery.error) : null,
     selected,
     existingNames: proxies.map((proxy) => proxy.name),
 
