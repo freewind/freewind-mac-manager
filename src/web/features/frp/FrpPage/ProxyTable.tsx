@@ -148,17 +148,24 @@ export const ProxyTable = (props: ProxyTableProps) => {
                     }
                   />
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onEdit(proxy)}>
+                    <DropdownMenuItem
+                      disabled={model.saving}
+                      onClick={() => onEdit(proxy)}
+                    >
                       <HugeiconsIcon icon={PencilEdit01Icon} />
                       编辑
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => model.probe(proxy)}>
+                    <DropdownMenuItem
+                      disabled={model.probing}
+                      onClick={() => void model.probe(proxy)}
+                    >
                       <HugeiconsIcon icon={Radar01Icon} />
                       探测连通
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       variant="destructive"
+                      disabled={model.saving}
                       onClick={() => onDelete(proxy)}
                     >
                       <HugeiconsIcon icon={TrashIcon} />

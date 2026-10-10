@@ -13,6 +13,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { FrpProxy, FrpProxyType } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
+import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
   AlertDialog,
@@ -78,11 +79,13 @@ export const FrpPage = () => {
   const server = model.server
 
   const openCreate = () => {
+    if (model.saving) return
     setEditing(null)
     setFormOpen(true)
   }
 
   const openEdit = (proxy: FrpProxy) => {
+    if (model.saving) return
     setEditing(proxy)
     setFormOpen(true)
   }
@@ -114,36 +117,46 @@ export const FrpPage = () => {
           ) : null}
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={openCreate}>
-              <HugeiconsIcon icon={Add01Icon} />
-              新增隧道
-            </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled={model.probing}
+              disabled={model.saving}
+              onClick={openCreate}
+            >
+              <HugeiconsIcon icon={Add01Icon} />
+              新增隧道
+            </Button>
+            <ActionButton
+              variant="outline"
+              size="sm"
+              busy={model.probing}
+              busyLabel="探测中…"
               onClick={() => void model.probeAll()}
             >
               <HugeiconsIcon icon={Radar01Icon} />
               探测全部
-            </Button>
-            <Button
+            </ActionButton>
+            <ActionButton
               variant="outline"
               size="sm"
+              busy={model.isFetching}
+              busyLabel="读取中…"
               onClick={model.refresh}
-              disabled={model.isLoading}
+              disabled={model.saving}
             >
               <HugeiconsIcon icon={RefreshIcon} />
               重新读取
-            </Button>
-            <Button
+            </ActionButton>
+            <ActionButton
               size="sm"
-              disabled={!model.dirty || model.saving}
+              busy={model.saving}
+              busyLabel="保存中…"
+              disabled={!model.dirty || formOpen || pendingDelete !== null}
               onClick={model.save}
             >
               <HugeiconsIcon icon={CloudSavingDone01Icon} />
-              {model.saving ? "保存中" : "保存"}
-            </Button>
+              保存
+            </ActionButton>
           </div>
         </div>
 

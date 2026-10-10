@@ -216,6 +216,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
                     <TableCell>
                       <RowActions
                         running={groupRunning}
+                        busy={model.killBusy}
                         onCopy={() =>
                           onCopy(
                             buildRowText({
@@ -294,6 +295,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
                         <TableCell>
                           <RowActions
                             running={childItem.running}
+                            busy={model.killBusy}
                             onCopy={() =>
                               onCopy(
                                 buildRowText({
@@ -330,6 +332,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
 }
 
 type RowActionsProps = {
+  busy: boolean
   running: boolean | null
   onCopy: () => void
   onKill: () => void
@@ -350,7 +353,10 @@ const RowActions = (props: RowActionsProps) => (
         复制整行信息
       </DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem disabled={!props.running} onClick={props.onKill}>
+      <DropdownMenuItem
+        disabled={!props.running || props.busy}
+        onClick={props.onKill}
+      >
         <HugeiconsIcon icon={Delete02Icon} />
         结束进程
       </DropdownMenuItem>

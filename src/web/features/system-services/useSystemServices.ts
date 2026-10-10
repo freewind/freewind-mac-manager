@@ -108,7 +108,7 @@ export const useSystemServices = () => {
   )
 
   const run = (action: ServiceAction, target: SystemService) => {
-    void serviceAction.run({
+    return serviceAction.run({
       label: target.label,
       domain: target.domain,
       action,
@@ -117,6 +117,7 @@ export const useSystemServices = () => {
 
   /** 入口：需要确认的先弹窗，其余直接执行。 */
   const requestAction = (action: ServiceAction, target: SystemService) => {
+    if (serviceAction.busy || revealAction.busy) return
     if (target.requiresRoot) {
       toast.error(
         `${target.label} 位于系统目录，需要 root 权限；此处只提供查看与复制。`
@@ -127,7 +128,7 @@ export const useSystemServices = () => {
       setPending({ action, label: target.label, domain: target.domain })
       return
     }
-    run(action, target)
+    void run(action, target)
   }
 
   const pendingTarget = pending
@@ -137,10 +138,9 @@ export const useSystemServices = () => {
       ) ?? null)
     : null
 
-  const confirmPending = () => {
-    if (!pending || !pendingTarget) return
-    run(pending.action, pendingTarget)
-    setPending(null)
+  const confirmPending = async (): Promise<boolean> => {
+    if (!pending || !pendingTarget) return false
+    return run(pending.action, pendingTarget)
   }
 
   const revealAction = useTaskAction<
@@ -161,6 +161,7 @@ export const useSystemServices = () => {
   }
 
   const reveal = (target: SystemService) => {
+    if (serviceAction.busy || revealAction.busy) return
     void revealAction.run({ label: target.label, domain: target.domain })
   }
 
@@ -182,6 +183,7 @@ export const useSystemServices = () => {
     isFetching: servicesQuery.isFetching,
     error: servicesQuery.isError ? describeError(servicesQuery.error) : null,
     isPending: serviceAction.busy || revealAction.busy,
+    revealing: revealAction.busy,
 
     // 本地共享状态
     selectedLabel: selected?.label ?? null,

@@ -212,27 +212,23 @@ export const useFiles = () => {
     local.setSelected([])
   }
 
-  const createEntry = (kind: "mkdir" | "newfile", name: string): void => {
-    void createAction.run({ kind, parent: resolvedPath, name })
-  }
+  const createEntry = (kind: "mkdir" | "newfile", name: string) =>
+    createAction.run({ kind, parent: resolvedPath, name })
 
-  const renameEntry = (path: string, name: string): void => {
-    void renameAction.run({ path, name })
-  }
+  const renameEntry = (path: string, name: string) =>
+    renameAction.run({ path, name })
 
-  const deleteEntries = (paths: string[]): void => {
-    if (paths.length === 0) return
-    void deleteAction.run(paths)
-  }
+  const deleteEntries = (paths: string[]) =>
+    paths.length === 0 ? Promise.resolve(false) : deleteAction.run(paths)
 
   const transferEntries = (
     mode: "copy" | "move",
     paths: string[],
     destPath: string
-  ): void => {
-    if (paths.length === 0) return
-    void transferAction.run({ mode, paths, destPath })
-  }
+  ) =>
+    paths.length === 0
+      ? Promise.resolve(false)
+      : transferAction.run({ mode, paths, destPath })
 
   const downloadEntry = (entry: FileEntry): void => {
     if (entry.kind !== "file") {

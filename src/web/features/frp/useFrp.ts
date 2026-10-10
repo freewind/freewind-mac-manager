@@ -20,7 +20,7 @@ import {
 } from "@web/features/frp/queries"
 import { useFrpLocalStore } from "@web/features/frp/store"
 import { useTaskAction } from "@web/hooks/use-task-action"
-import { useMemo } from "react"
+import { useMemo, useRef } from "react"
 import { toast } from "sonner"
 
 /**
@@ -38,6 +38,8 @@ export const useFrp = () => {
   const updateProxy = useUpdateProxy()
   const deleteProxy = useDeleteProxy()
   const probeProxy = useProbeProxy()
+  const probingNames = useRef(new Set<string>())
+  const probingAll = useRef(false)
 
   const config = configQuery.data ?? null
   const server = config?.server ?? null
@@ -115,31 +117,44 @@ export const useFrp = () => {
   }
 
   /** 探测一条隧道是否通。 */
-  const probe = (proxy: FrpProxy) => {
-    probeProxy.mutate(proxy, {
-      onSuccess: (result) => {
-        if (result.reachable) {
-          toast.success(`${proxy.name} 可连接（${result.latencyMs}ms）`)
-        } else {
-          toast.error(`${proxy.name} 连接失败`)
-        }
-      },
-    })
+  const probe = async (proxy: FrpProxy) => {
+    if (probingAll.current || probingNames.current.has(proxy.name)) return
+    probingNames.current.add(proxy.name)
+    try {
+      const result = await probeProxy.mutateAsync(proxy)
+      if (result.reachable) {
+        toast.success(`${proxy.name} 可连接（${result.latencyMs}ms）`)
+      } else {
+        toast.error(`${proxy.name} 连接失败`)
+      }
+    } catch (error) {
+      toast.error(`探测失败：${describeError(error)}`)
+    } finally {
+      probingNames.current.delete(proxy.name)
+    }
   }
 
   /** 探测全部隧道，返回可达数量。 */
   const probeAll = async () => {
+    if (probingAll.current || probingNames.current.size > 0) return
     if (proxies.length === 0) {
       toast.info("没有可探测的隧道")
       return
     }
-    const results = await Promise.all(
-      proxies.map((proxy) => probeProxy.mutateAsync(proxy))
-    )
-    const reachable = results.filter((result) => result.reachable).length
-    toast[reachable === results.length ? "success" : "warning"](
-      `已探测 ${results.length} 条隧道：${reachable} 条可达`
-    )
+    probingAll.current = true
+    try {
+      const results = await Promise.allSettled(
+        proxies.map((proxy) => probeProxy.mutateAsync(proxy))
+      )
+      const reachable = results.filter(
+        (result) => result.status === "fulfilled" && result.value.reachable
+      ).length
+      toast[reachable === results.length ? "success" : "warning"](
+        `已探测 ${results.length} 条隧道：${reachable} 条可达`
+      )
+    } finally {
+      probingAll.current = false
+    }
   }
 
   /** 重新读取 frpc 配置。 */
@@ -177,6 +192,7 @@ export const useFrp = () => {
     dirty,
     summary,
     isLoading: configQuery.isLoading,
+    isFetching: configQuery.isFetching,
     /** 配置是否已成功读到；未读到时不宣称「已保存」。 */
     hasConfig: config !== null,
     error: configQuery.isError ? describeError(configQuery.error) : null,

@@ -25,7 +25,7 @@ import {
   useTrafficLocalStore,
 } from "@web/features/traffic/store"
 import { useTaskAction } from "@web/hooks/use-task-action"
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { toast } from "sonner"
 
 export { REALTIME_SNAPSHOT_ID }
@@ -55,6 +55,7 @@ export const useTraffic = () => {
 
   const invalidateTraffic = useInvalidateTrafficAll()
   const killProcesses = useKillProcesses()
+  const terminating = useRef(false)
 
   const snapshots = useMemo(
     () => snapshotsQuery.data ?? [],
@@ -205,35 +206,37 @@ export const useTraffic = () => {
   /** 只删除一份时先把它选中，动作编排统一按当前选择执行。 */
   const handleRemoveSnapshot = (id: string) => {
     local.setSelectedIds([id])
-    void deleteAction.run([id])
+    return deleteAction.run([id])
   }
 
   const handleRemoveSelected = () => {
-    void deleteAction.run(
+    return deleteAction.run(
       local.selectedIds.filter((id) => id !== REALTIME_SNAPSHOT_ID)
     )
   }
 
   const handleMergeSelected = () => {
-    void mergeAction.run(local.selectedIds)
+    return mergeAction.run(local.selectedIds)
   }
 
-  const terminate = (label: string, pids: number[]) => {
-    killProcesses.mutate(
-      { pids },
-      {
-        onSuccess: (data) => {
-          const failed = data.results.filter((item) => !item.succeeded)
-          notify(
-            failed.length === 0
-              ? `已结束「${label}」的 ${pids.length} 个进程`
-              : `结束「${label}」失败：${failed.map((item) => `PID ${item.pid} ${item.message}`).join("；")}`
-          )
-        },
-        onError: (error) =>
-          toast.error(`结束进程失败：${describeError(error)}`),
-      }
-    )
+  const terminate = async (label: string, pids: number[]): Promise<boolean> => {
+    if (terminating.current) return false
+    terminating.current = true
+    try {
+      const data = await killProcesses.mutateAsync({ pids })
+      const failed = data.results.filter((item) => !item.succeeded)
+      notify(
+        failed.length === 0
+          ? `已结束「${label}」的 ${pids.length} 个进程`
+          : `结束「${label}」失败：${failed.map((item) => `PID ${item.pid} ${item.message}`).join("；")}`
+      )
+      return true
+    } catch (error) {
+      toast.error(`结束进程失败：${describeError(error)}`)
+      return false
+    } finally {
+      terminating.current = false
+    }
   }
 
   return {

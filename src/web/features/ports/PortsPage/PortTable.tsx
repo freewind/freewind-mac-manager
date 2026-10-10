@@ -211,6 +211,7 @@ export const PortTable = (props: PortTableProps) => {
                   </TableCell>
                   <TableCell>
                     <RowActions
+                      busy={model.killBusy}
                       onCopy={() => onCopy(buildGroupText(group, model.view))}
                       onCopyPids={() => onCopy(group.pids.join(", "))}
                       onKill={() =>
@@ -310,6 +311,7 @@ const BindingDetail = (props: {
 }
 
 type RowActionsProps = {
+  busy: boolean
   onCopy: () => void
   onCopyPids: () => void
   onKill: () => void
@@ -334,7 +336,11 @@ const RowActions = (props: RowActionsProps) => (
         复制 PID
       </DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem variant="destructive" onClick={props.onKill}>
+      <DropdownMenuItem
+        variant="destructive"
+        disabled={props.busy}
+        onClick={props.onKill}
+      >
         <HugeiconsIcon icon={Delete02Icon} />
         结束进程
       </DropdownMenuItem>

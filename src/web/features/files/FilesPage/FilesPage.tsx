@@ -128,9 +128,7 @@ export const FilesPage = () => {
           description: `将在 ${model.currentPath} 下创建`,
           confirmText: "创建",
           initialValue: "",
-          run: (name: string) => {
-            void model.createEntry(createKind, name)
-          },
+          run: (name: string) => model.createEntry(createKind, name),
         }
       : renameTarget !== null
         ? {
@@ -138,9 +136,7 @@ export const FilesPage = () => {
             description: `当前名称：${renameTarget.name}`,
             confirmText: "重命名",
             initialValue: renameTarget.name,
-            run: (name: string) => {
-              void model.renameEntry(renameTarget.path, name)
-            },
+            run: (name: string) => model.renameEntry(renameTarget.path, name),
           }
         : null
 
@@ -212,7 +208,8 @@ export const FilesPage = () => {
             setRenameTarget(null)
           }
         }}
-        onSubmit={(name) => nameDialog?.run(name)}
+        busy={busy}
+        onSubmit={(name) => nameDialog?.run(name) ?? Promise.resolve(false)}
       />
 
       <DeleteDialog
@@ -221,9 +218,12 @@ export const FilesPage = () => {
         onOpenChange={(open) => {
           if (!open) setDeletePaths(null)
         }}
-        onConfirm={() => {
-          if (deletePaths !== null) void model.deleteEntries(deletePaths)
-        }}
+        busy={busy}
+        onConfirm={() =>
+          deletePaths !== null
+            ? model.deleteEntries(deletePaths)
+            : Promise.resolve(false)
+        }
       />
 
       <MoveDialog
@@ -235,11 +235,12 @@ export const FilesPage = () => {
         onOpenChange={(open) => {
           if (!open) setTransfer(null)
         }}
-        onSubmit={(destPath) => {
-          if (transfer !== null) {
-            void model.transferEntries(transfer.mode, transfer.paths, destPath)
-          }
-        }}
+        busy={busy}
+        onSubmit={(destPath) =>
+          transfer !== null
+            ? model.transferEntries(transfer.mode, transfer.paths, destPath)
+            : Promise.resolve(false)
+        }
       />
     </div>
   )

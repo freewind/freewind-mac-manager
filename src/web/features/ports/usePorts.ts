@@ -12,7 +12,7 @@ import {
   type PortView,
   usePortsLocalStore,
 } from "@web/features/ports/store"
-import { useMemo } from "react"
+import { useMemo, useRef } from "react"
 import { toast } from "sonner"
 
 const matchesView = (group: PortGroup, view: PortView): boolean => {
@@ -53,6 +53,7 @@ export const usePorts = () => {
 
   const bindingsQuery = usePortBindings()
   const killPortProcesses = useKillPortProcesses()
+  const terminating = useRef(false)
 
   const bindings = useMemo(() => bindingsQuery.data ?? [], [bindingsQuery.data])
 
@@ -134,21 +135,22 @@ export const usePorts = () => {
     notify("端口列表已更新")
   }
 
-  const terminate = (port: number, pids: number[]) => {
-    killPortProcesses.mutate(
-      { port, pids },
-      {
-        onSuccess: (response) => {
-          const killed = response.results.filter(
-            (item) => item.succeeded
-          ).length
-          notify(
-            `端口 ${port}：已结束 ${killed} 个进程，${pids.length - killed} 个跳过`
-          )
-        },
-        onError: (error) => toast.error(describeError(error)),
-      }
-    )
+  const terminate = async (port: number, pids: number[]): Promise<boolean> => {
+    if (terminating.current) return false
+    terminating.current = true
+    try {
+      const response = await killPortProcesses.mutateAsync({ port, pids })
+      const killed = response.results.filter((item) => item.succeeded).length
+      notify(
+        `端口 ${port}：已结束 ${killed} 个进程，${pids.length - killed} 个跳过`
+      )
+      return true
+    } catch (error) {
+      toast.error(describeError(error))
+      return false
+    } finally {
+      terminating.current = false
+    }
   }
 
   return {

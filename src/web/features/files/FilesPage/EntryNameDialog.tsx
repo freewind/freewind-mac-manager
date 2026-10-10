@@ -1,3 +1,4 @@
+import { ActionButton } from "@web/components/ActionButton"
 import { Button } from "@web/components/ui/button"
 import {
   Dialog,
@@ -9,6 +10,7 @@ import {
 } from "@web/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
+import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useState } from "react"
 
 type EntryNameDialogProps = {
@@ -18,7 +20,8 @@ type EntryNameDialogProps = {
   confirmText: string
   initialValue?: string
   onOpenChange: (open: boolean) => void
-  onSubmit: (name: string) => void
+  onSubmit: (name: string) => Promise<boolean>
+  busy?: boolean
 }
 
 /** 新建（目录 / 文件）与重命名共用的命名弹窗。 */
@@ -30,6 +33,7 @@ export const EntryNameDialog = ({
   initialValue = "",
   onOpenChange,
   onSubmit,
+  busy = false,
 }: EntryNameDialogProps) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent>
@@ -40,6 +44,7 @@ export const EntryNameDialog = ({
       {open ? (
         <EntryNameForm
           initialValue={initialValue}
+          busy={busy}
           confirmText={confirmText}
           onClose={() => onOpenChange(false)}
           onSubmit={onSubmit}
@@ -53,7 +58,8 @@ type EntryNameFormProps = {
   initialValue: string
   confirmText: string
   onClose: () => void
-  onSubmit: (name: string) => void
+  onSubmit: (name: string) => Promise<boolean>
+  busy: boolean
 }
 
 /** 表单独立成组件：每次打开都从 initialValue 重新起算，不残留上次输入。 */
@@ -62,7 +68,9 @@ const EntryNameForm = ({
   confirmText,
   onClose,
   onSubmit,
+  busy,
 }: EntryNameFormProps) => {
+  const submission = useDialogSubmit(onClose, busy)
   const [name, setName] = useState(initialValue)
   const trimmed = name.trim()
 
@@ -72,8 +80,7 @@ const EntryNameForm = ({
       onSubmit={(event) => {
         event.preventDefault()
         if (trimmed.length === 0) return
-        onSubmit(trimmed)
-        onClose()
+        void submission.submit(() => onSubmit(trimmed))
       }}
     >
       <FieldGroup>
@@ -84,17 +91,28 @@ const EntryNameForm = ({
             value={name}
             autoFocus
             autoComplete="off"
+            disabled={submission.busy}
             onChange={(event) => setName(event.target.value)}
           />
         </Field>
       </FieldGroup>
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={submission.busy}
+          onClick={onClose}
+        >
           取消
         </Button>
-        <Button type="submit" disabled={trimmed.length === 0}>
+        <ActionButton
+          type="submit"
+          busy={submission.busy}
+          busyLabel="执行中…"
+          disabled={trimmed.length === 0}
+        >
           {confirmText}
-        </Button>
+        </ActionButton>
       </DialogFooter>
     </form>
   )

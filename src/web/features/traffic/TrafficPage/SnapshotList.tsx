@@ -73,6 +73,7 @@ export const SnapshotList = (props: SnapshotListProps) => {
             size="xs"
             variant="outline"
             busy={model.saveSnapshot.busy}
+            disabled={model.snapshotWriteBusy}
             busyLabel="保存中…"
             onClick={() => void model.saveSnapshot.run(undefined)}
           >
@@ -92,7 +93,7 @@ export const SnapshotList = (props: SnapshotListProps) => {
               }
               onClick={onRequestMergeSelected}
             >
-              合并为一份
+              {model.snapshotWriteBusy ? "执行中…" : "合并为一份"}
             </Button>
             <ActionButton
               size="xs"
@@ -206,6 +207,7 @@ export const SnapshotList = (props: SnapshotListProps) => {
                             {model.selectionMode ? "退出多选" : "多选…"}
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            disabled={model.snapshotWriteBusy}
                             onClick={() => onRequestDelete(snapshot)}
                           >
                             <HugeiconsIcon icon={Delete02Icon} />
@@ -226,7 +228,10 @@ export const SnapshotList = (props: SnapshotListProps) => {
                   >
                     {model.selectionMode ? "退出多选" : "多选…"}
                   </ContextMenuItem>
-                  <ContextMenuItem onClick={() => onRequestDelete(snapshot)}>
+                  <ContextMenuItem
+                    disabled={model.snapshotWriteBusy}
+                    onClick={() => onRequestDelete(snapshot)}
+                  >
                     <HugeiconsIcon icon={Delete02Icon} />
                     删除快照
                   </ContextMenuItem>

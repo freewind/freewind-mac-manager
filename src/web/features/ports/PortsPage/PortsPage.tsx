@@ -5,9 +5,9 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { formatTimestamp } from "@shared/format"
+import { ActionButton } from "@web/components/ActionButton"
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -27,6 +27,7 @@ import { Checkbox } from "@web/components/ui/checkbox"
 import { Input } from "@web/components/ui/input"
 import { REFRESH_INTERVAL_SECONDS } from "@web/features/ports/store"
 import { usePorts } from "@web/features/ports/usePorts"
+import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -38,7 +39,7 @@ type PendingConfirm = {
   title: string
   description: string
   confirmText: string
-  onConfirm: () => void
+  onConfirm: () => Promise<boolean>
 }
 
 export const PortsPage = () => {
@@ -47,6 +48,10 @@ export const PortsPage = () => {
     null
   )
 
+  const submission = useDialogSubmit(
+    () => setPendingConfirm(null),
+    model.killBusy
+  )
   useHistoryOverlay(pendingConfirm !== null, () => setPendingConfirm(null))
 
   const copyText = async (text: string) => {
@@ -166,16 +171,19 @@ export const PortsPage = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={model.killBusy}
+            <AlertDialogCancel disabled={submission.busy}>
+              取消
+            </AlertDialogCancel>
+            <ActionButton
+              busy={submission.busy}
+              busyLabel="结束中…"
               onClick={() => {
-                pendingConfirm?.onConfirm()
-                setPendingConfirm(null)
+                if (pendingConfirm)
+                  void submission.submit(pendingConfirm.onConfirm)
               }}
             >
               {pendingConfirm?.confirmText ?? "确认"}
-            </AlertDialogAction>
+            </ActionButton>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

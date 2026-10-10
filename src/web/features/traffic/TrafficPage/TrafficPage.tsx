@@ -9,9 +9,9 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { TrafficSnapshot } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
+import { ActionButton } from "@web/components/ActionButton"
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -28,6 +28,7 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import { useTraffic } from "@web/features/traffic/useTraffic"
+import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { type ReactNode, useState } from "react"
 import { toast } from "sonner"
@@ -38,7 +39,7 @@ type PendingConfirm = {
   title: string
   description: string
   confirmText: string
-  onConfirm: () => void
+  onConfirm: () => Promise<boolean>
 }
 
 export const TrafficPage = () => {
@@ -47,6 +48,10 @@ export const TrafficPage = () => {
     null
   )
 
+  const submission = useDialogSubmit(
+    () => setPendingConfirm(null),
+    model.killBusy || model.snapshotWriteBusy
+  )
   useHistoryOverlay(pendingConfirm !== null, () => setPendingConfirm(null))
 
   const scopeText = model.isRealtime
@@ -204,16 +209,19 @@ export const TrafficPage = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={model.killBusy}
+            <AlertDialogCancel disabled={submission.busy}>
+              取消
+            </AlertDialogCancel>
+            <ActionButton
+              busy={submission.busy}
+              busyLabel="执行中…"
               onClick={() => {
-                pendingConfirm?.onConfirm()
-                setPendingConfirm(null)
+                if (pendingConfirm)
+                  void submission.submit(pendingConfirm.onConfirm)
               }}
             >
               {pendingConfirm?.confirmText ?? "确认"}
-            </AlertDialogAction>
+            </ActionButton>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

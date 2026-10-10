@@ -83,8 +83,8 @@ export const useTaskAction = <TBody, TPayload = undefined>(
     if (markTaskNotified(task.id)) notifyTaskTerminal(task)
   }, [acceptedTaskId, task, detail.isError, queryClient])
 
-  const run = async (payload: TPayload): Promise<void> => {
-    if (busy || submitting.current) return
+  const run = async (payload: TPayload): Promise<boolean> => {
+    if (busy || submitting.current) return false
     const requestId = newRequestId()
     const { kind, target } = optionsRef.current
     const targetValue = typeof target === "function" ? target(payload) : target
@@ -107,7 +107,7 @@ export const useTaskAction = <TBody, TPayload = undefined>(
         setAcceptedTaskId(null)
         forgetPendingRequest({ requestId })
         await optionsRef.current.onCompleted(execution.body, payload)
-        return
+        return true
       }
       setAcceptedTaskId(execution.body.taskId)
       rememberPendingRequest({ ...pending, taskId: execution.body.taskId })
@@ -116,6 +116,7 @@ export const useTaskAction = <TBody, TPayload = undefined>(
       } else {
         toast(`已交给后台执行：${taskKindLabel(kind)}`)
       }
+      return true
     } catch (error) {
       const rejectedBeforeExecution =
         !requestSent ||
@@ -133,6 +134,7 @@ export const useTaskAction = <TBody, TPayload = undefined>(
           ? describeError(error)
           : `操作未发送：${describeError(error)}`
       )
+      return false
     } finally {
       submitting.current = false
       void queryClient.invalidateQueries({ queryKey: taskKeys.active })

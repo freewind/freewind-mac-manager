@@ -20,10 +20,10 @@ import type {
   SystemService,
 } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
+import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -88,6 +88,7 @@ import {
   type PendingAction,
   useSystemServices,
 } from "@web/features/system-services/useSystemServices"
+import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 
 const STATE_ORDER: ServiceState[] = ["running", "stopped", "failed", "disabled"]
@@ -222,6 +223,7 @@ const MetadataField = (props: { label: string; children: React.ReactNode }) => (
 
 export const SystemServicesPage = () => {
   const model = useSystemServices()
+  const submission = useDialogSubmit(model.cancelPending, model.isPending)
   useHistoryOverlay(model.pending !== null, model.cancelPending)
   const service = model.selected
   const pending: PendingAction | null = model.pending
@@ -230,7 +232,9 @@ export const SystemServicesPage = () => {
     if (!service) return null
     const availability = actionAvailability(service, action)
     return (
-      <Button
+      <ActionButton
+        busy={model.isPending}
+        busyLabel="执行中…"
         key={action}
         variant={
           action === "unload" || action === "stop" ? "outline" : "secondary"
@@ -242,7 +246,7 @@ export const SystemServicesPage = () => {
       >
         <HugeiconsIcon icon={icon} />
         {ACTION_LABELS[action]}
-      </Button>
+      </ActionButton>
     )
   }
 
@@ -433,7 +437,7 @@ export const SystemServicesPage = () => {
                             variant="ghost"
                             size="icon-sm"
                             aria-label="更多操作"
-                            disabled={service.requiresRoot}
+                            disabled={service.requiresRoot || model.isPending}
                             title={
                               service.requiresRoot
                                 ? "位于系统域，需要 root 权限"
@@ -449,14 +453,14 @@ export const SystemServicesPage = () => {
                           onClick={() =>
                             model.requestAction("disable", service)
                           }
-                          disabled={service.disabled}
+                          disabled={service.disabled || model.isPending}
                         >
                           <HugeiconsIcon icon={BanIcon} />
                           禁用（开机不启动）
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => model.requestAction("enable", service)}
-                          disabled={!service.disabled}
+                          disabled={!service.disabled || model.isPending}
                         >
                           <HugeiconsIcon icon={CheckmarkCircle02Icon} />
                           启用（恢复开机启动）
@@ -478,7 +482,10 @@ export const SystemServicesPage = () => {
                           <HugeiconsIcon icon={Copy01Icon} />
                           复制 plist 内容
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => model.reveal(service)}>
+                        <DropdownMenuItem
+                          disabled={model.isPending}
+                          onClick={() => model.reveal(service)}
+                        >
                           <HugeiconsIcon icon={FolderOpenIcon} />
                           在访达中显示
                         </DropdownMenuItem>
@@ -585,14 +592,17 @@ export const SystemServicesPage = () => {
                       <HugeiconsIcon icon={Copy01Icon} />
                       复制内容
                     </Button>
-                    <Button
+                    <ActionButton
+                      busy={model.revealing}
+                      busyLabel="定位中…"
+                      disabled={model.isPending}
                       variant="outline"
                       size="xs"
                       onClick={() => model.reveal(service)}
                     >
                       <HugeiconsIcon icon={FolderOpenIcon} />
                       访达定位
-                    </Button>
+                    </ActionButton>
                   </CardAction>
                 </CardHeader>
                 <CardContent>
@@ -650,18 +660,22 @@ export const SystemServicesPage = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel disabled={submission.busy}>
+              取消
+            </AlertDialogCancel>
+            <ActionButton
+              busy={submission.busy}
+              busyLabel="执行中…"
               variant={
                 pending &&
                 ["unload", "stop", "disable"].includes(pending.action)
                   ? "destructive"
                   : "default"
               }
-              onClick={model.confirmPending}
+              onClick={() => void submission.submit(model.confirmPending)}
             >
               {pending ? CONFIRM_TEXTS[pending.action].ok : ""}
-            </AlertDialogAction>
+            </ActionButton>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
