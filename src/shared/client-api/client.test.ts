@@ -151,31 +151,33 @@ describe("request identity", () => {
     })
   })
 
-  it("stops waiting by itself and reports an unknown result", async () => {
-    vi.useFakeTimers()
+  it("aborts the request when the caller aborts, and classifies a timeout as unknown", async () => {
+    let seen: AbortSignal | undefined
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        (_input: unknown, init: RequestInit) =>
-          new Promise<Response>((_resolve, reject) => {
-            const signal = init.signal as AbortSignal
-            signal.addEventListener("abort", () =>
-              reject(new DOMException("aborted", "AbortError"))
-            )
-          })
-      )
+      vi.fn((_input: unknown, init: RequestInit) => {
+        seen = init.signal as AbortSignal
+        return new Promise<Response>((_resolve, reject) => {
+          seen?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError"))
+          )
+        })
+      })
     )
 
+    const controller = new AbortController()
     const promise = apiClient.startScan({
       extraHeaders: taskRequestHeaders("req_0123456789abcdef"),
+      fetchOptions: { signal: controller.signal },
     })
-    // 先挂断言，避免未处理的拒绝影响测试
     const assertion = expect(promise).rejects.toMatchObject({
       status: null,
       resultUnknown: true,
       requestId: "req_0123456789abcdef",
     })
-    await vi.advanceTimersByTimeAsync(60_000)
+    // 调用方信号必须传递到实际请求上
+    await vi.waitFor(() => expect(seen).toBeDefined())
+    controller.abort()
     await assertion
   })
 

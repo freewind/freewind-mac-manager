@@ -92,16 +92,10 @@ export const apiClient = initClient(contract, {
     }
     const requestId = requestHeaders.get(TASK_REQUEST_ID_HEADER)
 
-    // 手写组合中止信号：不依赖 AbortSignal.any / AbortSignal.timeout，
-    // 旧版手机浏览器缺这两个 API 时不会让所有请求直接报错。
-    const controller = new AbortController()
-    let timedOut = false
-    const onCallerAbort = (): void => controller.abort()
-    signal?.addEventListener("abort", onCallerAbort, { once: true })
-    const timer = setTimeout(() => {
-      timedOut = true
-      controller.abort()
-    }, NETWORK_WAIT_MS)
+    const timeoutSignal = AbortSignal.timeout(NETWORK_WAIT_MS)
+    const combined = signal
+      ? AbortSignal.any([signal, timeoutSignal])
+      : timeoutSignal
 
     let response: Response
     try {
@@ -110,11 +104,12 @@ export const apiClient = initClient(contract, {
         headers: requestHeaders,
         body: body as BodyInit | undefined,
         credentials: "same-origin",
-        signal: controller.signal,
+        signal: combined,
       })
     } catch (error) {
       const exceeded =
-        timedOut || (error instanceof Error && error.name === "TimeoutError")
+        timeoutSignal.aborted ||
+        (error instanceof Error && error.name === "TimeoutError")
       const message = exceeded
         ? write
           ? "等待响应超时，结果未知，请重新读取确认"
@@ -130,9 +125,6 @@ export const apiClient = initClient(contract, {
         write,
         requestId
       )
-    } finally {
-      clearTimeout(timer)
-      signal?.removeEventListener("abort", onCallerAbort)
     }
     if (
       response.status === 401 &&
