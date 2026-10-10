@@ -147,7 +147,7 @@ describe("useTaskAction", () => {
     const client = makeClient()
     const { result } = renderHook(
       () =>
-        useTaskAction<{ message: string }>({
+        useTaskAction<{ message: string }, undefined>({
           kind: "file_delete",
           target: "/tmp/a",
           run: async (): Promise<Execution<{ message: string }>> => ({
@@ -161,10 +161,10 @@ describe("useTaskAction", () => {
     )
 
     await act(async () => {
-      await result.current.run()
+      await result.current.run(undefined)
     })
 
-    expect(onCompleted).toHaveBeenCalledWith({ message: "已删除" })
+    expect(onCompleted).toHaveBeenCalledWith({ message: "已删除" }, undefined)
     expect(result.current.busy).toBe(false)
     expect(fetchCalls).toEqual([])
     expect(listPendingRequests()).toEqual([])
@@ -178,7 +178,7 @@ describe("useTaskAction", () => {
     const client = makeClient()
     const { result } = renderHook(
       () =>
-        useTaskAction<{ message: string }>({
+        useTaskAction<{ message: string }, undefined>({
           kind: "file_delete",
           target: "/tmp/a",
           run: async (): Promise<Execution<{ message: string }>> => ({
@@ -196,7 +196,7 @@ describe("useTaskAction", () => {
     )
 
     await act(async () => {
-      await result.current.run()
+      await result.current.run(undefined)
     })
 
     // 受理不是成功：没有成功提示，且 busy 延续到任务终结
@@ -230,7 +230,7 @@ describe("useTaskAction", () => {
     })
     const { result } = renderHook(
       () =>
-        useTaskAction<{ message: string }>({
+        useTaskAction<{ message: string }, undefined>({
           kind: "file_delete",
           target: "/tmp/a",
           run: runFn,
@@ -240,7 +240,7 @@ describe("useTaskAction", () => {
     )
 
     await act(async () => {
-      await result.current.run()
+      await result.current.run(undefined)
     })
 
     expect(runFn).toHaveBeenCalledTimes(1)

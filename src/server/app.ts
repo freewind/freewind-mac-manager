@@ -6,8 +6,8 @@ import {
   diskGrowthContract,
 } from "./disk-growth/handlers"
 import {
+  createFilesRouter,
   filesContract,
-  filesRouter,
   registerUploadEndpoint,
 } from "./files/handlers"
 import { frpContract, frpRouter } from "./frp/handlers"
@@ -46,7 +46,12 @@ export const createApp = (injected?: {
     app,
     options
   )
-  createExpressEndpoints(filesContract, filesRouter, app, options)
+  createExpressEndpoints(
+    filesContract,
+    createFilesRouter(taskRuntime),
+    app,
+    options
+  )
   registerUploadEndpoint(app)
   createExpressEndpoints(frpContract, frpRouter, app, options)
   createExpressEndpoints(portsContract, portsRouter, app, options)

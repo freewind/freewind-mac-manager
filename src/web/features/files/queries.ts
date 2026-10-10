@@ -1,3 +1,4 @@
+import type { FileBatchResult } from "@shared/api-contract"
 import {
   copyEntries as copyEntriesApi,
   createDirectory as createDirectoryApi,
@@ -103,16 +104,31 @@ export const useRenameEntryMutation = () => {
   })
 }
 
-/** 删除：被删路径的整棵子树缓存作废，失效各自父目录。 */
-export const useDeleteEntriesMutation = () => {
+/**
+ * 删除：受理（202）时不做任何缓存改动——那时还没有结果；
+ * 真正完成后的刷新由按种类登记的完成处理负责。
+ */
+export const useDeleteEntriesMutation = (options: {
+  onCompleted: (result: FileBatchResult, paths: string[]) => void
+}) => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (paths: string[]) => deleteEntriesApi(paths),
-    onSuccess: async (_result, paths) => {
-      for (const path of paths) {
-        dropDirectorySubtree(queryClient, path)
+    mutationFn: ({
+      requestId,
+      paths,
+    }: {
+      requestId: string
+      paths: string[]
+    }) => deleteEntriesApi(requestId, paths),
+    onSuccess: async (execution, variables) => {
+      if (execution.kind !== "completed") return
+      for (const path of variables.paths) {
+        if (execution.body.completed.includes(path)) {
+          dropDirectorySubtree(queryClient, path)
+        }
       }
-      await invalidateDirectories(queryClient, paths.map(dirnameOf))
+      await invalidateDirectories(queryClient, variables.paths.map(dirnameOf))
+      options.onCompleted(execution.body, variables.paths)
     },
   })
 }
@@ -123,17 +139,25 @@ export type TransferEntriesInput = {
   destPath: string
 }
 
-/** 复制 / 移动：移动时旧路径子树作废，失效源目录与目标目录。 */
-export const useTransferEntriesMutation = () => {
+/** 复制 / 移动：同样只在真正完成时改动缓存。 */
+export const useTransferEntriesMutation = (options: {
+  onCompleted: (result: FileBatchResult, input: TransferEntriesInput) => void
+}) => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ mode, paths, destPath }: TransferEntriesInput) =>
+    mutationFn: ({
+      requestId,
+      mode,
+      paths,
+      destPath,
+    }: TransferEntriesInput & { requestId: string }) =>
       mode === "copy"
-        ? copyEntriesApi(paths, destPath)
-        : moveEntriesApi(paths, destPath),
-    onSuccess: async (_result, variables) => {
+        ? copyEntriesApi(requestId, paths, destPath)
+        : moveEntriesApi(requestId, paths, destPath),
+    onSuccess: async (execution, variables) => {
+      if (execution.kind !== "completed") return
       if (variables.mode === "move") {
-        for (const path of variables.paths) {
+        for (const path of execution.body.completed) {
           dropDirectorySubtree(queryClient, path)
         }
       }
@@ -141,6 +165,7 @@ export const useTransferEntriesMutation = () => {
         ...variables.paths.map(dirnameOf),
         variables.destPath,
       ])
+      options.onCompleted(execution.body, variables)
     },
   })
 }

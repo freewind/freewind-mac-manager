@@ -13,7 +13,11 @@ import {
   TrashIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import type { GrowthEntry, ScanTaskResult } from "@shared/api-contract"
+import {
+  type GrowthEntry,
+  type ScanTaskResult,
+  TASK_KINDS,
+} from "@shared/api-contract"
 import { triggerScan } from "@shared/client-api"
 import {
   describeError,
@@ -130,13 +134,13 @@ export const DiskGrowthPage = () => {
 
   // 定时扫描不由本页发起，因此统一登记一份完成处理，两条路径都能刷新。
   useEffect(() => {
-    registerTaskCompletion("disk_scan", refreshAfterScan)
+    registerTaskCompletion(TASK_KINDS.diskScan, refreshAfterScan)
   }, [refreshAfterScan])
 
-  const scan = useTaskAction<ScanTaskResult>({
-    kind: "disk_scan",
+  const scan = useTaskAction<ScanTaskResult, undefined>({
+    kind: TASK_KINDS.diskScan,
     target: scanTaskTarget("/"),
-    run: triggerScan,
+    run: (requestId) => triggerScan(requestId),
     onCompleted: refreshAfterScan,
   })
   const isSearching = keyword.trim().length > 0
@@ -176,7 +180,7 @@ export const DiskGrowthPage = () => {
             size="sm"
             busy={scan.busy}
             busyLabel="扫描中…"
-            onClick={() => void scan.run()}
+            onClick={() => void scan.run(undefined)}
           >
             <HugeiconsIcon icon={RefreshIcon} />
             立即扫描

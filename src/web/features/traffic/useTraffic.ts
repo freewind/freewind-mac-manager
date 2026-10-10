@@ -138,10 +138,10 @@ export const useTraffic = () => {
     registerTaskCompletion(TASK_KINDS.trafficSnapshotDelete, refreshSnapshots)
   }, [refreshSnapshots])
 
-  const saveAction = useTaskAction<SnapshotSaveResult>({
+  const saveAction = useTaskAction<SnapshotSaveResult, undefined>({
     kind: TASK_KINDS.trafficSnapshotSave,
     target: trafficSnapshotTaskTarget(),
-    run: saveTrafficSnapshot,
+    run: (requestId) => saveTrafficSnapshot(requestId),
     onCompleted: (result) => {
       local.setSelectedIds([result.snapshotId])
       notify(`已保存快照 ${result.rangeText}`)
@@ -149,10 +149,10 @@ export const useTraffic = () => {
     },
   })
 
-  const mergeAction = useTaskAction<SnapshotMutationResult>({
+  const mergeAction = useTaskAction<SnapshotMutationResult, string[]>({
     kind: TASK_KINDS.trafficSnapshotMerge,
     target: trafficSnapshotTaskTarget(),
-    run: (requestId) => mergeTrafficSnapshots(requestId, local.selectedIds),
+    run: (requestId, ids) => mergeTrafficSnapshots(requestId, ids),
     onCompleted: () => {
       local.setSelectedIds(local.selectedIds.slice(0, 1))
       notify(`已把 ${local.selectedIds.length} 份快照合并成一份`)
@@ -160,10 +160,10 @@ export const useTraffic = () => {
     },
   })
 
-  const deleteAction = useTaskAction<SnapshotMutationResult>({
+  const deleteAction = useTaskAction<SnapshotMutationResult, string[]>({
     kind: TASK_KINDS.trafficSnapshotDelete,
     target: trafficSnapshotTaskTarget(),
-    run: (requestId) => deleteTrafficSnapshots(requestId, local.selectedIds),
+    run: (requestId, ids) => deleteTrafficSnapshots(requestId, ids),
     onCompleted: () => {
       local.setSelectedIds([REALTIME_SNAPSHOT_ID])
       local.setSelectionMode(false)
@@ -205,15 +205,17 @@ export const useTraffic = () => {
   /** 只删除一份时先把它选中，动作编排统一按当前选择执行。 */
   const handleRemoveSnapshot = (id: string) => {
     local.setSelectedIds([id])
-    void deleteAction.run()
+    void deleteAction.run([id])
   }
 
   const handleRemoveSelected = () => {
-    void deleteAction.run()
+    void deleteAction.run(
+      local.selectedIds.filter((id) => id !== REALTIME_SNAPSHOT_ID)
+    )
   }
 
   const handleMergeSelected = () => {
-    void mergeAction.run()
+    void mergeAction.run(local.selectedIds)
   }
 
   const terminate = (label: string, pids: number[]) => {

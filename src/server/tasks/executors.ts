@@ -4,6 +4,16 @@ import {
   ScanPayloadSchema,
 } from "@server/disk-growth/task"
 import {
+  FILE_COPY_KIND,
+  FILE_DELETE_KIND,
+  FILE_MOVE_KIND,
+  DeletePayloadSchema as FileDeletePayloadSchema,
+  TransferPayloadSchema as FileTransferPayloadSchema,
+  runCopyTask,
+  runDeleteTask,
+  runMoveTask,
+} from "@server/files/task"
+import {
   DeletePayloadSchema,
   MergePayloadSchema,
   runDeleteSnapshotsTask,
@@ -39,6 +49,22 @@ export type TaskExecutor = {
   ) => Promise<TaskExecutorOutcome>
 }
 
+/** 文件操作进度映射到任务进度；总量不预先统计，因此 total 为 null。 */
+const toTaskProgressOf = (progress: {
+  done: number
+  total: number | null
+  bytesDone: number
+  stage: string
+  currentTarget: string | null
+}): TaskProgress => ({
+  done: progress.done,
+  total: progress.total,
+  bytesDone: progress.bytesDone,
+  bytesTotal: null,
+  stage: progress.stage,
+  currentTarget: progress.currentTarget,
+})
+
 export type TaskExecutorRegistry = {
   get: (kind: string) => TaskExecutor | null
   kinds: () => string[]
@@ -73,6 +99,56 @@ export const taskExecutors: TaskExecutor[] = [
         message: outcome.message,
         // 有不可读项时如实报部分完成，不报成完整成功。
         status: outcome.incomplete ? "partial" : "done",
+      }
+    },
+  },
+  {
+    kind: FILE_DELETE_KIND,
+    run: async (payload, context) => {
+      const parsed = FileDeletePayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("删除文件载荷非法")
+      const outcome = await runDeleteTask({
+        paths: parsed.data.paths,
+        report: (progress) => context.report(toTaskProgressOf(progress)),
+      })
+      return {
+        result: outcome.result,
+        message: outcome.message,
+        status: outcome.partial ? "partial" : "done",
+      }
+    },
+  },
+  {
+    kind: FILE_COPY_KIND,
+    run: async (payload, context) => {
+      const parsed = FileTransferPayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("复制文件载荷非法")
+      const outcome = await runCopyTask({
+        paths: parsed.data.paths,
+        destPath: parsed.data.destPath,
+        report: (progress) => context.report(toTaskProgressOf(progress)),
+      })
+      return {
+        result: outcome.result,
+        message: outcome.message,
+        status: outcome.partial ? "partial" : "done",
+      }
+    },
+  },
+  {
+    kind: FILE_MOVE_KIND,
+    run: async (payload, context) => {
+      const parsed = FileTransferPayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("移动文件载荷非法")
+      const outcome = await runMoveTask({
+        paths: parsed.data.paths,
+        destPath: parsed.data.destPath,
+        report: (progress) => context.report(toTaskProgressOf(progress)),
+      })
+      return {
+        result: outcome.result,
+        message: outcome.message,
+        status: outcome.partial ? "partial" : "done",
       }
     },
   },

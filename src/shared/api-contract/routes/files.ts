@@ -1,10 +1,16 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
 import { z } from "zod"
 import { c } from "../init"
-import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
+import {
+  ActionResponseSchema,
+  ApiErrorSchema,
+  TaskAcceptedSchema,
+  TaskRequestIdHeadersSchema,
+} from "../schemas/common"
 import {
   CreateEntryBodySchema,
   DirectoryResponseSchema,
+  FileBatchResultSchema,
   FileContentResponseSchema,
   PathQuerySchema,
   PathsQuerySchema,
@@ -43,23 +49,42 @@ export const filesRoutes = {
     body: RenameEntryBodySchema,
     responses: { 200: ActionResponseSchema, ...errorResponses },
   },
+  // 三个批量操作都可能很久：请求标识由契约强制要求，完成返回逐项结果，未完成返回 202。
   deleteEntries: {
     method: "DELETE",
     path: toContractPath(ApiPath.filesEntries),
     query: PathsQuerySchema,
-    responses: { 200: ActionResponseSchema, ...errorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: FileBatchResultSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...errorResponses,
+    },
   },
   copyEntries: {
     method: "POST",
     path: toContractPath(ApiPath.filesEntriesCopy),
     body: TransferEntriesBodySchema,
-    responses: { 200: ActionResponseSchema, ...errorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: FileBatchResultSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...errorResponses,
+    },
   },
   moveEntries: {
     method: "POST",
     path: toContractPath(ApiPath.filesEntriesMove),
     body: TransferEntriesBodySchema,
-    responses: { 200: ActionResponseSchema, ...errorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: FileBatchResultSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...errorResponses,
+    },
   },
   readFileContent: {
     method: "GET",

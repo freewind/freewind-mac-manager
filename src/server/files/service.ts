@@ -9,6 +9,7 @@ import {
   realpath,
   rename,
   rm,
+  rmdir,
   stat,
   writeFile,
 } from "node:fs/promises"
@@ -33,6 +34,61 @@ const MAX_UPLOAD_BYTES = 512 * 1024 * 1024
 
 /** 批量 stat 的批大小，避免一次对大目录的每个条目同时发起请求。 */
 const STAT_BATCH_SIZE = 64
+
+/** 递归操作的并发上限：既能压满磁盘，又不会同时打开过多文件。 */
+const TRANSFER_CONCURRENCY = 8
+
+/**
+ * 文件操作进度：done/bytesDone 只统计确实处理完的条目，
+ * total 只在能便宜拿到时才给（复制、移动不预先全盘统计，因此为 null）。
+ */
+export type FileOperationProgress = {
+  done: number
+  total: number | null
+  bytesDone: number
+  stage: string
+  currentTarget: string | null
+}
+
+/** 逐项结果：允许部分完成，不把「删了一半」笼统说成失败。 */
+export type FileBatchOutcome = {
+  completed: string[]
+  failed: { path: string; message: string }[]
+  skipped: string[]
+  /** 实际写入的字节数；删除不适用时为 null。 */
+  bytes: number | null
+}
+
+type OperationOptions = {
+  report?: (progress: FileOperationProgress) => void
+  /** 依赖注入点：测试用它模拟跨卷（EXDEV）等真实环境不方便制造的情况。 */
+  io?: {
+    rename?: (from: string, to: string) => Promise<void>
+  }
+}
+
+const noop = (): void => undefined
+
+/** 有界并发执行，保持完成顺序无关的进度统计。 */
+const mapWithLimit = async <T>(
+  items: T[],
+  limit: number,
+  run: (item: T) => Promise<void>
+): Promise<void> => {
+  let cursor = 0
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      for (;;) {
+        const index = cursor
+        cursor += 1
+        if (index >= items.length) return
+        await run(items[index])
+      }
+    }
+  )
+  await Promise.all(workers)
+}
 
 const TEXT_EXTENSIONS = new Set([
   "bash",
@@ -263,17 +319,74 @@ export const renameEntry = async (
   await rename(source, destination)
 }
 
-export const deleteEntries = async (paths: string[]): Promise<void> => {
-  await Promise.all(
-    paths.map(async (item) =>
-      rm(await resolveExistingPath(item), { recursive: true, force: false })
+/**
+ * 递归删除并统计真实完成数。
+ *
+ * 保留原有安全策略：顶层目标先做符号链接与范围校验；遍历中遇到符号链接只删除链接
+ * 本身，不跟随进入，避免越界删除。删除过程本身是逐项完成，因此进度是真实数字。
+ */
+const removeTree = async (
+  target: string,
+  counter: { done: number; bytes: number },
+  report: (progress: FileOperationProgress) => void
+): Promise<void> => {
+  const info = await lstat(target)
+  if (info.isDirectory()) {
+    const names = await readdir(target)
+    await mapWithLimit(names, TRANSFER_CONCURRENCY, (name) =>
+      removeTree(path.join(target, name), counter, report)
     )
-  )
+    // 目录必须用 rmdir：fs.rm 不带 recursive 会直接拒绝目录（EISDIR）。
+    await rmdir(target)
+    return
+  }
+  await rm(target, { force: false })
+  counter.done += 1
+  counter.bytes += info.size
+  report({
+    done: counter.done,
+    total: null,
+    bytesDone: counter.bytes,
+    stage: "删除中",
+    currentTarget: target,
+  })
+}
+
+export const deleteEntries = async (
+  paths: string[],
+  options?: OperationOptions
+): Promise<FileBatchOutcome> => {
+  const report = options?.report ?? noop
+  const completed: string[] = []
+  const failed: { path: string; message: string }[] = []
+  const counter = { done: 0, bytes: 0 }
+  report({
+    done: 0,
+    total: null,
+    bytesDone: 0,
+    stage: "删除中",
+    currentTarget: null,
+  })
+
+  for (const item of paths) {
+    try {
+      const target = await resolveExistingPath(item)
+      await removeTree(target, counter, report)
+      completed.push(target)
+    } catch (error) {
+      // 逐项记录：一项失败不影响其余条目，也不把部分完成说成全部失败。
+      failed.push({ path: item, message: describeError(error) })
+    }
+  }
+
+  return { completed, failed, skipped: [], bytes: null }
 }
 
 const copyRecursive = async (
   source: string,
-  destination: string
+  destination: string,
+  counter: { done: number; bytes: number },
+  report: (progress: FileOperationProgress) => void
 ): Promise<void> => {
   const sourceInfo = await lstat(source)
   if (sourceInfo.isSymbolicLink()) {
@@ -281,13 +394,25 @@ const copyRecursive = async (
   }
   if (!sourceInfo.isDirectory()) {
     await copyFile(source, destination)
+    counter.done += 1
+    counter.bytes += sourceInfo.size
+    report({
+      done: counter.done,
+      total: null,
+      bytesDone: counter.bytes,
+      stage: "复制中",
+      currentTarget: source,
+    })
     return
   }
   await mkdir(destination, { recursive: true })
   const items = await readdir(source)
-  await Promise.all(
-    items.map((item) =>
-      copyRecursive(path.join(source, item), path.join(destination, item))
+  await mapWithLimit(items, TRANSFER_CONCURRENCY, (item) =>
+    copyRecursive(
+      path.join(source, item),
+      path.join(destination, item),
+      counter,
+      report
     )
   )
 }
@@ -312,45 +437,68 @@ const resolveTransferTarget = async (
 
 export const copyEntries = async (
   paths: string[],
-  destPath: string
-): Promise<void> => {
+  destPath: string,
+  options?: OperationOptions
+): Promise<FileBatchOutcome> => {
+  const report = options?.report ?? noop
   const destination = await resolveTransferTarget(paths, destPath)
-  await Promise.all(
-    paths.map(async (item) => {
+  const completed: string[] = []
+  const failed: { path: string; message: string }[] = []
+  const counter = { done: 0, bytes: 0 }
+
+  for (const item of paths) {
+    try {
       const source = await resolveExistingPath(item)
       const target = path.join(destination, path.basename(source))
       if (existsSync(target)) {
         throw new Error(`目标已存在同名条目：${path.basename(source)}`)
       }
-      await copyRecursive(source, target)
-    })
-  )
+      await copyRecursive(source, target, counter, report)
+      completed.push(source)
+    } catch (error) {
+      failed.push({ path: item, message: describeError(error) })
+    }
+  }
+
+  return { completed, failed, skipped: [], bytes: counter.bytes }
 }
 
 export const moveEntries = async (
   paths: string[],
-  destPath: string
-): Promise<void> => {
+  destPath: string,
+  options?: OperationOptions
+): Promise<FileBatchOutcome> => {
+  const report = options?.report ?? noop
+  const renameFile = options?.io?.rename ?? rename
   const destination = await resolveTransferTarget(paths, destPath)
-  await Promise.all(
-    paths.map(async (item) => {
+  const completed: string[] = []
+  const failed: { path: string; message: string }[] = []
+  const counter = { done: 0, bytes: 0 }
+
+  for (const item of paths) {
+    try {
       const source = await resolveExistingPath(item)
       const target = path.join(destination, path.basename(source))
       if (existsSync(target)) {
         throw new Error(`目标已存在同名条目：${path.basename(source)}`)
       }
       try {
-        await rename(source, target)
+        await renameFile(source, target)
       } catch (error) {
-        // 跨卷时 rename 报 EXDEV，退化成复制 + 删除；其它错误照原样抛出
+        // 跨卷时 rename 报 EXDEV：先复制，复制确认完整后才删除源，绝不先删。
         if ((error as NodeJS.ErrnoException).code !== "EXDEV") {
           throw error
         }
-        await copyRecursive(source, target)
-        await rm(source, { recursive: true, force: false })
+        await copyRecursive(source, target, counter, report)
+        await removeTree(source, counter, report)
       }
-    })
-  )
+      completed.push(source)
+    } catch (error) {
+      failed.push({ path: item, message: describeError(error) })
+    }
+  }
+
+  return { completed, failed, skipped: [], bytes: counter.bytes }
 }
 
 export const readFileContent = async (

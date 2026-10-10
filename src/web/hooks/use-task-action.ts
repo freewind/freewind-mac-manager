@@ -19,15 +19,19 @@ import { taskKeys, useTaskDetail } from "@web/features/tasks/queries"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-export type TaskActionOptions<T> = {
+/**
+ * TPayload 是这次动作的入参（例如选中的路径）。
+ * 目标锁由载荷决定，因此 target 既可以是固定字符串，也可以由载荷推导。
+ */
+export type TaskActionOptions<TPayload, TBody> = {
   kind: string
-  target: string
+  target: string | ((payload: TPayload) => string)
   /** 发起动作：请求标识由这里生成并放进写请求，服务端据此复用任务。 */
-  run: (requestId: string) => Promise<Execution<T>>
+  run: (requestId: string, payload: TPayload) => Promise<Execution<TBody>>
   /** 阈值内完成：按该端点自己的结果处理（刷新缓存、提示）。 */
-  onCompleted: (body: T) => void | Promise<void>
+  onCompleted: (body: TBody, payload: TPayload) => void | Promise<void>
   /** 受理时的提示文案；不传用默认说明。这不是成功提示。 */
-  onAccepted?: (accepted: TaskAccepted) => void
+  onAccepted?: (accepted: TaskAccepted, payload: TPayload) => void
 }
 
 /**
@@ -58,7 +62,9 @@ const notifyTerminal = (task: TaskRecord): void => {
  * - 结果未知只记录请求标识用于核实，既不提示成功，也不自动重发。
  * - 真正调用仍由各域通过 client-api 完成，这里不拼接请求。
  */
-export const useTaskAction = <T>(options: TaskActionOptions<T>) => {
+export const useTaskAction = <TBody, TPayload = undefined>(
+  options: TaskActionOptions<TPayload, TBody>
+) => {
   const queryClient = useQueryClient()
   const [inFlight, setInFlight] = useState(false)
   const [acceptedTaskId, setAcceptedTaskId] = useState<string | null>(null)
@@ -94,27 +100,28 @@ export const useTaskAction = <T>(options: TaskActionOptions<T>) => {
     notifyTerminal(task)
   }, [acceptedTaskId, task, detail.isError, queryClient])
 
-  const run = async (): Promise<void> => {
+  const run = async (payload: TPayload): Promise<void> => {
     if (busy) return
     const requestId = newRequestId()
     const { kind, target } = optionsRef.current
+    const targetValue = typeof target === "function" ? target(payload) : target
     setInFlight(true)
     try {
-      const execution = await optionsRef.current.run(requestId)
+      const execution = await optionsRef.current.run(requestId, payload)
       if (execution.kind === "completed") {
-        await optionsRef.current.onCompleted(execution.body)
+        await optionsRef.current.onCompleted(execution.body, payload)
         return
       }
       rememberPendingRequest({
         requestId,
         kind,
-        target,
+        target: targetValue,
         startedAt: Date.now(),
         taskId: execution.body.taskId,
       })
       setAcceptedTaskId(execution.body.taskId)
       if (optionsRef.current.onAccepted) {
-        optionsRef.current.onAccepted(execution.body)
+        optionsRef.current.onAccepted(execution.body, payload)
       } else {
         toast(`已交给后台执行：${taskKindLabel(kind)}`)
       }
@@ -124,7 +131,7 @@ export const useTaskAction = <T>(options: TaskActionOptions<T>) => {
         rememberPendingRequest({
           requestId,
           kind,
-          target,
+          target: targetValue,
           startedAt: Date.now(),
           taskId: null,
         })

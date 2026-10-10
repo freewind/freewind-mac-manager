@@ -74,7 +74,7 @@ export const SnapshotList = (props: SnapshotListProps) => {
             variant="outline"
             busy={model.saveSnapshot.busy}
             busyLabel="保存中…"
-            onClick={() => void model.saveSnapshot.run()}
+            onClick={() => void model.saveSnapshot.run(undefined)}
           >
             保存快照
           </ActionButton>

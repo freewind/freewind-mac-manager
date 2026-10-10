@@ -1,11 +1,13 @@
 import type {
   ActionResponse,
   DirectoryResponse,
+  FileBatchResult,
   FileContentResponse,
   FileEntry,
 } from "@shared/api-contract"
 import { ApiPath } from "@shared/api-path"
-import { apiClient, unwrap } from "./client"
+import { apiClient, taskRequestHeaders, unwrap } from "./client"
+import { type Execution, runExecution } from "./execution"
 
 export const fetchDirectory = async (
   path: string
@@ -34,23 +36,43 @@ export const renameEntry = async (
 ): Promise<ActionResponse> =>
   unwrap<ActionResponse>(await apiClient.renameEntry({ body: { path, name } }))
 
-export const deleteEntries = async (paths: string[]): Promise<ActionResponse> =>
-  unwrap<ActionResponse>(await apiClient.deleteEntries({ query: { paths } }))
+/**
+ * 三个批量操作都会走任务：请求标识由服务端用来复用任务，
+ * 结果要么是逐项完成结果，要么是受理回执。
+ */
+export const deleteEntries = async (
+  requestId: string,
+  paths: string[]
+): Promise<Execution<FileBatchResult>> =>
+  runExecution<FileBatchResult>(() =>
+    apiClient.deleteEntries({
+      query: { paths },
+      headers: taskRequestHeaders(requestId),
+    })
+  )
 
 export const copyEntries = async (
+  requestId: string,
   paths: string[],
   destPath: string
-): Promise<ActionResponse> =>
-  unwrap<ActionResponse>(
-    await apiClient.copyEntries({ body: { paths, destPath } })
+): Promise<Execution<FileBatchResult>> =>
+  runExecution<FileBatchResult>(() =>
+    apiClient.copyEntries({
+      body: { paths, destPath },
+      headers: taskRequestHeaders(requestId),
+    })
   )
 
 export const moveEntries = async (
+  requestId: string,
   paths: string[],
   destPath: string
-): Promise<ActionResponse> =>
-  unwrap<ActionResponse>(
-    await apiClient.moveEntries({ body: { paths, destPath } })
+): Promise<Execution<FileBatchResult>> =>
+  runExecution<FileBatchResult>(() =>
+    apiClient.moveEntries({
+      body: { paths, destPath },
+      headers: taskRequestHeaders(requestId),
+    })
   )
 
 export const fetchFileContent = async (
