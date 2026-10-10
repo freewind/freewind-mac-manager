@@ -133,7 +133,7 @@ export class TaskRunner {
       }
     }
 
-    const active = this.store.findActive(request.kind, request.target)
+    const active = this.store.findActive(request.target)
     if (active) {
       return {
         kind: "conflict",

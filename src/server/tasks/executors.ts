@@ -8,14 +8,24 @@ import {
 } from "@server/disk-growth/task"
 import {
   FILE_COPY_KIND,
+  FILE_CREATE_KIND,
   FILE_DELETE_KIND,
   FILE_MOVE_KIND,
+  FILE_RENAME_KIND,
+  FILE_WRITE_KIND,
+  CreatePayloadSchema as FileCreatePayloadSchema,
   DeletePayloadSchema as FileDeletePayloadSchema,
+  RenamePayloadSchema as FileRenamePayloadSchema,
   TransferPayloadSchema as FileTransferPayloadSchema,
+  WriteContentPayloadSchema as FileWritePayloadSchema,
   runCopyTask,
+  runCreateTask,
   runDeleteTask,
   runMoveTask,
+  runRenameTask,
+  runWriteContentTask,
 } from "@server/files/task"
+import { FRP_SAVE_KIND, runSaveFrpTask } from "@server/frp/task"
 import {
   runDeleteSnapshotsTask,
   runMergeSnapshotsTask,
@@ -103,6 +113,56 @@ export const taskExecutors: TaskExecutor[] = [
         // 有不可读项时如实报部分完成，不报成完整成功。
         status: outcome.incomplete ? "partial" : "done",
       }
+    },
+  },
+  {
+    kind: FILE_CREATE_KIND,
+    run: async (payload, context) => {
+      const parsed = FileCreatePayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("新建条目载荷非法")
+      const outcome = await runCreateTask({
+        kind: parsed.data.kind,
+        parentPath: parsed.data.parentPath,
+        name: parsed.data.name,
+        report: (progress) => context.report(toTaskProgressOf(progress)),
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: FILE_RENAME_KIND,
+    run: async (payload, context) => {
+      const parsed = FileRenamePayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("重命名载荷非法")
+      const outcome = await runRenameTask({
+        path: parsed.data.path,
+        name: parsed.data.name,
+        report: (progress) => context.report(toTaskProgressOf(progress)),
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: FILE_WRITE_KIND,
+    run: async (payload, context) => {
+      const parsed = FileWritePayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("保存内容载荷非法")
+      const outcome = await runWriteContentTask({
+        path: parsed.data.path,
+        content: parsed.data.content,
+        report: (progress) => context.report(toTaskProgressOf(progress)),
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: FRP_SAVE_KIND,
+    run: async (payload, context) => {
+      const outcome = await runSaveFrpTask({
+        payload,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
     },
   },
   {

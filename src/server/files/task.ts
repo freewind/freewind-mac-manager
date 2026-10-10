@@ -1,21 +1,29 @@
 import { type FileBatchResult, TASK_KINDS } from "@shared/api-contract"
 import { FileBatchResultSchema } from "@shared/api-contract/schemas/files"
-import { fileTaskTarget } from "@shared/task-targets"
+import { fileDirectoryTarget, fileTaskTarget } from "@shared/task-targets"
 import { z } from "zod"
 import {
   copyEntries,
+  createDirectory,
+  createFile,
   deleteEntries,
   type FileBatchOutcome,
   type FileOperationProgress,
   moveEntries,
+  renameEntry,
+  writeFileContent,
 } from "./service"
 
 export const FILE_COPY_KIND = TASK_KINDS.fileCopy
 export const FILE_DELETE_KIND = TASK_KINDS.fileDelete
 export const FILE_MOVE_KIND = TASK_KINDS.fileMove
+export const FILE_CREATE_KIND = TASK_KINDS.fileCreate
+export const FILE_RENAME_KIND = TASK_KINDS.fileRename
+export const FILE_WRITE_KIND = TASK_KINDS.fileWriteContent
 
+/** 新建/改名按父目录加锁，这样它们与批量任务落在同一目录上时能互相拦住。 */
 /** 与端点共用同一把路径锁，避免复制/删除/移动与创建改名互相踩。 */
-export { fileTaskTarget }
+export { fileDirectoryTarget, fileTaskTarget }
 
 /**
  * 执行器入参：只接受路径与目标目录，不接受模块、命令或 shell 片段。
@@ -31,6 +39,105 @@ export const TransferPayloadSchema = z.object({
 
 const toResult = (outcome: FileBatchOutcome): FileBatchResult =>
   FileBatchResultSchema.parse(outcome)
+
+/** 新建（目录或文件）执行器载荷。 */
+export const CreatePayloadSchema = z.object({
+  kind: z.enum(["dir", "file"]),
+  parentPath: z.string(),
+  name: z.string().min(1),
+})
+
+export const RenamePayloadSchema = z.object({
+  path: z.string().min(1),
+  name: z.string().min(1),
+})
+
+export const WriteContentPayloadSchema = z.object({
+  path: z.string().min(1),
+  content: z.string().max(2 * 1024 * 1024),
+})
+
+export const runCreateTask = async (options: {
+  kind: "dir" | "file"
+  parentPath: string
+  name: string
+  report: (progress: FileOperationProgress) => void
+}): Promise<{ result: { message: string }; message: string }> => {
+  options.report({
+    done: 0,
+    total: 1,
+    bytesDone: 0,
+    stage: options.kind === "dir" ? "新建文件夹" : "新建文件",
+    currentTarget: null,
+  })
+  if (options.kind === "dir") {
+    await createDirectory(options.parentPath, options.name)
+  } else {
+    await createFile(options.parentPath, options.name)
+  }
+  options.report({
+    done: 1,
+    total: 1,
+    bytesDone: 0,
+    stage: "完成",
+    currentTarget: null,
+  })
+  const message =
+    options.kind === "dir"
+      ? `已新建文件夹：${options.name}`
+      : `已新建文件：${options.name}`
+  return { result: { message }, message }
+}
+
+export const runRenameTask = async (options: {
+  path: string
+  name: string
+  report: (progress: FileOperationProgress) => void
+}): Promise<{ result: { message: string }; message: string }> => {
+  options.report({
+    done: 0,
+    total: 1,
+    bytesDone: 0,
+    stage: "重命名",
+    currentTarget: options.path,
+  })
+  await renameEntry(options.path, options.name)
+  options.report({
+    done: 1,
+    total: 1,
+    bytesDone: 0,
+    stage: "完成",
+    currentTarget: null,
+  })
+  return {
+    result: { message: `已重命名为：${options.name}` },
+    message: `已重命名为：${options.name}`,
+  }
+}
+
+export const runWriteContentTask = async (options: {
+  path: string
+  content: string
+  report: (progress: FileOperationProgress) => void
+}): Promise<{ result: { message: string }; message: string }> => {
+  const bytes = Buffer.byteLength(options.content, "utf8")
+  options.report({
+    done: 0,
+    total: 1,
+    bytesDone: 0,
+    stage: "保存内容",
+    currentTarget: options.path,
+  })
+  await writeFileContent(options.path, options.content)
+  options.report({
+    done: 1,
+    total: 1,
+    bytesDone: bytes,
+    stage: "完成",
+    currentTarget: null,
+  })
+  return { result: { message: "文件已保存" }, message: "文件已保存" }
+}
 
 const toReport =
   (report: (progress: FileOperationProgress) => void) =>

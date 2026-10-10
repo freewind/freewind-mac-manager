@@ -1,15 +1,5 @@
-import type {
-  FrpConfig,
-  FrpConfigInput,
-  FrpProbe,
-  FrpProxy,
-} from "@shared/api-contract"
-import {
-  fetchFrpConfig,
-  probeFrpProxy,
-  saveFrpConfig,
-} from "@shared/client-api"
-import { configSignature } from "@shared/frp-format"
+import type { FrpConfig, FrpProbe, FrpProxy } from "@shared/api-contract"
+import { fetchFrpConfig, probeFrpProxy } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useFrpLocalStore } from "@web/features/frp/store"
 
@@ -97,21 +87,6 @@ export const useProbeProxy = () => {
     },
     onSettled: (_probe, _error, proxy: FrpProxy) => {
       setChecking(proxy.name, false)
-    },
-  })
-}
-
-/** 把当前配置写回 frpc 文件，成功后刷新「已保存」指纹。 */
-export const useSaveFrp = () => {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (input: FrpConfigInput) => saveFrpConfig(input),
-    onSuccess: (_result, input) => {
-      client.setQueryData<FrpConfig>(frpKeys.config, (previous) =>
-        previous
-          ? { ...previous, savedSignature: configSignature(input) }
-          : previous
-      )
     },
   })
 }

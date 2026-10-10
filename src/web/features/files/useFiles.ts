@@ -1,33 +1,32 @@
 import {
+  type ActionResponse,
   type FileBatchResult,
   type FileEntry,
   TASK_KINDS,
 } from "@shared/api-contract"
 import {
   copyEntries as copyEntriesApi,
+  createDirectory as createDirectoryApi,
+  createFile as createFileApi,
   deleteEntries as deleteEntriesApi,
   downloadFileUrl,
   moveEntries as moveEntriesApi,
+  renameEntry as renameEntryApi,
 } from "@shared/client-api"
-import { describeError } from "@shared/format"
-import { fileTaskTarget } from "@shared/task-targets"
+import { fileDirectoryTarget, fileTaskTarget } from "@shared/task-targets"
 import { useQueryClient } from "@tanstack/react-query"
 import {
   buildCrumbs,
+  dirnameOf,
   type PathCrumb,
   parentPath,
   withName,
 } from "@web/features/files/domain"
-import {
-  filesKeys,
-  useCreateEntryMutation,
-  useDirectoryQuery,
-  useRenameEntryMutation,
-} from "@web/features/files/queries"
+import { filesKeys, useDirectoryQuery } from "@web/features/files/queries"
 import { useFilesLocalStore } from "@web/features/files/store"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
 import { useTaskAction } from "@web/hooks/use-task-action"
-import { useEffect } from "react"
+import { useCallback, useEffect } from "react"
 import { toast } from "sonner"
 
 /** 用临时 <a> 触发浏览器原生下载；window.open 在非直接点击时会被拦截。 */
@@ -59,8 +58,50 @@ export const useFiles = () => {
   const targetPath = local.currentPath === "" ? rootPath : local.currentPath
   const currentQuery = useDirectoryQuery(targetPath)
 
-  const createEntryMutation = useCreateEntryMutation()
-  const renameEntryMutation = useRenameEntryMutation()
+  const refreshFiles = useCallback((): void => {
+    void queryClient.invalidateQueries({ queryKey: ["files"] })
+  }, [queryClient])
+
+  // 新建、改名、保存内容与批量任务共用目标锁：慢路径统一刷新目录缓存。
+  useEffect(() => {
+    registerTaskCompletion(TASK_KINDS.fileCreate, refreshFiles)
+    registerTaskCompletion(TASK_KINDS.fileRename, refreshFiles)
+    registerTaskCompletion(TASK_KINDS.fileWriteContent, refreshFiles)
+  }, [refreshFiles])
+
+  const createAction = useTaskAction<
+    ActionResponse,
+    { kind: "mkdir" | "newfile"; parent: string; name: string }
+  >({
+    kind: TASK_KINDS.fileCreate,
+    target: (payload) => fileDirectoryTarget(payload.parent),
+    run: (requestId, payload) =>
+      payload.kind === "mkdir"
+        ? createDirectoryApi(requestId, payload.parent, payload.name)
+        : createFileApi(requestId, payload.parent, payload.name),
+    onCompleted: (result) => {
+      refreshFiles()
+      toast.success(result.message)
+    },
+  })
+
+  const renameAction = useTaskAction<
+    ActionResponse,
+    { path: string; name: string }
+  >({
+    kind: TASK_KINDS.fileRename,
+    target: (payload) => fileDirectoryTarget(dirnameOf(payload.path)),
+    run: (requestId, payload) =>
+      renameEntryApi(requestId, payload.path, payload.name),
+    onCompleted: (result, payload) => {
+      local.replaceSelectedPath(
+        payload.path,
+        withName(payload.path, payload.name)
+      )
+      refreshFiles()
+      toast.success(result.message)
+    },
+  })
   /** 三个批量操作的终态统一刷新目录缓存（慢路径走这里）。 */
   useEffect(() => {
     const refresh = (): void => {
@@ -151,32 +192,12 @@ export const useFiles = () => {
     local.setSelected([])
   }
 
-  const createEntry = async (
-    kind: "mkdir" | "newfile",
-    name: string
-  ): Promise<void> => {
-    try {
-      await createEntryMutation.mutateAsync({
-        kind,
-        parent: resolvedPath,
-        name,
-      })
-      toast.success(
-        kind === "mkdir" ? `已新建文件夹：${name}` : `已新建文件：${name}`
-      )
-    } catch (error) {
-      toast.error(describeError(error))
-    }
+  const createEntry = (kind: "mkdir" | "newfile", name: string): void => {
+    void createAction.run({ kind, parent: resolvedPath, name })
   }
 
-  const renameEntry = async (path: string, name: string): Promise<void> => {
-    try {
-      await renameEntryMutation.mutateAsync({ path, name })
-      local.replaceSelectedPath(path, withName(path, name))
-      toast.success(`已重命名为：${name}`)
-    } catch (error) {
-      toast.error(describeError(error))
-    }
+  const renameEntry = (path: string, name: string): void => {
+    void renameAction.run({ path, name })
   }
 
   const deleteEntries = (paths: string[]): void => {
@@ -202,8 +223,8 @@ export const useFiles = () => {
   }
 
   const isMutating =
-    createEntryMutation.isPending ||
-    renameEntryMutation.isPending ||
+    createAction.busy ||
+    renameAction.busy ||
     deleteAction.busy ||
     transferAction.busy
 

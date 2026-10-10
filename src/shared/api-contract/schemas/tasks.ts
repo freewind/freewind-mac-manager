@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { ActionResponseSchema } from "./common"
 import { ScanTaskResultSchema } from "./disk-growth"
 import { FileBatchResultSchema } from "./files"
 import {
@@ -43,6 +44,10 @@ export const TASK_KINDS = {
   fileCopy: "file_copy",
   fileDelete: "file_delete",
   fileMove: "file_move",
+  fileCreate: "file_create",
+  fileRename: "file_rename",
+  fileWriteContent: "file_write_content",
+  frpConfigSave: "frp_config_save",
   trafficSnapshotSave: "traffic_snapshot_save",
   trafficSnapshotMerge: "traffic_snapshot_merge",
   trafficSnapshotDelete: "traffic_snapshot_delete",
@@ -118,6 +123,34 @@ export const TrafficSnapshotDeleteTaskSchema = z.object({
   result: SnapshotMutationResultSchema.nullable(),
 })
 
+/**
+ * 只有消息的已完成动作（新建、改名、保存内容、保存 FRP 配置）：
+ * 结果复用公共 ActionResponseSchema，不新造结构。
+ */
+export const FileCreateTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.fileCreate),
+  result: ActionResponseSchema.nullable(),
+})
+
+export const FileRenameTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.fileRename),
+  result: ActionResponseSchema.nullable(),
+})
+
+export const FileWriteContentTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.fileWriteContent),
+  result: ActionResponseSchema.nullable(),
+})
+
+export const FrpConfigSaveTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.frpConfigSave),
+  result: ActionResponseSchema.nullable(),
+})
+
 /** 每种任务的结果结构由 discriminated union 固定，禁止用任意 JSON 承载结果。 */
 export const TaskRecordSchema = z.discriminatedUnion("kind", [
   DiskScanTaskSchema,
@@ -125,6 +158,10 @@ export const TaskRecordSchema = z.discriminatedUnion("kind", [
   FileCopyTaskSchema,
   FileDeleteTaskSchema,
   FileMoveTaskSchema,
+  FileCreateTaskSchema,
+  FileRenameTaskSchema,
+  FileWriteContentTaskSchema,
+  FrpConfigSaveTaskSchema,
   TrafficSnapshotSaveTaskSchema,
   TrafficSnapshotMergeTaskSchema,
   TrafficSnapshotDeleteTaskSchema,

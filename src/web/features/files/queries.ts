@@ -72,16 +72,25 @@ export type CreateEntryInput = {
   name: string
 }
 
-/** 新建目录 / 新建文件：只失效父目录。 */
-export const useCreateEntryMutation = () => {
+/** 新建目录 / 新建文件：受理时不动缓存，真正完成后只失效父目录。 */
+export const useCreateEntryMutation = (options: {
+  onCompleted: (message: string, input: CreateEntryInput) => void
+}) => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ kind, parent, name }: CreateEntryInput) =>
+    mutationFn: ({
+      requestId,
+      kind,
+      parent,
+      name,
+    }: CreateEntryInput & { requestId: string }) =>
       kind === "mkdir"
-        ? createDirectoryApi(parent, name)
-        : createFileApi(parent, name),
-    onSuccess: async (_result, variables) => {
+        ? createDirectoryApi(requestId, parent, name)
+        : createFileApi(requestId, parent, name),
+    onSuccess: async (execution, variables) => {
+      if (execution.kind !== "completed") return
       await invalidateDirectories(queryClient, [variables.parent])
+      options.onCompleted(execution.body.message, variables)
     },
   })
 }
@@ -91,15 +100,23 @@ export type RenameEntryInput = {
   name: string
 }
 
-/** 改名：旧路径的整棵子树缓存作废，失效所在目录。 */
-export const useRenameEntryMutation = () => {
+/** 改名：同样只在真正完成后作废旧路径子树并失效所在目录。 */
+export const useRenameEntryMutation = (options: {
+  onCompleted: (message: string, input: RenameEntryInput) => void
+}) => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ path, name }: RenameEntryInput) =>
-      renameEntryApi(path, name),
-    onSuccess: async (_result, variables) => {
+    mutationFn: ({
+      requestId,
+      path,
+      name,
+    }: RenameEntryInput & { requestId: string }) =>
+      renameEntryApi(requestId, path, name),
+    onSuccess: async (execution, variables) => {
+      if (execution.kind !== "completed") return
       dropDirectorySubtree(queryClient, variables.path)
       await invalidateDirectories(queryClient, [dirnameOf(variables.path)])
+      options.onCompleted(execution.body.message, variables)
     },
   })
 }

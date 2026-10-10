@@ -1,6 +1,14 @@
-import type { FrpProxy } from "@shared/api-contract"
+import {
+  type ActionResponse,
+  type FrpConfig,
+  type FrpConfigInput,
+  type FrpProxy,
+  TASK_KINDS,
+} from "@shared/api-contract"
+import { saveFrpConfig as saveFrpConfigApi } from "@shared/client-api"
 import { describeError } from "@shared/format"
 import { configSignature, serializeFrpcToml } from "@shared/frp-format"
+import { frpConfigTaskTarget } from "@shared/task-targets"
 import { useQueryClient } from "@tanstack/react-query"
 import {
   frpKeys,
@@ -8,10 +16,10 @@ import {
   useDeleteProxy,
   useFrpConfigQuery,
   useProbeProxy,
-  useSaveFrp,
   useUpdateProxy,
 } from "@web/features/frp/queries"
 import { useFrpLocalStore } from "@web/features/frp/store"
+import { useTaskAction } from "@web/hooks/use-task-action"
 import { useMemo } from "react"
 import { toast } from "sonner"
 
@@ -30,7 +38,6 @@ export const useFrp = () => {
   const updateProxy = useUpdateProxy()
   const deleteProxy = useDeleteProxy()
   const probeProxy = useProbeProxy()
-  const saveFrp = useSaveFrp()
 
   const config = configQuery.data ?? null
   const server = config?.server ?? null
@@ -141,16 +148,24 @@ export const useFrp = () => {
     toast.info("已重新读取 frpc 配置")
   }
 
-  /** 保存配置到 frpc 文件。 */
+  const saveAction = useTaskAction<ActionResponse, FrpConfigInput>({
+    kind: TASK_KINDS.frpConfigSave,
+    target: frpConfigTaskTarget(),
+    run: (requestId, input) => saveFrpConfigApi(requestId, input),
+    onCompleted: (result, input) => {
+      queryClient.setQueryData<FrpConfig>(frpKeys.config, (previous) =>
+        previous
+          ? { ...previous, savedSignature: configSignature(input) }
+          : previous
+      )
+      toast.success(result.message)
+    },
+  })
+
+  /** 保存配置到 frpc 文件：受理不等于已保存，只有真正完成才更新指纹。 */
   const save = () => {
     if (!config) return
-    saveFrp.mutate(
-      { server: config.server, proxies: config.proxies },
-      {
-        onSuccess: (result) => toast.success(result.message),
-        onError: (error) => toast.error(`保存失败：${describeError(error)}`),
-      }
-    )
+    void saveAction.run({ server: config.server, proxies: config.proxies })
   }
 
   return {
@@ -186,7 +201,7 @@ export const useFrp = () => {
     probeAll,
     refresh,
     save,
-    saving: saveFrp.isPending,
+    saving: saveAction.busy,
     probing: local.checking.length > 0,
   }
 }

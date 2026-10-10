@@ -6,6 +6,13 @@
  */
 export const scanTaskTarget = (root: string): string => `scan:${root}`
 
+/**
+ * 单个条目操作（新建、改名）按父目录加锁：这样它们与批量任务落在同一目录时
+ * 能互相拦住，而不是各自为政。
+ */
+export const fileDirectoryTarget = (parentPath: string): string =>
+  `files:dir:${parentPath}`
+
 /** 文件批量操作按目标目录加锁。 */
 export const fileTaskTarget = (paths: string[]): string =>
   `files:${[...paths].sort().join("\u0000")}`

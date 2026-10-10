@@ -1,27 +1,33 @@
+import path from "node:path"
 import { toTaskHttpResponse } from "@server/common/tasks/response"
 import type { TaskRuntime } from "@server/tasks/runtime"
-import type { FileBatchResult } from "@shared/api-contract"
+import type { ActionResponse, FileBatchResult } from "@shared/api-contract"
 import { contract, TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
+import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
 import { FileBatchResultSchema } from "@shared/api-contract/schemas/files"
 import { ApiPath } from "@shared/api-path"
 import { initServer } from "@ts-rest/express"
 import type express from "express"
 import { z } from "zod"
 import {
-  createDirectory,
-  createFile,
   describeFileError,
   listDirectory,
   openDownload,
   readFileContent,
   receiveUpload,
-  renameEntry,
-  writeFileContent,
 } from "./service"
+
+/** 与批量任务一致的目录作用域：取条目所在目录。 */
+const dirnameOf = (target: string): string => path.dirname(target)
+
 import {
   FILE_COPY_KIND,
+  FILE_CREATE_KIND,
   FILE_DELETE_KIND,
   FILE_MOVE_KIND,
+  FILE_RENAME_KIND,
+  FILE_WRITE_KIND,
+  fileDirectoryTarget,
   fileTaskTarget,
 } from "./task"
 
@@ -78,6 +84,39 @@ const submitFileTask = async (
   }
 }
 
+/**
+ * 单个条目的写操作（新建、改名、保存内容）也走任务：
+ * 目标锁取所在目录，因此与批量任务落在同一目录时能互相拦住。
+ */
+const submitEntryTask = async (
+  runtime: TaskRuntime,
+  options: {
+    kind: string
+    payload: unknown
+    target: string
+    requestId: string
+  }
+) => {
+  try {
+    const outcome = await runtime.runner.submit<ActionResponse>({
+      kind: options.kind,
+      target: options.target,
+      payload: options.payload,
+      requestId: options.requestId,
+      toCompletedResponse: (result) => {
+        const parsed = ActionResponseSchema.safeParse(result.result)
+        if (!parsed.success) {
+          throw new Error("操作结果不符合契约，无法作为完成结果返回")
+        }
+        return { status: 200, body: parsed.data }
+      },
+    })
+    return toTaskHttpResponse(outcome, 200)
+  } catch (error) {
+    return toError(error)
+  }
+}
+
 /** 锁的作用域来自载荷里的路径集合，键序无关。 */
 const pathsOfPayload = (payload: unknown): string[] => {
   const parsed = z
@@ -102,32 +141,29 @@ export const createFilesRouter = (runtime: TaskRuntime) =>
       }
     },
 
-    createDirectory: async ({ body }) => {
-      try {
-        await createDirectory(body.parentPath, body.name)
-        return { status: 200 as const, body: { message: "目录已创建" } }
-      } catch (error) {
-        return toError(error)
-      }
-    },
+    createDirectory: async ({ headers, body }) =>
+      submitEntryTask(runtime, {
+        kind: FILE_CREATE_KIND,
+        payload: { kind: "dir", parentPath: body.parentPath, name: body.name },
+        target: fileDirectoryTarget(body.parentPath),
+        requestId: headers[TASK_REQUEST_ID_HEADER],
+      }),
 
-    createFile: async ({ body }) => {
-      try {
-        await createFile(body.parentPath, body.name)
-        return { status: 200 as const, body: { message: "文件已创建" } }
-      } catch (error) {
-        return toError(error)
-      }
-    },
+    createFile: async ({ headers, body }) =>
+      submitEntryTask(runtime, {
+        kind: FILE_CREATE_KIND,
+        payload: { kind: "file", parentPath: body.parentPath, name: body.name },
+        target: fileDirectoryTarget(body.parentPath),
+        requestId: headers[TASK_REQUEST_ID_HEADER],
+      }),
 
-    renameEntry: async ({ body }) => {
-      try {
-        await renameEntry(body.path, body.name)
-        return { status: 200 as const, body: { message: "条目已重命名" } }
-      } catch (error) {
-        return toError(error)
-      }
-    },
+    renameEntry: async ({ headers, body }) =>
+      submitEntryTask(runtime, {
+        kind: FILE_RENAME_KIND,
+        payload: { path: body.path, name: body.name },
+        target: fileDirectoryTarget(dirnameOf(body.path)),
+        requestId: headers[TASK_REQUEST_ID_HEADER],
+      }),
 
     deleteEntries: async ({ headers, query }) =>
       submitFileTask(runtime, {
@@ -158,14 +194,13 @@ export const createFilesRouter = (runtime: TaskRuntime) =>
       }
     },
 
-    writeFileContent: async ({ body }) => {
-      try {
-        await writeFileContent(body.path, body.content)
-        return { status: 200 as const, body: { message: "文件已保存" } }
-      } catch (error) {
-        return toError(error)
-      }
-    },
+    writeFileContent: async ({ headers, body }) =>
+      submitEntryTask(runtime, {
+        kind: FILE_WRITE_KIND,
+        payload: { path: body.path, content: body.content },
+        target: fileDirectoryTarget(dirnameOf(body.path)),
+        requestId: headers[TASK_REQUEST_ID_HEADER],
+      }),
 
     downloadFile: async ({ query, res }) => {
       try {

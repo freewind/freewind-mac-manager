@@ -96,10 +96,13 @@ const SCHEMA = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_task_record_request
     ON task_record (request_id);
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_task_record_active_target
-    ON task_record (kind, target) WHERE status = 'running';
+  DROP INDEX IF EXISTS idx_task_record_active_target;
   CREATE INDEX IF NOT EXISTS idx_task_record_status
     ON task_record (status, updated_at DESC);
+  -- 互斥只看目标、不看种类：创建、改名与批量删除可能落在同一个目标上，
+  -- 必须互相拦住。各类目标自带前缀（scan:/files:/traffic:v...），因此不会误撞。
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_task_record_target
+    ON task_record (target) WHERE status = 'running';
 `
 
 /**
@@ -118,7 +121,7 @@ export class TaskStore {
     this.db.exec(SCHEMA)
   }
 
-  /** 执行前登记；同 requestId 或同 kind+target 已有运行任务时抛错，由调用方复核。 */
+  /** 执行前登记；同 requestId 或同目标已有运行任务时抛错，由调用方复核。 */
   insert(row: {
     id: string
     requestId: string | null
@@ -157,12 +160,13 @@ export class TaskStore {
     return raw ? toRow(raw) : null
   }
 
-  findActive(kind: string, target: string): TaskStoredRow | null {
+  /** 目标是否已有运行中的任务；与种类无关。 */
+  findActive(target: string): TaskStoredRow | null {
     const raw = this.db
       .prepare(
-        "SELECT * FROM task_record WHERE kind = ? AND target = ? AND status = 'running' LIMIT 1"
+        "SELECT * FROM task_record WHERE target = ? AND status = 'running' LIMIT 1"
       )
-      .get(kind, target) as Record<string, unknown> | undefined
+      .get(target) as Record<string, unknown> | undefined
     return raw ? toRow(raw) : null
   }
 

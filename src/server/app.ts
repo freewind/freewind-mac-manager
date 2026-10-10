@@ -10,7 +10,7 @@ import {
   filesContract,
   registerUploadEndpoint,
 } from "./files/handlers"
-import { frpContract, frpRouter } from "./frp/handlers"
+import { createFrpRouter, frpContract } from "./frp/handlers"
 import { healthContract, healthRouter } from "./health/handlers"
 import { portsContract, portsRouter } from "./ports/handlers"
 import { processesContract, processesRouter } from "./processes/handlers"
@@ -53,7 +53,12 @@ export const createApp = (injected?: {
     options
   )
   registerUploadEndpoint(app)
-  createExpressEndpoints(frpContract, frpRouter, app, options)
+  createExpressEndpoints(
+    frpContract,
+    createFrpRouter(taskRuntime),
+    app,
+    options
+  )
   createExpressEndpoints(portsContract, portsRouter, app, options)
   createExpressEndpoints(processesContract, processesRouter, app, options)
   createExpressEndpoints(

@@ -242,6 +242,30 @@ describe("task runner", () => {
     await first
   })
 
+  it("locks by target across task kinds, not by kind", async () => {
+    const { runner, calls } = harness
+    const first = runner.submit({
+      kind: "file_delete",
+      target: "files:dir:/tmp/a",
+      payload: { paths: ["/tmp/a/x"] },
+      requestId: "req-0000000000000010",
+      toCompletedResponse,
+    })
+    await waitFor(() => calls.length === 1)
+    // 不同种类但同一个目标：必须先被拦住，否则创建会和删除撞在一起
+    const conflict = await runner.submit({
+      kind: "file_create",
+      target: "files:dir:/tmp/a",
+      payload: { kind: "file", parentPath: "/tmp/a", name: "new.txt" },
+      requestId: "req-0000000000000011",
+      toCompletedResponse,
+    })
+    expect(conflict.kind).toBe("conflict")
+    expect(calls).toHaveLength(1)
+    calls[0].resolve(ok({}))
+    await first
+  })
+
   it("returns the failure instead of pretending success", async () => {
     const { runner, calls, store } = harness
     const submission = runner.submit({

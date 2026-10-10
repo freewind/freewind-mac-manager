@@ -1,5 +1,10 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
-import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
+import {
+  ActionResponseSchema,
+  ApiErrorSchema,
+  TaskAcceptedSchema,
+  TaskRequestIdHeadersSchema,
+} from "../schemas/common"
 import {
   FrpConfigInputSchema,
   FrpConfigSchema,
@@ -22,13 +27,16 @@ export const frpRoutes = {
       ...errorResponses,
     },
   },
-  // 保存：整份配置替换配置文件内容，幂等，用 PUT。
+  // 保存：整份配置替换配置文件内容，幂等，用 PUT。写配置文件按配置文件加锁。
   saveFrpConfig: {
     method: "PUT",
     path: toContractPath(ApiPath.frpConfig),
     body: FrpConfigInputSchema,
+    headers: TaskRequestIdHeadersSchema,
     responses: {
       200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
       ...errorResponses,
     },
   },

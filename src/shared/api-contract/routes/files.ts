@@ -31,23 +31,42 @@ export const filesRoutes = {
     query: PathQuerySchema,
     responses: { 200: DirectoryResponseSchema, ...errorResponses },
   },
+  // 与批量任务共用同一把目标锁：同目录下不会一边删一边建。
   createDirectory: {
     method: "POST",
     path: toContractPath(ApiPath.filesDirectories),
     body: CreateEntryBodySchema,
-    responses: { 200: ActionResponseSchema, ...errorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...errorResponses,
+    },
   },
   createFile: {
     method: "POST",
     path: toContractPath(ApiPath.filesEntries),
     body: CreateEntryBodySchema,
-    responses: { 200: ActionResponseSchema, ...errorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...errorResponses,
+    },
   },
   renameEntry: {
     method: "PUT",
     path: toContractPath(ApiPath.filesEntryName),
     body: RenameEntryBodySchema,
-    responses: { 200: ActionResponseSchema, ...errorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...errorResponses,
+    },
   },
   // 三个批量操作都可能很久：请求标识由契约强制要求，完成返回逐项结果，未完成返回 202。
   deleteEntries: {
@@ -96,7 +115,13 @@ export const filesRoutes = {
     method: "PUT",
     path: toContractPath(ApiPath.filesContent),
     body: SaveFileContentBodySchema,
-    responses: { 200: ActionResponseSchema, ...errorResponses },
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: ActionResponseSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...errorResponses,
+    },
   },
   downloadFile: {
     method: "GET",
