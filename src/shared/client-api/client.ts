@@ -46,18 +46,6 @@ export const unwrap = <T>(result: { status: number; body: unknown }): T => {
   )
 }
 
-export const dispatchUnauthorized = (): void => {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("mac-manager:unauthorized"))
-  }
-}
-
-const readCsrfToken = (): string => {
-  if (typeof document === "undefined") return ""
-  const match = document.cookie.match(/(?:^|; )mac_manager_csrf=([^;]*)/)
-  return match ? decodeURIComponent(match[1]) : ""
-}
-
 /**
  * 生成一次写操作的请求标识。服务端据此复用任务记录：网络重试不会变成第二次执行，
  * 响应丢失也能按这个标识查回任务。
@@ -82,16 +70,12 @@ export const taskRequestHeaders = (
 export const isWriteMethod = (method: string): boolean =>
   WRITE_METHODS.includes(method.toUpperCase())
 
-/** 前端统一走相对路径，并在写请求中附带 CSRF 与请求标识。 */
+/** 前端统一走相对路径，并在写请求中附带任务请求标识。 */
 export const apiClient = initClient(contract, {
   baseUrl: "",
   api: async ({ path, method, headers, body, signal }) => {
     const requestHeaders = new Headers(headers)
     const write = isWriteMethod(method)
-    if (write) {
-      const csrfToken = readCsrfToken()
-      if (csrfToken) requestHeaders.set("x-csrf-token", csrfToken)
-    }
     const requestId = requestHeaders.get(TASK_REQUEST_ID_HEADER)
 
     const timeoutSignal = AbortSignal.timeout(NETWORK_WAIT_MS)
@@ -127,13 +111,6 @@ export const apiClient = initClient(contract, {
         write,
         requestId
       )
-    }
-    if (
-      response.status === 401 &&
-      !path.startsWith("/api/auth/") &&
-      typeof window !== "undefined"
-    ) {
-      dispatchUnauthorized()
     }
     const text = await response.text()
     let parsed: unknown

@@ -5,7 +5,7 @@ import type {
   FileEntry,
 } from "@shared/api-contract"
 import { ApiPath } from "@shared/api-path"
-import { apiClient, dispatchUnauthorized, unwrap } from "./client"
+import { apiClient, unwrap } from "./client"
 
 export const fetchDirectory = async (
   path: string
@@ -110,12 +110,6 @@ export const uploadFile = (
     })
     const request = new XMLHttpRequest()
     request.open("POST", `${ApiPath.filesUploads}?${query}`)
-    const csrfToken = document.cookie.match(
-      /(?:^|; )mac_manager_csrf=([^;]*)/
-    )?.[1]
-    if (csrfToken) {
-      request.setRequestHeader("x-csrf-token", decodeURIComponent(csrfToken))
-    }
     request.setRequestHeader("content-type", "application/octet-stream")
 
     request.upload.addEventListener("progress", (event) => {
@@ -124,7 +118,6 @@ export const uploadFile = (
       }
     })
     request.addEventListener("load", () => {
-      if (request.status === 401) dispatchUnauthorized()
       const parsed = parseUploadResponse(request.responseText)
       if (request.status >= 200 && request.status < 300 && parsed?.file) {
         resolve(parsed.file)

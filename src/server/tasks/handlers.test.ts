@@ -22,7 +22,7 @@ beforeEach(async () => {
   dir = mkdtempSync(path.join(tmpdir(), "mac-manager-task-http-"))
   store = new TaskStore(path.join(dir, "tasks.sqlite3"))
   const app = express()
-  // 只挂任务路由：鉴权由 app.ts 统一负责，这里验证查询行为本身。
+  // 只挂任务路由，这里验证查询行为本身。
   createExpressEndpoints(tasksContract, createTasksRouter(store), app, {
     logInitialization: false,
   })

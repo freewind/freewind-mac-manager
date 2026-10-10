@@ -11,7 +11,7 @@ const tasks = createTaskRuntime()
 const app = createApp({ tasks })
 app.use(express.static(WEB_DIST_DIR))
 
-// 文件管理接口没有鉴权，因此只绑本机回环地址，绝不暴露到局域网。
+// 不提供应用层访问门禁，只绑定本机回环地址，绝不暴露到局域网。
 const server = app.listen(SERVER_PORT, "127.0.0.1", () => {
   console.log(`[mac-manager] 服务已启动：http://127.0.0.1:${SERVER_PORT}`)
   startScheduler(tasks.runner)

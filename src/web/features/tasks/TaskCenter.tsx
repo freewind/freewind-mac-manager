@@ -29,10 +29,10 @@ import { TaskCard } from "./TaskCard"
  * 关闭面板只是隐藏界面，不代表取消任务；任务由后端执行。离线时停止轮询并说明
  * 原因，不用过期数据冒充当前状态。
  */
-export const TaskCenter = ({ authenticated }: { authenticated: boolean }) => {
+export const TaskCenter = () => {
   const { online } = usePwaStatus()
   const [open, setOpen] = useState(false)
-  const query = useActiveTasks(authenticated && online)
+  const query = useActiveTasks(online)
   const tasks = query.data?.tasks ?? []
   const count = tasks.length
 

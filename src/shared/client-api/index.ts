@@ -1,9 +1,6 @@
-export * from "./auth"
-export * from "./auth-types"
 export {
   ApiRequestError,
   apiClient,
-  dispatchUnauthorized,
   isWriteMethod,
   newRequestId,
   taskRequestHeaders,

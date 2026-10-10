@@ -10,7 +10,7 @@ export const taskKeys = {
 
 /**
  * 进行中的任务列表：唯一一处轮询。
- * 没有进行中的任务时停止轮询；离线或未登录时由调用方禁用查询。
+ * 没有进行中的任务时停止轮询；离线时由调用方禁用查询。
  */
 export const useActiveTasks = (enabled: boolean) =>
   useQuery({

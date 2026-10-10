@@ -114,7 +114,7 @@ const wrapper =
 describe("TaskCenter", () => {
   it("shows the in-progress count and the real progress numbers", async () => {
     const client = makeClient()
-    render(<TaskCenter authenticated />, { wrapper: wrapper(client) })
+    render(<TaskCenter />, { wrapper: wrapper(client) })
 
     const trigger = await screen.findByRole("button", {
       name: /任务，进行中 1 个/,
@@ -131,10 +131,10 @@ describe("TaskCenter", () => {
   it("reports an unreadable task list instead of pretending there is none", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => json({ message: "需要登录" }, 401))
+      vi.fn(async () => json({ message: "请求失败" }, 500))
     )
     const client = makeClient()
-    render(<TaskCenter authenticated />, { wrapper: wrapper(client) })
+    render(<TaskCenter />, { wrapper: wrapper(client) })
 
     await userEvent.click(screen.getByRole("button", { name: /任务/ }))
     expect(await screen.findByText(/读取任务失败/)).toBeTruthy()

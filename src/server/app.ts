@@ -1,6 +1,5 @@
 import { createExpressEndpoints } from "@ts-rest/express"
 import express from "express"
-import { authContract, createAuthManager, createAuthRouter } from "./auth"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
 import {
   createDiskGrowthRouter,
@@ -39,9 +38,6 @@ export const createApp = (injected?: {
   const options = { logInitialization: false }
   // 任务运行时先建好：长任务端点（如磁盘扫描）需要提交任务。
   const taskRuntime = injected?.tasks ?? createTaskRuntime()
-  const auth = createAuthManager()
-  createExpressEndpoints(authContract, createAuthRouter(auth), app, options)
-  app.use(auth.middleware)
   createExpressEndpoints(healthContract, healthRouter, app, options)
   createExpressEndpoints(dashboardContract, dashboardRouter, app, options)
   createExpressEndpoints(
@@ -70,7 +66,6 @@ export const createApp = (injected?: {
     options
   )
 
-  // 任务查询在鉴权之后挂载：任务里会带本机路径，不能公开。
   createExpressEndpoints(
     tasksContract,
     createTasksRouter(taskRuntime.store),

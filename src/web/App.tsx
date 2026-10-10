@@ -1,7 +1,5 @@
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { logout } from "@shared/client-api"
-import { useQueryClient } from "@tanstack/react-query"
 import { AppSidebar, type FeatureKey } from "@web/components/app-sidebar"
 import { Button } from "@web/components/ui/button"
 import {
@@ -9,7 +7,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@web/components/ui/sidebar"
-import { LoginPage } from "@web/features/auth/LoginPage"
 import { DashboardPage } from "@web/features/dashboard/DashboardPage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
 import { FilesPage } from "@web/features/files/FilesPage"
@@ -19,13 +16,7 @@ import { ProcessesPage } from "@web/features/processes/ProcessesPage"
 import { SystemServicesPage } from "@web/features/system-services/SystemServicesPage"
 import { TaskCenter } from "@web/features/tasks/TaskCenter"
 import { TrafficPage } from "@web/features/traffic/TrafficPage"
-import {
-  markAuthenticated,
-  markUnauthenticated,
-  refreshAuthStatus,
-  useAuthStatus,
-} from "@web/hooks/use-auth-status"
-import { useEffect, useSyncExternalStore } from "react"
+import { useSyncExternalStore } from "react"
 
 const FEATURE_KEYS: readonly FeatureKey[] = [
   "overview",
@@ -88,60 +79,10 @@ const useFeatureNavigation = () => {
 }
 
 export const App = () => {
-  const queryClient = useQueryClient()
   const { feature, canGoBack, selectFeature } = useFeatureNavigation()
-  const { status: authStatus, error: authError } = useAuthStatus()
-
-  useEffect(() => {
-    void refreshAuthStatus(true)
-
-    const onUnauthorized = (): void => {
-      queryClient.clear()
-      markUnauthenticated()
-    }
-    window.addEventListener("mac-manager:unauthorized", onUnauthorized)
-    const onVisibilityChange = (): void => {
-      if (document.visibilityState === "visible" && navigator.onLine) {
-        void refreshAuthStatus(false)
-      }
-    }
-    document.addEventListener("visibilitychange", onVisibilityChange)
-    window.addEventListener("online", onVisibilityChange)
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibilityChange)
-      window.removeEventListener("online", onVisibilityChange)
-      window.removeEventListener("mac-manager:unauthorized", onUnauthorized)
-    }
-  }, [queryClient])
-
-  if (authError)
-    return <div className="p-6 text-sm text-destructive">{authError}</div>
-  if (!authStatus)
-    return (
-      <div className="grid min-h-dvh place-items-center text-sm text-muted-foreground">
-        正在检查登录状态…
-      </div>
-    )
-  if (!authStatus.authenticated) {
-    return (
-      <LoginPage
-        configured={authStatus.configured}
-        onAuthenticated={() => markAuthenticated()}
-      />
-    )
-  }
 
   const goBack = (): void => {
     window.history.back()
-  }
-
-  const signOut = async (): Promise<void> => {
-    try {
-      await logout()
-    } finally {
-      queryClient.clear()
-      markUnauthenticated()
-    }
   }
 
   return (
@@ -162,10 +103,7 @@ export const App = () => {
             </Button>
           ) : null}
           <div className="ml-auto flex items-center gap-2">
-            <TaskCenter authenticated={authStatus.authenticated} />
-            <Button size="sm" variant="outline" onClick={() => void signOut()}>
-              退出登录
-            </Button>
+            <TaskCenter />
           </div>
         </div>
         {feature === "overview" ? <DashboardPage /> : null}
