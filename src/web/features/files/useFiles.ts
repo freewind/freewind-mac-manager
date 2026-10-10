@@ -117,13 +117,23 @@ export const useFiles = () => {
     target: fileTaskTarget,
     run: (requestId, paths) => deleteEntriesApi(requestId, paths),
     onCompleted: (result, paths) => {
-      const failed = result.failed.length
+      const issueMessages = [
+        ...result.failed.map((item) => item.message),
+        ...(result.partial ?? []).map((item) => item.message),
+      ]
+      const issueCount = issueMessages.length
       toast(
-        failed === 0
+        issueCount === 0
           ? `已删除 ${result.completed.length} 项`
-          : `已删除 ${result.completed.length} 项，${failed} 项失败`
+          : `已删除 ${result.completed.length} 项，${issueCount} 项需要核实`,
+        issueCount > 0 ? { description: issueMessages.join("；") } : undefined
       )
-      if (failed === 0 && paths.length === result.completed.length) {
+
+      if (
+        result.failed.length === 0 &&
+        (result.partial?.length ?? 0) === 0 &&
+        paths.length === result.completed.length
+      ) {
         resetSelection()
       }
       void queryClient.invalidateQueries({ queryKey: ["files"] })
@@ -141,13 +151,23 @@ export const useFiles = () => {
         ? copyEntriesApi(requestId, payload.paths, payload.destPath)
         : moveEntriesApi(requestId, payload.paths, payload.destPath),
     onCompleted: (result, payload) => {
-      const failed = result.failed.length
+      const issueMessages = [
+        ...result.failed.map((item) => item.message),
+        ...(result.partial ?? []).map((item) => item.message),
+      ]
+      const issueCount = issueMessages.length
       toast(
-        failed === 0
+        issueCount === 0
           ? `${payload.mode === "copy" ? "已复制" : "已移动"} ${result.completed.length} 项`
-          : `${payload.mode === "copy" ? "已复制" : "已移动"} ${result.completed.length} 项，${failed} 项失败`
+          : `${payload.mode === "copy" ? "已复制" : "已移动"} ${result.completed.length} 项，${issueCount} 项需要核实`,
+        issueCount > 0 ? { description: issueMessages.join("；") } : undefined
       )
-      if (payload.mode === "move" && failed === 0) {
+
+      if (
+        payload.mode === "move" &&
+        result.failed.length === 0 &&
+        (result.partial?.length ?? 0) === 0
+      ) {
         resetSelection()
       }
       void queryClient.invalidateQueries({ queryKey: ["files"] })

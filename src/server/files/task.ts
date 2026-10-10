@@ -1,6 +1,10 @@
 import { type FileBatchResult, TASK_KINDS } from "@shared/api-contract"
 import { FileBatchResultSchema } from "@shared/api-contract/schemas/files"
-import { fileDirectoryTarget, fileTaskTarget } from "@shared/task-targets"
+import {
+  fileDirectoryTarget,
+  fileMutationLockTarget,
+  fileTaskTarget,
+} from "@shared/task-targets"
 import { z } from "zod"
 import {
   copyEntries,
@@ -21,9 +25,8 @@ export const FILE_CREATE_KIND = TASK_KINDS.fileCreate
 export const FILE_RENAME_KIND = TASK_KINDS.fileRename
 export const FILE_WRITE_KIND = TASK_KINDS.fileWriteContent
 
-/** 新建/改名按父目录加锁，这样它们与批量任务落在同一目录上时能互相拦住。 */
-/** 与端点共用同一把路径锁，避免复制/删除/移动与创建改名互相踩。 */
-export { fileDirectoryTarget, fileTaskTarget }
+/** 文件写操作共用域级互斥键，覆盖不同路径表示的重叠目标。 */
+export { fileDirectoryTarget, fileMutationLockTarget, fileTaskTarget }
 
 /**
  * 执行器入参：只接受路径与目标目录，不接受模块、命令或 shell 片段。
@@ -154,10 +157,10 @@ export const runDeleteTask = async (options: {
   return {
     result: toResult(outcome),
     message:
-      outcome.failed.length === 0
+      outcome.failed.length === 0 && (outcome.partial?.length ?? 0) === 0
         ? `已删除 ${outcome.completed.length} 项`
-        : `已删除 ${outcome.completed.length} 项，${outcome.failed.length} 项失败`,
-    partial: outcome.failed.length > 0,
+        : `已删除 ${outcome.completed.length} 项，${outcome.failed.length + (outcome.partial?.length ?? 0)} 项需要核实`,
+    partial: outcome.failed.length > 0 || (outcome.partial?.length ?? 0) > 0,
   }
 }
 
@@ -172,10 +175,10 @@ export const runCopyTask = async (options: {
   return {
     result: toResult(outcome),
     message:
-      outcome.failed.length === 0
+      outcome.failed.length === 0 && (outcome.partial?.length ?? 0) === 0
         ? `已复制 ${outcome.completed.length} 项`
-        : `已复制 ${outcome.completed.length} 项，${outcome.failed.length} 项失败`,
-    partial: outcome.failed.length > 0,
+        : `已复制 ${outcome.completed.length} 项，${outcome.failed.length + (outcome.partial?.length ?? 0)} 项需要核实`,
+    partial: outcome.failed.length > 0 || (outcome.partial?.length ?? 0) > 0,
   }
 }
 
@@ -190,9 +193,9 @@ export const runMoveTask = async (options: {
   return {
     result: toResult(outcome),
     message:
-      outcome.failed.length === 0
+      outcome.failed.length === 0 && (outcome.partial?.length ?? 0) === 0
         ? `已移动 ${outcome.completed.length} 项`
-        : `已移动 ${outcome.completed.length} 项，${outcome.failed.length} 项失败`,
-    partial: outcome.failed.length > 0,
+        : `已移动 ${outcome.completed.length} 项，${outcome.failed.length + (outcome.partial?.length ?? 0)} 项需要核实`,
+    partial: outcome.failed.length > 0 || (outcome.partial?.length ?? 0) > 0,
   }
 }

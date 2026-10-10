@@ -1,7 +1,14 @@
+import { randomUUID } from "node:crypto"
 import type { Dirent, ReadStream } from "node:fs"
-import { createReadStream, createWriteStream, existsSync } from "node:fs"
+import {
+  constants,
+  createReadStream,
+  createWriteStream,
+  existsSync,
+} from "node:fs"
 import {
   copyFile,
+  link,
   lstat,
   mkdir,
   readdir,
@@ -27,6 +34,7 @@ import { describeError } from "@shared/format"
 
 /** 上传中的临时后缀；带此后缀的文件不出现在目录列表里。 */
 const UPLOAD_PART_SUFFIX = ".uploading.part"
+const OPERATION_PART_SUFFIX = ".operation.part"
 
 /** 在线编辑的大小上限，超过直接拒绝，避免把大文件读进内存。 */
 const MAX_EDITABLE_BYTES = 2 * 1024 * 1024
@@ -54,40 +62,115 @@ export type FileOperationProgress = {
 export type FileBatchOutcome = {
   completed: string[]
   failed: { path: string; message: string }[]
+  /** 已产生部分副作用且不能回滚为原状的条目。 */
+  partial?: { path: string; destination?: string; message: string }[]
   skipped: string[]
   /** 实际写入的字节数；删除不适用时为 null。 */
   bytes: number | null
 }
 
+type OperationIo = {
+  rename?: typeof rename
+  copyFile?: typeof copyFile
+  link?: typeof link
+  remove?: typeof rm
+}
+
 type OperationOptions = {
   report?: (progress: FileOperationProgress) => void
-  /** 依赖注入点：测试用它模拟跨卷（EXDEV）等真实环境不方便制造的情况。 */
-  io?: {
-    rename?: (from: string, to: string) => Promise<void>
-  }
+  /** 测试注入真实环境难以稳定复现的跨卷与文件系统竞争。 */
+  io?: OperationIo
 }
+
+type TransferContext = {
+  active: number
+  waiters: (() => void)[]
+  failed: boolean
+  error: unknown
+}
+
+type TransferCounter = { done: number; bytes: number }
+type DeleteCounter = TransferCounter & { removed: number }
 
 const noop = (): void => undefined
 
-/** 有界并发执行，保持完成顺序无关的进度统计。 */
+const createTransferContext = (): TransferContext => ({
+  active: 0,
+  waiters: [],
+  failed: false,
+  error: null,
+})
+
+const releaseTransferSlot = (context: TransferContext): void => {
+  const next = context.waiters.shift()
+  if (next) {
+    next()
+    return
+  }
+  context.active -= 1
+}
+
+const acquireTransferSlot = async (context: TransferContext): Promise<void> => {
+  if (context.failed) throw context.error
+  if (context.active < TRANSFER_CONCURRENCY) {
+    context.active += 1
+    return
+  }
+  await new Promise<void>((resolve) => context.waiters.push(resolve))
+  if (context.failed) {
+    releaseTransferSlot(context)
+    throw context.error
+  }
+}
+
+const runTransferLimited = async <T>(
+  context: TransferContext,
+  run: () => Promise<T>
+): Promise<T> => {
+  await acquireTransferSlot(context)
+  try {
+    if (context.failed) throw context.error
+    return await run()
+  } catch (error) {
+    if (!context.failed) {
+      context.failed = true
+      context.error = error
+    }
+    throw error
+  } finally {
+    releaseTransferSlot(context)
+  }
+}
+
+/** 所有递归层级共享同一并发池；失败后停止派发并等待已启动工作结束。 */
 const mapWithLimit = async <T>(
   items: T[],
-  limit: number,
-  run: (item: T) => Promise<void>
+  run: (item: T) => Promise<void>,
+  context: TransferContext
 ): Promise<void> => {
   let cursor = 0
   const workers = Array.from(
-    { length: Math.min(limit, items.length) },
+    { length: Math.min(TRANSFER_CONCURRENCY, items.length) },
     async () => {
       for (;;) {
+        if (context.failed) return
         const index = cursor
         cursor += 1
         if (index >= items.length) return
-        await run(items[index])
+        try {
+          await run(items[index])
+        } catch (error) {
+          if (!context.failed) {
+            context.failed = true
+            context.error = error
+          }
+          return
+        }
       }
     }
   )
   await Promise.all(workers)
+  if (context.failed) throw context.error
 }
 
 const TEXT_EXTENSIONS = new Set([
@@ -281,7 +364,8 @@ export const listDirectory = async (
   const dirents = (await readdir(dir, { withFileTypes: true })).filter(
     (dirent) =>
       (dirent.isDirectory() || dirent.isFile()) &&
-      !dirent.name.endsWith(UPLOAD_PART_SUFFIX)
+      !dirent.name.endsWith(UPLOAD_PART_SUFFIX) &&
+      !dirent.name.endsWith(OPERATION_PART_SUFFIX)
   )
   const entries = await collectEntries(dir, dirents)
   return { path: dir, entries: entries.sort(byKindThenName) }
@@ -327,20 +411,32 @@ export const renameEntry = async (
  */
 const removeTree = async (
   target: string,
-  counter: { done: number; bytes: number },
-  report: (progress: FileOperationProgress) => void
+  counter: DeleteCounter,
+  report: (progress: FileOperationProgress) => void,
+  context: TransferContext,
+  removeFile: typeof rm
 ): Promise<void> => {
-  const info = await lstat(target)
+  const info = await runTransferLimited(context, () => lstat(target))
   if (info.isDirectory()) {
-    const names = await readdir(target)
-    await mapWithLimit(names, TRANSFER_CONCURRENCY, (name) =>
-      removeTree(path.join(target, name), counter, report)
+    const names = await runTransferLimited(context, () => readdir(target))
+    await mapWithLimit(
+      names,
+      (name) =>
+        removeTree(
+          path.join(target, name),
+          counter,
+          report,
+          context,
+          removeFile
+        ),
+      context
     )
-    // 目录必须用 rmdir：fs.rm 不带 recursive 会直接拒绝目录（EISDIR）。
-    await rmdir(target)
+    await runTransferLimited(context, () => rmdir(target))
+    counter.removed += 1
     return
   }
-  await rm(target, { force: false })
+  await runTransferLimited(context, () => removeFile(target, { force: false }))
+  counter.removed += 1
   counter.done += 1
   counter.bytes += info.size
   report({
@@ -359,7 +455,9 @@ export const deleteEntries = async (
   const report = options?.report ?? noop
   const completed: string[] = []
   const failed: { path: string; message: string }[] = []
-  const counter = { done: 0, bytes: 0 }
+  const partial: { path: string; message: string }[] = []
+  const counter: DeleteCounter = { done: 0, bytes: 0, removed: 0 }
+  const removeFile = options?.io?.remove ?? rm
   report({
     done: 0,
     total: null,
@@ -369,52 +467,288 @@ export const deleteEntries = async (
   })
 
   for (const item of paths) {
+    const removedBefore = counter.removed
     try {
       const target = await resolveExistingPath(item)
-      await removeTree(target, counter, report)
+      await removeTree(
+        target,
+        counter,
+        report,
+        createTransferContext(),
+        removeFile
+      )
       completed.push(target)
     } catch (error) {
-      // 逐项记录：一项失败不影响其余条目，也不把部分完成说成全部失败。
-      failed.push({ path: item, message: describeError(error) })
+      const removed = counter.removed - removedBefore
+      if (removed > 0) {
+        partial.push({
+          path: item,
+          message: `已移除 ${removed} 项，但删除其余内容失败：${describeFileError(error)}`,
+        })
+      } else {
+        failed.push({ path: item, message: describeFileError(error) })
+      }
     }
   }
 
-  return { completed, failed, skipped: [], bytes: null }
+  return { completed, failed, partial, skipped: [], bytes: null }
 }
 
 const copyRecursive = async (
   source: string,
   destination: string,
-  counter: { done: number; bytes: number },
-  report: (progress: FileOperationProgress) => void
+  counter: TransferCounter,
+  report: (progress: FileOperationProgress) => void,
+  context: TransferContext,
+  copyFileTo: typeof copyFile
 ): Promise<void> => {
-  const sourceInfo = await lstat(source)
+  const sourceInfo = await runTransferLimited(context, () => lstat(source))
   if (sourceInfo.isSymbolicLink()) {
     throw new Error("不允许复制符号链接")
   }
-  if (!sourceInfo.isDirectory()) {
-    await copyFile(source, destination)
-    counter.done += 1
-    counter.bytes += sourceInfo.size
-    report({
-      done: counter.done,
-      total: null,
-      bytesDone: counter.bytes,
-      stage: "复制中",
-      currentTarget: source,
-    })
+  if (sourceInfo.isDirectory()) {
+    await runTransferLimited(context, () =>
+      mkdir(destination, { recursive: true })
+    )
+    const items = await runTransferLimited(context, () => readdir(source))
+    await mapWithLimit(
+      items,
+      (item) =>
+        copyRecursive(
+          path.join(source, item),
+          path.join(destination, item),
+          counter,
+          report,
+          context,
+          copyFileTo
+        ),
+      context
+    )
     return
   }
-  await mkdir(destination, { recursive: true })
-  const items = await readdir(source)
-  await mapWithLimit(items, TRANSFER_CONCURRENCY, (item) =>
-    copyRecursive(
-      path.join(source, item),
-      path.join(destination, item),
-      counter,
-      report
-    )
+  if (!sourceInfo.isFile()) {
+    throw new Error("不支持复制非普通文件")
+  }
+  await runTransferLimited(context, () =>
+    copyFileTo(source, destination, constants.COPYFILE_EXCL)
   )
+  counter.done += 1
+  counter.bytes += sourceInfo.size
+  report({
+    done: counter.done,
+    total: null,
+    bytesDone: counter.bytes,
+    stage: "复制中",
+    currentTarget: source,
+  })
+}
+
+type PublishedEntries = {
+  files: { destination: string; dev: number; ino: number }[]
+  directories: { path: string; dev: number; ino: number }[]
+}
+
+const rollbackPublishedEntries = async (
+  entries: PublishedEntries
+): Promise<string[]> => {
+  const failures: string[] = []
+  for (const file of [...entries.files].reverse()) {
+    try {
+      const targetInfo = await lstat(file.destination)
+      if (targetInfo.dev !== file.dev || targetInfo.ino !== file.ino) {
+        failures.push(`目标已变化，未删除：${file.destination}`)
+        continue
+      }
+      await rm(file.destination, { force: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        failures.push(`${file.destination}：${describeFileError(error)}`)
+      }
+    }
+  }
+  for (const directory of [...entries.directories].reverse()) {
+    try {
+      const current = await lstat(directory.path)
+      if (current.dev !== directory.dev || current.ino !== directory.ino) {
+        failures.push(`目录已变化，未删除：${directory.path}`)
+        continue
+      }
+      await rmdir(directory.path)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        failures.push(`${directory.path}：${describeFileError(error)}`)
+      }
+    }
+  }
+  return failures
+}
+
+const publishStagedDirectory = async (
+  staging: string,
+  destination: string,
+  context: TransferContext,
+  linkFile: typeof link,
+  published: PublishedEntries
+): Promise<void> => {
+  const entries = await runTransferLimited(context, () =>
+    readdir(staging, { withFileTypes: true })
+  )
+  await mapWithLimit(
+    entries,
+    async (entry) => {
+      const stagedPath = path.join(staging, entry.name)
+      const targetPath = path.join(destination, entry.name)
+      const info = await runTransferLimited(context, () => lstat(stagedPath))
+      if (info.isSymbolicLink()) {
+        throw new Error("临时副本中出现不允许提交的符号链接")
+      }
+      if (info.isDirectory()) {
+        const targetInfo = await runTransferLimited(context, async () => {
+          await mkdir(targetPath)
+          return lstat(targetPath)
+        })
+        published.directories.push({
+          path: targetPath,
+          dev: targetInfo.dev,
+          ino: targetInfo.ino,
+        })
+        await publishStagedDirectory(
+          stagedPath,
+          targetPath,
+          context,
+          linkFile,
+          published
+        )
+        return
+      }
+      if (!info.isFile()) throw new Error("临时副本包含非普通文件")
+      // 记录 staged inode，link 与记录在同一受控操作后续中完成，避免失败竞态漏记。
+      await runTransferLimited(context, async () => {
+        await linkFile(stagedPath, targetPath)
+        published.files.push({
+          destination: targetPath,
+          dev: info.dev,
+          ino: info.ino,
+        })
+      })
+    },
+    context
+  )
+}
+
+class PartialFileOperationError extends Error {
+  constructor(
+    readonly destination: string,
+    message: string
+  ) {
+    super(message)
+    this.name = "PartialFileOperationError"
+  }
+}
+
+const copyToDestination = async (
+  source: string,
+  destination: string,
+  counter: TransferCounter,
+  report: (progress: FileOperationProgress) => void,
+  options?: OperationOptions
+): Promise<void> => {
+  const context = createTransferContext()
+  const copyFileTo = options?.io?.copyFile ?? copyFile
+  const linkFile = options?.io?.link ?? link
+  const staging = path.join(
+    path.dirname(destination),
+    `.${path.basename(destination)}.${randomUUID()}${OPERATION_PART_SUFFIX}`
+  )
+  let stagingCreated = false
+  let publishedSuccessfully = false
+  const published: PublishedEntries = { files: [], directories: [] }
+  let failure: unknown
+  let hasFailure = false
+
+  try {
+    await runTransferLimited(context, () => mkdir(staging))
+    stagingCreated = true
+    const info = await runTransferLimited(context, () => lstat(source))
+    if (info.isSymbolicLink()) throw new Error("不允许复制符号链接")
+    if (info.isDirectory()) {
+      await copyRecursive(source, staging, counter, report, context, copyFileTo)
+      const rootInfo = await runTransferLimited(context, async () => {
+        await mkdir(destination)
+        return lstat(destination)
+      })
+      published.directories.push({
+        path: destination,
+        dev: rootInfo.dev,
+        ino: rootInfo.ino,
+      })
+      await publishStagedDirectory(
+        staging,
+        destination,
+        context,
+        linkFile,
+        published
+      )
+    } else if (info.isFile()) {
+      const stagedFile = path.join(staging, "content")
+      await runTransferLimited(context, () =>
+        copyFileTo(source, stagedFile, constants.COPYFILE_EXCL)
+      )
+      counter.done += 1
+      counter.bytes += info.size
+      report({
+        done: counter.done,
+        total: null,
+        bytesDone: counter.bytes,
+        stage: "复制中",
+        currentTarget: source,
+      })
+      const stagedInfo = await runTransferLimited(context, () =>
+        lstat(stagedFile)
+      )
+      await runTransferLimited(context, async () => {
+        await linkFile(stagedFile, destination)
+        published.files.push({
+          destination,
+          dev: stagedInfo.dev,
+          ino: stagedInfo.ino,
+        })
+      })
+    } else {
+      throw new Error("不支持复制非普通文件")
+    }
+    publishedSuccessfully = true
+  } catch (error) {
+    hasFailure = true
+    failure = error
+  }
+
+  if (
+    hasFailure &&
+    (published.files.length > 0 || published.directories.length > 0)
+  ) {
+    const cleanupFailures = await rollbackPublishedEntries(published)
+    if (cleanupFailures.length > 0) {
+      failure = new PartialFileOperationError(
+        destination,
+        `复制未完成，目标清理不完整：${cleanupFailures.join("；")}`
+      )
+    }
+  }
+
+  if (stagingCreated) {
+    try {
+      await rm(staging, { recursive: true, force: true })
+    } catch (error) {
+      failure = new PartialFileOperationError(
+        publishedSuccessfully ? destination : staging,
+        `${publishedSuccessfully ? "目标已复制" : "复制未提交"}，临时副本 ${staging} 清理失败：${describeFileError(error)}`
+      )
+      hasFailure = true
+    }
+  }
+
+  if (hasFailure) throw failure
 }
 
 /** 复制与移动共用的目标校验，返回已解析的目标目录。 */
@@ -444,6 +778,7 @@ export const copyEntries = async (
   const destination = await resolveTransferTarget(paths, destPath)
   const completed: string[] = []
   const failed: { path: string; message: string }[] = []
+  const partial: { path: string; destination?: string; message: string }[] = []
   const counter = { done: 0, bytes: 0 }
 
   for (const item of paths) {
@@ -453,14 +788,22 @@ export const copyEntries = async (
       if (existsSync(target)) {
         throw new Error(`目标已存在同名条目：${path.basename(source)}`)
       }
-      await copyRecursive(source, target, counter, report)
+      await copyToDestination(source, target, counter, report, options)
       completed.push(source)
     } catch (error) {
-      failed.push({ path: item, message: describeError(error) })
+      if (error instanceof PartialFileOperationError) {
+        partial.push({
+          path: item,
+          destination: error.destination,
+          message: error.message,
+        })
+      } else {
+        failed.push({ path: item, message: describeFileError(error) })
+      }
     }
   }
 
-  return { completed, failed, skipped: [], bytes: counter.bytes }
+  return { completed, failed, partial, skipped: [], bytes: counter.bytes }
 }
 
 export const moveEntries = async (
@@ -470,10 +813,13 @@ export const moveEntries = async (
 ): Promise<FileBatchOutcome> => {
   const report = options?.report ?? noop
   const renameFile = options?.io?.rename ?? rename
+  const removeFile = options?.io?.remove ?? rm
   const destination = await resolveTransferTarget(paths, destPath)
   const completed: string[] = []
   const failed: { path: string; message: string }[] = []
-  const counter = { done: 0, bytes: 0 }
+  const partial: { path: string; destination?: string; message: string }[] = []
+  const progress = { done: 0, bytes: 0 }
+  let writtenBytes = 0
 
   for (const item of paths) {
     try {
@@ -485,20 +831,59 @@ export const moveEntries = async (
       try {
         await renameFile(source, target)
       } catch (error) {
-        // 跨卷时 rename 报 EXDEV：先复制，复制确认完整后才删除源，绝不先删。
-        if ((error as NodeJS.ErrnoException).code !== "EXDEV") {
-          throw error
+        if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error
+
+        const bytesBeforeCopy = progress.bytes
+        await copyToDestination(source, target, progress, report, options)
+        writtenBytes += progress.bytes - bytesBeforeCopy
+
+        const deletion: DeleteCounter = {
+          done: progress.done,
+          bytes: progress.bytes,
+          removed: 0,
         }
-        await copyRecursive(source, target, counter, report)
-        await removeTree(source, counter, report)
+        try {
+          await removeTree(
+            source,
+            deletion,
+            report,
+            createTransferContext(),
+            removeFile
+          )
+          progress.done = deletion.done
+          progress.bytes = deletion.bytes
+        } catch (deleteError) {
+          progress.done = deletion.done
+          progress.bytes = deletion.bytes
+          partial.push({
+            path: item,
+            destination: target,
+            message: `已复制到目标，但源路径未能完整删除${deletion.removed > 0 ? `（已移除 ${deletion.removed} 项）` : ""}：${describeFileError(deleteError)}`,
+          })
+          continue
+        }
       }
       completed.push(source)
     } catch (error) {
-      failed.push({ path: item, message: describeError(error) })
+      if (error instanceof PartialFileOperationError) {
+        partial.push({
+          path: item,
+          destination: error.destination,
+          message: error.message,
+        })
+      } else {
+        failed.push({ path: item, message: describeFileError(error) })
+      }
     }
   }
 
-  return { completed, failed, skipped: [], bytes: counter.bytes }
+  return {
+    completed,
+    failed,
+    partial,
+    skipped: [],
+    bytes: writtenBytes,
+  }
 }
 
 export const readFileContent = async (

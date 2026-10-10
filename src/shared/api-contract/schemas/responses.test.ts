@@ -36,6 +36,13 @@ describe("shared API schemas", () => {
       FileBatchResultSchema.safeParse({
         completed: ["/tmp/a"],
         failed: [{ path: "/tmp/b", message: "权限不足" }],
+        partial: [
+          {
+            path: "/tmp/source",
+            destination: "/tmp/destination/source",
+            message: "已复制到目标，但源路径未能完整删除",
+          },
+        ],
         skipped: ["/tmp/c"],
         bytes: 512,
       }).success

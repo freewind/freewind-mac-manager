@@ -1,21 +1,25 @@
 /**
  * 任务作用域（冲突判定用的 target）的唯一来源。
  *
- * 服务端用它加锁，客户端把它记进「待核实请求」用于展示与恢复；两边必须是同一份
- * 字符串，因此放在 shared 里而不是各写一份。
+ * 文件任务的展示目标与前端待核实记录共用；真正互斥可另用 lock target，
+ * 不应为实现粗粒度锁而丢失任务中心中的具体对象信息。
  */
 export const scanTaskTarget = (root: string): string => `scan:${root}`
 
-/**
- * 单个条目操作（新建、改名）按父目录加锁：这样它们与批量任务落在同一目录时
- * 能互相拦住，而不是各自为政。
- */
+/** 文件单项写操作的展示目标。 */
 export const fileDirectoryTarget = (parentPath: string): string =>
-  `files:dir:${parentPath}`
+  `files:dir:${encodeURIComponent(parentPath)}`
 
-/** 文件批量操作按目标目录加锁。 */
+/** 文件批量操作的展示目标，路径排序使请求展示稳定。 */
 export const fileTaskTarget = (paths: string[]): string =>
-  `files:${[...paths].sort().join("\u0000")}`
+  `files:${[...paths].sort().map(encodeURIComponent).join("|")}`
+
+/** 文件修改共用域级冲突键，覆盖重叠路径和路径别名。 */
+export const fileMutationLockTarget = (): string => "files:mutations"
+
+/** 在访达显示不修改文件内容，不与文件写操作竞争。 */
+export const fileRevealTaskTarget = (target: string): string =>
+  `files:reveal:${encodeURIComponent(target)}`
 
 /** 系统服务按域与 label 加锁。 */
 export const serviceTaskTarget = (domain: string, label: string): string =>

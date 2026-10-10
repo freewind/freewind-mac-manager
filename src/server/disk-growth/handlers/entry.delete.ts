@@ -7,12 +7,13 @@ import {
 } from "@shared/api-contract"
 import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
 import { describeError } from "@shared/format"
+import { fileMutationLockTarget } from "@shared/task-targets"
 import type { ServerInferRequest } from "@ts-rest/core"
 import { entryTaskTarget, TRASH_KIND } from "../task"
 
 /**
- * 移到废纸篓：与文件域共用同一把按路径的作用域锁，
- * 同一个文件不会被两处同时操作。
+ * 移到废纸篓：与文件域写操作共用同一把互斥键，
+ * 避免删除、移动或改名期间再次改变同一文件树。
  */
 export const createTrashEntryHandler =
   (runtime: TaskRuntime) =>
@@ -27,6 +28,7 @@ export const createTrashEntryHandler =
       const outcome = await runtime.runner.submit<ActionResponse>({
         kind: TRASH_KIND,
         target: entryTaskTarget([query.path]),
+        lockTarget: fileMutationLockTarget(),
         payload: { path: query.path },
         requestId: headers[TASK_REQUEST_ID_HEADER],
         toCompletedResponse: (result) => {

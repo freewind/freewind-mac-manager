@@ -8,7 +8,7 @@ import {
 import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
 import { describeError } from "@shared/format"
 import type { ServerInferRequest } from "@ts-rest/core"
-import { entryTaskTarget, REVEAL_KIND } from "../task"
+import { REVEAL_KIND, revealEntryTarget } from "../task"
 
 /** 在访达中显示：命令有时限，按统一任务提交，完成结果必须过契约校验。 */
 export const createRevealEntryHandler =
@@ -23,7 +23,7 @@ export const createRevealEntryHandler =
     try {
       const outcome = await runtime.runner.submit<ActionResponse>({
         kind: REVEAL_KIND,
-        target: entryTaskTarget([body.path]),
+        target: revealEntryTarget(body.path),
         payload: { path: body.path },
         requestId: headers[TASK_REQUEST_ID_HEADER],
         toCompletedResponse: (result) => {

@@ -2,12 +2,18 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs"
+import {
+  copyFile as copyFileAsync,
+  link as linkAsync,
+  rm as rmAsync,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { createExecutorRegistry, taskExecutors } from "@server/tasks/executors"
@@ -69,6 +75,170 @@ describe("file batch operations", () => {
     expect(progress.at(-1)?.bytesDone).toBe(30)
     // 复制不预先全盘统计，因此没有分母，也不伪造百分比
     expect(progress.at(-1)?.total).toBeNull()
+  })
+
+  it("stages a failed partial file write without publishing it", async () => {
+    makeTree()
+    let startedCopies = 0
+    let activeCopies = 0
+    let slowCopyFinished = false
+    let releaseCopies!: () => void
+    const bothCopiesStarted = new Promise<void>((resolve) => {
+      releaseCopies = resolve
+    })
+
+    const outcome = await copyEntries([source], destination, {
+      io: {
+        copyFile: async (from, to, flags) => {
+          activeCopies += 1
+          startedCopies += 1
+          if (startedCopies === 2) releaseCopies()
+          await bothCopiesStarted
+          try {
+            if (path.basename(String(from)) === "a.txt") {
+              await copyFileAsync(from, to, flags)
+              throw new Error("模拟部分写入失败")
+            }
+            await new Promise((resolve) => setTimeout(resolve, 10))
+            await copyFileAsync(from, to, flags)
+            slowCopyFinished = true
+          } finally {
+            activeCopies -= 1
+          }
+        },
+      },
+    })
+
+    expect(outcome.failed).toHaveLength(1)
+    expect(slowCopyFinished).toBe(true)
+    expect(activeCopies).toBe(0)
+    expect(existsSync(path.join(destination, "source"))).toBe(false)
+    expect(
+      readdirSync(destination).filter((name) =>
+        name.endsWith(".operation.part")
+      )
+    ).toEqual([])
+  })
+
+  it("does not overwrite a destination created after the initial check", async () => {
+    makeTree()
+    const sourceFile = path.join(source, "a.txt")
+    const targetFile = path.join(destination, "a.txt")
+    const outcome = await copyEntries([sourceFile], destination, {
+      io: {
+        link: async (staged, target) => {
+          writeFileSync(target, "created concurrently")
+          await linkAsync(staged, target)
+        },
+      },
+    })
+
+    expect(outcome.failed).toHaveLength(1)
+    expect(readFileSync(targetFile, "utf8")).toBe("created concurrently")
+    expect(
+      readdirSync(destination).filter((name) =>
+        name.endsWith(".operation.part")
+      )
+    ).toEqual([])
+  })
+
+  it("limits file copies across the full recursive tree", async () => {
+    for (let directory = 0; directory < 6; directory += 1) {
+      mkdirSync(source, { recursive: true })
+      const nested = path.join(source, `directory-${directory}`)
+      mkdirSync(nested)
+      for (let file = 0; file < 12; file += 1) {
+        writeFileSync(path.join(nested, `${file}.txt`), "data")
+      }
+    }
+
+    let activeCopies = 0
+    let maximumCopies = 0
+    const outcome = await copyEntries([source], destination, {
+      io: {
+        copyFile: async (from, to, flags) => {
+          activeCopies += 1
+          maximumCopies = Math.max(maximumCopies, activeCopies)
+          try {
+            await new Promise((resolve) => setTimeout(resolve, 2))
+            await copyFileAsync(from, to, flags)
+          } finally {
+            activeCopies -= 1
+          }
+        },
+      },
+    })
+
+    expect(outcome.completed).toEqual([source])
+    expect(maximumCopies).toBeGreaterThan(1)
+    expect(maximumCopies).toBeLessThanOrEqual(8)
+  })
+
+  it("reports a partially removed tree instead of a generic failure", async () => {
+    makeTree()
+    const firstFile = path.join(source, "a.txt")
+    const laterFile = path.join(source, "nested", "b.txt")
+    let releaseAfterFirstRemoval!: () => void
+    const firstRemoved = new Promise<void>((resolve) => {
+      releaseAfterFirstRemoval = resolve
+    })
+
+    const outcome = await deleteEntries([source], {
+      io: {
+        remove: async (target, options) => {
+          if (target === laterFile) {
+            await firstRemoved
+            throw new Error("模拟删除失败")
+          }
+          await rmAsync(target, options)
+        },
+      },
+      report: (progress) => {
+        if (progress.currentTarget === firstFile) releaseAfterFirstRemoval()
+      },
+    })
+
+    expect(outcome.completed).toEqual([])
+    expect(outcome.failed).toEqual([])
+    expect(outcome.partial).toHaveLength(1)
+    expect(outcome.partial?.[0]?.message).toContain("已移除 1 项")
+    expect(existsSync(firstFile)).toBe(false)
+    expect(existsSync(laterFile)).toBe(true)
+  })
+
+  it("reports a copied destination when cross-volume source removal fails", async () => {
+    makeTree()
+    const destinationCopy = path.join(destination, "source")
+    const outcome = await moveEntries([source], destination, {
+      io: {
+        rename: async () => {
+          const error = new Error("cross-device link") as NodeJS.ErrnoException
+          error.code = "EXDEV"
+          throw error
+        },
+        remove: async (target, options) => {
+          if (String(target).startsWith(`${source}${path.sep}`)) {
+            throw new Error("模拟源删除失败")
+          }
+          await rmAsync(target, options)
+        },
+      },
+    })
+
+    expect(outcome.completed).toEqual([])
+    expect(outcome.failed).toEqual([])
+    expect(outcome.partial).toMatchObject([
+      {
+        path: source,
+        destination: destinationCopy,
+        message: expect.stringContaining("已复制到目标"),
+      },
+    ])
+    expect(existsSync(source)).toBe(true)
+    expect(
+      readFileSync(path.join(destinationCopy, "nested", "b.txt"), "utf8")
+    ).toBe("b".repeat(20))
+    expect(outcome.bytes).toBe(30)
   })
 
   it("deletes a tree and reports how many entries were really removed", async () => {

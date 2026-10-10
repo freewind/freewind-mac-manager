@@ -68,9 +68,15 @@ export const FileBatchFailureSchema = z.object({
   message: z.string(),
 })
 
+export const FileBatchPartialSchema = FileBatchFailureSchema.extend({
+  destination: z.string().optional(),
+})
+
 export const FileBatchResultSchema = z.object({
   completed: z.array(z.string()),
   failed: z.array(FileBatchFailureSchema),
+  /** 已产生部分副作用、但不能宣称整项完成的目标。旧任务记录可省略此字段。 */
+  partial: z.array(FileBatchPartialSchema).optional(),
   /** 因为冲突或状态变化而没有执行的条目。 */
   skipped: z.array(z.string()),
   /** 复制/移动实际写入的字节数；删除等不适用时为 null。 */

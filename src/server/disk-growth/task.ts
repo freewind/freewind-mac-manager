@@ -4,7 +4,11 @@ import {
   TASK_KINDS,
   type TaskProgress,
 } from "@shared/api-contract"
-import { fileTaskTarget, scanTaskTarget } from "@shared/task-targets"
+import {
+  fileRevealTaskTarget,
+  fileTaskTarget,
+  scanTaskTarget,
+} from "@shared/task-targets"
 import { z } from "zod"
 import { moveToTrash, revealInFinder } from "./file-actions.ts"
 import {
@@ -30,8 +34,11 @@ export const EntryPathPayloadSchema = z.object({
   path: z.string().min(1),
 })
 
-/** 与文件域共用同一把按路径的作用域锁：同一个文件不会被两处同时操作。 */
-export { fileTaskTarget as entryTaskTarget }
+/** 文件改动操作共用互斥键；仅访达定位使用独立、只读的目标键。 */
+export {
+  fileRevealTaskTarget as revealEntryTarget,
+  fileTaskTarget as entryTaskTarget,
+}
 
 export const runRevealEntryTask = async (options: {
   path: string

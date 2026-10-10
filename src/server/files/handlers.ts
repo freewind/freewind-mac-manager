@@ -28,6 +28,7 @@ import {
   FILE_RENAME_KIND,
   FILE_WRITE_KIND,
   fileDirectoryTarget,
+  fileMutationLockTarget,
   fileTaskTarget,
 } from "./task"
 
@@ -68,6 +69,7 @@ const submitFileTask = async (
     const outcome = await runtime.runner.submit<FileBatchResult>({
       kind: options.kind,
       target: fileTaskTarget(pathsOfPayload(options.payload)),
+      lockTarget: fileMutationLockTarget(),
       payload: options.payload,
       requestId: options.requestId,
       toCompletedResponse: (result) => {
@@ -86,7 +88,7 @@ const submitFileTask = async (
 
 /**
  * 单个条目的写操作（新建、改名、保存内容）也走任务：
- * 目标锁取所在目录，因此与批量任务落在同一目录时能互相拦住。
+ * 展示目标保留所在目录，互斥使用文件域共享的锁键。
  */
 const submitEntryTask = async (
   runtime: TaskRuntime,
@@ -101,6 +103,7 @@ const submitEntryTask = async (
     const outcome = await runtime.runner.submit<ActionResponse>({
       kind: options.kind,
       target: options.target,
+      lockTarget: fileMutationLockTarget(),
       payload: options.payload,
       requestId: options.requestId,
       toCompletedResponse: (result) => {
@@ -117,7 +120,7 @@ const submitEntryTask = async (
   }
 }
 
-/** 锁的作用域来自载荷里的路径集合，键序无关。 */
+/** 展示目标来自载荷里的路径集合，键序无关；冲突由独立 lock target 判定。 */
 const pathsOfPayload = (payload: unknown): string[] => {
   const parsed = z
     .object({

@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { DatabaseSync } from "node:sqlite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { payloadFingerprint, TaskStore } from "./store"
 
@@ -37,6 +38,8 @@ describe("task store", () => {
     expect(row?.status).toBe("running")
     expect(row?.finishedAt).toBeNull()
     expect(store.findByRequestId("req-1")?.id).toBe("task-1")
+    expect(store.get("task-1")?.target).toBe("/tmp/a")
+    expect(store.get("task-1")?.lockTarget).toBe("/tmp/a")
   })
 
   it("allows only one running task per kind and target", () => {
@@ -55,6 +58,63 @@ describe("task store", () => {
     expect(() =>
       insert({ id: "task-2", requestId: "req-2", requestFingerprint: "fp-2" })
     ).not.toThrow()
+  })
+
+  it("migrates the pre-lock schema without changing task targets", () => {
+    store.close()
+    const db = new DatabaseSync(path.join(dir, "tasks.sqlite3"))
+    db.exec(`
+      DROP TABLE task_record;
+      CREATE TABLE task_record (
+        id TEXT PRIMARY KEY,
+        request_id TEXT,
+        request_fingerprint TEXT,
+        kind TEXT NOT NULL,
+        target TEXT NOT NULL,
+        status TEXT NOT NULL,
+        progress TEXT,
+        message TEXT,
+        error TEXT,
+        result TEXT,
+        started_at REAL NOT NULL,
+        finished_at REAL,
+        updated_at REAL NOT NULL
+      );
+      CREATE UNIQUE INDEX idx_task_record_target
+        ON task_record (target) WHERE status = 'running';
+      INSERT INTO task_record (
+        id, request_id, request_fingerprint, kind, target, status,
+        started_at, updated_at
+      ) VALUES ('legacy', 'legacy-request', 'legacy-fingerprint',
+        'file_delete', 'files:%2Ftmp%2Fa', 'running', 1000, 1000);
+    `)
+    db.close()
+
+    store = new TaskStore(path.join(dir, "tasks.sqlite3"))
+    expect(store.get("legacy")).toMatchObject({
+      target: "files:%2Ftmp%2Fa",
+      lockTarget: "files:%2Ftmp%2Fa",
+      status: "unknown",
+    })
+    expect(store.get("legacy")?.error).toContain("结果未知")
+  })
+
+  it("locks distinct display targets by their explicit lock target", () => {
+    insert({
+      id: "file-task-a",
+      requestId: "file-request-a",
+      target: "files:%2Ftmp%2Fa",
+      lockTarget: "files:mutations",
+    })
+    expect(store.findActive("files:mutations")?.target).toBe("files:%2Ftmp%2Fa")
+    expect(() =>
+      insert({
+        id: "file-task-b",
+        requestId: "file-request-b",
+        target: "files:dir:%2Ftmp%2Fparent",
+        lockTarget: "files:mutations",
+      })
+    ).toThrow()
   })
 
   it("allows only one task per request id", () => {

@@ -266,6 +266,33 @@ describe("task runner", () => {
     await first
   })
 
+  it("locks distinct displayed paths by a shared domain lock", async () => {
+    const { runner, calls, store } = harness
+    const first = runner.submit({
+      kind: "file_delete",
+      target: "files:%2Ftmp%2Fa",
+      lockTarget: "files:mutations",
+      payload: { paths: ["/tmp/a"] },
+      requestId: "req-0000000000000012",
+      toCompletedResponse,
+    })
+    await waitFor(() => calls.length === 1)
+    const second = await runner.submit({
+      kind: "file_create",
+      target: "files:dir:%2Ftmp%2Fparent",
+      lockTarget: "files:mutations",
+      payload: { parentPath: "/tmp/parent" },
+      requestId: "req-0000000000000013",
+      toCompletedResponse,
+    })
+
+    expect(second.kind).toBe("conflict")
+    expect(calls).toHaveLength(1)
+    expect(store.get(calls[0].job.taskId)?.target).toBe("files:%2Ftmp%2Fa")
+    calls[0].resolve(ok({}))
+    await first
+  })
+
   it("returns the failure instead of pretending success", async () => {
     const { runner, calls, store } = harness
     const submission = runner.submit({

@@ -13,7 +13,7 @@ import {
   revealEntry as revealEntryApi,
   trashEntry as trashEntryApi,
 } from "@shared/client-api"
-import { fileTaskTarget } from "@shared/task-targets"
+import { fileRevealTaskTarget, fileTaskTarget } from "@shared/task-targets"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
@@ -179,7 +179,7 @@ export const useDeleteScans = () => {
 export const useRevealEntry = () =>
   useTaskAction<ActionResponse, string>({
     kind: TASK_KINDS.diskEntryReveal,
-    target: (path) => fileTaskTarget([path]),
+    target: fileRevealTaskTarget,
     run: (requestId, path) => revealEntryApi(requestId, path),
     onCompleted: (result) => {
       toast.success(result.message)

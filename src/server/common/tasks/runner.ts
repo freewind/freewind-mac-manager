@@ -16,8 +16,10 @@ import type { TaskOutcome, TaskRunnerHost } from "./worker-host"
 
 export type TaskSubmitRequest<TBody = unknown> = {
   kind: string
-  /** 冲突判定用的作用域，例如文件路径或配置路径。 */
+  /** 前端与任务列表展示的业务目标。 */
   target: string
+  /** 独立冲突锁；省略时与展示 target 相同。 */
+  lockTarget?: string
   payload: unknown
   /** 客户端生成的请求标识；为空表示不是客户端请求发起（如定时任务）。 */
   requestId: string | null
@@ -133,7 +135,9 @@ export class TaskRunner {
       }
     }
 
-    const active = this.store.findActive(request.target)
+    /** 冲突判定用的作用域；省略时使用展示目标。 */
+    const lockTarget = request.lockTarget ?? request.target
+    const active = this.store.findActive(lockTarget)
     if (active) {
       return {
         kind: "conflict",
@@ -150,6 +154,7 @@ export class TaskRunner {
         requestFingerprint: request.requestId ? fingerprint : null,
         kind: request.kind,
         target: request.target,
+        lockTarget,
         startedAt,
       })
     } catch (error) {

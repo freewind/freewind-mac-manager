@@ -11,6 +11,7 @@ export type TaskStoredRow = {
   requestFingerprint: string | null
   kind: string
   target: string
+  lockTarget: string
   status: TaskStatus
   /** 进度 JSON；未上报过为 null。 */
   progress: string | null
@@ -46,6 +47,10 @@ const toRow = (raw: Record<string, unknown>): TaskStoredRow => ({
     raw.request_fingerprint === null ? null : String(raw.request_fingerprint),
   kind: String(raw.kind),
   target: String(raw.target),
+  lockTarget:
+    raw.lock_target === null || raw.lock_target === undefined
+      ? String(raw.target)
+      : String(raw.lock_target),
   status: raw.status as TaskStatus,
   progress: raw.progress === null ? null : String(raw.progress),
   message: raw.message === null ? null : String(raw.message),
@@ -85,6 +90,7 @@ const SCHEMA = `
     request_fingerprint TEXT,
     kind TEXT NOT NULL,
     target TEXT NOT NULL,
+    lock_target TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL,
     progress TEXT,
     message TEXT,
@@ -97,12 +103,10 @@ const SCHEMA = `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_task_record_request
     ON task_record (request_id);
   DROP INDEX IF EXISTS idx_task_record_active_target;
+  DROP INDEX IF EXISTS idx_task_record_target;
   CREATE INDEX IF NOT EXISTS idx_task_record_status
     ON task_record (status, updated_at DESC);
-  -- 互斥只看目标、不看种类：创建、改名与批量删除可能落在同一个目标上，
-  -- 必须互相拦住。各类目标自带前缀（scan:/files:/traffic:v...），因此不会误撞。
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_task_record_target
-    ON task_record (target) WHERE status = 'running';
+  -- running tasks use lock_target for mutual exclusion; target remains display data.
 `
 
 /**
@@ -119,6 +123,33 @@ export class TaskStore {
     this.db.exec("PRAGMA journal_mode = WAL")
     this.db.exec("PRAGMA synchronous = NORMAL")
     this.db.exec(SCHEMA)
+    this.db.exec("BEGIN IMMEDIATE")
+    try {
+      const columns = this.db
+        .prepare("PRAGMA table_info(task_record)")
+        .all() as { name: string }[]
+      if (!columns.some((column) => column.name === "lock_target")) {
+        this.db.exec(
+          "ALTER TABLE task_record ADD COLUMN lock_target TEXT NOT NULL DEFAULT ''"
+        )
+        // 新版本共用文件域锁，避免新旧实例的活动文件操作跨重启冲突。
+        this.db.exec(
+          `UPDATE task_record
+           SET status = 'unknown', error = '服务更新期间文件操作结果未知', finished_at = updated_at
+           WHERE status = 'running' AND target LIKE 'files:%'`
+        )
+      }
+      this.db.exec(
+        "UPDATE task_record SET lock_target = target WHERE lock_target = ''"
+      )
+      this.db.exec(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_task_record_lock_target ON task_record (lock_target) WHERE status = 'running'"
+      )
+      this.db.exec("COMMIT")
+    } catch (error) {
+      this.db.exec("ROLLBACK")
+      throw error
+    }
   }
 
   /** 执行前登记；同 requestId 或同目标已有运行任务时抛错，由调用方复核。 */
@@ -128,12 +159,13 @@ export class TaskStore {
     requestFingerprint: string | null
     kind: string
     target: string
+    lockTarget?: string
     startedAt: number
   }): void {
     this.db
       .prepare(
-        `INSERT INTO task_record (id, request_id, request_fingerprint, kind, target, status, started_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'running', ?, ?)`
+        `INSERT INTO task_record (id, request_id, request_fingerprint, kind, target, lock_target, status, started_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?)`
       )
       .run(
         row.id,
@@ -141,6 +173,7 @@ export class TaskStore {
         row.requestFingerprint,
         row.kind,
         row.target,
+        row.lockTarget ?? row.target,
         row.startedAt,
         row.startedAt
       )
@@ -160,13 +193,13 @@ export class TaskStore {
     return raw ? toRow(raw) : null
   }
 
-  /** 目标是否已有运行中的任务；与种类无关。 */
-  findActive(target: string): TaskStoredRow | null {
+  /** 冲突锁是否已有运行中的任务；与任务种类和展示目标无关。 */
+  findActive(lockTarget: string): TaskStoredRow | null {
     const raw = this.db
       .prepare(
-        "SELECT * FROM task_record WHERE target = ? AND status = 'running' LIMIT 1"
+        "SELECT * FROM task_record WHERE lock_target = ? AND status = 'running' LIMIT 1"
       )
-      .get(target) as Record<string, unknown> | undefined
+      .get(lockTarget) as Record<string, unknown> | undefined
     return raw ? toRow(raw) : null
   }
 
