@@ -151,8 +151,16 @@ export const ProcessTable = (props: ProcessTableProps) => {
             {sortedGroups.map((groupItem) => {
               const expanded = model.isExpanded(groupItem.name)
               const runningPids = groupItem.children
-                .filter((item) => item.running)
+                .filter((item) => item.running === true)
                 .flatMap((item) => item.pids)
+              // 任一条明细存活即整组运行中；全部明确退出才算已退出，否则状态未知。
+              const groupRunning: boolean | null = groupItem.children.some(
+                (item) => item.running === true
+              )
+                ? true
+                : groupItem.children.some((item) => item.running === null)
+                  ? null
+                  : false
               const groupPorts = [
                 ...new Set(groupItem.children.flatMap((item) => item.ports)),
               ]
@@ -191,7 +199,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
                       {formatPorts(groupPorts)}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge running={runningPids.length > 0} />
+                      <StatusBadge running={groupRunning} />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatBytes(groupItem.bytesIn)}
@@ -207,7 +215,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
                     </TableCell>
                     <TableCell>
                       <RowActions
-                        running={runningPids.length > 0}
+                        running={groupRunning}
                         onCopy={() =>
                           onCopy(
                             buildRowText({
@@ -218,7 +226,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
                                 (item) => item.pids
                               ),
                               ports: groupPorts,
-                              running: runningPids.length > 0,
+                              running: groupRunning,
                               bytesIn: groupItem.bytesIn,
                               bytesOut: groupItem.bytesOut,
                               command: groupItem.children[0]?.command ?? "",
@@ -322,7 +330,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
 }
 
 type RowActionsProps = {
-  running: boolean
+  running: boolean | null
   onCopy: () => void
   onKill: () => void
 }
@@ -350,14 +358,25 @@ const RowActions = (props: RowActionsProps) => (
   </DropdownMenu>
 )
 
-const StatusBadge = (props: { running: boolean }) => (
-  <Badge
-    variant={props.running ? "secondary" : "outline"}
-    className={cn(props.running && "text-emerald-600")}
-  >
-    {props.running ? "运行中" : "已退出"}
-  </Badge>
-)
+/** 存活状态：null 表示进程表采集失败，此时既不能报运行中也不能报已退出。 */
+const StatusBadge = (props: { running: boolean | null }) => {
+  if (props.running === null) {
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        状态未知
+      </Badge>
+    )
+  }
+
+  return (
+    <Badge
+      variant={props.running ? "secondary" : "outline"}
+      className={cn(props.running && "text-emerald-600")}
+    >
+      {props.running ? "运行中" : "已退出"}
+    </Badge>
+  )
+}
 
 type SortButtonProps = {
   label: React.ReactNode
@@ -400,7 +419,7 @@ const buildRowText = (input: {
   parent: string
   pids: number[]
   ports: number[]
-  running: boolean
+  running: boolean | null
   bytesIn: number
   bytesOut: number
   command: string
@@ -411,7 +430,7 @@ const buildRowText = (input: {
     input.parent ? `启动者: ${input.parent}` : null,
     `PID: ${input.pids.length > 0 ? input.pids.join(", ") : "—"}`,
     `端口: ${input.ports.length > 0 ? input.ports.join(", ") : "—"}`,
-    `状态: ${input.running ? "运行中" : "已退出"}`,
+    `状态: ${input.running === null ? "状态未知" : input.running ? "运行中" : "已退出"}`,
     `上传: ${formatBytes(input.bytesIn)}`,
     `下载: ${formatBytes(input.bytesOut)}`,
     `总计: ${formatBytes(input.bytesIn + input.bytesOut)}`,

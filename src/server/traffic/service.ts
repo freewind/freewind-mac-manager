@@ -41,11 +41,17 @@ const shortStamp = (timestamp: number): string => {
 
 const seconds = (timestamp: number): number => Math.floor(timestamp / 1000)
 
-const runningPids = async (): Promise<Set<number>> => {
+/**
+ * 当前存活进程的 pid 集合。
+ *
+ * 采集失败时返回 null，调用方据此显示「状态未知」；若返回空集合，
+ * 会把还在运行的进程误报成「已退出」。
+ */
+const runningPids = async (): Promise<Set<number> | null> => {
   try {
     return new Set((await snapshotProcesses()).keys())
   } catch {
-    return new Set()
+    return null
   }
 }
 
@@ -59,10 +65,10 @@ type AggregateInput = {
   bytesOut: number
 }
 
-/** 按「进程名 + 细分标识 + 启动者」聚合出两级结构。 */
+/** 按「进程名 + 细分标识 + 启动者」聚合出两级结构。activePids 为 null 表示存活状态未知。 */
 const aggregate = (
   rows: AggregateInput[],
-  activePids: Set<number>,
+  activePids: Set<number> | null,
   ports: Map<number, number[]>
 ): TrafficGroup[] => {
   const groupOrder: string[] = []
@@ -95,7 +101,7 @@ const aggregate = (
         parent: row.parent,
         pids: [],
         ports: [],
-        running: false,
+        running: null,
         bytesIn: 0,
         bytesOut: 0,
         command: row.command,
@@ -123,7 +129,10 @@ const aggregate = (
         parent: child.parent,
         pids: [...child.pids].sort((a, b) => a - b),
         ports: childPorts.sort((a, b) => a - b),
-        running: child.pids.some((pid) => activePids.has(pid)),
+        running:
+          activePids === null
+            ? null
+            : child.pids.some((pid) => activePids.has(pid)),
         bytesIn: child.bytesIn,
         bytesOut: child.bytesOut,
         command: child.command,
@@ -251,7 +260,7 @@ const entryFromSamples = (
       bytesIn: row.bytesIn,
       bytesOut: row.bytesOut,
     })),
-    new Set(),
+    null,
     portMap
   )
 
@@ -298,7 +307,7 @@ const mergeEntries = (
 const toSnapshot = (
   row: SnapshotRow,
   entries: Omit<SnapshotEntryRow, "snapshotId">[],
-  activePids: Set<number>,
+  activePids: Set<number> | null,
   ports: Map<number, number[]>
 ): TrafficSnapshot => {
   const groups = aggregate(

@@ -7,7 +7,8 @@ export const TrafficChildSchema = z.object({
   parent: z.string(),
   pids: z.array(z.number().int().max(999999)).max(64),
   ports: z.array(z.number().int()),
-  running: z.boolean(),
+  /** true 运行中，false 已退出，null 表示存活状态未知（进程表采集失败）。 */
+  running: z.boolean().nullable(),
   bytesIn: z.number().int().nonnegative(),
   bytesOut: z.number().int().nonnegative(),
   command: z.string(),
