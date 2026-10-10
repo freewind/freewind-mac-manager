@@ -142,7 +142,13 @@ export const DiskGrowthPage = () => {
           </Button>
           <Button
             size="sm"
-            onClick={() => void startScan.mutateAsync()}
+            onClick={() =>
+              startScan.mutate(undefined, {
+                onSuccess: (message) => notify(message),
+                onError: (error) =>
+                  toast.error(`扫描启动失败：${describeError(error)}`),
+              })
+            }
             disabled={status.running}
           >
             <HugeiconsIcon icon={RefreshIcon} />
@@ -658,8 +664,11 @@ const SnapshotSidebar = ({
   }
 
   const runDelete = async (ids: number[]): Promise<void> => {
-    const message = await deleteScans.mutateAsync(ids)
-    onNotice(message)
+    try {
+      onNotice(await deleteScans.mutateAsync(ids))
+    } catch (error) {
+      toast.error(`删除快照失败：${describeError(error)}`)
+    }
   }
 
   return (
