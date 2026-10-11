@@ -226,6 +226,41 @@ describe("task wiring through the real app", () => {
     expect(replay.status).toBe(202)
     expect((await replay.json()).taskId).toBe(accepted.taskId)
     expect(dispatched).toHaveLength(1)
+    if (action.body) {
+      const different = await fetch(`${baseUrl}${action.url}`, {
+        method: action.method,
+        headers: {
+          [TASK_REQUEST_ID_HEADER]: requestId,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          ...action.body,
+          ...("name" in action.body
+            ? { name: "changed.txt" }
+            : "path" in action.body
+              ? { path: "/tmp/changed" }
+              : "label" in action.body
+                ? { label: "com.example.changed" }
+                : "ids" in action.body
+                  ? { ids: ["changed", "other"] }
+                  : "paths" in action.body
+                    ? { paths: ["/tmp/changed"] }
+                    : {
+                        proxies: [
+                          {
+                            name: "changed",
+                            type: "tcp",
+                            localIP: "127.0.0.1",
+                            localPort: 1,
+                            remotePort: 2,
+                          },
+                        ],
+                      }),
+        }),
+      })
+      expect(different.status).toBe(409)
+      expect(dispatched).toHaveLength(1)
+    }
     const conflict = await fetch(`${baseUrl}${action.url}`, {
       method: action.method,
       headers: {
