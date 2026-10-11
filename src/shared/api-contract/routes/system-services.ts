@@ -14,6 +14,7 @@ import {
 
 const errorResponses = {
   400: ApiErrorSchema,
+  403: ApiErrorSchema,
   404: ApiErrorSchema,
   500: ApiErrorSchema,
 } as const

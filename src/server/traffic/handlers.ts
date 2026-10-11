@@ -1,4 +1,5 @@
 import { killProcesses } from "@server/common/kill"
+import { publicSystemError } from "@server/common/public-error"
 import {
   type TaskHttpResponse,
   toTaskHttpResponse,
@@ -9,7 +10,6 @@ import {
   SnapshotMutationResultSchema,
   SnapshotSaveResultSchema,
 } from "@shared/api-contract/schemas/traffic"
-import { describeError } from "@shared/format"
 import { initServer } from "@ts-rest/express"
 import type { z } from "zod"
 import {
@@ -52,7 +52,7 @@ const submitSnapshotTask = async <TBody, TStatus extends 200 | 201>(
     completedStatus: TStatus
   }
 ): Promise<
-  TaskHttpResponse<TBody, TStatus> | { status: 500; body: { message: string } }
+  TaskHttpResponse<TBody, TStatus> | ReturnType<typeof publicSystemError>
 > => {
   try {
     const outcome = await runtime.runner.submit<TBody>({
@@ -70,7 +70,7 @@ const submitSnapshotTask = async <TBody, TStatus extends 200 | 201>(
     })
     return toTaskHttpResponse(outcome, options.completedStatus)
   } catch (error) {
-    return { status: 500 as const, body: { message: describeError(error) } }
+    return publicSystemError(error)
   }
 }
 
@@ -85,7 +85,7 @@ export const createTrafficRouter = (runtime: TaskRuntime) =>
       try {
         return { status: 200, body: { snapshots: await listSnapshots() } }
       } catch (error) {
-        return { status: 500, body: { message: describeError(error) } }
+        return publicSystemError(error)
       }
     },
 
@@ -97,7 +97,7 @@ export const createTrafficRouter = (runtime: TaskRuntime) =>
             : await groupsForSnapshots(query.ids ?? [])
         return { status: 200, body: result }
       } catch (error) {
-        return { status: 500, body: { message: describeError(error) } }
+        return publicSystemError(error)
       }
     },
 

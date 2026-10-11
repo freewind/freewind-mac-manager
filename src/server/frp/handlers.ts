@@ -1,3 +1,4 @@
+import { publicSystemError } from "@server/common/public-error"
 import { toTaskHttpResponse } from "@server/common/tasks/response"
 import type { TaskRuntime } from "@server/tasks/runtime"
 import {
@@ -6,7 +7,6 @@ import {
   TASK_REQUEST_ID_HEADER,
 } from "@shared/api-contract"
 import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
-import { describeError } from "@shared/format"
 import { initServer } from "@ts-rest/express"
 import { probeFrpProxy, readFrpConfig } from "./service"
 import { FRP_SAVE_KIND, frpConfigTaskTarget } from "./task"
@@ -30,7 +30,7 @@ export const createFrpRouter = (runtime: TaskRuntime) =>
       try {
         return { status: 200 as const, body: await readFrpConfig() }
       } catch (error) {
-        return { status: 500 as const, body: { message: describeError(error) } }
+        return publicSystemError(error)
       }
     },
 
@@ -51,7 +51,7 @@ export const createFrpRouter = (runtime: TaskRuntime) =>
         })
         return toTaskHttpResponse(outcome, 200)
       } catch (error) {
-        return { status: 400 as const, body: { message: describeError(error) } }
+        return publicSystemError(error)
       }
     },
 
@@ -59,7 +59,7 @@ export const createFrpRouter = (runtime: TaskRuntime) =>
       try {
         return { status: 200 as const, body: await probeFrpProxy(body) }
       } catch (error) {
-        return { status: 400 as const, body: { message: describeError(error) } }
+        return publicSystemError(error)
       }
     },
   })

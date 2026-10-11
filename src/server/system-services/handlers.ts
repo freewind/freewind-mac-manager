@@ -1,3 +1,4 @@
+import { publicSystemError } from "@server/common/public-error"
 import { toTaskHttpResponse } from "@server/common/tasks/response"
 import type { TaskRuntime } from "@server/tasks/runtime"
 import {
@@ -7,9 +8,8 @@ import {
   TASK_REQUEST_ID_HEADER,
 } from "@shared/api-contract"
 import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
-import { describeError } from "@shared/format"
 import { initServer } from "@ts-rest/express"
-import { listSystemServices, RootRequiredError } from "./service"
+import { listSystemServices } from "./service"
 import {
   SERVICE_ACTION_KIND,
   type ServiceActionName,
@@ -30,13 +30,7 @@ export const systemServicesContract = {
   revealSystemService: contract.revealSystemService,
 }
 
-/** 需要 root 的服务回 403，其余命令错误回 400，文案直接用命令输出。 */
-const fail = (error: unknown) => {
-  const message = describeError(error)
-  return error instanceof RootRequiredError
-    ? { status: 403 as const, body: { message } }
-    : { status: 400 as const, body: { message } }
-}
+const fail = publicSystemError
 
 /**
  * 服务动作经统一运行器提交：请求标识由契约 headers 强制校验，
@@ -72,10 +66,13 @@ const submitServiceAction = async (
 
 export const createSystemServicesRouter = (runtime: TaskRuntime) =>
   s.router(systemServicesContract, {
-    listSystemServices: async () => ({
-      status: 200,
-      body: await listSystemServices(),
-    }),
+    listSystemServices: async () => {
+      try {
+        return { status: 200 as const, body: await listSystemServices() }
+      } catch (error) {
+        return fail(error)
+      }
+    },
 
     startSystemService: async ({ headers, body }) =>
       submitServiceAction(runtime, {
