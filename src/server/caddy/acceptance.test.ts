@@ -412,6 +412,30 @@ const runtimeStatuses = (runtime: Runtime): string[] =>
     })
     .rows.map((row) => row.status)
 
+/**
+ * 并行负载下 host.execute 可能超过 thresholdMs（20ms）：submit 先返回 202
+ * 受理回执，终态要晚一点才落进任务表。断言终态前先轮询等它落定：
+ * 10ms 间隔远小于一次应用的真实执行耗时，不拖慢用例；3 秒上限覆盖
+ * 重负载下的真实 IO，超时说明终态真的没写成，报错里带当前状态。
+ */
+const waitForStatus = async (
+  runtime: Runtime,
+  requestId: string,
+  expected: string
+) => {
+  const deadline = Date.now() + 3000
+  for (;;) {
+    const row = runtime.store.findByRequestId(requestId)
+    if (row?.status === expected) return row
+    if (Date.now() > deadline) {
+      throw new Error(
+        `等待任务 ${requestId} 达到终态 ${expected} 超时（当前状态：${row?.status ?? "无记录"}）`
+      )
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
 /** 与 handlers.ts 的 apply 端点同构：提交任务并把结果映射成 HTTP 语义。 */
 const submitApply = async (
   runtime: Runtime,
@@ -788,16 +812,25 @@ describe("验收 4：任务运行时的重复与冲突分类", () => {
     const signature = signatureOf(workspace)
     const requestId = `req_${"a".repeat(16)}`
 
-    const first = await submitApply(runtime, {
+    await submitApply(runtime, {
       requestId,
       expectedSignature: signature,
     })
-    const second = await submitApply(runtime, {
+    await submitApply(runtime, {
       requestId,
       expectedSignature: signature,
     })
-    expect(first.status).toBe(200)
-    expect(second.status).toBe(200)
+    // 同一 requestId 只执行一次：两次提交后执行器仍只被调用一次
+    expect(runtime.calls()).toBe(1)
+
+    // 负载下执行可能超过 20ms 响应阈值，提交可能拿到 202 受理回执；
+    // 等终态落定后重放同一请求，断言确定的完成响应，仍不重复执行
+    await waitForStatus(runtime, requestId, "done")
+    const replayed = await submitApply(runtime, {
+      requestId,
+      expectedSignature: signature,
+    })
+    expect(replayed.status).toBe(200)
     expect(runtime.calls()).toBe(1)
 
     const conflicted = await submitApply(runtime, {
@@ -839,12 +872,21 @@ describe("验收 4：任务运行时的重复与冲突分类", () => {
     const unknownIo = makeFakeIo(unknownWorkspace)
     unknownIo.setRunningError(new Error("timeout"))
     const unknownRuntime = await makeRuntime(unknownWorkspace, unknownIo)
-    const unknown = await submitApply(unknownRuntime, {
-      requestId: `req_${"d".repeat(16)}`,
+    const unknownRequestId = `req_${"d".repeat(16)}`
+    await submitApply(unknownRuntime, {
+      requestId: unknownRequestId,
       expectedSignature: signatureOf(unknownWorkspace),
     })
-    expect(unknown.status).toBe(409)
-    expect(unknown.body).toMatchObject({ executionStatus: "unknown" })
+    // 核实失败的任务终态是 unknown；负载下终态可能晚于 submit 返回
+    // （先拿到 202 受理回执），等落定后重放同一请求，断言「结果未知」
+    // 的语义而不是误报成功
+    await waitForStatus(unknownRuntime, unknownRequestId, "unknown")
+    const settled = await submitApply(unknownRuntime, {
+      requestId: unknownRequestId,
+      expectedSignature: signatureOf(unknownWorkspace),
+    })
+    expect(settled.status).toBe(409)
+    expect(settled.body).toMatchObject({ executionStatus: "unknown" })
     expect(runtimeStatuses(unknownRuntime)).toEqual(["unknown"])
   })
 })
@@ -910,9 +952,14 @@ describe("验收 5：任何失败阶段都不误报成功", () => {
         expectedSignature: signatureOf(workspace),
       })
 
-      const row = runtime.store.findByRequestId(requestId)
-      expect(row?.status).toBe(item.expectedTaskStatus)
-      expect(row?.status).not.toBe("done")
+      // 负载下终态可能晚于 submit 返回（先拿到 202），轮询等到预期
+      // 终态落定再断言
+      const row = await waitForStatus(
+        runtime,
+        requestId,
+        item.expectedTaskStatus
+      )
+      expect(row.status).not.toBe("done")
 
       // 都能重新核实：数据库规则还在、变更仍未应用、没有成功记录
       const reread = await readCaddyRules(
