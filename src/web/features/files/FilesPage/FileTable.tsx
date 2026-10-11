@@ -37,6 +37,7 @@ import {
 import type { EntryAction } from "@web/features/files/actions"
 import { type FileSortKey, sortEntries } from "@web/features/files/domain"
 import type { FilesModel } from "@web/features/files/useFiles"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { cn } from "@web/lib/utils"
 import { Fragment, useMemo, useState } from "react"
 
@@ -47,6 +48,7 @@ type FileTableProps = {
 
 /** 右侧文件表：排序与勾选都在本组件内，不上升为跨组件状态。 */
 export const FileTable = ({ model, rowActions }: FileTableProps) => {
+  const isDesktop = useIsDesktop()
   const [sortKey, setSortKey] = useState<FileSortKey>("name")
   const [descending, setDescending] = useState(false)
 
@@ -115,21 +117,23 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
                   descending={descending}
                   onSort={onSort}
                 />
-                <SortHeader
-                  label="大小"
-                  sortKey="size"
-                  activeKey={sortKey}
-                  descending={descending}
-                  onSort={onSort}
-                  className="w-24"
-                />
+                {isDesktop ? (
+                  <SortHeader
+                    label="大小"
+                    sortKey="size"
+                    activeKey={sortKey}
+                    descending={descending}
+                    onSort={onSort}
+                    className="w-24"
+                  />
+                ) : null}
                 <SortHeader
                   label="修改时间"
                   sortKey="modified"
                   activeKey={sortKey}
                   descending={descending}
                   onSort={onSort}
-                  className="w-40"
+                  className="w-32 md:w-40"
                 />
               </TableRow>
             </TableHeader>
@@ -140,7 +144,7 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
                   onDoubleClick={model.goToParent}
                 >
                   <TableCell />
-                  <TableCell colSpan={3}>
+                  <TableCell colSpan={isDesktop ? 3 : 2}>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -213,6 +217,7 @@ type FileRowProps = {
 }
 
 const FileRow = ({ model, entry, actions }: FileRowProps) => {
+  const isDesktop = useIsDesktop()
   const selected = model.isSelected(entry.path)
 
   return (
@@ -269,10 +274,12 @@ const FileRow = ({ model, entry, actions }: FileRowProps) => {
             ) : null}
           </div>
         </TableCell>
-        <TableCell className="text-muted-foreground">
-          {entry.kind === "dir" ? "—" : formatBytes(entry.size)}
-        </TableCell>
-        <TableCell className="text-muted-foreground">
+        {isDesktop ? (
+          <TableCell className="text-muted-foreground">
+            {entry.kind === "dir" ? "—" : formatBytes(entry.size)}
+          </TableCell>
+        ) : null}
+        <TableCell className="w-32 text-muted-foreground md:w-40">
           {formatTimestamp(entry.modified)}
         </TableCell>
       </ContextMenuTrigger>

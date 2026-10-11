@@ -183,9 +183,9 @@ export const FilesPage = () => {
         className="min-h-0 flex-1"
       >
         <ResizablePanel
-          defaultSize={22}
-          minSize={12}
-          maxSize={45}
+          defaultSize="22"
+          minSize="12"
+          maxSize="45"
           className="min-h-0"
         >
           <DirectoryTree model={model} />
