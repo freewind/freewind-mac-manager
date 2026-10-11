@@ -6,6 +6,7 @@ import {
   DOCKER_CONTAINER_STATES,
   type DockerColimaStatus,
   type DockerContainer,
+  type DockerContainerCreateBody,
   type DockerContainerLogsResponse,
   type DockerImage,
   type DockerMount,
@@ -23,6 +24,10 @@ const TIMEOUT = {
   /** 列表查询：容器多时 ps -a 会慢一些 */
   list: 30_000,
   logs: 30_000,
+  /** 容器启停、删除、创建等写命令 */
+  write: 120_000,
+  /** 拉取镜像可能很慢 */
+  pull: 600_000,
   /** colima start 要拉虚拟机，给足时间（页面侧仍按长任务处理） */
   colimaStart: 300_000,
   colimaStop: 120_000,
@@ -605,6 +610,95 @@ export type DockerCli = ReturnType<typeof createDockerCli>
  * docker/colima 执行层。run 与 cache 都可注入：
  * 测试用受控替身，不真的调 docker，也不共享全局缓存。
  */
+/** 镜像引用/镜像 id：首字符必须是字母数字，挡住以 - 开头的参数注入。 */
+const IMAGE_REFERENCE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/:@-]*$/
+
+/** 环境变量名只能是标识符，避免拼出 abc=1=2 这类歧义参数。 */
+const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+const assertImageReference = (image: string): void => {
+  if (!IMAGE_REFERENCE_PATTERN.test(image)) {
+    throw new DockerCommandError(
+      "invalid_input",
+      "镜像引用包含非法字符，请重新读取镜像列表。"
+    )
+  }
+}
+
+const assertVolumeName = (name: string): void => {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(name)) {
+    throw new DockerCommandError(
+      "invalid_input",
+      "卷名包含非法字符，请重新读取卷列表。"
+    )
+  }
+}
+
+const assertNetworkId = (networkId: string): void => {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(networkId)) {
+    throw new DockerCommandError(
+      "invalid_input",
+      "网络标识包含非法字符，请重新读取网络列表。"
+    )
+  }
+}
+
+/** 容器名的字符集与契约一致，首字符不能是连字符。 */
+const assertContainerName = (name: string): void => {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(name)) {
+    throw new DockerCommandError(
+      "invalid_input",
+      "容器名包含非法字符，请重新填写。"
+    )
+  }
+}
+
+/**
+ * 把受校验的新建配置逐字段映射成固定 flag，绝不透传任意 docker 参数。
+ * 镜像名之后的所有参数都是容器自己的命令，不再交给 docker 解析。
+ */
+export const containerCreateArgs = (
+  config: DockerContainerCreateBody
+): string[] => {
+  const args = ["run", "--detach"]
+  if (config.name !== undefined) {
+    assertContainerName(config.name)
+    args.push("--name", config.name)
+  }
+  for (const item of config.env ?? []) {
+    if (!ENV_NAME_PATTERN.test(item.name)) {
+      throw new DockerCommandError(
+        "invalid_input",
+        "环境变量名包含非法字符，请重新填写。"
+      )
+    }
+    args.push("--env", `${item.name}=${item.value}`)
+  }
+  for (const port of config.ports ?? []) {
+    args.push(
+      "--publish",
+      `${port.hostPort}:${port.containerPort}/${port.protocol}`
+    )
+  }
+  for (const mount of config.volumes ?? []) {
+    // 容器内挂载点必须是绝对路径，顺带挡住以 - 开头的取值
+    if (!mount.destination.startsWith("/")) {
+      throw new DockerCommandError(
+        "invalid_input",
+        "容器内挂载点必须是绝对路径，请重新填写。"
+      )
+    }
+    args.push("--volume", `${mount.source}:${mount.destination}`)
+  }
+  if (config.restartPolicy !== undefined) {
+    args.push("--restart", config.restartPolicy)
+  }
+  assertImageReference(config.image)
+  args.push(config.image)
+  for (const part of config.command ?? []) args.push(part)
+  return args
+}
+
 export const createDockerCli = (
   options: { run?: DockerCommandRunner; cache?: DockerCache } = {}
 ) => {
@@ -817,6 +911,83 @@ export const createDockerCli = (
       )
     )
 
+  // ---- 写命令：只接受标识与受校验的配置，参数一律按固定形式拼装 ----
+  const startContainer = async (containerId: string): Promise<void> => {
+    assertContainerId(containerId)
+    await docker(["start", containerId], TIMEOUT.write)
+  }
+
+  const stopContainer = async (
+    containerId: string,
+    options: { force?: boolean } = {}
+  ): Promise<void> => {
+    assertContainerId(containerId)
+    // docker stop 只有优雅等待，没有 --force；强制停止用 kill。
+    await docker(
+      options.force === true ? ["kill", containerId] : ["stop", containerId],
+      TIMEOUT.write
+    )
+  }
+
+  const restartContainer = async (
+    containerId: string,
+    options: { force?: boolean } = {}
+  ): Promise<void> => {
+    assertContainerId(containerId)
+    // 强制重启不等待优雅退出（-t 0）。
+    await docker(
+      options.force === true
+        ? ["restart", "-t", "0", containerId]
+        : ["restart", containerId],
+      TIMEOUT.write
+    )
+  }
+
+  const removeContainer = async (
+    containerId: string,
+    options: { force?: boolean } = {}
+  ): Promise<void> => {
+    assertContainerId(containerId)
+    await docker(
+      ["rm", ...(options.force === true ? ["-f"] : []), containerId],
+      TIMEOUT.write
+    )
+  }
+
+  /** 新建并启动容器，返回新容器 id（docker run --detach 的最后一行）。 */
+  const createContainer = async (
+    config: DockerContainerCreateBody
+  ): Promise<string> => {
+    const { stdout } = await docker(containerCreateArgs(config), TIMEOUT.write)
+    return stdout.trim().split("\n").at(-1) ?? ""
+  }
+
+  const pullImage = async (image: string): Promise<void> => {
+    assertImageReference(image)
+    await docker(["pull", image], TIMEOUT.pull)
+  }
+
+  const removeImage = async (
+    imageId: string,
+    options: { force?: boolean } = {}
+  ): Promise<void> => {
+    assertImageReference(imageId)
+    await docker(
+      ["image", "rm", ...(options.force === true ? ["-f"] : []), imageId],
+      TIMEOUT.write
+    )
+  }
+
+  const removeVolume = async (name: string): Promise<void> => {
+    assertVolumeName(name)
+    await docker(["volume", "rm", name], TIMEOUT.write)
+  }
+
+  const removeNetwork = async (networkId: string): Promise<void> => {
+    assertNetworkId(networkId)
+    await docker(["network", "rm", networkId], TIMEOUT.write)
+  }
+
   const getColimaStatus = async (): Promise<DockerColimaStatus> => {
     const checkedAt = Date.now()
     let output = ""
@@ -905,6 +1076,15 @@ export const createDockerCli = (
     getColimaStatus,
     startColima,
     stopColima,
+    startContainer,
+    stopContainer,
+    restartContainer,
+    removeContainer,
+    createContainer,
+    pullImage,
+    removeImage,
+    removeVolume,
+    removeNetwork,
   }
 }
 

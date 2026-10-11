@@ -11,6 +11,7 @@ import {
   ScanPayloadSchema,
   TRASH_KIND,
 } from "@server/disk-growth/task"
+import { DOCKER_ACTION_KIND, runDockerActionTask } from "@server/docker/task"
 import {
   FILE_COPY_KIND,
   FILE_CREATE_KIND,
@@ -152,6 +153,17 @@ export const taskExecutors: TaskExecutor[] = [
     kind: SERVICE_ACTION_KIND,
     run: async (payload, context) => {
       const outcome = await runServiceActionTask({
+        payload,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: DOCKER_ACTION_KIND,
+    run: async (payload, context) => {
+      // 载荷在这里再校验一次：非法载荷不会发出任何 docker 命令。
+      const outcome = await runDockerActionTask({
         payload,
         report: context.report,
       })

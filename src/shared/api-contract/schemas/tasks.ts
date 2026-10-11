@@ -49,6 +49,8 @@ export const TASK_KINDS = {
   fileWriteContent: "file_write_content",
   frpConfigSave: "frp_config_save",
   serviceAction: "service_action",
+  // 容器/镜像/卷/网络的写操作共用一种 kind；Colima 动作（任务 9）另定
+  dockerAction: "docker_action",
   diskEntryReveal: "disk_entry_reveal",
   diskEntryTrash: "disk_entry_trash",
   trafficSnapshotSave: "traffic_snapshot_save",
@@ -160,6 +162,13 @@ export const ServiceActionTaskSchema = z.object({
   result: ActionResponseSchema.nullable(),
 })
 
+/** Docker 容器/镜像/卷/网络动作同样只返回可读消息，不新造结果结构。 */
+export const DockerActionTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.dockerAction),
+  result: ActionResponseSchema.nullable(),
+})
+
 export const DiskEntryRevealTaskSchema = z.object({
   ...taskBase,
   kind: z.literal(TASK_KINDS.diskEntryReveal),
@@ -184,6 +193,7 @@ export const TaskRecordSchema = z.discriminatedUnion("kind", [
   FileWriteContentTaskSchema,
   FrpConfigSaveTaskSchema,
   ServiceActionTaskSchema,
+  DockerActionTaskSchema,
   DiskEntryRevealTaskSchema,
   DiskEntryTrashTaskSchema,
   TrafficSnapshotSaveTaskSchema,

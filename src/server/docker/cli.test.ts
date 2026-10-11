@@ -5,6 +5,7 @@ import {
   type CommandOutput,
   createDockerCli,
   type DockerCache,
+  type DockerCli,
   DockerCommandError,
   type DockerCommandRunner,
   parseColimaStatus,
@@ -29,11 +30,13 @@ const createFakeRunner = (
   handler: (command: string, args: string[]) => Promise<CommandOutput>
 ) => {
   const calls: { command: string; args: string[] }[] = []
-  const runner: DockerCommandRunner = (command, args) => {
+  const timeouts: number[] = []
+  const runner: DockerCommandRunner = (command, args, options) => {
     calls.push({ command, args })
+    timeouts.push(options.timeoutMs)
     return handler(command, args)
   }
-  return { runner, calls }
+  return { runner, calls, timeouts }
 }
 
 const succeed =
@@ -895,5 +898,137 @@ describe("日志读取", () => {
       "1700",
       "1a2b",
     ])
+  })
+})
+
+describe("写命令参数", () => {
+  const runWith = async (call: (cli: DockerCli) => Promise<unknown>) => {
+    const { runner, calls, timeouts } = createFakeRunner(
+      succeed("new-container-id\n")
+    )
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const value = await call(cli)
+    return { calls, timeouts, value }
+  }
+
+  it("容器启停与删除只拼标识与固定 flag", async () => {
+    expect(
+      (await runWith((cli) => cli.startContainer("abc"))).calls[0]?.args
+    ).toEqual(["start", "abc"])
+    expect(
+      (await runWith((cli) => cli.stopContainer("abc"))).calls[0]?.args
+    ).toEqual(["stop", "abc"])
+    expect(
+      (await runWith((cli) => cli.stopContainer("abc", { force: true })))
+        .calls[0]?.args
+    ).toEqual(["kill", "abc"])
+    expect(
+      (await runWith((cli) => cli.restartContainer("abc"))).calls[0]?.args
+    ).toEqual(["restart", "abc"])
+    expect(
+      (await runWith((cli) => cli.restartContainer("abc", { force: true })))
+        .calls[0]?.args
+    ).toEqual(["restart", "-t", "0", "abc"])
+    expect(
+      (await runWith((cli) => cli.removeContainer("abc"))).calls[0]?.args
+    ).toEqual(["rm", "abc"])
+    expect(
+      (await runWith((cli) => cli.removeContainer("abc", { force: true })))
+        .calls[0]?.args
+    ).toEqual(["rm", "-f", "abc"])
+  })
+
+  it("镜像与卷网络删除参数", async () => {
+    expect(
+      (await runWith((cli) => cli.pullImage("nginx:latest"))).calls[0]?.args
+    ).toEqual(["pull", "nginx:latest"])
+    expect(
+      (await runWith((cli) => cli.removeImage("sha256:abc"))).calls[0]?.args
+    ).toEqual(["image", "rm", "sha256:abc"])
+    expect(
+      (await runWith((cli) => cli.removeImage("sha256:abc", { force: true })))
+        .calls[0]?.args
+    ).toEqual(["image", "rm", "-f", "sha256:abc"])
+    expect(
+      (await runWith((cli) => cli.removeVolume("myvol"))).calls[0]?.args
+    ).toEqual(["volume", "rm", "myvol"])
+    expect(
+      (await runWith((cli) => cli.removeNetwork("net1"))).calls[0]?.args
+    ).toEqual(["network", "rm", "net1"])
+  })
+
+  it("拉取用长超时，其余写命令用普通写超时", async () => {
+    expect(
+      (await runWith((cli) => cli.pullImage("nginx:latest"))).timeouts
+    ).toEqual([600_000])
+    expect(
+      (await runWith((cli) => cli.removeVolume("myvol"))).timeouts
+    ).toEqual([120_000])
+  })
+
+  it("新建容器按受校验字段拼 flag，镜像名之后是容器命令", async () => {
+    const { calls, value } = await runWith((cli) =>
+      cli.createContainer({
+        image: "nginx:latest",
+        name: "web",
+        env: [{ name: "MODE", value: "prod" }],
+        ports: [{ hostPort: 8080, containerPort: 80, protocol: "tcp" }],
+        volumes: [{ source: "myvol", destination: "/data" }],
+        restartPolicy: "unless-stopped",
+        command: ["nginx", "-g", "daemon off;"],
+      })
+    )
+    expect(calls[0]?.args).toMatchInlineSnapshot(`
+      [
+        "run",
+        "--detach",
+        "--name",
+        "web",
+        "--env",
+        "MODE=prod",
+        "--publish",
+        "8080:80/tcp",
+        "--volume",
+        "myvol:/data",
+        "--restart",
+        "unless-stopped",
+        "nginx:latest",
+        "nginx",
+        "-g",
+        "daemon off;",
+      ]
+    `)
+    expect(value).toBe("new-container-id")
+  })
+
+  it("非法标识与非法挂载点在发命令前就被拒绝", async () => {
+    const { runner, calls } = createFakeRunner(succeed(""))
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    await expect(cli.pullImage("--help")).rejects.toThrow(
+      "镜像引用包含非法字符"
+    )
+    await expect(cli.removeVolume("a b")).rejects.toThrow("卷名包含非法字符")
+    await expect(cli.removeNetwork("net1; rm -rf /")).rejects.toThrow(
+      "网络标识包含非法字符"
+    )
+    await expect(cli.startContainer("../../etc")).rejects.toThrow(
+      "容器标识包含非法字符"
+    )
+    await expect(
+      cli.createContainer({
+        image: "nginx",
+        volumes: [{ source: "v", destination: "relative/path" }],
+      })
+    ).rejects.toThrow("容器内挂载点必须是绝对路径")
+    await expect(
+      cli.createContainer({
+        image: "nginx",
+        env: [{ name: "A B", value: "1" }],
+      })
+    ).rejects.toThrow("环境变量名包含非法字符")
+    await expect(
+      cli.createContainer({ image: "nginx", name: "-bad" })
+    ).rejects.toThrow("容器名包含非法字符")
+    expect(calls).toHaveLength(0)
   })
 })

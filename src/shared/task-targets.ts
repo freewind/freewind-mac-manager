@@ -30,3 +30,22 @@ export const trafficSnapshotTaskTarget = (): string => "traffic:snapshots"
 
 /** FRP 配置写入按配置文件加锁。 */
 export const frpConfigTaskTarget = (): string => "frp:config"
+
+/** Docker 容器动作按容器加锁：同容器互斥，不同容器可并行。 */
+export const dockerContainerTaskTarget = (id: string): string =>
+  `docker:container:${id}`
+
+/** 镜像动作按镜像引用加锁（拉取与删除共用）。 */
+export const dockerImageTaskTarget = (ref: string): string =>
+  `docker:image:${ref}`
+
+/** 卷删除按卷名加锁。 */
+export const dockerVolumeTaskTarget = (name: string): string =>
+  `docker:volume:${name}`
+
+/** 网络删除按网络 id 加锁。 */
+export const dockerNetworkTaskTarget = (id: string): string =>
+  `docker:network:${id}`
+
+/** Colima 虚拟机是全局资源，任何动作都相互排斥（任务 9 接入）。 */
+export const dockerColimaTaskTarget = (): string => "docker:colima"
