@@ -51,6 +51,22 @@ export const isAuthConfigured = (): boolean => getAuthPassword() !== ""
 export const FILE_ROOT = path.resolve(process.env.FILE_ROOT ?? "/")
 
 /**
+ * Caddy 的配置、程序与访问入口：默认取用户主目录下的常规安装位置，
+ * 都允许用同名环境变量覆盖，便于换机器或测试指向临时文件。
+ */
+export const CADDY_CONFIG_FILE = path.resolve(
+  process.env.CADDY_CONFIG_FILE ??
+    path.join(process.env.HOME ?? "", ".config", "caddy", "Caddyfile")
+)
+export const CADDY_BINARY = path.resolve(
+  process.env.CADDY_BINARY ?? path.join(process.env.HOME ?? "", "bin", "caddy")
+)
+export const CADDY_ADMIN_URL =
+  process.env.CADDY_ADMIN_URL ?? "http://127.0.0.1:2019"
+/** launchd 标签是本机固定事实，不提供覆盖。 */
+export const CADDY_LAUNCHD_LABEL = "com.freewind.caddy"
+
+/**
  * 服务端口只由启动命令通过 APP_PORT 显式注入，代码里不留默认值：缺失或非法
  * 一律直接抛错，避免静默退化到别的端口。dev（vite strictPort）与生产（listen）
  * 都要求端口被占用时直接启动失败。

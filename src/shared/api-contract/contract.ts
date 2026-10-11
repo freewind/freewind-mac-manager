@@ -1,6 +1,7 @@
 import { API_BASE } from "@shared/api-path"
 import { c } from "./init"
 import { authRoutes } from "./routes/auth"
+import { caddyRoutes } from "./routes/caddy"
 import { clashVergeRoutes } from "./routes/clash-verge"
 import { dashboardRoutes } from "./routes/dashboard"
 import { diskGrowthRoutes } from "./routes/disk-growth"
@@ -33,6 +34,7 @@ export const contract = c.router(
     ...processesRoutes,
     ...systemServicesRoutes,
     ...frpRoutes,
+    ...caddyRoutes,
     ...tasksRoutes,
   },
   { pathPrefix: API_BASE }

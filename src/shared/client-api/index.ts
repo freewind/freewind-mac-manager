@@ -1,5 +1,6 @@
 export * from "./auth"
 export * from "./auth-types"
+export * from "./caddy"
 export * from "./clash-verge"
 export {
   ApiRequestError,

@@ -238,6 +238,18 @@ export type FrpProbeBody = z.infer<typeof FrpProbeBodySchema>
 export type FrpProbe = z.infer<typeof FrpProbeSchema>
 
 import type {
+  CaddyMatchKindSchema,
+  CaddyRuleSchema,
+  CaddyRulesResponseSchema,
+  CaddyStatusSchema,
+} from "./schemas/caddy"
+
+export type CaddyMatchKind = z.infer<typeof CaddyMatchKindSchema>
+export type CaddyRule = z.infer<typeof CaddyRuleSchema>
+export type CaddyStatus = z.infer<typeof CaddyStatusSchema>
+export type CaddyRulesResponse = z.infer<typeof CaddyRulesResponseSchema>
+
+import type {
   DockerColimaActionBodySchema,
   DockerColimaStatusSchema,
   DockerContainerActionBodySchema,

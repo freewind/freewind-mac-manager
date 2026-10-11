@@ -1,5 +1,6 @@
 export { contract } from "./contract"
 export { c } from "./init"
+export { CADDY_MATCH_KINDS } from "./schemas/caddy"
 export * from "./schemas/common"
 export {
   DOCKER_COLIMA_ACTIONS,

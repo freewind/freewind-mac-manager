@@ -45,6 +45,8 @@ export const ApiPath = {
   systemServicesReveal: `${API_BASE}/system-services/reveal`,
   frpConfig: `${API_BASE}/frp/config`,
   frpProbe: `${API_BASE}/frp/probe`,
+  caddyStatus: `${API_BASE}/caddy/status`,
+  caddyRules: `${API_BASE}/caddy/rules`,
   piModels: `${API_BASE}/pi/models`,
   piSettings: `${API_BASE}/pi/settings`,
   piBenchmarks: `${API_BASE}/pi/benchmarks`,
