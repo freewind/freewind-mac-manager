@@ -1,3 +1,4 @@
+import { CADDY_APPLY_KIND, runCaddyApplyTask } from "@server/caddy/task"
 import {
   DeleteSnapshotsPayloadSchema,
   DISCARD_KIND,
@@ -276,6 +277,27 @@ export const taskExecutors: TaskExecutor[] = [
         payload,
         report: context.report,
       })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: CADDY_APPLY_KIND,
+    run: async (payload, context) => {
+      // 载荷在这层校验：非法载荷不会发出任何 caddy 命令、也不写文件。
+      const outcome = await runCaddyApplyTask({
+        payload,
+        report: context.report,
+      })
+      // 核实不到运行配置就是未知，不能当成成功，也不能让上层自动重做。
+      if (outcome.status === "unknown") {
+        return {
+          result: outcome.result,
+          message: outcome.message,
+          error: outcome.error,
+          status: "unknown",
+        }
+      }
+      if (outcome.status === "failed") throw new Error(outcome.message)
       return { result: outcome.result, message: outcome.message }
     },
   },

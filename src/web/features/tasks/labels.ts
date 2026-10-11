@@ -25,6 +25,7 @@ const KIND_LABELS = {
   [TASK_KINDS.trafficSnapshotSave]: "保存流量快照",
   [TASK_KINDS.trafficSnapshotMerge]: "合并流量快照",
   [TASK_KINDS.trafficSnapshotDelete]: "删除流量快照",
+  [TASK_KINDS.caddyConfigApply]: "应用 Caddy 配置",
 } satisfies Record<TaskRecord["kind"], string>
 
 const STATUS_LABELS: Record<TaskRecord["status"], string> = {

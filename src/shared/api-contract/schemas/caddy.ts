@@ -98,3 +98,39 @@ export const CaddyRuleImportResultSchema = z.object({
   imported: z.number().int().min(0),
   skipped: z.number().int().min(0),
 })
+
+/** 一次应用在数据库里的终态；unknown 表示无法核实，不得当成成功也不能重做。 */
+export const CADDY_APPLY_STATUSES = ["success", "failed", "unknown"] as const
+export const CaddyApplyStatusSchema = z.enum(CADDY_APPLY_STATUSES)
+
+/** 一次应用的结果；verified 表示运行配置里已核实到本次规则。 */
+export const CaddyApplyResultSchema = z.object({
+  message: z.string(),
+  versionId: z.string().min(1),
+  appliedAt: z.number(),
+  ruleCount: z.number().int().min(0),
+  verified: z.boolean(),
+  backupFile: z.string().nullable(),
+})
+
+/** 历史版本摘要，供页面选择恢复目标。 */
+export const CaddyVersionSummarySchema = z.object({
+  id: z.string().min(1),
+  appliedAt: z.number(),
+  status: CaddyApplyStatusSchema,
+  message: z.string(),
+  ruleCount: z.number().int().min(0),
+})
+
+export const CaddyVersionListSchema = z.object({
+  versions: z.array(CaddyVersionSummarySchema),
+})
+
+/** 应用请求带客户端读到的规则指纹，服务端据此做乐观并发检查。 */
+export const CaddyApplyInputSchema = z.object({
+  expectedSignature: z.string().min(1),
+})
+
+export const CaddyVersionIdPathParamsSchema = z.object({
+  id: z.string().min(1),
+})

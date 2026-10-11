@@ -238,6 +238,9 @@ export type FrpProbeBody = z.infer<typeof FrpProbeBodySchema>
 export type FrpProbe = z.infer<typeof FrpProbeSchema>
 
 import type {
+  CaddyApplyInputSchema,
+  CaddyApplyResultSchema,
+  CaddyApplyStatusSchema,
   CaddyExternalRuleSchema,
   CaddyMatchKindSchema,
   CaddyRuleChangesSchema,
@@ -246,6 +249,8 @@ import type {
   CaddyRuleSchema,
   CaddyRulesResponseSchema,
   CaddyStatusSchema,
+  CaddyVersionListSchema,
+  CaddyVersionSummarySchema,
 } from "./schemas/caddy"
 
 export type CaddyMatchKind = z.infer<typeof CaddyMatchKindSchema>
@@ -254,6 +259,11 @@ export type CaddyExternalRule = z.infer<typeof CaddyExternalRuleSchema>
 export type CaddyRuleInput = z.infer<typeof CaddyRuleInputSchema>
 export type CaddyRuleChanges = z.infer<typeof CaddyRuleChangesSchema>
 export type CaddyRuleImportResult = z.infer<typeof CaddyRuleImportResultSchema>
+export type CaddyApplyStatus = z.infer<typeof CaddyApplyStatusSchema>
+export type CaddyApplyResult = z.infer<typeof CaddyApplyResultSchema>
+export type CaddyApplyInput = z.infer<typeof CaddyApplyInputSchema>
+export type CaddyVersionSummary = z.infer<typeof CaddyVersionSummarySchema>
+export type CaddyVersionList = z.infer<typeof CaddyVersionListSchema>
 export type CaddyStatus = z.infer<typeof CaddyStatusSchema>
 export type CaddyRulesResponse = z.infer<typeof CaddyRulesResponseSchema>
 

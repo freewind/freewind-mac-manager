@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { CaddyApplyResultSchema } from "./caddy"
 import { ActionResponseSchema } from "./common"
 import { ScanTaskResultSchema } from "./disk-growth"
 import { FileBatchResultSchema } from "./files"
@@ -62,6 +63,7 @@ export const TASK_KINDS = {
   trafficSnapshotSave: "traffic_snapshot_save",
   trafficSnapshotMerge: "traffic_snapshot_merge",
   trafficSnapshotDelete: "traffic_snapshot_delete",
+  caddyConfigApply: "caddy_config_apply",
 } as const
 
 const taskBase = {
@@ -207,6 +209,13 @@ export const DockerColimaActionTaskSchema = z.object({
   result: ActionResponseSchema.nullable(),
 })
 
+/** Caddy 应用：结果带版本号与核实标记，页面据此判断是否真生效。 */
+export const CaddyConfigApplyTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.caddyConfigApply),
+  result: CaddyApplyResultSchema.nullable(),
+})
+
 /** 每种任务的结果结构由 discriminated union 固定，禁止用任意 JSON 承载结果。 */
 export const TaskRecordSchema = z.discriminatedUnion("kind", [
   DiskScanTaskSchema,
@@ -228,6 +237,7 @@ export const TaskRecordSchema = z.discriminatedUnion("kind", [
   TrafficSnapshotSaveTaskSchema,
   TrafficSnapshotMergeTaskSchema,
   TrafficSnapshotDeleteTaskSchema,
+  CaddyConfigApplyTaskSchema,
 ])
 
 export type TaskRecord = z.infer<typeof TaskRecordSchema>

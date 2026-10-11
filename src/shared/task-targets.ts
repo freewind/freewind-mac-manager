@@ -31,6 +31,9 @@ export const trafficSnapshotTaskTarget = (): string => "traffic:snapshots"
 /** FRP 配置写入按配置文件加锁。 */
 export const frpConfigTaskTarget = (): string => "frp:config"
 
+/** Caddy 只有一份配置文件，所有应用动作互斥。 */
+export const caddyConfigTaskTarget = (): string => "caddy:config"
+
 /** Docker 容器动作按容器加锁：同容器互斥，不同容器可并行。 */
 export const dockerContainerTaskTarget = (id: string): string =>
   `docker:container:${id}`

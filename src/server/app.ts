@@ -1,7 +1,7 @@
 import { createExpressEndpoints } from "@ts-rest/express"
 import express from "express"
 import { authContract, createAuthManager, createAuthRouter } from "./auth"
-import { caddyContract, caddyRouter } from "./caddy/handlers"
+import { caddyContract, createCaddyRouter } from "./caddy/handlers"
 import { clashVergeContract, clashVergeRouter } from "./clash-verge/handlers"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
 import {
@@ -85,8 +85,13 @@ export const createApp = (injected?: {
     app,
     options
   )
-  // Caddy 只读状态不需要任务运行时。
-  createExpressEndpoints(caddyContract, caddyRouter, app, options)
+  // Caddy 的应用与恢复要改真实配置，需进任务运行时；其余只读端点不需要。
+  createExpressEndpoints(
+    caddyContract,
+    createCaddyRouter(taskRuntime),
+    app,
+    options
+  )
   createExpressEndpoints(portsContract, portsRouter, app, options)
   createExpressEndpoints(piContract, createPiRouter(taskRuntime), app, options)
   createExpressEndpoints(processesContract, processesRouter, app, options)

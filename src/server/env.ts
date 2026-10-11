@@ -66,6 +66,9 @@ export const CADDY_ADMIN_URL =
 /** launchd 标签是本机固定事实，不提供覆盖。 */
 export const CADDY_LAUNCHD_LABEL = "com.freewind.caddy"
 
+/** Caddy 配置备份目录：应用前先留一份原文，失败时能还原。 */
+export const CADDY_BACKUP_DIR = path.join(DATA_DIR, "caddy-backups")
+
 /**
  * 服务端口只由启动命令通过 APP_PORT 显式注入，代码里不留默认值：缺失或非法
  * 一律直接抛错，避免静默退化到别的端口。dev（vite strictPort）与生产（listen）

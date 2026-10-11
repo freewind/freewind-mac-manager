@@ -1,14 +1,22 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
 import { c } from "../init"
 import {
+  CaddyApplyInputSchema,
+  CaddyApplyResultSchema,
   CaddyRuleIdPathParamsSchema,
   CaddyRuleImportResultSchema,
   CaddyRuleInputSchema,
   CaddyRuleSchema,
   CaddyRulesResponseSchema,
   CaddyStatusSchema,
+  CaddyVersionIdPathParamsSchema,
+  CaddyVersionListSchema,
 } from "../schemas/caddy"
-import { ApiErrorSchema } from "../schemas/common"
+import {
+  ApiErrorSchema,
+  TaskAcceptedSchema,
+  TaskRequestIdHeadersSchema,
+} from "../schemas/common"
 
 const errorResponses = {
   400: ApiErrorSchema,
@@ -71,6 +79,43 @@ export const caddyRoutes = {
     body: c.noBody(),
     responses: {
       200: CaddyRuleImportResultSchema,
+      ...errorResponses,
+      409: ApiErrorSchema,
+    },
+  },
+  // 应用：写文件、平滑加载并核实。请求标识由契约强制要求，
+  // 网络重试不会变成第二次应用。
+  applyCaddyConfig: {
+    method: "POST",
+    path: toContractPath(ApiPath.caddyApply),
+    body: CaddyApplyInputSchema,
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: CaddyApplyResultSchema,
+      202: TaskAcceptedSchema,
+      ...errorResponses,
+      409: ApiErrorSchema,
+    },
+  },
+  // 历史版本列表：只读，供页面选择恢复目标。
+  listCaddyVersions: {
+    method: "GET",
+    path: toContractPath(ApiPath.caddyVersions),
+    responses: {
+      200: CaddyVersionListSchema,
+      ...errorResponses,
+    },
+  },
+  // 恢复历史版本同样要写文件与重新加载，必须带请求标识。
+  restoreCaddyVersion: {
+    method: "POST",
+    path: toContractPath(ApiPath.caddyVersionRestore),
+    pathParams: CaddyVersionIdPathParamsSchema,
+    body: c.noBody(),
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: CaddyApplyResultSchema,
+      202: TaskAcceptedSchema,
       ...errorResponses,
       409: ApiErrorSchema,
     },

@@ -16,7 +16,10 @@ import type {
   CaddyRuleInput,
   CaddyRulesResponse,
   CaddyStatus,
+  CaddyVersionList,
+  CaddyVersionSummary,
 } from "@shared/api-contract"
+import { CaddyApplyStatusSchema } from "@shared/api-contract/schemas/caddy"
 import {
   type CaddyFileParse,
   caddyRulesSignature,
@@ -24,11 +27,12 @@ import {
   normalizeCaddyPathPrefix,
   type ParsedCaddyRule,
   parseCaddyfile,
+  replaceManagedRegion,
   validateCaddyHost,
   validateCaddyPathPrefix,
   validateCaddyUpstream,
 } from "@shared/caddy-format"
-import { type CaddyStore, getCaddyStore } from "./store"
+import { type CaddyApplyRecord, type CaddyStore, getCaddyStore } from "./store"
 
 /**
  * Caddy 的规则管理：读现状、维护受管规则、生成受管区域文本。
@@ -484,4 +488,87 @@ export const importCaddyRulesFromFile = async (
       }
     })
   return store.importRules(inputs)
+}
+
+const toVersionSummary = (record: CaddyApplyRecord): CaddyVersionSummary => {
+  const status = CaddyApplyStatusSchema.safeParse(record.status)
+  return {
+    id: record.id,
+    appliedAt: record.appliedAt,
+    // 记录状态只由本域写入三种之一；出现别的值时按「无法确认」处理。
+    status: status.success ? status.data : "unknown",
+    message: record.message,
+    ruleCount: record.rules.length,
+  }
+}
+
+/** 历史应用版本（倒序），供页面选择恢复目标。 */
+export const readCaddyVersions = (
+  store: CaddyStore = getCaddyStore()
+): CaddyVersionList => ({
+  versions: store.listApplyRecords().map(toVersionSummary),
+})
+
+export type CaddyApplyReadiness = {
+  /** 配置文件原文，备份用。 */
+  text: string
+  /** 替换受管区域后准备写入的候选文本。 */
+  candidate: string
+}
+
+/**
+ * 应用前的快速拒绝：全部检查都不产生副作用。
+ *
+ * handler 在提交任务前先跑一遍——被拒绝的请求不会留下任务记录；任务内再跑一遍，
+ * 因为从提交到执行之间文件可能已被改动，并接着校验临时文件。
+ */
+export const assertCaddyApplyReady = async (
+  targets: CaddyTargets = defaultCaddyTargets(),
+  probes: CaddyProbes = defaultCaddyProbes,
+  store: CaddyStore = getCaddyStore(),
+  expectedSignature?: string,
+  rules: CaddyRule[] = store.listRules()
+): Promise<CaddyApplyReadiness> => {
+  const text = await readCaddyConfigText(targets.configFile)
+  const parsed = parseCaddyfile(text)
+
+  if (parsed.managedRegion === null) {
+    throw new PublicOperationError(
+      409,
+      "现有配置尚未接管，应用会与手工规则重复"
+    )
+  }
+  if (parsed.unsupported.length > 0) {
+    throw new PublicOperationError(
+      409,
+      "配置文件里有无法识别的行，应用可能覆盖手工配置"
+    )
+  }
+  if (parsed.rules.some((rule) => rule.origin === "external")) {
+    throw new PublicOperationError(409, "配置文件里还有尚未接管的规则")
+  }
+  if (
+    expectedSignature !== undefined &&
+    expectedSignature !== caddyRulesSignature(rules)
+  ) {
+    throw new PublicOperationError(
+      409,
+      "规则已被其他改动更新，请重新读取后再应用"
+    )
+  }
+  if (!(await probes.isAdminReachable(targets.adminUrl))) {
+    throw new PublicOperationError(
+      409,
+      "Caddy 管理接口未启用，无法平滑加载配置；请先完成接管"
+    )
+  }
+
+  const replaced = replaceManagedRegion(text, generateManagedRules(rules))
+  if (!replaced.replaced) {
+    throw new PublicOperationError(
+      409,
+      "配置文件里找不到成对的受管区域标记，无法安全替换"
+    )
+  }
+  return { text, candidate: replaced.text }
 }

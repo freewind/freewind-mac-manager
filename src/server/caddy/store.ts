@@ -12,6 +12,8 @@ import type {
 /** 应用记录的状态；成功与否决定它是否算「上次成功应用」。 */
 export const CADDY_APPLY_SUCCESS = "success"
 export const CADDY_APPLY_FAILED = "failed"
+/** 结果无法确认（reload 超时、核实请求失败），既不能报成功也不能直接重做。 */
+export const CADDY_APPLY_UNKNOWN = "unknown"
 
 /** 一次应用留下的记录：生成文本与当时的规则都存下来，供变化清单对比。 */
 export type CaddyApplyRecord = {
@@ -329,6 +331,22 @@ export class CaddyStore {
     })
   }
 
+  /**
+   * 用历史版本的规则整体替换现有规则（恢复用）。
+   * 一个事务内先清空再按传入顺序写回，保留 id / 名称 / 备注 / 启停 / 顺序，
+   * 只把 updated_at 改成现在：恢复的是一条已经存在的版本，不是新建规则。
+   */
+  replaceAllRules(rules: CaddyRule[]): void {
+    this.transaction(() => {
+      this.db.exec("DELETE FROM caddy_rule")
+      const now = Math.floor(Date.now() / 1000)
+      const statement = this.db.prepare(insertSql)
+      for (const rule of rules) {
+        statement.run(...ruleValues({ ...rule, updatedAt: now }))
+      }
+    })
+  }
+
   insertApplyRecord(record: CaddyApplyRecord): void {
     this.db
       .prepare(
@@ -346,12 +364,12 @@ export class CaddyStore {
       )
   }
 
-  /** 应用记录倒序，最新在前。 */
+  /** 应用记录倒序，最新在前；同一秒内的多条按写入先后排。 */
   listApplyRecords(): CaddyApplyRecord[] {
     const rows = this.db
       .prepare(
         `SELECT ${APPLY_COLUMNS} FROM caddy_apply
-         ORDER BY applied_at DESC, id DESC`
+         ORDER BY applied_at DESC, rowid DESC`
       )
       .all() as ApplyRow[]
     return rows.map(toApplyRecord)
@@ -369,7 +387,7 @@ export class CaddyStore {
     const row = this.db
       .prepare(
         `SELECT ${APPLY_COLUMNS} FROM caddy_apply WHERE status = ?
-         ORDER BY applied_at DESC, id DESC LIMIT 1`
+         ORDER BY applied_at DESC, rowid DESC LIMIT 1`
       )
       .get(CADDY_APPLY_SUCCESS) as ApplyRow | undefined
     return row === undefined ? null : toApplyRecord(row)
