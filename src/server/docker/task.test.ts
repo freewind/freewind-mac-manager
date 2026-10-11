@@ -524,3 +524,54 @@ describe("任务运行时的幂等与互斥", () => {
     expect(harness.calls).toHaveLength(1)
   })
 })
+
+describe("新建容器的核实", () => {
+  it("创建后核实为 running 才算启动成功，并带回新容器标识", async () => {
+    const { cli } = createFakeCli({ state: "running" })
+    const outcome = await runDockerActionTask({
+      payload: {
+        action: "containerCreate",
+        container: { image: "redis:7-alpine", name: "smoke-new" },
+      },
+      report: () => undefined,
+      cli,
+    })
+    expect(outcome.message).toBe("已创建并启动 smoke")
+    expect(outcome.result).toEqual({
+      message: "已创建并启动 smoke",
+      containerId: "new-container-id",
+      name: "smoke",
+    })
+  })
+
+  it("容器创建后立刻退出时如实说明状态，不报成启动成功", async () => {
+    const { cli } = createFakeCli({ state: "exited" })
+    const outcome = await runDockerActionTask({
+      payload: {
+        action: "containerCreate",
+        container: { image: "redis:7-alpine", name: "smoke-new" },
+      },
+      report: () => undefined,
+      cli,
+    })
+    expect(outcome.message).toBe(
+      "容器 smoke 已创建，但状态是 exited，请查看日志确认原因"
+    )
+    expect(outcome.message).not.toContain("已创建并启动")
+    expect(outcome.result.containerId).toBe("new-container-id")
+  })
+
+  it("核实不到新容器时如实报失败", async () => {
+    const { cli } = createFakeCli()
+    await expect(
+      runDockerActionTask({
+        payload: {
+          action: "containerCreate",
+          container: { image: "redis:7-alpine" },
+        },
+        report: () => undefined,
+        cli: { ...cli, inspectContainer: async () => null },
+      })
+    ).rejects.toThrow("已创建但查不到")
+  })
+})

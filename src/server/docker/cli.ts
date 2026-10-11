@@ -1008,6 +1008,30 @@ export const createDockerCli = (
     await docker(["pull", image], TIMEOUT.pull)
   }
 
+  /**
+   * 本地是否已有该镜像。用 image inspect 不经列表缓存：
+   * 刚拉取的镜像要立刻可见，否则新建容器会被误判成「镜像不存在」。
+   */
+  const imageExists = async (image: string): Promise<boolean> => {
+    assertImageReference(image)
+    try {
+      await docker(
+        ["image", "inspect", "--format", "{{.Id}}", image],
+        TIMEOUT.quick
+      )
+      return true
+    } catch (error) {
+      if (
+        error instanceof DockerCommandError &&
+        error.kind === "failed" &&
+        /no such image/i.test(error.detail)
+      ) {
+        return false
+      }
+      throw error
+    }
+  }
+
   const removeImage = async (
     imageId: string,
     options: { force?: boolean } = {}
@@ -1124,6 +1148,7 @@ export const createDockerCli = (
     removeContainer,
     createContainer,
     pullImage,
+    imageExists,
     removeImage,
     removeVolume,
     removeNetwork,

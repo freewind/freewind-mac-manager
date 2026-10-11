@@ -16,6 +16,7 @@ import type {
 } from "@shared/api-contract"
 import {
   DockerColimaStatusSchema,
+  DockerContainerCreatedSchema,
   DockerContainerLogsResponseSchema,
   DockerContainersResponseSchema,
   DockerImagesResponseSchema,
@@ -156,6 +157,7 @@ const createFakeCli = (overrides: Partial<TestCli> = {}): TestCli => ({
   listNetworks: async () => networksFixture,
   getContainerLogs: async (containerId) => ({ ...logsFixture, containerId }),
   inspectContainer: async (containerId) => container({ id: containerId }),
+  imageExists: async () => true,
   startContainer: noop,
   stopContainer: noop,
   restartContainer: noop,
@@ -801,5 +803,157 @@ describe("容器动作端点", () => {
     expect(second.status).toBe(200)
     expect(second.body).toEqual(first.body)
     expect(calls).toEqual(["startContainer"])
+  })
+})
+
+describe("新建容器端点", () => {
+  it("同步完成返回 201 与新容器标识", async () => {
+    const created: string[] = []
+    const cli = createFakeCli({
+      imageExists: async () => true,
+      inspectContainer: async (containerId) =>
+        // 名字没被占用；新容器创建后是 running
+        containerId === "mac-manager-smoke-x"
+          ? null
+          : container({ id: containerId, name: "smoke-new", state: "running" }),
+      createContainer: async () => {
+        created.push("createContainer")
+        return "new-id-1234567890"
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/containers",
+      "POST",
+      { image: "redis:7-alpine", name: "mac-manager-smoke-x" }
+    )
+    expect(status).toBe(201)
+    expect(DockerContainerCreatedSchema.safeParse(body).success).toBe(true)
+    expect(body).toEqual({
+      containerId: "new-id-1234567890",
+      name: "smoke-new",
+      message: "已创建并启动 smoke-new",
+    })
+    expect(created).toEqual(["createContainer"])
+  })
+
+  it("本地没有该镜像时返回 409 且不执行 docker run", async () => {
+    const created: string[] = []
+    const cli = createFakeCli({
+      imageExists: async () => false,
+      createContainer: async () => {
+        created.push("createContainer")
+        return "should-not-happen"
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/containers",
+      "POST",
+      { image: "redis:7-alpine", name: "mac-manager-smoke-x" }
+    )
+    expect(status).toBe(409)
+    expect(body).toEqual({
+      message: "本地没有该镜像，请先在镜像页拉取",
+      executionStatus: "not_started",
+    })
+    // 关键：没有偷偷联网拉取，也没有执行 run
+    expect(created).toEqual([])
+  })
+
+  it("容器名已被占用返回 409", async () => {
+    const cli = createFakeCli({
+      imageExists: async () => true,
+      inspectContainer: async (containerId) =>
+        container({ id: containerId, name: "mac-manager-smoke-x" }),
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/containers",
+      "POST",
+      { image: "redis:7-alpine", name: "mac-manager-smoke-x" }
+    )
+    expect(status).toBe(409)
+    expect(body).toEqual({
+      message: "容器名 mac-manager-smoke-x 已被占用，请换一个名字",
+      executionStatus: "not_started",
+    })
+  })
+
+  it("未完成时返回 202 受理回执", async () => {
+    const cli = createFakeCli()
+    const baseUrl = await startServer(cli, { hold: true, thresholdMs: 20 })
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/containers",
+      "POST",
+      { image: "redis:7-alpine" },
+      "req-docker-create-0001"
+    )
+    expect(status).toBe(202)
+    expect(body).toMatchObject({ kind: "docker_action", status: "running" })
+  })
+
+  it("同 requestId 重发只创建一次", async () => {
+    const created: string[] = []
+    const cli = createFakeCli({
+      inspectContainer: async (containerId) =>
+        containerId === "mac-manager-smoke-y"
+          ? null
+          : container({ id: containerId, name: "smoke-new", state: "running" }),
+      createContainer: async () => {
+        created.push("createContainer")
+        return "new-id-1234567890"
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const payload = { image: "redis:7-alpine", name: "mac-manager-smoke-y" }
+    const first = await send(
+      baseUrl,
+      "/api/docker/containers",
+      "POST",
+      payload,
+      "req-docker-create-same"
+    )
+    const second = await send(
+      baseUrl,
+      "/api/docker/containers",
+      "POST",
+      payload,
+      "req-docker-create-same"
+    )
+    expect(first.status).toBe(201)
+    expect(second.status).toBe(201)
+    expect(second.body).toEqual(first.body)
+    expect(created).toEqual(["createContainer"])
+  })
+
+  it("载荷非法返回 400，Docker 未运行返回 500", async () => {
+    const baseUrl = await startServer(createFakeCli())
+    const illegal = await send(baseUrl, "/api/docker/containers", "POST", {
+      image: "--rm",
+    })
+    expect(illegal.status).toBe(400)
+
+    const broken = createFakeCli({
+      imageExists: async () => {
+        throw new DockerCommandError(
+          "daemon_unavailable",
+          "Docker 服务未运行，请先启动 Docker 或执行 colima start。"
+        )
+      },
+    })
+    const brokenUrl = await startServer(broken)
+    const { status, body } = await send(
+      brokenUrl,
+      "/api/docker/containers",
+      "POST",
+      { image: "redis:7-alpine" }
+    )
+    expect(status).toBe(500)
+    expect(body).toEqual({ message: "Docker 未运行，请先启动 Colima" })
   })
 })

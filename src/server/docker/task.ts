@@ -223,67 +223,113 @@ const verifyContainer = async (
  * 容器动作以核实到的状态为准；镜像/卷/网络的列表带缓存，本轮只如实说明
  * 「已发出命令」，不把命令跑完当成状态已变。
  */
+/** 新建容器核实后的结论：含新资源标识与如实说明。 */
+type CreatedContainer = { containerId: string; name: string }
+
+/**
+ * 新容器核实：docker run 退出码为 0 只说明命令跑完了，
+ * 镜像的容器可能立刻退出，因此状态以重新 inspect 的结果为准。
+ */
+const verifyCreated = async (
+  cli: DockerActionCli,
+  containerId: string,
+  fallbackName: string | undefined
+): Promise<{ message: string; created: CreatedContainer }> => {
+  const container = await cli.inspectContainer(containerId)
+  if (container === null) {
+    throw new DockerCommandError(
+      "failed",
+      `容器 ${fallbackName ?? containerId} 已创建但查不到，请重新读取列表确认`
+    )
+  }
+  const name = container.name || fallbackName || containerId
+  const created = { containerId, name }
+  if (container.state === "running") {
+    return { message: `已创建并启动 ${name}`, created }
+  }
+  return {
+    message: `容器 ${name} 已创建，但状态是 ${container.state}，请查看日志确认原因`,
+    created,
+  }
+}
+
 const dispatch = async (
   cli: DockerActionCli,
   payload: DockerActionPayload
-): Promise<string> => {
+): Promise<{ message: string; created?: CreatedContainer }> => {
   switch (payload.action) {
     case "containerStart":
       await cli.startContainer(payload.containerId)
-      return await verifyContainer(cli, {
-        containerId: payload.containerId,
-        expectation: "running",
-        successMessage: (label) => `已启动 ${label}`,
-      })
+      return {
+        message: await verifyContainer(cli, {
+          containerId: payload.containerId,
+          expectation: "running",
+          successMessage: (label) => `已启动 ${label}`,
+        }),
+      }
     case "containerStop":
       await cli.stopContainer(payload.containerId, { force: payload.force })
-      return await verifyContainer(cli, {
-        containerId: payload.containerId,
-        expectation: "stopped",
-        successMessage: (label) => `已停止 ${label}`,
-      })
+      return {
+        message: await verifyContainer(cli, {
+          containerId: payload.containerId,
+          expectation: "stopped",
+          successMessage: (label) => `已停止 ${label}`,
+        }),
+      }
     case "containerKill":
       await cli.killContainer(payload.containerId)
-      return await verifyContainer(cli, {
-        containerId: payload.containerId,
-        expectation: "stopped",
-        successMessage: (label) => `已终止 ${label}`,
-      })
+      return {
+        message: await verifyContainer(cli, {
+          containerId: payload.containerId,
+          expectation: "stopped",
+          successMessage: (label) => `已终止 ${label}`,
+        }),
+      }
     case "containerRestart":
       await cli.restartContainer(payload.containerId, {
         force: payload.force,
       })
-      return await verifyContainer(cli, {
-        containerId: payload.containerId,
-        expectation: "running",
-        successMessage: (label) => `已重启 ${label}`,
-      })
+      return {
+        message: await verifyContainer(cli, {
+          containerId: payload.containerId,
+          expectation: "running",
+          successMessage: (label) => `已重启 ${label}`,
+        }),
+      }
     case "containerRemove": {
       // 删除后就查不到名字了，先记住它
       const before = await cli.inspectContainer(payload.containerId)
       await cli.removeContainer(payload.containerId, { force: payload.force })
-      return await verifyContainer(cli, {
-        containerId: payload.containerId,
-        expectation: "removed",
-        fallbackLabel: before?.name ?? payload.containerId,
-      })
+      return {
+        message: await verifyContainer(cli, {
+          containerId: payload.containerId,
+          expectation: "removed",
+          fallbackLabel: before?.name ?? payload.containerId,
+        }),
+      }
     }
     case "containerCreate": {
       const containerId = await cli.createContainer(payload.container)
-      return `容器 ${containerId || (payload.container.name ?? payload.container.image)} 已创建`
+      return await verifyCreated(cli, containerId, payload.container.name)
     }
     case "imagePull":
       await cli.pullImage(payload.image)
-      return `镜像 ${payload.image} 拉取完成`
+      return { message: `镜像 ${payload.image} 拉取完成` }
     case "imageRemove":
       await cli.removeImage(payload.imageId, { force: payload.force })
-      return `已发出删除镜像 ${payload.imageId} 的命令，请重新读取列表确认`
+      return {
+        message: `已发出删除镜像 ${payload.imageId} 的命令，请重新读取列表确认`,
+      }
     case "volumeRemove":
       await cli.removeVolume(payload.name)
-      return `已发出删除卷 ${payload.name} 的命令，请重新读取列表确认`
+      return {
+        message: `已发出删除卷 ${payload.name} 的命令，请重新读取列表确认`,
+      }
     case "networkRemove":
       await cli.removeNetwork(payload.networkId)
-      return `已发出删除网络 ${payload.networkId} 的命令，请重新读取列表确认`
+      return {
+        message: `已发出删除网络 ${payload.networkId} 的命令，请重新读取列表确认`,
+      }
   }
 }
 
@@ -292,7 +338,11 @@ export const runDockerActionTask = async (options: {
   report: (progress: TaskProgress) => void
   /** 默认生产实例；测试注入受控替身。 */
   cli?: DockerActionCli
-}): Promise<{ result: ActionResponse; message: string }> => {
+}): Promise<{
+  /** 动作结果是 message；新建容器额外带新资源标识，供 201 端点返回。 */
+  result: ActionResponse & { containerId?: string; name?: string }
+  message: string
+}> => {
   const parsed = DockerActionPayloadSchema.safeParse(options.payload)
   // 校验失败绝不发命令：这里直接抛，调用方按失败任务处理。
   if (!parsed.success) throw new Error("Docker 动作载荷非法")
@@ -306,7 +356,7 @@ export const runDockerActionTask = async (options: {
     stage: stageOf(payload),
     currentTarget: dockerActionTargetOf(payload),
   })
-  const message = await dispatch(cli, payload)
+  const outcome = await dispatch(cli, payload)
   options.report({
     done: 1,
     total: 1,
@@ -315,5 +365,8 @@ export const runDockerActionTask = async (options: {
     stage: "完成",
     currentTarget: null,
   })
-  return { result: { message }, message }
+  const result = outcome.created
+    ? { message: outcome.message, ...outcome.created }
+    : { message: outcome.message }
+  return { result, message: outcome.message }
 }

@@ -222,6 +222,7 @@ import type {
   DockerColimaStatusSchema,
   DockerContainerActionBodySchema,
   DockerContainerCreateBodySchema,
+  DockerContainerCreatedSchema,
   DockerContainerDeleteBodySchema,
   DockerContainerLogsQuerySchema,
   DockerContainerLogsResponseSchema,
@@ -249,6 +250,9 @@ export type DockerMount = z.infer<typeof DockerMountSchema>
 export type DockerContainer = z.infer<typeof DockerContainerSchema>
 export type DockerContainersResponse = z.infer<
   typeof DockerContainersResponseSchema
+>
+export type DockerContainerCreated = z.infer<
+  typeof DockerContainerCreatedSchema
 >
 export type DockerColimaStatus = z.infer<typeof DockerColimaStatusSchema>
 export type DockerOverview = z.infer<typeof DockerOverviewSchema>

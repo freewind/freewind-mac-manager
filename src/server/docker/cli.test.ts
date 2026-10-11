@@ -1082,3 +1082,46 @@ describe("写命令参数", () => {
     expect(calls).toHaveLength(0)
   })
 })
+
+describe("镜像存在性查询", () => {
+  it("用 image inspect 判断本地镜像，不经列表缓存", async () => {
+    const { runner, calls } = createFakeRunner(succeed("sha256:abc\n"))
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    expect(await cli.imageExists("redis:7-alpine")).toBe(true)
+    expect(calls[0]?.args).toEqual([
+      "image",
+      "inspect",
+      "--format",
+      "{{.Id}}",
+      "redis:7-alpine",
+    ])
+  })
+
+  it("镜像不存在返回 false，其它失败照旧抛出", async () => {
+    const missing = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: docker image inspect"), {
+          stderr: "Error response from daemon: No such image: nope:latest",
+        })
+      )
+    )
+    const missingCli = createDockerCli({
+      run: missing.runner,
+      cache: noCache,
+    })
+    expect(await missingCli.imageExists("nope:latest")).toBe(false)
+
+    const broken = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: docker image inspect"), {
+          stderr:
+            "Cannot connect to the Docker daemon at unix:///x. Is the docker daemon running?",
+        })
+      )
+    )
+    const brokenCli = createDockerCli({ run: broken.runner, cache: noCache })
+    await expect(brokenCli.imageExists("redis:7-alpine")).rejects.toThrow(
+      "Docker 服务未运行"
+    )
+  })
+})

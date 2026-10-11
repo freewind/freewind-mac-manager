@@ -1,6 +1,8 @@
 import type {
   ActionResponse,
   DockerContainerActionBody,
+  DockerContainerCreateBody,
+  DockerContainerCreated,
   DockerContainerDeleteBody,
 } from "@shared/api-contract"
 import { apiClient, taskRequestHeaders } from "./client"
@@ -28,6 +30,18 @@ export const removeDockerContainer = async (
 ): Promise<Execution<ActionResponse>> =>
   runExecution<ActionResponse>(() =>
     apiClient.removeDockerContainer({
+      body,
+      headers: taskRequestHeaders(requestId),
+    })
+  )
+
+/** 新建容器：成功返回 201 与新容器标识；耗时较长时返回 202 受理回执。 */
+export const createDockerContainer = async (
+  requestId: string,
+  body: DockerContainerCreateBody
+): Promise<Execution<DockerContainerCreated>> =>
+  runExecution<DockerContainerCreated>(() =>
+    apiClient.createDockerContainer({
       body,
       headers: taskRequestHeaders(requestId),
     })

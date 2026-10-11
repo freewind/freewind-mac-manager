@@ -13,9 +13,11 @@ import {
   type ActionResponse,
   contract,
   type DockerContainerActionBody,
+  type DockerContainerCreated,
   TASK_REQUEST_ID_HEADER,
 } from "@shared/api-contract"
 import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
+import { DockerContainerCreatedSchema } from "@shared/api-contract/schemas/docker"
 import { dockerContainerTaskTarget } from "@shared/task-targets"
 import { initServer } from "@ts-rest/express"
 import { DockerCommandError, isMissingContainerError } from "./cli"
@@ -34,6 +36,7 @@ export const dockerContract = {
   getDockerColimaStatus: contract.getDockerColimaStatus,
   actOnDockerContainer: contract.actOnDockerContainer,
   removeDockerContainer: contract.removeDockerContainer,
+  createDockerContainer: contract.createDockerContainer,
 }
 
 /** 只读端点没有「创建」与「状态冲突」语义，409 一律收敛成 500。 */
@@ -224,6 +227,50 @@ export const createDockerRouter = (
           containerId: body.containerId,
           requestId: headers[TASK_REQUEST_ID_HEADER],
         })
+      } catch (error) {
+        return failWrite(error)
+      }
+    },
+
+    createDockerContainer: async ({ headers, body }) => {
+      try {
+        // 本地没有这个镜像就直接拒绝：docker run 会偷偷联网拉取，用户没同意过
+        if (!(await service.imageExists(body.image))) {
+          return {
+            status: 409 as const,
+            body: {
+              message: "本地没有该镜像，请先在镜像页拉取",
+              executionStatus: "not_started" as const,
+            },
+          }
+        }
+        if (
+          body.name !== undefined &&
+          (await service.findContainer(body.name)) !== null
+        ) {
+          return {
+            status: 409 as const,
+            body: {
+              message: `容器名 ${body.name} 已被占用，请换一个名字`,
+              executionStatus: "not_started" as const,
+            },
+          }
+        }
+        const outcome = await runtime.runner.submit<DockerContainerCreated>({
+          kind: DOCKER_ACTION_KIND,
+          // 新容器还没有 id，按名字（未指定时按镜像）加锁
+          target: dockerContainerTaskTarget(body.name ?? body.image),
+          payload: { action: "containerCreate", container: body },
+          requestId: headers[TASK_REQUEST_ID_HEADER],
+          toCompletedResponse: (result) => {
+            const parsed = DockerContainerCreatedSchema.safeParse(result.result)
+            if (!parsed.success) {
+              throw new Error("新建容器结果不符合契约，无法作为完成结果返回")
+            }
+            return { status: 201, body: parsed.data }
+          },
+        })
+        return toTaskHttpResponse(outcome, 201)
       } catch (error) {
         return failWrite(error)
       }

@@ -10,6 +10,7 @@ import {
   DockerColimaStatusSchema,
   DockerContainerActionBodySchema,
   DockerContainerCreateBodySchema,
+  DockerContainerCreatedSchema,
   DockerContainerDeleteBodySchema,
   DockerContainerLogsQuerySchema,
   DockerContainerLogsResponseSchema,
@@ -82,12 +83,18 @@ export const dockerRoutes = {
   },
   // ---- 写操作：带请求标识 + 202 + 409 ----
   // 新建容器与镜像拉取都可能很慢，因此既可能同步完成也可能转为后台任务。
+  // 新建容器：资源已创建返回 201 与新容器标识；耗时较长时返回 202 与任务标识。
   createDockerContainer: {
     method: "POST",
     path: toContractPath(ApiPath.dockerContainers),
     body: DockerContainerCreateBodySchema,
     headers: TaskRequestIdHeadersSchema,
-    responses: actionResponses,
+    responses: {
+      201: DockerContainerCreatedSchema,
+      202: TaskAcceptedSchema,
+      409: ApiErrorSchema,
+      ...errorResponses,
+    },
   },
   // start/stop/restart 是对既有容器执行的动作，用 POST。
   actOnDockerContainer: {

@@ -32,6 +32,7 @@ export type DockerServiceCli = Pick<
   | "listNetworks"
   | "getContainerLogs"
   | "inspectContainer"
+  | "imageExists"
 >
 
 export type DockerService = ReturnType<typeof createDockerService>
@@ -162,6 +163,10 @@ export const createDockerService = (
     containerId: string
   ): Promise<DockerContainer | null> => cli.inspectContainer(containerId)
 
+  /** 本地是否已有该镜像；没有就不要交给 docker run（它会偷偷联网拉取）。 */
+  const imageExists = (image: string): Promise<boolean> =>
+    cli.imageExists(image)
+
   return {
     getOverview,
     listContainers,
@@ -171,5 +176,6 @@ export const createDockerService = (
     getContainerLogs,
     getColimaStatus,
     findContainer,
+    imageExists,
   }
 }

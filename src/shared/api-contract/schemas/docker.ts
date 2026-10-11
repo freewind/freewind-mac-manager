@@ -71,6 +71,14 @@ export const DockerContainersResponseSchema = z.object({
   skipped: z.array(z.object({ id: z.string(), reason: z.string() })),
 })
 
+/** 新建容器的完成结果：返回新资源标识与核实结论。 */
+export const DockerContainerCreatedSchema = z.object({
+  containerId: z.string(),
+  name: z.string(),
+  /** 核实结论：容器可能创建后立刻退出，这里如实说明实际状态。 */
+  message: z.string(),
+})
+
 /** Colima 虚拟机状态；docker daemon 由它提供。 */
 export const DockerColimaStatusSchema = z.object({
   /** 本机是否装了 colima 命令 */
@@ -163,7 +171,12 @@ export const DockerContainerLogsResponseSchema = z.object({
 
 /** 新建容器：只接受可校验的配置，路径与运行态由服务端解析。 */
 export const DockerContainerCreateBodySchema = z.object({
-  image: z.string().min(1).max(255),
+  // 首字符必须是字母数字：挡住 --rm 这类被当成 docker 选项的取值
+  image: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._/:@-]*$/, "镜像引用包含非法字符"),
   name: z
     .string()
     .min(1)
