@@ -69,7 +69,9 @@ import type {
   ClashVergeStatusSchema,
 } from "./schemas/clash-verge"
 
-export type ClashVergeAvailability = z.infer<typeof ClashVergeAvailabilitySchema>
+export type ClashVergeAvailability = z.infer<
+  typeof ClashVergeAvailabilitySchema
+>
 export type ClashVergeStatus = z.infer<typeof ClashVergeStatusSchema>
 export type ClashVergeProxy = z.infer<typeof ClashVergeProxySchema>
 export type ClashVergeProxiesResponse = z.infer<
@@ -209,3 +211,73 @@ export type FrpConfig = z.infer<typeof FrpConfigSchema>
 export type FrpConfigInput = z.infer<typeof FrpConfigInputSchema>
 export type FrpProbeBody = z.infer<typeof FrpProbeBodySchema>
 export type FrpProbe = z.infer<typeof FrpProbeSchema>
+
+import type {
+  DockerColimaActionBodySchema,
+  DockerColimaStatusSchema,
+  DockerContainerActionBodySchema,
+  DockerContainerCreateBodySchema,
+  DockerContainerDeleteBodySchema,
+  DockerContainerLogsQuerySchema,
+  DockerContainerLogsResponseSchema,
+  DockerContainerSchema,
+  DockerContainerStateSchema,
+  DockerContainersResponseSchema,
+  DockerImageDeleteBodySchema,
+  DockerImagePullBodySchema,
+  DockerImageSchema,
+  DockerImagesResponseSchema,
+  DockerMountSchema,
+  DockerNetworkDeleteBodySchema,
+  DockerNetworkSchema,
+  DockerNetworksResponseSchema,
+  DockerOverviewSchema,
+  DockerPortMappingSchema,
+  DockerVolumeDeleteBodySchema,
+  DockerVolumeSchema,
+  DockerVolumesResponseSchema,
+} from "./schemas/docker"
+
+export type DockerContainerState = z.infer<typeof DockerContainerStateSchema>
+export type DockerPortMapping = z.infer<typeof DockerPortMappingSchema>
+export type DockerMount = z.infer<typeof DockerMountSchema>
+export type DockerContainer = z.infer<typeof DockerContainerSchema>
+export type DockerContainersResponse = z.infer<
+  typeof DockerContainersResponseSchema
+>
+export type DockerColimaStatus = z.infer<typeof DockerColimaStatusSchema>
+export type DockerOverview = z.infer<typeof DockerOverviewSchema>
+export type DockerImage = z.infer<typeof DockerImageSchema>
+export type DockerImagesResponse = z.infer<typeof DockerImagesResponseSchema>
+export type DockerVolume = z.infer<typeof DockerVolumeSchema>
+export type DockerVolumesResponse = z.infer<typeof DockerVolumesResponseSchema>
+export type DockerNetwork = z.infer<typeof DockerNetworkSchema>
+export type DockerNetworksResponse = z.infer<
+  typeof DockerNetworksResponseSchema
+>
+export type DockerContainerLogsQuery = z.infer<
+  typeof DockerContainerLogsQuerySchema
+>
+export type DockerContainerLogsResponse = z.infer<
+  typeof DockerContainerLogsResponseSchema
+>
+export type DockerContainerCreateBody = z.infer<
+  typeof DockerContainerCreateBodySchema
+>
+export type DockerContainerActionBody = z.infer<
+  typeof DockerContainerActionBodySchema
+>
+export type DockerContainerDeleteBody = z.infer<
+  typeof DockerContainerDeleteBodySchema
+>
+export type DockerImagePullBody = z.infer<typeof DockerImagePullBodySchema>
+export type DockerImageDeleteBody = z.infer<typeof DockerImageDeleteBodySchema>
+export type DockerVolumeDeleteBody = z.infer<
+  typeof DockerVolumeDeleteBodySchema
+>
+export type DockerNetworkDeleteBody = z.infer<
+  typeof DockerNetworkDeleteBodySchema
+>
+export type DockerColimaActionBody = z.infer<
+  typeof DockerColimaActionBodySchema
+>

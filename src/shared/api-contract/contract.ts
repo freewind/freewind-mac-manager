@@ -3,6 +3,7 @@ import { c } from "./init"
 import { clashVergeRoutes } from "./routes/clash-verge"
 import { dashboardRoutes } from "./routes/dashboard"
 import { diskGrowthRoutes } from "./routes/disk-growth"
+import { dockerRoutes } from "./routes/docker"
 import { filesRoutes } from "./routes/files"
 import { frpRoutes } from "./routes/frp"
 import { healthRoutes } from "./routes/health"
@@ -19,6 +20,7 @@ export const contract = c.router(
     ...healthRoutes,
     ...clashVergeRoutes,
     ...diskGrowthRoutes,
+    ...dockerRoutes,
     ...trafficRoutes,
     ...dashboardRoutes,
     ...portsRoutes,

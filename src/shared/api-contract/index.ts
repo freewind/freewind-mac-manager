@@ -1,6 +1,11 @@
 export { contract } from "./contract"
 export { c } from "./init"
 export * from "./schemas/common"
+export {
+  DOCKER_COLIMA_ACTIONS,
+  DOCKER_CONTAINER_ACTIONS,
+  DOCKER_CONTAINER_STATES,
+} from "./schemas/docker"
 export { FRP_PROXY_TYPES } from "./schemas/frp"
 export * from "./schemas/tasks"
 export * from "./types"
