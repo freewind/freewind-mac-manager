@@ -20,6 +20,7 @@ import path from "node:path"
 import type { Readable } from "node:stream"
 import { Transform } from "node:stream"
 import { pipeline } from "node:stream/promises"
+import { PublicOperationError } from "@server/common/public-error"
 import { FILE_ROOT } from "@server/env"
 import type {
   DirectoryResponse,
@@ -267,7 +268,7 @@ const assertSafeName = (name: string): string => {
     name.includes("/") ||
     name.includes("\\")
   ) {
-    throw new Error(`非法名称：${name}`)
+    throw new PublicOperationError(400, "名称不合法")
   }
   return name
 }
@@ -277,7 +278,7 @@ export const resolvePath = (input: string): string => {
   const target = path.resolve(input || FILE_ROOT)
   const relative = path.relative(FILE_ROOT, target)
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`非法路径：${input}`)
+    throw new PublicOperationError(400, "路径不在允许范围")
   }
   return target
 }
@@ -285,7 +286,7 @@ export const resolvePath = (input: string): string => {
 const assertWithinRoot = (target: string): void => {
   const relative = path.relative(FILE_ROOT, target)
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error("路径通过符号链接越出允许范围")
+    throw new PublicOperationError(403, "路径通过符号链接越出允许范围")
   }
 }
 
@@ -293,7 +294,8 @@ const assertWithinRoot = (target: string): void => {
 const resolveExistingPath = async (input: string): Promise<string> => {
   const target = resolvePath(input)
   const info = await lstat(target)
-  if (info.isSymbolicLink()) throw new Error("不允许操作符号链接")
+  if (info.isSymbolicLink())
+    throw new PublicOperationError(403, "不允许操作符号链接")
   const resolved = await realpath(target)
   assertWithinRoot(resolved)
   return resolved
@@ -302,7 +304,7 @@ const resolveExistingPath = async (input: string): Promise<string> => {
 const resolveExistingDirectory = async (input: string): Promise<string> => {
   const target = await resolveExistingPath(input)
   const info = await stat(target)
-  if (!info.isDirectory()) throw new Error("不是目录")
+  if (!info.isDirectory()) throw new PublicOperationError(400, "不是目录")
   return target
 }
 
@@ -394,7 +396,7 @@ export const renameEntry = async (
   const destination = path.join(path.dirname(source), assertSafeName(name))
   // macOS 的 rename 会静默覆盖同名条目，这里先挡住
   if (destination !== source && existsSync(destination)) {
-    throw new Error("目标位置已存在同名条目")
+    throw new PublicOperationError(409, "目标位置已存在同名条目")
   }
   await rename(source, destination)
 }
@@ -800,10 +802,10 @@ const resolveTransferTarget = async (
   for (const item of paths) {
     const source = await resolveExistingPath(item)
     if (isInside(source, destination)) {
-      throw new Error("不能把目录操作到自身或其子目录")
+      throw new PublicOperationError(400, "不能把目录操作到自身或其子目录")
     }
     if (path.dirname(source) === destination) {
-      throw new Error("源与目标在同一目录")
+      throw new PublicOperationError(409, "源与目标在同一目录")
     }
   }
   return destination
@@ -964,7 +966,7 @@ export const writeFileContent = async (
     throw new Error("该文件类型不支持在线编辑")
   }
   if (Buffer.byteLength(content, "utf8") > MAX_EDITABLE_BYTES) {
-    throw new Error("文件内容超过 2 MB，不支持保存")
+    throw new PublicOperationError(400, "文件内容超过 2 MB，不支持保存")
   }
   const tempPath = `${value}.${randomUUID()}.writing`
   const output = await open(tempPath, "wx", info.mode)
@@ -1040,10 +1042,10 @@ export const receiveUpload = async (
   const destination = path.join(dir, fileName)
   const partPath = `${destination}${UPLOAD_PART_SUFFIX}`
   if (existsSync(destination)) {
-    throw new Error("目标已存在同名文件")
+    throw new PublicOperationError(409, "目标已存在同名文件")
   }
   if (existsSync(partPath)) {
-    throw new Error("该文件正在上传中")
+    throw new PublicOperationError(409, "该文件正在上传中")
   }
   const output = await open(partPath, "wx")
   const owned = await output.stat()
