@@ -1,4 +1,4 @@
-import type { FrpProbe, FrpProxyType } from "@shared/api-contract"
+import type { FrpConfig, FrpProbe, FrpProxyType } from "@shared/api-contract"
 import { create } from "zustand"
 
 export type FrpTypeFilter = "all" | FrpProxyType
@@ -8,6 +8,11 @@ export type FrpTypeFilter = "all" | FrpProxyType
  * 远程配置由 TanStack Query 管；只影响单个组件的状态（弹窗开关、表单字段）留在 React state。
  */
 type FrpLocalState = {
+  draft: FrpConfig | null
+  savedSignature: string | null
+  updateDraft: (config: FrpConfig) => void
+  markSaved: (signature: string) => void
+  discardDraft: () => void
   search: string
   typeFilter: FrpTypeFilter
   selectedName: string | null
@@ -25,6 +30,11 @@ type FrpLocalState = {
 }
 
 export const useFrpLocalStore = create<FrpLocalState>((set) => ({
+  draft: null,
+  savedSignature: null,
+  updateDraft: (draft) => set({ draft }),
+  markSaved: (savedSignature) => set({ savedSignature }),
+  discardDraft: () => set({ draft: null, savedSignature: null }),
   search: "",
   typeFilter: "all",
   selectedName: null,

@@ -1,6 +1,5 @@
 import {
   type ActionResponse,
-  type FrpConfig,
   type FrpConfigInput,
   type FrpProxy,
   TASK_KINDS,
@@ -46,13 +45,14 @@ export const useFrp = () => {
   const probingNames = useRef(new Set<string>())
   const probingAll = useRef(false)
 
-  const config = configQuery.data ?? null
+  const config = local.draft ?? configQuery.data ?? null
   const server = config?.server ?? null
   const proxies = useMemo(() => config?.proxies ?? [], [config])
 
   /** 当前内容与磁盘上已保存内容是否一致。 */
   const dirty = config
-    ? configSignature(config) !== config.savedSignature
+    ? configSignature(config) !==
+      (local.savedSignature ?? config.savedSignature)
     : false
 
   useEffect(() => {
@@ -171,15 +171,12 @@ export const useFrp = () => {
     try {
       const persisted = await fetchFrpConfig()
       queryClient.setQueryData(frpKeys.persisted, persisted)
-      queryClient.setQueryData<FrpConfig>(frpKeys.config, (previous) =>
-        previous
-          ? { ...previous, savedSignature: persisted.savedSignature }
-          : persisted
-      )
+      local.markSaved(persisted.savedSignature)
+      queryClient.setQueryData(frpKeys.config, persisted)
     } catch (error) {
       toast.error(`保存任务已完成，但读取保存状态失败：${describeError(error)}`)
     }
-  }, [queryClient])
+  }, [queryClient, local.markSaved])
 
   useEffect(() => {
     registerTaskCompletion(TASK_KINDS.frpConfigSave, async (task) => {
@@ -199,11 +196,7 @@ export const useFrp = () => {
     target: frpConfigTaskTarget(),
     run: (requestId, input) => saveFrpConfigApi(requestId, input),
     onCompleted: (result, input) => {
-      queryClient.setQueryData<FrpConfig>(frpKeys.config, (previous) =>
-        previous
-          ? { ...previous, savedSignature: configSignature(input) }
-          : previous
-      )
+      local.markSaved(configSignature(input))
       toast.success(result.message)
     },
   })
@@ -213,6 +206,7 @@ export const useFrp = () => {
       const persisted = await fetchFrpConfig()
       queryClient.setQueryData(frpKeys.persisted, persisted)
       queryClient.setQueryData(frpKeys.config, persisted)
+      local.discardDraft()
       publishDraftProtection("frp", false)
       toast.info("已放弃草稿并读取已保存配置")
     } catch (error) {

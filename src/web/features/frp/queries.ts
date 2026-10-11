@@ -1,6 +1,5 @@
 import type { FrpConfig, FrpProbe, FrpProxy } from "@shared/api-contract"
 import { fetchFrpConfig, probeFrpProxy } from "@shared/client-api"
-import { configSignature } from "@shared/frp-format"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useFrpLocalStore } from "@web/features/frp/store"
 
@@ -20,11 +19,8 @@ export const useFrpConfigQuery = () => {
     queryFn: async () => {
       const remote = await fetchFrpConfig()
       client.setQueryData(frpKeys.persisted, remote)
-      const current = client.getQueryData<FrpConfig>(frpKeys.config)
-      // 读取结束时检查最新草稿，保护等待期间产生的编辑。
-      return current && configSignature(current) !== current.savedSignature
-        ? { ...current, savedSignature: remote.savedSignature }
-        : remote
+      useFrpLocalStore.getState().markSaved(remote.savedSignature)
+      return remote
     },
   })
 }
@@ -35,9 +31,10 @@ const updateProxies = (
   client: QueryClient,
   updater: (proxies: FrpProxy[]) => FrpProxy[]
 ) => {
-  client.setQueryData<FrpConfig>(frpKeys.config, (previous) =>
-    previous ? { ...previous, proxies: updater(previous.proxies) } : previous
-  )
+  const local = useFrpLocalStore.getState()
+  const previous = local.draft ?? client.getQueryData<FrpConfig>(frpKeys.config)
+  if (previous)
+    local.updateDraft({ ...previous, proxies: updater(previous.proxies) })
 }
 
 /** 新增一条隧道（仅本地，保存时才落盘）。 */
@@ -87,7 +84,9 @@ export const useProbeProxy = () => {
   const setChecking = useFrpLocalStore((state) => state.setChecking)
   return useMutation({
     mutationFn: (proxy: FrpProxy) => {
-      const config = client.getQueryData<FrpConfig>(frpKeys.config)
+      const config =
+        useFrpLocalStore.getState().draft ??
+        client.getQueryData<FrpConfig>(frpKeys.config)
       if (!config) throw new Error("尚未读取到 frpc 配置")
       return probeFrpProxy({
         serverAddr: config.server.serverAddr,

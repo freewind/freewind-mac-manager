@@ -107,7 +107,12 @@ beforeEach(() => {
   readApi.mockReset()
   taskApi.mockReset()
   localStorage.clear()
-  useFrpLocalStore.setState({ checking: [], probes: {} })
+  useFrpLocalStore.setState({
+    checking: [],
+    probes: {},
+    draft: null,
+    savedSignature: null,
+  })
 })
 afterEach(cleanup)
 
@@ -228,11 +233,9 @@ describe("FRP save and refresh feedback", () => {
     })
     const { client } = mount()
     const edited = { ...config, proxies: config.proxies.slice(0, 1) }
-    act(() => client.setQueryData(frpKeys.config, edited))
+    act(() => useFrpLocalStore.getState().updateDraft(edited))
     await act(async () => runTaskCompletion(savedTask("done")))
-    expect(client.getQueryData<FrpConfig>(frpKeys.config)?.proxies).toEqual(
-      edited.proxies
-    )
+    expect(useFrpLocalStore.getState().draft?.proxies).toEqual(edited.proxies)
     expect(client.getQueryData<FrpConfig>(frpKeys.config)?.savedSignature).toBe(
       configSignature(config)
     )
@@ -269,13 +272,11 @@ describe("FRP save and refresh feedback", () => {
       ...config,
       savedSignature: configSignature(config),
     })
-    act(() => client.setQueryData(frpKeys.config, edited))
+    act(() => useFrpLocalStore.getState().updateDraft(edited))
     await act(async () =>
       client.invalidateQueries({ queryKey: frpKeys.config })
     )
-    expect(client.getQueryData<FrpConfig>(frpKeys.config)?.proxies).toEqual(
-      edited.proxies
-    )
+    expect(useFrpLocalStore.getState().draft?.proxies).toEqual(edited.proxies)
     client.clear()
   })
 
@@ -303,9 +304,11 @@ describe("FRP save and refresh feedback", () => {
     const persisted = { ...config, savedSignature: configSignature(config) }
     readApi.mockResolvedValue(persisted)
     const { result: hook, client } = mount()
-    act(() => client.setQueryData(frpKeys.config, { ...config, proxies: [] }))
+    act(() =>
+      useFrpLocalStore.getState().updateDraft({ ...config, proxies: [] })
+    )
     await act(async () => hook.current.refresh())
-    expect(client.getQueryData<FrpConfig>(frpKeys.config)?.proxies).toEqual([])
+    expect(hook.current.proxies).toEqual([])
     await act(async () => hook.current.discardDraft())
     expect(client.getQueryData<FrpConfig>(frpKeys.config)?.proxies).toEqual(
       config.proxies
