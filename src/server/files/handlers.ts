@@ -1,4 +1,5 @@
 import path from "node:path"
+import { publicSystemError } from "@server/common/public-error"
 import { toTaskHttpResponse } from "@server/common/tasks/response"
 import type { TaskRuntime } from "@server/tasks/runtime"
 import type { ActionResponse, FileBatchResult } from "@shared/api-contract"
@@ -10,7 +11,6 @@ import { initServer } from "@ts-rest/express"
 import type express from "express"
 import { z } from "zod"
 import {
-  describeFileError,
   listDirectory,
   openDownload,
   readFileContent,
@@ -48,10 +48,7 @@ export const filesContract = {
   downloadFile: contract.downloadFile,
 }
 
-const toError = (error: unknown) => ({
-  status: 400 as const,
-  body: { message: describeFileError(error) },
-})
+const toError = publicSystemError
 
 /**
  * 批量操作统一提交任务：完成结果必须通过契约校验才能作为 200 返回，
@@ -249,7 +246,8 @@ export const registerUploadEndpoint = (app: express.Express): void => {
       const file = await receiveUpload(targetPath, relativePath, request)
       response.status(200).json({ message: "文件已上传", file })
     } catch (error) {
-      response.status(400).json({ message: describeFileError(error) })
+      const failure = toError(error)
+      response.status(failure.status).json(failure.body)
     }
   })
 }
