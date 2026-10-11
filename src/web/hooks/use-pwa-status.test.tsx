@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { afterEach, expect, it, vi } from "vitest"
+import { publishDraftProtection } from "./use-edit-protection"
 import { usePwaStatus } from "./use-pwa-status"
 
 afterEach(() => {
@@ -34,6 +35,10 @@ it("checks active writes at update time before activating the waiting worker", a
   act(() => result.current.applyUpdate())
   expect(message).not.toHaveBeenCalled()
   endWrite()
+  publishDraftProtection("test", true)
+  act(() => result.current.applyUpdate())
+  expect(message).not.toHaveBeenCalled()
+  publishDraftProtection("test", false)
   act(() => result.current.applyUpdate())
   expect(message).toHaveBeenCalledWith({ type: "SKIP_WAITING" })
   client.clear()
