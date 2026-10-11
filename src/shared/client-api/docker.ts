@@ -1,17 +1,54 @@
 import type {
   ActionResponse,
   DockerColimaActionBody,
+  DockerColimaStatus,
   DockerContainerActionBody,
   DockerContainerCreateBody,
   DockerContainerCreated,
   DockerContainerDeleteBody,
+  DockerContainerLogsQuery,
+  DockerContainerLogsResponse,
+  DockerContainersResponse,
   DockerImageDeleteBody,
   DockerImagePullBody,
+  DockerImagesResponse,
   DockerNetworkDeleteBody,
+  DockerNetworksResponse,
+  DockerOverview,
   DockerVolumeDeleteBody,
+  DockerVolumesResponse,
 } from "@shared/api-contract"
-import { apiClient, taskRequestHeaders } from "./client"
+import { apiClient, taskRequestHeaders, unwrap } from "./client"
 import { type Execution, runExecution } from "./execution"
+
+// ---- 只读查询：数据只从后端读取，前端不缓存到本地 store ----
+
+export const fetchDockerOverview = async (): Promise<DockerOverview> =>
+  unwrap<DockerOverview>(await apiClient.getDockerOverview())
+
+export const fetchDockerContainers =
+  async (): Promise<DockerContainersResponse> =>
+    unwrap<DockerContainersResponse>(await apiClient.listDockerContainers())
+
+/** 日志只按需读取：调用方决定 tail 与是否重新拉取。 */
+export const fetchDockerContainerLogs = async (
+  query: DockerContainerLogsQuery
+): Promise<DockerContainerLogsResponse> =>
+  unwrap<DockerContainerLogsResponse>(
+    await apiClient.getDockerContainerLogs({ query })
+  )
+
+export const fetchDockerImages = async (): Promise<DockerImagesResponse> =>
+  unwrap<DockerImagesResponse>(await apiClient.listDockerImages())
+
+export const fetchDockerVolumes = async (): Promise<DockerVolumesResponse> =>
+  unwrap<DockerVolumesResponse>(await apiClient.listDockerVolumes())
+
+export const fetchDockerNetworks = async (): Promise<DockerNetworksResponse> =>
+  unwrap<DockerNetworksResponse>(await apiClient.listDockerNetworks())
+
+export const fetchDockerColimaStatus = async (): Promise<DockerColimaStatus> =>
+  unwrap<DockerColimaStatus>(await apiClient.getDockerColimaStatus())
 
 /**
  * 容器动作都由请求标识驱动：服务端据此复用任务，重发不会变成第二次执行。

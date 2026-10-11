@@ -13,6 +13,7 @@ import { LoginPage } from "@web/features/auth/LoginPage"
 import { ClashVergePage } from "@web/features/clash-verge/ClashVergePage"
 import { DashboardPage } from "@web/features/dashboard/DashboardPage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
+import { DockerPage } from "@web/features/docker/DockerPage"
 import { FilesPage } from "@web/features/files/FilesPage"
 import { FrpPage } from "@web/features/frp/FrpPage"
 import { PiPage } from "@web/features/pi/PiPage"
@@ -40,6 +41,7 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "system-services",
   "pi",
   "clash-verge",
+  "docker",
 ]
 
 const featureFromUrl = (): FeatureKey => {
@@ -182,6 +184,7 @@ export const App = () => {
         {feature === "system-services" ? <SystemServicesPage /> : null}
         {feature === "pi" ? <PiPage /> : null}
         {feature === "clash-verge" ? <ClashVergePage /> : null}
+        {feature === "docker" ? <DockerPage /> : null}
       </SidebarInset>
     </SidebarProvider>
   )
