@@ -157,9 +157,15 @@ export const DiskGrowthPage = () => {
             }}
             className="ml-2"
           >
-            <ToggleGroupItem value="growth">看增长</ToggleGroupItem>
-            <ToggleGroupItem value="size">看大小</ToggleGroupItem>
-            <ToggleGroupItem value="icicle">分布图</ToggleGroupItem>
+            <ToggleGroupItem className="min-h-11" value="growth">
+              看增长
+            </ToggleGroupItem>
+            <ToggleGroupItem className="min-h-11" value="size">
+              看大小
+            </ToggleGroupItem>
+            <ToggleGroupItem className="min-h-11" value="icicle">
+              分布图
+            </ToggleGroupItem>
           </ToggleGroup>
           <div className="relative ml-auto w-full md:w-64">
             <HugeiconsIcon

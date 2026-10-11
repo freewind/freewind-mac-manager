@@ -311,13 +311,13 @@ const ContainerActions = (props: {
 )
 
 const ContainerSummary = ({ container }: { container: DockerContainer }) => (
-  <>
+  <div className="flex min-w-0 flex-1 flex-col">
     <ItemTitle className="min-w-0 truncate">{container.name}</ItemTitle>
     <ItemDescription className="min-w-0 truncate">
       {container.image} ·{" "}
       {container.status || containerStateLabels[container.state]}
     </ItemDescription>
-  </>
+  </div>
 )
 
 const ContainerStateBadge = ({ container }: { container: DockerContainer }) => (

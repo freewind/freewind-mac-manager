@@ -154,7 +154,7 @@ export const App = () => {
   return (
     <SidebarProvider>
       <AppSidebar active={feature} onSelect={selectFeature} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <div className="flex items-center gap-2 border-b px-2 py-2">
           <SidebarTrigger />
           {canGoBack ? (
