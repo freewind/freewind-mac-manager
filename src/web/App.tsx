@@ -15,6 +15,7 @@ import { DashboardPage } from "@web/features/dashboard/DashboardPage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
 import { FilesPage } from "@web/features/files/FilesPage"
 import { FrpPage } from "@web/features/frp/FrpPage"
+import { HardwarePage } from "@web/features/hardware/HardwarePage"
 import { PiPage } from "@web/features/pi/PiPage"
 import { PortsPage } from "@web/features/ports/PortsPage"
 import { ProcessesPage } from "@web/features/processes/ProcessesPage"
@@ -40,6 +41,7 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "system-services",
   "pi",
   "clash-verge",
+  "hardware",
 ]
 
 const featureFromUrl = (): FeatureKey => {
@@ -182,6 +184,7 @@ export const App = () => {
         {feature === "system-services" ? <SystemServicesPage /> : null}
         {feature === "pi" ? <PiPage /> : null}
         {feature === "clash-verge" ? <ClashVergePage /> : null}
+        {feature === "hardware" ? <HardwarePage /> : null}
       </SidebarInset>
     </SidebarProvider>
   )

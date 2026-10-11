@@ -2,6 +2,7 @@ import {
   Activity01Icon,
   AnalyticsUpIcon,
   ArrowRight01Icon,
+  ChipIcon,
   CircleGaugeIcon,
   CpuIcon,
   DashboardSpeed02Icon,
@@ -46,6 +47,7 @@ export type FeatureKey =
   | "system-services"
   | "pi"
   | "clash-verge"
+  | "hardware"
 
 type FeatureItem = {
   key: FeatureKey
@@ -62,6 +64,7 @@ const FEATURES: FeatureItem[] = [
   { key: "traffic", label: "流量监控", icon: DashboardSpeed02Icon },
   { key: "ports", label: "端口管理", icon: EthernetPortIcon },
   { key: "pi", label: "Pi Agent", icon: Robot01Icon },
+  { key: "hardware", label: "硬件", icon: ChipIcon },
 ]
 
 /** 可折叠「服务」组下的子项。 */
