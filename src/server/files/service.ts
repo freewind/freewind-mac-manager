@@ -1,11 +1,6 @@
 import { randomUUID } from "node:crypto"
 import type { Dirent, ReadStream } from "node:fs"
-import {
-  constants,
-  createReadStream,
-  createWriteStream,
-  existsSync,
-} from "node:fs"
+import { constants, createReadStream, existsSync } from "node:fs"
 import {
   type copyFile,
   link,
@@ -1016,17 +1011,27 @@ export const receiveUpload = async (
   if (!fileName) {
     throw new Error("非法名称")
   }
-  const dir = path.join(destRoot, ...segments)
+  let dir = destRoot
+  for (const segment of segments) {
+    const next = path.join(dir, segment)
+    try {
+      await mkdir(next)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
+    }
+    dir = await resolveExistingDirectory(next)
+  }
+  const directoryInfo = await lstat(dir)
   const destination = path.join(dir, fileName)
   const partPath = `${destination}${UPLOAD_PART_SUFFIX}`
-
-  await mkdir(dir, { recursive: true })
   if (existsSync(destination)) {
     throw new Error("目标已存在同名文件")
   }
   if (existsSync(partPath)) {
     throw new Error("该文件正在上传中")
   }
+  const output = await open(partPath, "wx")
+  const owned = await output.stat()
   try {
     const limiter = new Transform({
       transform(chunk: unknown, _encoding, callback) {
@@ -1040,11 +1045,23 @@ export const receiveUpload = async (
       },
     })
     let bytes = 0
-    await pipeline(source, limiter, createWriteStream(partPath))
-    await rename(partPath, destination)
-  } catch (error) {
-    await rm(partPath, { force: true })
-    throw error
+    await pipeline(source, limiter, output.createWriteStream())
+    const currentDirectory = await lstat(dir)
+    if (
+      currentDirectory.dev !== directoryInfo.dev ||
+      currentDirectory.ino !== directoryInfo.ino ||
+      currentDirectory.isSymbolicLink()
+    ) {
+      throw new Error("上传目录已变化，未发布目标")
+    }
+    // 硬链接发布是原子的排他创建，不能覆盖上传期间出现的同名文件。
+    await link(partPath, destination)
+  } finally {
+    await output.close().catch(() => undefined)
+    const current = await lstat(partPath).catch(() => null)
+    if (current?.dev === owned.dev && current.ino === owned.ino) {
+      await rm(partPath, { force: true })
+    }
   }
 
   const info = await stat(destination)
