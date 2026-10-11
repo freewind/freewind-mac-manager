@@ -1,14 +1,14 @@
 import { createExpressEndpoints } from "@ts-rest/express"
 import express from "express"
-import { clashVergeContract, clashVergeRouter } from "./clash-verge/handlers"
 import { authContract, createAuthManager, createAuthRouter } from "./auth"
+import { clashVergeContract, clashVergeRouter } from "./clash-verge/handlers"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
 import {
   createDiskGrowthRouter,
   diskGrowthContract,
 } from "./disk-growth/handlers"
 import { createDockerRouter, dockerContract } from "./docker/handlers"
-import { createDockerService } from "./docker/service"
+import { createDockerService, type DockerServiceCli } from "./docker/service"
 import {
   createFilesRouter,
   filesContract,
@@ -35,6 +35,11 @@ export const createApp = (injected?: {
   tasks?: TaskRuntime
   /** HTTP 测试关闭业务迁移与采样；生产默认执行初始化。 */
   initializeBusiness?: boolean
+  /**
+   * 仅测试使用：替换 Docker 域的只读/预检查执行层，
+   * 让集成测试不必碰真实 docker（动作条目由测试自己用同一替身执行）。
+   */
+  dockerCli?: DockerServiceCli
 }): express.Express => {
   const app = express()
   // 文件管理的删除接口用数组 query，ts-rest client 发的是 paths[0]=… ，
@@ -69,7 +74,7 @@ export const createApp = (injected?: {
   // Docker 容器动作走统一任务运行时；只读端点不需要。
   createExpressEndpoints(
     dockerContract,
-    createDockerRouter(createDockerService(), taskRuntime),
+    createDockerRouter(createDockerService(injected?.dockerCli), taskRuntime),
     app,
     options
   )

@@ -12,6 +12,7 @@ import {
 import {
   DOCKER_ACTION_KIND,
   type DockerActionPayload,
+  dockerActionTargetOf,
 } from "@server/docker/task"
 import type { TaskRuntime } from "@server/tasks/runtime"
 import {
@@ -23,15 +24,13 @@ import {
 } from "@shared/api-contract"
 import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
 import { DockerContainerCreatedSchema } from "@shared/api-contract/schemas/docker"
-import {
-  dockerColimaTaskTarget,
-  dockerContainerTaskTarget,
-  dockerImageTaskTarget,
-  dockerNetworkTaskTarget,
-  dockerVolumeTaskTarget,
-} from "@shared/task-targets"
+import { dockerColimaTaskTarget } from "@shared/task-targets"
 import { initServer } from "@ts-rest/express"
-import { DockerCommandError, isMissingContainerError } from "./cli"
+import {
+  DockerCommandError,
+  isMissingContainerError,
+  markDockerWritePending,
+} from "./cli"
 import type { DockerService } from "./service"
 
 const s = initServer()
@@ -150,7 +149,11 @@ const containerActionPayload = (
  * 主动清掉 Docker 域的只读缓存：紧接着的读会重新执行 docker 命令，
  * 而不是命中写之前的旧值。（子进程侧 cli 也会失效，两边都做。）
  */
-const invalidateDockerReads = (): void => invalidateCached("docker:")
+const invalidateDockerReads = (): void => {
+  invalidateCached("docker:")
+  // 动作可能超过响应阈值才在子进程里完成，父进程在宽限期内不读缓存
+  markDockerWritePending()
+}
 
 /** 动作类完成结果都是 ActionResponse；新建容器额外带资源标识。 */
 const actionResponseOf = (result: unknown): ActionResponse => {
@@ -165,19 +168,16 @@ const actionResponseOf = (result: unknown): ActionResponse => {
 const submitDockerAction = async <TBody>(
   runtime: TaskRuntime,
   options: {
-    payload: DockerActionPayload | ColimaActionPayload
-    /** 任务种类：默认容器/镜像/卷/网络的 docker_action */
-    kind?: string
-    /** 冲突锁：按操作对象，同对象互斥、不同对象可并行 */
-    target: string
+    payload: DockerActionPayload
     requestId: string
     completedStatus: 200 | 201
     parseCompleted: (result: unknown) => TBody
   }
 ) => {
   const outcome = await runtime.runner.submit<TBody>({
-    kind: options.kind ?? DOCKER_ACTION_KIND,
-    target: options.target,
+    kind: DOCKER_ACTION_KIND,
+    // 冲突锁按操作对象推导：映射只有 dockerActionTargetOf 一处实现
+    target: dockerActionTargetOf(options.payload),
     payload: options.payload,
     requestId: options.requestId,
     toCompletedResponse: (result) => ({
@@ -190,20 +190,31 @@ const submitDockerAction = async <TBody>(
 
 const submitContainerAction = (
   runtime: TaskRuntime,
-  options: {
-    payload: DockerActionPayload
-    /** 冲突锁按容器 id：同容器互斥，不同容器可并行 */
-    containerId: string
-    requestId: string
-  }
+  options: { payload: DockerActionPayload; requestId: string }
 ) =>
   submitDockerAction(runtime, {
-    payload: options.payload,
-    target: dockerContainerTaskTarget(options.containerId),
-    requestId: options.requestId,
+    ...options,
     completedStatus: 200,
     parseCompleted: actionResponseOf,
   })
+
+/** Colima 动作是另一种任务种类，作用域是整台虚拟机。 */
+const submitColimaAction = async (
+  runtime: TaskRuntime,
+  options: { payload: ColimaActionPayload; requestId: string }
+) => {
+  const outcome = await runtime.runner.submit<ActionResponse>({
+    kind: COLIMA_ACTION_KIND,
+    target: dockerColimaTaskTarget(),
+    payload: options.payload,
+    requestId: options.requestId,
+    toCompletedResponse: (result) => ({
+      status: 200,
+      body: actionResponseOf(result.result),
+    }),
+  })
+  return toTaskHttpResponse(outcome, 200)
+}
 
 export const createDockerRouter = (
   service: DockerService,
@@ -281,7 +292,6 @@ export const createDockerRouter = (
         }
         return await submitContainerAction(runtime, {
           payload: containerActionPayload(body),
-          containerId: body.containerId,
           requestId: headers[TASK_REQUEST_ID_HEADER],
         })
       } catch (error) {
@@ -317,7 +327,6 @@ export const createDockerRouter = (
         return await submitDockerAction<DockerContainerCreated>(runtime, {
           payload: { action: "containerCreate", container: body },
           // 新容器还没有 id，按名字（未指定时按镜像）加锁
-          target: dockerContainerTaskTarget(body.name ?? body.image),
           requestId: headers[TASK_REQUEST_ID_HEADER],
           completedStatus: 201,
           parseCompleted: (result) => {
@@ -338,7 +347,6 @@ export const createDockerRouter = (
         invalidateDockerReads()
         return await submitDockerAction(runtime, {
           payload: { action: "imagePull", image: body.image },
-          target: dockerImageTaskTarget(body.image),
           requestId: headers[TASK_REQUEST_ID_HEADER],
           completedStatus: 200,
           parseCompleted: actionResponseOf,
@@ -358,7 +366,6 @@ export const createDockerRouter = (
             imageId: body.imageId,
             force: body.force,
           },
-          target: dockerImageTaskTarget(body.imageId),
           requestId: headers[TASK_REQUEST_ID_HEADER],
           completedStatus: 200,
           parseCompleted: actionResponseOf,
@@ -374,7 +381,6 @@ export const createDockerRouter = (
         // 被容器使用的卷由 docker 拒绝，再映射成 409
         return await submitDockerAction(runtime, {
           payload: { action: "volumeRemove", name: body.name },
-          target: dockerVolumeTaskTarget(body.name),
           requestId: headers[TASK_REQUEST_ID_HEADER],
           completedStatus: 200,
           parseCompleted: actionResponseOf,
@@ -390,7 +396,6 @@ export const createDockerRouter = (
         // 内置网络与仍有容器接入的网络都会在执行器里被拒绝（409）
         return await submitDockerAction(runtime, {
           payload: { action: "networkRemove", networkId: body.networkId },
-          target: dockerNetworkTaskTarget(body.networkId),
           requestId: headers[TASK_REQUEST_ID_HEADER],
           completedStatus: 200,
           parseCompleted: actionResponseOf,
@@ -423,14 +428,9 @@ export const createDockerRouter = (
             },
           }
         }
-        return await submitDockerAction(runtime, {
-          kind: COLIMA_ACTION_KIND,
+        return await submitColimaAction(runtime, {
           payload: { action: body.action },
-          // 整台虚拟机是同一个作用域：任何 Colima 动作都互相排斥
-          target: dockerColimaTaskTarget(),
           requestId: headers[TASK_REQUEST_ID_HEADER],
-          completedStatus: 200,
-          parseCompleted: actionResponseOf,
         })
       } catch (error) {
         return failWrite(error)
@@ -463,7 +463,6 @@ export const createDockerRouter = (
             containerId: body.containerId,
             force: body.force,
           },
-          containerId: body.containerId,
           requestId: headers[TASK_REQUEST_ID_HEADER],
         })
       } catch (error) {

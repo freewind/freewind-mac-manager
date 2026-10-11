@@ -36,6 +36,21 @@ const TIMEOUT = {
 /** Docker 域只读缓存的公共前缀：写操作成功后按该前缀整体失效。 */
 const DOCKER_CACHE_PREFIX = "docker:"
 
+/**
+ * 写操作会改真实状态，而动作可能在任务子进程里执行：
+ * 父进程提交写请求后开一个宽限期，这段时间内只读列表直接读 docker，
+ * 不再命中「动作完成前」填充的缓存（子进程的失效影响不到父进程）。
+ */
+const WRITE_GRACE_MS = 15_000
+let skipCacheUntil = 0
+
+export const markDockerWritePending = (): void => {
+  skipCacheUntil = Date.now() + WRITE_GRACE_MS
+}
+
+export const isDockerWriteGraceActive = (): boolean =>
+  Date.now() < skipCacheUntil
+
 /** 只读列表的短 TTL：页面几秒刷新一次，缓存只为避免重复压机器。 */
 const TTL = {
   containers: 3_000,
@@ -951,8 +966,15 @@ export const createDockerCli = (
     }
   }
 
+  /** 宽限期内跳过缓存，直接执行 docker 命令读取当前真实状态。 */
+  const readList = <T>(
+    key: string,
+    ttl: number,
+    load: () => Promise<T>
+  ): Promise<T> => (isDockerWriteGraceActive() ? load() : cache(key, ttl, load))
+
   const listContainers = (): Promise<DockerContainer[]> =>
-    cache("docker:containers", TTL.containers, async () => {
+    readList("docker:containers", TTL.containers, async () => {
       const [ids, listed] = await Promise.all([
         docker(["ps", "-aq"], TIMEOUT.list),
         containers(),
@@ -962,14 +984,14 @@ export const createDockerCli = (
     })
 
   const listImages = (): Promise<DockerImage[]> =>
-    cache("docker:images", TTL.images, async () =>
+    readList("docker:images", TTL.images, async () =>
       parseImages(
         (await docker(["images", "--format", "json"], TIMEOUT.list)).stdout
       )
     )
 
   const listNetworks = (): Promise<Omit<DockerNetwork, "builtin">[]> =>
-    cache("docker:networks", TTL.networks, async () => {
+    readList("docker:networks", TTL.networks, async () => {
       const [listed, rawContainers] = await Promise.all([
         docker(["network", "ls", "--format", "json"], TIMEOUT.list),
         containers(),
@@ -985,7 +1007,7 @@ export const createDockerCli = (
     })
 
   const listVolumes = (): Promise<DockerVolume[]> =>
-    cache("docker:volumes", TTL.volumes, async () => {
+    readList("docker:volumes", TTL.volumes, async () => {
       const listed = await docker(
         ["volume", "ls", "--format", "json"],
         TIMEOUT.list
@@ -1065,7 +1087,7 @@ export const createDockerCli = (
   }
 
   const getInfo = (): Promise<DockerInfo> =>
-    cache("docker:info", TTL.info, async () =>
+    readList("docker:info", TTL.info, async () =>
       parseInfo(
         (await docker(["info", "--format", "{{json .}}"], TIMEOUT.quick)).stdout
       )
@@ -1073,7 +1095,7 @@ export const createDockerCli = (
 
   /** 概览要的磁盘占用：Images 行已去重共享层，比逐镜像求和更准。 */
   const getDiskUsage = (): Promise<Map<string, number>> =>
-    cache("docker:disk-usage", TTL.info, async () =>
+    readList("docker:disk-usage", TTL.info, async () =>
       parseDiskUsage((await docker(["system", "df"], TIMEOUT.list)).stdout)
     )
 

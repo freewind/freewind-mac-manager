@@ -16,6 +16,7 @@ import {
   DockerCommandError,
   dockerCli,
   isBuiltinNetwork,
+  isDockerWriteGraceActive,
 } from "./cli"
 
 /**
@@ -69,7 +70,10 @@ export const createDockerService = (
   cache: DockerCache = cached
 ) => {
   const readColimaStatus = (): Promise<DockerColimaStatus> =>
-    cache(COLIMA_CACHE_KEY, COLIMA_TTL, () => cli.getColimaStatus())
+    // 写宽限期内直接读真实状态：Colima 动作也可能在子进程里执行
+    isDockerWriteGraceActive()
+      ? cli.getColimaStatus()
+      : cache(COLIMA_CACHE_KEY, COLIMA_TTL, () => cli.getColimaStatus())
 
   /**
    * 首屏必须宽容：Colima 未运行或 docker 不可用时返回 available:false 与全 0 计数，

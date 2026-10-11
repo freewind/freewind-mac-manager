@@ -10,6 +10,8 @@ import {
   type DockerCli,
   DockerCommandError,
   type DockerCommandRunner,
+  isDockerWriteGraceActive,
+  markDockerWritePending,
   parseColimaStatus,
   parseContainerIds,
   parseDockerSize,
@@ -1516,5 +1518,32 @@ describe("写操作失效只读缓存", () => {
     })
     await cli.stopContainer("gone").catch(() => undefined)
     expect(invalidated).toEqual([])
+  })
+})
+
+describe("写操作后的读宽限期", () => {
+  it("宽限期内只读列表跳过缓存，直接读真实状态", async () => {
+    let cachedCalls = 0
+    const countingCache: DockerCache = (_key, _ttl, load) => {
+      cachedCalls += 1
+      return load()
+    }
+    const { runner } = createFakeRunner(async (_command, args) =>
+      args[0] === "images"
+        ? { stdout: '{"ID":"a","Repository":"alpine"}\n', stderr: "" }
+        : { stdout: "", stderr: "" }
+    )
+    const cli = createDockerCli({ run: runner, cache: countingCache })
+
+    // 正常情况下走缓存层
+    await cli.listImages()
+    expect(cachedCalls).toBe(1)
+
+    // 提交写操作后开宽限期：这段时间内不经过缓存
+    markDockerWritePending()
+    expect(isDockerWriteGraceActive()).toBe(true)
+    await cli.listImages()
+    await cli.getInfo()
+    expect(cachedCalls).toBe(1)
   })
 })
