@@ -1,6 +1,24 @@
-import type { DockerColimaStatus, DockerOverview } from "@shared/api-contract"
+import {
+  type ActionResponse,
+  type DockerColimaStatus,
+  type DockerContainer,
+  type DockerOverview,
+  TASK_KINDS,
+} from "@shared/api-contract"
+import { actOnDockerContainer, removeDockerContainer } from "@shared/client-api"
 import { describeError, formatTimestamp } from "@shared/format"
-import { useDockerOverviewQuery } from "@web/features/docker/queries"
+import { dockerContainerTaskTarget } from "@shared/task-targets"
+import { useQueryClient } from "@tanstack/react-query"
+import type { ContainerAction } from "@web/features/docker/labels"
+import {
+  dockerKeys,
+  useDockerContainersQuery,
+  useDockerOverviewQuery,
+} from "@web/features/docker/queries"
+import { registerTaskCompletion } from "@web/features/tasks/completion"
+import { useTaskAction } from "@web/hooks/use-task-action"
+import { useCallback, useEffect, useState } from "react"
+import { toast } from "sonner"
 
 /** Colima 的展示状态：未安装与未运行要分开，处理方式完全不同。 */
 export const colimaStateOf = (
@@ -41,5 +59,72 @@ export const useDocker = (): DockerPageModel => {
     refresh: () => {
       void query.refetch()
     },
+  }
+}
+
+export type ContainerActionInput = {
+  containerId: string
+  action: ContainerAction
+  /** 只对 stop/restart/remove 有意义；删除运行中的容器必须显式带 force */
+  force?: boolean
+}
+
+/**
+ * 容器列表与动作编排。
+ *
+ * 动作全部复用 use-task-action：请求标识由它生成，受理与结果未知的语义也在那里，
+ * 这里只负责把载荷映射到 client-api 的具名调用，并在完成时失效 Docker 缓存。
+ */
+export const useDockerContainers = () => {
+  const queryClient = useQueryClient()
+  const query = useDockerContainersQuery()
+  const [pendingRemove, setPendingRemove] = useState<DockerContainer | null>(
+    null
+  )
+
+  // 动作改了真实状态：概览与列表都要重新读取
+  const refresh = useCallback((): void => {
+    void queryClient.invalidateQueries({ queryKey: dockerKeys.containers })
+    void queryClient.invalidateQueries({ queryKey: dockerKeys.overview })
+  }, [queryClient])
+
+  // 慢路径（受理后由任务终态触发）同样要刷新
+  useEffect(() => {
+    registerTaskCompletion(TASK_KINDS.dockerAction, refresh)
+  }, [refresh])
+
+  const action = useTaskAction<ActionResponse, ContainerActionInput>({
+    kind: TASK_KINDS.dockerAction,
+    target: (payload) => dockerContainerTaskTarget(payload.containerId),
+    run: (requestId, payload) =>
+      payload.action === "remove"
+        ? removeDockerContainer(requestId, {
+            containerId: payload.containerId,
+            force: payload.force,
+          })
+        : actOnDockerContainer(requestId, {
+            containerId: payload.containerId,
+            action: payload.action,
+            force: payload.force,
+          }),
+    onCompleted: (result) => {
+      refresh()
+      // 成功提示只在这里触发一次（受理与结果未知不提示成功）
+      toast.success(result.message)
+    },
+  })
+
+  return {
+    containers: query.data?.containers ?? [],
+    skipped: query.data?.skipped ?? [],
+    isLoading: query.isPending,
+    isRefreshing: query.isFetching && !query.isPending,
+    error: query.isError ? describeError(query.error) : null,
+    action,
+    /** 待确认删除的容器：确认前不发任何请求 */
+    pendingRemove,
+    requestRemove: (container: DockerContainer): void =>
+      setPendingRemove(container),
+    cancelRemove: (): void => setPendingRemove(null),
   }
 }

@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import { Skeleton } from "@web/components/ui/skeleton"
+import { ContainerList } from "@web/features/docker/ContainerList"
 import { colimaStateOf, useDocker } from "@web/features/docker/useDocker"
 
 /** 概览一屏：Colima 状态与容器/镜像/卷/网络的真实计数。 */
@@ -71,6 +72,8 @@ export const DockerPage = () => {
       ) : overview ? (
         <DockerOverviewCards overview={overview} />
       ) : null}
+
+      <ContainerList />
     </div>
   )
 }

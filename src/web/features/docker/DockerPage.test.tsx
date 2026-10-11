@@ -4,14 +4,23 @@ import type { DockerOverview } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { DockerPage } from "./DockerPage"
 
-const { fetchDockerOverview } = vi.hoisted(() => ({
+const { fetchDockerOverview, fetchDockerContainers } = vi.hoisted(() => ({
   fetchDockerOverview: vi.fn(),
+  fetchDockerContainers: vi.fn(),
 }))
 
-vi.mock("@shared/client-api", () => ({ fetchDockerOverview }))
+// 概览页现在也渲染容器列表：只替身读接口，其余（错误类型、请求标识等）保持真实
+vi.mock(import("@shared/client-api"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchDockerOverview,
+  fetchDockerContainers,
+  fetchDockerContainerLogs: vi.fn(),
+  actOnDockerContainer: vi.fn(),
+  removeDockerContainer: vi.fn(),
+}))
 
 const overview: DockerOverview = {
   available: true,
@@ -34,6 +43,21 @@ const overview: DockerOverview = {
   checkedAt: 1_790_000_000_000,
 }
 
+beforeEach(() => {
+  fetchDockerContainers.mockResolvedValue({ containers: [], skipped: [] })
+  // 概览页也会渲染容器列表，jsdom 默认没有 matchMedia
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }))
+})
+
 const renderPage = () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -48,6 +72,8 @@ const renderPage = () => {
 afterEach(() => {
   cleanup()
   fetchDockerOverview.mockReset()
+  fetchDockerContainers.mockReset()
+  vi.unstubAllGlobals()
 })
 
 describe("DockerPage 概览", () => {
