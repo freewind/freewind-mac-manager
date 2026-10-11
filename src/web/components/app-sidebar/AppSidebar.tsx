@@ -11,6 +11,7 @@ import {
   FolderShared01Icon,
   Globe02Icon,
   Robot01Icon,
+  Router01Icon,
   ServerStack01Icon,
   Settings01Icon,
   Wifi01Icon,
@@ -45,6 +46,7 @@ export type FeatureKey =
   | "traffic"
   | "ports"
   | "frp"
+  | "caddy"
   | "system-services"
   | "pi"
   | "clash-verge"
@@ -73,6 +75,7 @@ const FEATURES: FeatureItem[] = [
 /** 可折叠「服务」组下的子项。 */
 const SERVICES: FeatureItem[] = [
   { key: "frp", label: "FRP 内网穿透", icon: Globe02Icon },
+  { key: "caddy", label: "Caddy 网关", icon: Router01Icon },
   { key: "system-services", label: "系统服务", icon: Activity01Icon },
   { key: "clash-verge", label: "Clash Verge", icon: Wifi01Icon },
 ]

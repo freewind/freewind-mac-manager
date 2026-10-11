@@ -10,6 +10,7 @@ import {
   SidebarTrigger,
 } from "@web/components/ui/sidebar"
 import { LoginPage } from "@web/features/auth/LoginPage"
+import { CaddyPage } from "@web/features/caddy/CaddyPage"
 import { ClashVergePage } from "@web/features/clash-verge/ClashVergePage"
 import { DashboardPage } from "@web/features/dashboard/DashboardPage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
@@ -39,6 +40,7 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "traffic",
   "ports",
   "frp",
+  "caddy",
   "system-services",
   "pi",
   "clash-verge",
@@ -183,6 +185,7 @@ export const App = () => {
         {feature === "traffic" ? <TrafficPage /> : null}
         {feature === "ports" ? <PortsPage /> : null}
         {feature === "frp" ? <FrpPage /> : null}
+        {feature === "caddy" ? <CaddyPage /> : null}
         {feature === "system-services" ? <SystemServicesPage /> : null}
         {feature === "pi" ? <PiPage /> : null}
         {feature === "clash-verge" ? <ClashVergePage /> : null}
