@@ -71,7 +71,7 @@ const makeRuntime = (): BenchmarkRuntime => ({
           yield event as never
         }
       },
-    } as ReturnType<BenchmarkRuntime["streamSimple"]>
+    } as unknown as ReturnType<BenchmarkRuntime["streamSimple"]>
   },
 })
 
