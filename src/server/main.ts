@@ -14,7 +14,7 @@ app.use(express.static(WEB_DIST_DIR))
 // 启动时先校验端口，缺失合法的 APP_PORT 就直接失败退出。
 const port = resolveServerPort()
 
-// 不提供应用层访问门禁，只绑定本机回环地址，绝不暴露到局域网。
+// 文件管理接口需要鉴权保护，同时只绑定本机回环地址。
 const server = app.listen(port, "127.0.0.1", () => {
   console.log(`[mac-manager] 服务已启动：http://127.0.0.1:${port}`)
   startScheduler(tasks.runner)

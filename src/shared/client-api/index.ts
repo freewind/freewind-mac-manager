@@ -1,8 +1,11 @@
+export * from "./auth"
+export * from "./auth-types"
 export * from "./clash-verge"
 export {
   ApiRequestError,
   apiClient,
   assertWriteOnline,
+  dispatchUnauthorized,
   isWriteMethod,
   newRequestId,
   taskRequestHeaders,

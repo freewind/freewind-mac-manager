@@ -31,10 +31,10 @@ import { useTaskRecovery } from "./useTaskRecovery"
  * 关闭面板只是隐藏界面，不代表取消任务；任务由后端执行。离线时停止轮询并说明
  * 原因，不用过期数据冒充当前状态。
  */
-export const TaskCenter = () => {
+export const TaskCenter = ({ authenticated }: { authenticated: boolean }) => {
   const { online } = usePwaStatus()
   const [open, setOpen] = useState(false)
-  const active = useActiveTasks(online)
+  const active = useActiveTasks(authenticated && online)
   const query = useRecentTasks(online && open)
   const tasks = query.data?.tasks ?? active.data?.tasks ?? []
   const count = active.data?.tasks.length ?? 0

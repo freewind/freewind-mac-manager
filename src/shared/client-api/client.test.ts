@@ -198,13 +198,13 @@ describe("request identity", () => {
     await assertion
   })
 
-  it("surfaces HTTP failures without turning them into write results", async () => {
+  it("surfaces 401 without turning it into a write result", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(
         async () =>
-          new Response(JSON.stringify({ message: "请求失败" }), {
-            status: 500,
+          new Response(JSON.stringify({ message: "需要登录" }), {
+            status: 401,
             headers: { "content-type": "application/json" },
           })
       )
@@ -212,7 +212,7 @@ describe("request identity", () => {
     const response = await apiClient.startScan({
       headers: taskRequestHeaders("req_0123456789abcdef"),
     })
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(401)
     expect(() => unwrap(response)).toThrow(ApiRequestError)
   })
 })

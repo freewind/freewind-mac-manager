@@ -10,6 +10,7 @@ import { ApiPath } from "@shared/api-path"
 import {
   ApiRequestError,
   apiClient,
+  dispatchUnauthorized,
   assertWriteOnline,
   taskRequestHeaders,
   unwrap,
@@ -199,6 +200,12 @@ export const uploadFile = (
     })
     const request = new XMLHttpRequest()
     request.open("POST", `${ApiPath.filesUploads}?${query}`)
+    const csrfToken = document.cookie.match(
+      /(?:^|; )mac_manager_csrf=([^;]*)/
+    )?.[1]
+    if (csrfToken) {
+      request.setRequestHeader("x-csrf-token", decodeURIComponent(csrfToken))
+    }
     request.setRequestHeader("content-type", "application/octet-stream")
     request.timeout = 10 * 60 * 1000
     const abort = () => request.abort()
@@ -224,6 +231,7 @@ export const uploadFile = (
       }
     })
     request.addEventListener("load", () => {
+      if (request.status === 401) dispatchUnauthorized()
       let body: unknown
       try {
         body = JSON.parse(request.responseText)

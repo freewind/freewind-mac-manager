@@ -151,7 +151,7 @@ describe("TaskCenter", () => {
 
   it("shows the in-progress count and the real progress numbers", async () => {
     const client = makeClient()
-    render(<TaskCenter />, { wrapper: wrapper(client) })
+    render(<TaskCenter authenticated />, { wrapper: wrapper(client) })
 
     const trigger = await screen.findByRole("button", {
       name: /任务，进行中 1 个/,
@@ -167,7 +167,7 @@ describe("TaskCenter", () => {
 
   it("closes the task sheet when browser back is pressed", async () => {
     const client = makeClient()
-    render(<TaskCenter />, { wrapper: wrapper(client) })
+    render(<TaskCenter authenticated />, { wrapper: wrapper(client) })
     await userEvent.click(screen.getByRole("button", { name: /任务/ }))
     expect(await screen.findByRole("dialog")).toBeTruthy()
 
@@ -228,7 +228,7 @@ describe("TaskCenter", () => {
         })
       })
     )
-    render(<TaskCenter />, { wrapper: wrapper(makeClient()) })
+    render(<TaskCenter authenticated />, { wrapper: wrapper(makeClient()) })
     await userEvent.click(screen.getByRole("button", { name: /任务/ }))
     expect(await screen.findByText("失败：/tmp/b，权限不足")).toBeTruthy()
   })
@@ -239,7 +239,7 @@ describe("TaskCenter", () => {
       vi.fn(async () => json({ message: "请求失败" }, 500))
     )
     const client = makeClient()
-    render(<TaskCenter />, { wrapper: wrapper(client) })
+    render(<TaskCenter authenticated />, { wrapper: wrapper(client) })
 
     await userEvent.click(screen.getByRole("button", { name: /任务/ }))
     expect(await screen.findByText(/读取任务失败/)).toBeTruthy()
