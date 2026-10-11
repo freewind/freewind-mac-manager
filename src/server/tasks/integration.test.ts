@@ -102,6 +102,38 @@ const get = async (url: string) => {
 describe("task wiring through the real app", () => {
   it.each([
     {
+      kind: TASK_KINDS.fileCreate,
+      url: ApiPath.filesEntries,
+      method: "POST",
+      body: { parentPath: "/tmp", name: "audit.txt" },
+    },
+    {
+      kind: TASK_KINDS.fileRename,
+      url: ApiPath.filesEntryName,
+      method: "PUT",
+      body: { path: "/tmp/audit.txt", name: "renamed.txt" },
+    },
+    {
+      kind: TASK_KINDS.fileWriteContent,
+      url: ApiPath.filesContent,
+      method: "PUT",
+      body: { path: "/tmp/audit.txt", content: "audit" },
+    },
+    {
+      kind: TASK_KINDS.frpConfigSave,
+      url: ApiPath.frpConfig,
+      method: "PUT",
+      body: {
+        server: {
+          serverAddr: "example.test",
+          serverPort: 7000,
+          authMethod: "token",
+          authToken: "test",
+        },
+        proxies: [],
+      },
+    },
+    {
       kind: TASK_KINDS.serviceAction,
       url: ApiPath.systemServicesRestart,
       method: "POST",
