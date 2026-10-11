@@ -5,7 +5,9 @@ import {
   type DockerContainerCreateBody,
   type DockerContainerCreated,
   type DockerImage,
+  type DockerNetwork,
   type DockerOverview,
+  type DockerVolume,
   TASK_KINDS,
 } from "@shared/api-contract"
 import {
@@ -14,11 +16,15 @@ import {
   pullDockerImage,
   removeDockerContainer,
   removeDockerImage,
+  removeDockerNetwork,
+  removeDockerVolume,
 } from "@shared/client-api"
 import { describeError, formatTimestamp } from "@shared/format"
 import {
   dockerContainerTaskTarget,
   dockerImageTaskTarget,
+  dockerNetworkTaskTarget,
+  dockerVolumeTaskTarget,
 } from "@shared/task-targets"
 import { useQueryClient } from "@tanstack/react-query"
 import type { ContainerAction, DangerAction } from "@web/features/docker/labels"
@@ -26,7 +32,9 @@ import {
   dockerKeys,
   useDockerContainersQuery,
   useDockerImagesQuery,
+  useDockerNetworksQuery,
   useDockerOverviewQuery,
+  useDockerVolumesQuery,
 } from "@web/features/docker/queries"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
 import { useTaskAction } from "@web/hooks/use-task-action"
@@ -214,6 +222,102 @@ export const useDockerCreateContainer = (
     action,
     failure,
     clearFailure: (): void => setFailure(null),
+  }
+}
+
+export type VolumeActionInput = { name: string }
+export type NetworkActionInput = { networkId: string }
+
+/**
+ * 卷列表与删除编排：被容器使用的卷由界面禁用删除按钮，
+ * 后端 409 仍是兜底（前端禁用不是安全边界），失败文案留在页面上持续展示。
+ */
+export const useDockerVolumes = () => {
+  const query = useDockerVolumesQuery()
+  const refresh = useDockerCacheRefresh()
+  const [pendingRemove, setPendingRemove] = useState<DockerVolume | null>(null)
+  const [failure, setFailure] = useState<string | null>(null)
+
+  const action = useTaskAction<ActionResponse, VolumeActionInput>({
+    kind: TASK_KINDS.dockerAction,
+    target: (payload) => dockerVolumeTaskTarget(payload.name),
+    run: async (requestId, payload) => {
+      setFailure(null)
+      try {
+        return await removeDockerVolume(requestId, { name: payload.name })
+      } catch (error) {
+        setFailure(describeError(error))
+        throw error
+      }
+    },
+    onCompleted: (result) => {
+      refresh()
+      toast.success(result.message)
+    },
+  })
+
+  return {
+    volumes: query.data?.volumes ?? [],
+    isLoading: query.isPending,
+    error: query.isError ? describeError(query.error) : null,
+    action,
+    failure,
+    clearFailure: (): void => setFailure(null),
+    pendingRemove,
+    requestRemove: (volume: DockerVolume): void => {
+      setFailure(null)
+      setPendingRemove(volume)
+    },
+    cancelRemove: (): void => {
+      setFailure(null)
+      setPendingRemove(null)
+    },
+  }
+}
+
+/** 网络列表与删除编排；内置网络由界面上直接禁用（后端也会拒绝）。 */
+export const useDockerNetworks = () => {
+  const query = useDockerNetworksQuery()
+  const refresh = useDockerCacheRefresh()
+  const [pendingRemove, setPendingRemove] = useState<DockerNetwork | null>(null)
+  const [failure, setFailure] = useState<string | null>(null)
+
+  const action = useTaskAction<ActionResponse, NetworkActionInput>({
+    kind: TASK_KINDS.dockerAction,
+    target: (payload) => dockerNetworkTaskTarget(payload.networkId),
+    run: async (requestId, payload) => {
+      setFailure(null)
+      try {
+        return await removeDockerNetwork(requestId, {
+          networkId: payload.networkId,
+        })
+      } catch (error) {
+        setFailure(describeError(error))
+        throw error
+      }
+    },
+    onCompleted: (result) => {
+      refresh()
+      toast.success(result.message)
+    },
+  })
+
+  return {
+    networks: query.data?.networks ?? [],
+    isLoading: query.isPending,
+    error: query.isError ? describeError(query.error) : null,
+    action,
+    failure,
+    clearFailure: (): void => setFailure(null),
+    pendingRemove,
+    requestRemove: (network: DockerNetwork): void => {
+      setFailure(null)
+      setPendingRemove(network)
+    },
+    cancelRemove: (): void => {
+      setFailure(null)
+      setPendingRemove(null)
+    },
   }
 }
 

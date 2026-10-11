@@ -7,12 +7,19 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { DockerPage } from "./DockerPage"
 
-const { fetchDockerOverview, fetchDockerContainers, fetchDockerImages } =
-  vi.hoisted(() => ({
-    fetchDockerOverview: vi.fn(),
-    fetchDockerContainers: vi.fn(),
-    fetchDockerImages: vi.fn(),
-  }))
+const {
+  fetchDockerOverview,
+  fetchDockerContainers,
+  fetchDockerImages,
+  fetchDockerVolumes,
+  fetchDockerNetworks,
+} = vi.hoisted(() => ({
+  fetchDockerOverview: vi.fn(),
+  fetchDockerContainers: vi.fn(),
+  fetchDockerImages: vi.fn(),
+  fetchDockerVolumes: vi.fn(),
+  fetchDockerNetworks: vi.fn(),
+}))
 
 // 概览页现在也渲染容器列表：只替身读接口，其余（错误类型、请求标识等）保持真实
 vi.mock(import("@shared/client-api"), async (importOriginal) => ({
@@ -20,11 +27,15 @@ vi.mock(import("@shared/client-api"), async (importOriginal) => ({
   fetchDockerOverview,
   fetchDockerContainers,
   fetchDockerImages,
+  fetchDockerVolumes,
+  fetchDockerNetworks,
   fetchDockerContainerLogs: vi.fn(),
   actOnDockerContainer: vi.fn(),
   removeDockerContainer: vi.fn(),
   pullDockerImage: vi.fn(),
   removeDockerImage: vi.fn(),
+  removeDockerVolume: vi.fn(),
+  removeDockerNetwork: vi.fn(),
 }))
 
 const overview: DockerOverview = {
@@ -51,6 +62,8 @@ const overview: DockerOverview = {
 beforeEach(() => {
   fetchDockerContainers.mockResolvedValue({ containers: [], skipped: [] })
   fetchDockerImages.mockResolvedValue({ images: [] })
+  fetchDockerVolumes.mockResolvedValue({ volumes: [] })
+  fetchDockerNetworks.mockResolvedValue({ networks: [] })
   window.history.replaceState({}, "", "/")
   // 概览页也会渲染容器列表，jsdom 默认没有 matchMedia
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -81,6 +94,8 @@ afterEach(() => {
   fetchDockerOverview.mockReset()
   fetchDockerContainers.mockReset()
   fetchDockerImages.mockReset()
+  fetchDockerVolumes.mockReset()
+  fetchDockerNetworks.mockReset()
   vi.unstubAllGlobals()
 })
 
@@ -200,16 +215,16 @@ describe("DockerPage 分区导航", () => {
     expect(await screen.findByRole("heading", { name: "容器" })).toBeTruthy()
   })
 
-  it("卷与网络分区给出后续任务说明，不显示空壳", async () => {
+  it("卷与网络分区渲染各自的列表", async () => {
     window.history.replaceState({}, "", "/?feature=docker&tab=volumes")
     renderPage()
-    expect(await screen.findByText(/卷列表与删除在下一批任务接入/)).toBeTruthy()
+    expect(await screen.findByRole("heading", { name: "卷" })).toBeTruthy()
+    expect(await screen.findByText("没有卷")).toBeTruthy()
 
     window.history.replaceState({}, "", "/?feature=docker&tab=networks")
     cleanup()
     renderPage()
-    expect(
-      await screen.findByText(/网络列表与删除在下一批任务接入/)
-    ).toBeTruthy()
+    expect(await screen.findByRole("heading", { name: "网络" })).toBeTruthy()
+    expect(await screen.findByText("没有网络")).toBeTruthy()
   })
 })

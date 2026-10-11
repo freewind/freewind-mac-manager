@@ -15,6 +15,7 @@ import {
   type DockerCli,
   DockerCommandError,
   dockerCli,
+  isBuiltinNetwork,
 } from "./cli"
 
 /**
@@ -145,7 +146,11 @@ export const createDockerService = (
   })
 
   const listNetworks = async (): Promise<DockerNetworksResponse> => ({
-    networks: await cli.listNetworks(),
+    // 内置网络的判定只留在 cli 一处，前端不硬编码 bridge/host/none
+    networks: (await cli.listNetworks()).map((network) => ({
+      ...network,
+      builtin: isBuiltinNetwork(network.name),
+    })),
   })
 
   const getContainerLogs = (

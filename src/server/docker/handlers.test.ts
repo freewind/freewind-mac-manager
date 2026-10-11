@@ -128,6 +128,7 @@ const networksFixture: DockerNetwork[] = [
     scope: "local",
     internal: false,
     containers: 3,
+    builtin: true,
   },
 ]
 

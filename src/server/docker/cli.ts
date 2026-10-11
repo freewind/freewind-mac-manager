@@ -491,8 +491,11 @@ export const parseImages = (text: string): DockerImage[] =>
     }
   })
 
-/** 解析 network ls 的 json 行；接入容器数要靠容器列表交叉统计，这里先置 0。 */
-export const parseNetworks = (text: string): DockerNetwork[] =>
+/**
+ * 解析 network ls 的 json 行；接入容器数要靠容器列表交叉统计，这里先置 0。
+ * 内置网络标记（builtin）由 service 层用 isBuiltinNetwork 补，cli 只负责解析 docker 输出。
+ */
+export const parseNetworks = (text: string): Omit<DockerNetwork, "builtin">[] =>
   parseJsonLines(text).map((line) => {
     const item = asRecord(line)
     return {
@@ -965,7 +968,7 @@ export const createDockerCli = (
       )
     )
 
-  const listNetworks = (): Promise<DockerNetwork[]> =>
+  const listNetworks = (): Promise<Omit<DockerNetwork, "builtin">[]> =>
     cache("docker:networks", TTL.networks, async () => {
       const [listed, rawContainers] = await Promise.all([
         docker(["network", "ls", "--format", "json"], TIMEOUT.list),

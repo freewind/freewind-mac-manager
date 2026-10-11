@@ -15,23 +15,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@web/components/ui/empty"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { ContainerList } from "@web/features/docker/ContainerList"
 import { ImageList } from "@web/features/docker/ImageList"
+import { NetworkList } from "@web/features/docker/NetworkList"
 import { colimaStateOf, useDocker } from "@web/features/docker/useDocker"
 import {
   DOCKER_TABS,
   type DockerTab,
   useDockerTab,
 } from "@web/features/docker/useDockerTab"
+import { VolumeList } from "@web/features/docker/VolumeList"
 
 /** 概览一屏：Colima 状态与容器/镜像/卷/网络的真实计数。 */
 export const DockerPage = () => {
@@ -229,29 +224,7 @@ const DockerSections = (props: {
 
     {props.tab === "containers" ? <ContainerList /> : null}
     {props.tab === "images" ? <ImageList /> : null}
-    {props.tab === "volumes" ? (
-      <SectionPlaceholder
-        title="卷"
-        description="卷列表与删除在下一批任务接入；当前概览里的卷数量已经可用。"
-      />
-    ) : null}
-    {props.tab === "networks" ? (
-      <SectionPlaceholder
-        title="网络"
-        description="网络列表与删除在下一批任务接入；当前概览里的网络数量已经可用。"
-      />
-    ) : null}
+    {props.tab === "volumes" ? <VolumeList /> : null}
+    {props.tab === "networks" ? <NetworkList /> : null}
   </div>
-)
-
-const SectionPlaceholder = (props: { title: string; description: string }) => (
-  <Empty className="py-6">
-    <EmptyHeader>
-      <EmptyMedia variant="icon">
-        <HugeiconsIcon icon={ContainerIcon} />
-      </EmptyMedia>
-      <EmptyTitle>{props.title}</EmptyTitle>
-      <EmptyDescription>{props.description}</EmptyDescription>
-    </EmptyHeader>
-  </Empty>
 )

@@ -147,6 +147,8 @@ export const DockerNetworkSchema = z.object({
   internal: z.boolean(),
   /** 接入该网络的容器数。 */
   containers: z.number().int(),
+  /** Docker 内置网络（bridge/host/none）：不允许删除，前端据此禁用按钮。 */
+  builtin: z.boolean(),
 })
 
 export const DockerNetworksResponseSchema = z.object({
