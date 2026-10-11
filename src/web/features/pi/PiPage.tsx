@@ -100,9 +100,15 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 export const PiPage = () => {
   const queryClient = useQueryClient()
   const query = usePiModels()
-  const [activeTab, setActiveTab] = useState<"models" | "settings" | "probe">(
-    "models"
+  const [activeTab, setActiveTab] = useState<
+    "models" | "settings" | "probe" | "chat"
+  >(() =>
+    new URL(window.location.href).searchParams.get("piRun") ? "chat" : "models"
   )
+  const [labSelection, setLabSelection] = useState<{
+    provider: string
+    model: string
+  } | null>(null)
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
@@ -312,6 +318,13 @@ export const PiPage = () => {
           >
             能力探测
           </Button>
+          <Button
+            className="min-h-11"
+            variant={activeTab === "chat" ? "default" : "ghost"}
+            onClick={() => setActiveTab("chat")}
+          >
+            Playground
+          </Button>
         </div>
         {activeTab === "models" ? (
           <div className="ml-auto flex gap-2">
@@ -333,8 +346,13 @@ export const PiPage = () => {
       </header>
       {activeTab === "settings" ? (
         <SettingsTab />
-      ) : activeTab === "probe" ? (
-        <LabTab key={activeTab} mode={activeTab} />
+      ) : activeTab === "probe" || activeTab === "chat" ? (
+        <LabTab
+          key={`${activeTab}-${labSelection?.provider}-${labSelection?.model}`}
+          mode={activeTab}
+          initialProvider={labSelection?.provider}
+          initialModel={labSelection?.model}
+        />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {query.isLoading ? <p role="status">正在读取 Pi 配置…</p> : null}
@@ -549,6 +567,19 @@ export const PiPage = () => {
                         {model.name ?? model.id} ·{" "}
                         {model.contextWindow ?? "未声明"} context /{" "}
                         {model.maxTokens ?? "未声明"} 输出
+                        <Button
+                          className="ml-2 min-h-11"
+                          variant="outline"
+                          onClick={() => {
+                            setLabSelection({
+                              provider: entry.id,
+                              model: model.id,
+                            })
+                            setActiveTab("chat")
+                          }}
+                        >
+                          打开 Playground
+                        </Button>
                       </p>
                     ))}
                   </div>

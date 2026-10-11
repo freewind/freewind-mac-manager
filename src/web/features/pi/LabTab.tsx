@@ -17,11 +17,19 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { usePiModels } from "./queries"
 
-export const LabTab = ({ mode }: { mode: "chat" | "probe" }) => {
+export const LabTab = ({
+  mode,
+  initialProvider = "",
+  initialModel = "",
+}: {
+  mode: "chat" | "probe"
+  initialProvider?: string
+  initialModel?: string
+}) => {
   const models = usePiModels()
   const client = useQueryClient()
-  const [providerId, setProvider] = useState("")
-  const [modelId, setModel] = useState("")
+  const [providerId, setProvider] = useState(initialProvider)
+  const [modelId, setModel] = useState(initialModel)
   const [sessionId, setSession] = useState<string>(() => crypto.randomUUID())
   const [prompt, setPrompt] = useState("请简短回答：1 + 1 等于多少？")
   const [systemPrompt, setSystem] = useState("你是一个简洁的对话助手。")
@@ -30,7 +38,10 @@ export const LabTab = ({ mode }: { mode: "chat" | "probe" }) => {
   const [maxTokens, setMaxTokens] = useState(512)
   const [tokens, setTokens] = useState("128,512")
   const [levels, setLevels] = useState("off,high")
-  const [id, setId] = useState<string | null>(null)
+  const [id, setId] = useState<string | null>(() => {
+    const params = new URL(window.location.href).searchParams
+    return params.get("piRun")
+  })
   const history = useQuery({
     queryKey: ["pi", "lab"],
     queryFn: fetchPiLabRuns,
@@ -51,6 +62,9 @@ export const LabTab = ({ mode }: { mode: "chat" | "probe" }) => {
       if (!providerId || !modelId) throw new Error("请填写 Provider 和模型 ID")
       const requestId = newRequestId()
       setId(requestId)
+      const url = new URL(window.location.href)
+      url.searchParams.set("piRun", requestId)
+      window.history.replaceState(window.history.state, "", url)
       const candidates = levels.split(",").map((value) => value.trim())
       const allowed = [
         "off",
@@ -104,6 +118,9 @@ export const LabTab = ({ mode }: { mode: "chat" | "probe" }) => {
     onSuccess: async () => {
       setSession(crypto.randomUUID())
       setId(null)
+      const url = new URL(window.location.href)
+      url.searchParams.delete("piRun")
+      window.history.replaceState(window.history.state, "", url)
       await history.refetch()
     },
     onError: (error) => toast.error(error.message),
@@ -297,6 +314,8 @@ export const LabTab = ({ mode }: { mode: "chat" | "probe" }) => {
               className="min-h-11 justify-start overflow-hidden"
               onClick={() => {
                 setId(item.id)
+                setProvider(item.providerId)
+                setModel(item.modelId)
                 if (item.sessionId) setSession(item.sessionId)
               }}
             >

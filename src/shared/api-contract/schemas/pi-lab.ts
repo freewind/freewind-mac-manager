@@ -14,7 +14,7 @@ export const PiLabRequestSchema = z
   .object({
     providerId: z.string().min(1).max(256),
     modelId: z.string().min(1).max(256),
-    mode: z.literal("probe"),
+    mode: z.enum(["chat", "probe"]),
     sessionId: z.string().uuid().optional(),
     prompt: z.string().min(1).max(8000),
     systemPrompt: z.string().max(4000).default("你是一个简洁的对话助手。"),
