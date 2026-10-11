@@ -79,6 +79,18 @@ it("cleans its own staging file when publication fails and preserves the origina
   expect(readdirSync(dest).sort()).toEqual(["a.txt", "a.txt.writing"])
 })
 
+it("cleans its own fragment when the input stream fails", async () => {
+  const dest = path.join(root, "dest")
+  const stream = Readable.from(
+    (async function* () {
+      yield "partial"
+      throw new Error("受控断流")
+    })()
+  )
+  await expect(receiveUpload(dest, "a.txt", stream)).rejects.toThrow("受控断流")
+  expect(readdirSync(dest)).toEqual([])
+})
+
 it("publishes a complete nested upload", async () => {
   const dest = path.join(root, "dest")
   const result = await receiveUpload(
