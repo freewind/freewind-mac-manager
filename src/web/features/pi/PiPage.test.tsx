@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { PiPage } from "./PiPage"
 
 const {
@@ -30,6 +36,17 @@ vi.mock("@shared/client-api", () => ({
   addPiProvider: addProvider,
   updatePiProvider: updateProvider,
   deletePiProvider: deleteProvider,
+  // 页面与其它页签从同一入口导入的其余能力，此处用无害替身补全
+  fetchTaskByRequestId: vi.fn(),
+  newRequestId: vi.fn(() => "req_test_benchmark_001"),
+  ApiRequestError: class ApiRequestError extends Error {},
+  cancelPiLab: vi.fn(),
+  clearPiLab: vi.fn(),
+  fetchPiLab: vi.fn(),
+  fetchPiLabRuns: vi.fn(),
+  startPiLab: vi.fn(),
+  fetchPiSettings: vi.fn(),
+  savePiSettings: vi.fn(),
 }))
 
 const response = {
@@ -60,6 +77,10 @@ const renderPage = () => {
     </QueryClientProvider>
   )
 }
+
+afterEach(() => {
+  cleanup()
+})
 
 beforeEach(() => {
   fetchModels.mockReset().mockResolvedValue(response)
@@ -102,9 +123,9 @@ describe("Pi model manager page", () => {
     renderPage()
     await screen.findByText("test")
     expect(startBenchmark).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole("button", { name: /测速 Provider/ }))
+    fireEvent.click(screen.getByRole("combobox", { name: /测速 Provider/ }))
     fireEvent.click(await screen.findByRole("option", { name: "test" }))
-    fireEvent.click(screen.getByRole("button", { name: "测速模型" }))
+    fireEvent.click(screen.getByRole("combobox", { name: "测速模型" }))
     fireEvent.click(await screen.findByRole("option", { name: /model-one/ }))
     fireEvent.click(screen.getByRole("button", { name: "开始一次测速" }))
     await waitFor(() => expect(startBenchmark).toHaveBeenCalledTimes(1))
