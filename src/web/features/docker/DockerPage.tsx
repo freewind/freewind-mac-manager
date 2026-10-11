@@ -4,7 +4,7 @@ import {
   RefreshIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import type { DockerColimaStatus, DockerOverview } from "@shared/api-contract"
+import type { DockerOverview } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
@@ -17,10 +17,11 @@ import {
 } from "@web/components/ui/card"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
+import { ColimaCard } from "@web/features/docker/ColimaCard"
 import { ContainerList } from "@web/features/docker/ContainerList"
 import { ImageList } from "@web/features/docker/ImageList"
 import { NetworkList } from "@web/features/docker/NetworkList"
-import { colimaStateOf, useDocker } from "@web/features/docker/useDocker"
+import { useDocker } from "@web/features/docker/useDocker"
 import {
   DOCKER_TABS,
   type DockerTab,
@@ -100,7 +101,10 @@ const DockerOverviewCards = ({ overview }: { overview: DockerOverview }) => (
       </Alert>
     )}
     <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      <ColimaCard colima={overview.colima} />
+      <ColimaCard
+        colima={overview.colima}
+        runningContainers={overview.containers.running}
+      />
       <StatCard
         title="容器"
         description="来自 docker ps -a"
@@ -163,34 +167,6 @@ const StatCard = (props: {
     </CardContent>
   </Card>
 )
-
-const COLIMA_TONE: Record<ReturnType<typeof colimaStateOf>, string> = {
-  running: "text-emerald-600",
-  stopped: "text-amber-600",
-  missing: "text-muted-foreground",
-}
-
-const ColimaCard = ({ colima }: { colima: DockerColimaStatus }) => {
-  const state = colimaStateOf(colima)
-  const label =
-    state === "running" ? "运行中" : state === "stopped" ? "未运行" : "未安装"
-  return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>Colima</CardTitle>
-        <CardDescription>{colima.status}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-1">
-        <p className={`text-2xl font-medium ${COLIMA_TONE[state]}`}>{label}</p>
-        <p className="text-xs text-muted-foreground">
-          {state === "missing"
-            ? "未安装 colima，Docker 能力不可用"
-            : `runtime ${colima.runtime ?? "—"} · 架构 ${colima.arch ?? "—"}`}
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
 
 /**
  * 分区导航与分区内容。

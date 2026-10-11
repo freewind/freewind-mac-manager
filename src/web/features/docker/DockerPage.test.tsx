@@ -13,12 +13,14 @@ const {
   fetchDockerImages,
   fetchDockerVolumes,
   fetchDockerNetworks,
+  fetchDockerColimaStatus,
 } = vi.hoisted(() => ({
   fetchDockerOverview: vi.fn(),
   fetchDockerContainers: vi.fn(),
   fetchDockerImages: vi.fn(),
   fetchDockerVolumes: vi.fn(),
   fetchDockerNetworks: vi.fn(),
+  fetchDockerColimaStatus: vi.fn(),
 }))
 
 // 概览页现在也渲染容器列表：只替身读接口，其余（错误类型、请求标识等）保持真实
@@ -29,6 +31,7 @@ vi.mock(import("@shared/client-api"), async (importOriginal) => ({
   fetchDockerImages,
   fetchDockerVolumes,
   fetchDockerNetworks,
+  fetchDockerColimaStatus,
   fetchDockerContainerLogs: vi.fn(),
   actOnDockerContainer: vi.fn(),
   removeDockerContainer: vi.fn(),
@@ -64,6 +67,7 @@ beforeEach(() => {
   fetchDockerImages.mockResolvedValue({ images: [] })
   fetchDockerVolumes.mockResolvedValue({ volumes: [] })
   fetchDockerNetworks.mockResolvedValue({ networks: [] })
+  fetchDockerColimaStatus.mockResolvedValue(overview.colima)
   window.history.replaceState({}, "", "/")
   // 概览页也会渲染容器列表，jsdom 默认没有 matchMedia
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -96,6 +100,7 @@ afterEach(() => {
   fetchDockerImages.mockReset()
   fetchDockerVolumes.mockReset()
   fetchDockerNetworks.mockReset()
+  fetchDockerColimaStatus.mockReset()
   vi.unstubAllGlobals()
 })
 

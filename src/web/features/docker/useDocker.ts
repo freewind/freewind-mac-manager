@@ -11,6 +11,7 @@ import {
   TASK_KINDS,
 } from "@shared/api-contract"
 import {
+  actOnDockerColima,
   actOnDockerContainer,
   createDockerContainer,
   pullDockerImage,
@@ -21,6 +22,7 @@ import {
 } from "@shared/client-api"
 import { describeError, formatTimestamp } from "@shared/format"
 import {
+  dockerColimaTaskTarget,
   dockerContainerTaskTarget,
   dockerImageTaskTarget,
   dockerNetworkTaskTarget,
@@ -30,6 +32,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import type { ContainerAction, DangerAction } from "@web/features/docker/labels"
 import {
   dockerKeys,
+  useDockerColimaQuery,
   useDockerContainersQuery,
   useDockerImagesQuery,
   useDockerNetworksQuery,
@@ -96,7 +99,9 @@ export const useDockerCacheRefresh = (): (() => void) => {
   }, [queryClient])
 
   useEffect(() => {
+    // 同一 kind 只能注册一处：Docker 的两种任务种类都在这里统一登记
     registerTaskCompletion(TASK_KINDS.dockerAction, refresh)
+    registerTaskCompletion(TASK_KINDS.dockerColimaAction, refresh)
   }, [refresh])
 
   return refresh
@@ -317,6 +322,65 @@ export const useDockerNetworks = () => {
     cancelRemove: (): void => {
       setFailure(null)
       setPendingRemove(null)
+    },
+  }
+}
+
+export type ColimaActionInput = { action: "start" | "stop" | "restart" }
+
+/**
+ * Colima 控制编排。
+ *
+ * - 状态单独查询，卡片显示的是 colima status 的真实结果；
+ * - 停止/重启由界面先二次确认（会停掉正在运行的容器），这里只负责提交与结果处理；
+ * - 409（已在运行 / 未在运行）文案留在卡片里持续展示；受理只提示看任务中心，
+ *   不自己造进度条或百分比。
+ */
+export const useDockerColima = () => {
+  const query = useDockerColimaQuery()
+  const refresh = useDockerCacheRefresh()
+  const [pending, setPending] = useState<ColimaActionInput["action"] | null>(
+    null
+  )
+  const [failure, setFailure] = useState<string | null>(null)
+
+  const action = useTaskAction<ActionResponse, ColimaActionInput>({
+    kind: TASK_KINDS.dockerColimaAction,
+    target: () => dockerColimaTaskTarget(),
+    run: async (requestId, payload) => {
+      setFailure(null)
+      try {
+        return await actOnDockerColima(requestId, { action: payload.action })
+      } catch (error) {
+        setFailure(describeError(error))
+        throw error
+      }
+    },
+    onCompleted: (result) => {
+      refresh()
+      toast.success(result.message)
+    },
+    onAccepted: () => {
+      // 受理不是成功：只刷新状态，进度由任务中心呈现
+      refresh()
+    },
+  })
+
+  return {
+    colima: query.data ?? null,
+    statusError: query.isError ? describeError(query.error) : null,
+    action,
+    failure,
+    clearFailure: (): void => setFailure(null),
+    /** 待确认的停止 / 重启 */
+    pending,
+    requestAction: (next: ColimaActionInput["action"]): void => {
+      setFailure(null)
+      setPending(next)
+    },
+    cancelAction: (): void => {
+      setFailure(null)
+      setPending(null)
     },
   }
 }
