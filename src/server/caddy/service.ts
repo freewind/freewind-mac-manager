@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
 import { readFile } from "node:fs/promises"
+import { get as httpGet } from "node:http"
 import { readRuntime } from "@server/common/launchd"
 import { PublicOperationError } from "@server/common/public-error"
 import {
@@ -116,17 +117,23 @@ const probeVersion = async (binaryPath: string): Promise<string | null> => {
 /**
  * 管理接口默认是关闭的（配置文件里 admin off），连不上就是预期现状。
  * 这里只判断可达性，不尝试启用或修改它。
+ *
+ * 用 node:http 而非全局 fetch：undici 的 fetch 会带 Origin header，
+ * 被 Caddy admin 的 origin 检查拒绝（403 forbidden）。http.get 不带 Origin，
+ * 与 curl 行为一致，不触发该检查。
  */
-const probeAdminReachable = async (adminUrl: string): Promise<boolean> => {
-  try {
-    const response = await fetch(`${adminUrl.replace(/\/+$/, "")}/config/`, {
-      signal: AbortSignal.timeout(ADMIN_TIMEOUT_MS),
+const probeAdminReachable = (adminUrl: string): Promise<boolean> =>
+  new Promise((resolve) => {
+    const req = httpGet(`${adminUrl.replace(/\/+$/, "")}/config/`, (res) => {
+      res.resume()
+      resolve(res.statusCode === 200)
     })
-    return response.ok
-  } catch {
-    return false
-  }
-}
+    req.on("error", () => resolve(false))
+    req.setTimeout(ADMIN_TIMEOUT_MS, () => {
+      req.destroy()
+      resolve(false)
+    })
+  })
 
 export const defaultCaddyProbes: CaddyProbes = {
   isProcessRunning: probeProcessRunning,

@@ -7,6 +7,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises"
+import { createServer, type Server, type ServerResponse } from "node:http"
 import os from "node:os"
 import path from "node:path"
 import { PublicOperationError } from "@server/common/public-error"
@@ -28,6 +29,7 @@ import {
   type CaddyCommandResult,
   type CaddyCommands,
   CaddyUnknownResultError,
+  fetchRunningConfig,
 } from "./apply"
 import { type CaddyProbes, type CaddyTargets, readCaddyRules } from "./service"
 import { CaddyStore } from "./store"
@@ -520,5 +522,54 @@ describe("Caddy 应用执行", () => {
     expect(backups).not.toContain(oldNames[1])
     expect(backups).toContain(oldNames[2])
     expect(backups).toContain(path.basename(outcome.result.backupFile ?? ""))
+  })
+})
+
+describe("fetchRunningConfig（node:http，不带 Origin）", () => {
+  const servers: Server[] = []
+
+  const startServer = (
+    handler: (res: ServerResponse) => void
+  ): Promise<string> =>
+    new Promise((resolve) => {
+      const server = createServer((_req, res) => {
+        res.setHeader("content-type", "application/json")
+        handler(res)
+      })
+      server.listen(0, "127.0.0.1", () => {
+        servers.push(server)
+        const addr = server.address()
+        const port = typeof addr === "object" && addr ? addr.port : 0
+        resolve(`http://127.0.0.1:${port}`)
+      })
+    })
+
+  afterEach(() => {
+    for (const server of servers.splice(0)) {
+      server.close()
+    }
+  })
+
+  it("admin 返回 200 与 JSON 时解析为对象", async () => {
+    const url = await startServer((res) => {
+      res.writeHead(200)
+      res.end('{"admin":{"listen":"127.0.0.1:2019"}}')
+    })
+    const config = (await fetchRunningConfig(url)) as {
+      admin: { listen: string }
+    }
+    expect(config.admin.listen).toBe("127.0.0.1:2019")
+  })
+
+  it("admin 返回 403 时抛错（HTTP 403）", async () => {
+    const url = await startServer((res) => {
+      res.writeHead(403)
+      res.end("forbidden")
+    })
+    await expect(fetchRunningConfig(url)).rejects.toThrow("HTTP 403")
+  })
+
+  it("admin 连不上时抛错（连接失败）", async () => {
+    await expect(fetchRunningConfig("http://127.0.0.1:1")).rejects.toThrow()
   })
 })

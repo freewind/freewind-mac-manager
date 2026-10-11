@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { createServer, type Server } from "node:http"
 import os from "node:os"
 import path from "node:path"
 import { PublicOperationError } from "@server/common/public-error"
@@ -14,6 +15,7 @@ import {
   type CaddyProbes,
   type CaddyTargets,
   createCaddyRule,
+  defaultCaddyProbes,
   deleteCaddyRule,
   importCaddyRulesFromFile,
   readCaddyRules,
@@ -508,5 +510,53 @@ describe("Caddy 规则导入", () => {
       "第 3 行的规则无法导入"
     )
     expect(store.listRules()).toEqual([])
+  })
+})
+
+describe("probeAdminReachable（node:http，不带 Origin）", () => {
+  const servers: Server[] = []
+
+  const startServer = (
+    handler: (res: import("node:http").ServerResponse) => void
+  ): Promise<string> =>
+    new Promise((resolve) => {
+      const server = createServer((_req, res) => {
+        res.setHeader("content-type", "application/json")
+        handler(res)
+      })
+      server.listen(0, "127.0.0.1", () => {
+        servers.push(server)
+        const addr = server.address()
+        const port = typeof addr === "object" && addr ? addr.port : 0
+        resolve(`http://127.0.0.1:${port}`)
+      })
+    })
+
+  afterEach(() => {
+    for (const server of servers.splice(0)) {
+      server.close()
+    }
+  })
+
+  it("admin 返回 200 时判定可达", async () => {
+    const url = await startServer((res) => {
+      res.writeHead(200)
+      res.end("{}")
+    })
+    expect(await defaultCaddyProbes.isAdminReachable(url)).toBe(true)
+  })
+
+  it("admin 返回 403 时判定不可达", async () => {
+    const url = await startServer((res) => {
+      res.writeHead(403)
+      res.end("forbidden")
+    })
+    expect(await defaultCaddyProbes.isAdminReachable(url)).toBe(false)
+  })
+
+  it("admin 连不上时判定不可达（连接失败不抛错）", async () => {
+    await expect(
+      defaultCaddyProbes.isAdminReachable("http://127.0.0.1:1")
+    ).resolves.toBe(false)
   })
 })

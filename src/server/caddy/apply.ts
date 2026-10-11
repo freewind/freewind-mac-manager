@@ -10,6 +10,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises"
+import { get as httpGet } from "node:http"
 import path from "node:path"
 import { PublicOperationError } from "@server/common/public-error"
 import { CADDY_BACKUP_DIR } from "@server/env"
@@ -148,16 +149,37 @@ export const defaultCaddyCommands = (targets: CaddyTargets): CaddyCommands => ({
     ),
 })
 
-/** 管理接口在 `admin off` 时连不上；这里只读，不尝试开启它。 */
-const fetchRunningConfig = async (adminUrl: string): Promise<unknown> => {
-  const response = await fetch(`${adminUrl.replace(/\/+$/, "")}/config/`, {
-    signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
+/**
+ * 管理接口在 `admin off` 时连不上；这里只读，不尝试开启它。
+ *
+ * 用 node:http 而非全局 fetch：undici 的 fetch 会带 Origin header，
+ * 被 Caddy admin 的 origin 检查拒绝（403）。http.get 不带 Origin。
+ */
+export const fetchRunningConfig = (adminUrl: string): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    let body = ""
+    const req = httpGet(`${adminUrl.replace(/\/\+$/, "")}/config/`, (res) => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`读取运行配置失败（HTTP ${res.statusCode}）`))
+        return
+      }
+      res.on("data", (chunk: Buffer) => {
+        body += chunk
+      })
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(body))
+        } catch (error) {
+          reject(error)
+        }
+      })
+    })
+    req.on("error", reject)
+    req.setTimeout(VERIFY_TIMEOUT_MS, () => {
+      req.destroy()
+      reject(new Error("读取运行配置超时"))
+    })
   })
-  if (!response.ok) {
-    throw new Error(`读取运行配置失败（HTTP ${response.status}）`)
-  }
-  return response.json()
-}
 
 const VERIFY_KEYS = ["dial", "host", "path"] as const
 type VerifyKey = (typeof VERIFY_KEYS)[number]
