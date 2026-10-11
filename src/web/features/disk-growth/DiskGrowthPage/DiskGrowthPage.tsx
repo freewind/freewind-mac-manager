@@ -206,6 +206,7 @@ export const DiskGrowthPage = () => {
           <IcicleChart
             scanId={range.scanId}
             baselineScanId={range.baselineScanId}
+            keyword={keyword}
           />
         ) : isSearching ? (
           <SearchResultTable

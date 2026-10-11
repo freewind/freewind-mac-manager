@@ -82,10 +82,16 @@ const buildBlocks = (root: TreeNode): Block[] => {
 type IcicleChartProps = {
   scanId: number | null
   baselineScanId: number | null
+  /** 搜索关键字：匹配的块描边、其余降透明度，不过滤块、不破坏层级与比例。 */
+  keyword?: string
 }
 
 /** 分布图：一层一行，行的宽度等于该行的根，父子之间按大小切分宽度。 */
-export const IcicleChart = ({ scanId, baselineScanId }: IcicleChartProps) => {
+export const IcicleChart = ({
+  scanId,
+  baselineScanId,
+  keyword,
+}: IcicleChartProps) => {
   const focus = useDiskGrowthLocalStore((state) => state.focusPath)
   const stack = useDiskGrowthLocalStore((state) => state.focusStack)
   const enterFocus = useDiskGrowthLocalStore((state) => state.enterFocus)
@@ -99,6 +105,16 @@ export const IcicleChart = ({ scanId, baselineScanId }: IcicleChartProps) => {
     depth: MAX_DEPTH + 1,
   })
   const blocks = useMemo(() => (tree ? buildBlocks(tree) : []), [tree])
+  const trimmed = (keyword ?? "").trim()
+  const matched = useMemo(
+    () =>
+      trimmed
+        ? blocks.filter((block) =>
+            block.path.toLowerCase().includes(trimmed.toLowerCase())
+          )
+        : [],
+    [blocks, trimmed]
+  )
   const maxDepth = useMemo(
     () => blocks.reduce((deepest, block) => Math.max(deepest, block.depth), 0),
     [blocks]
@@ -120,6 +136,13 @@ export const IcicleChart = ({ scanId, baselineScanId }: IcicleChartProps) => {
           当前根：{focus === "" ? "/" : focus} ·{" "}
           {tree ? formatBytes(tree.size) : "—"}
         </span>
+        {trimmed ? (
+          <span className="text-muted-foreground">
+            {matched.length > 0
+              ? `匹配 ${matched.length} 个路径`
+              : "没有匹配的路径"}
+          </span>
+        ) : null}
         {hovered ? (
           <span className="ml-auto text-muted-foreground">{hovered}</span>
         ) : null}
@@ -137,6 +160,9 @@ export const IcicleChart = ({ scanId, baselineScanId }: IcicleChartProps) => {
             {blocks.map((block) => {
               const x = (block.start / VIEW_WIDTH) * VIEW_WIDTH
               const active = hovered === block.path
+              const hit = trimmed
+                ? block.path.toLowerCase().includes(trimmed.toLowerCase())
+                : true
               return (
                 <g key={block.path}>
                   {/* biome-ignore lint/a11y/useSemanticElements: SVG rect is the interactive chart cell. */}
@@ -147,6 +173,9 @@ export const IcicleChart = ({ scanId, baselineScanId }: IcicleChartProps) => {
                     height={ROW_HEIGHT - 2}
                     rx={2}
                     fill={`hsl(${block.hue} 68% ${active ? block.lightness - 14 : block.lightness}%)`}
+                    fillOpacity={trimmed && !hit ? 0.4 : 1}
+                    stroke={trimmed && hit ? "currentColor" : undefined}
+                    strokeWidth={trimmed && hit ? 2 : undefined}
                     className="cursor-pointer transition-colors"
                     role="button"
                     tabIndex={0}
