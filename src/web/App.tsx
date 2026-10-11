@@ -1,6 +1,6 @@
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { logout } from "@shared/client-api"
+import { clearAccessPasswordCookie } from "@shared/client-api"
 import { useQueryClient } from "@tanstack/react-query"
 import { AppSidebar, type FeatureKey } from "@web/components/app-sidebar"
 import { Button } from "@web/components/ui/button"
@@ -145,13 +145,10 @@ export const App = () => {
     window.history.back()
   }
 
-  const signOut = async (): Promise<void> => {
-    try {
-      await logout()
-    } finally {
-      queryClient.clear()
-      markUnauthenticated()
-    }
+  // 认证是无状态的：清掉密码 cookie 后整页刷新即可回到登录页。
+  const signOut = (): void => {
+    clearAccessPasswordCookie()
+    window.location.reload()
   }
 
   return (

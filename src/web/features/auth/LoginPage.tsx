@@ -1,7 +1,8 @@
-import { login } from "@shared/client-api"
+import { login, writeAccessPasswordCookie } from "@shared/client-api"
 import { describeError } from "@shared/format"
 import { Alert, AlertDescription } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
+import { Checkbox } from "@web/components/ui/checkbox"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
 import { type FormEvent, useState } from "react"
@@ -13,6 +14,7 @@ type LoginPageProps = {
 
 export const LoginPage = ({ configured, onAuthenticated }: LoginPageProps) => {
   const [password, setPassword] = useState("")
+  const [remember, setRemember] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -22,6 +24,8 @@ export const LoginPage = ({ configured, onAuthenticated }: LoginPageProps) => {
     setSubmitting(true)
     try {
       await login(password)
+      // 先写入 cookie：之后的请求都从它构造 Authorization 头。
+      writeAccessPasswordCookie(password, remember)
       setPassword("")
       onAuthenticated()
     } catch (cause) {
@@ -44,18 +48,29 @@ export const LoginPage = ({ configured, onAuthenticated }: LoginPageProps) => {
           </p>
         </div>
         {configured ? (
-          <div className="space-y-2">
-            <Label htmlFor="password">密码</Label>
-            <Input
-              id="password"
-              autoComplete="current-password"
-              type="text"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              disabled={submitting}
-              required
-              className="h-11"
-            />
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="password">密码</Label>
+              <Input
+                id="password"
+                autoComplete="current-password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={submitting}
+                required
+                className="h-11"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="remember-password"
+                checked={remember}
+                disabled={submitting}
+                onCheckedChange={(checked) => setRemember(checked === true)}
+              />
+              <Label htmlFor="remember-password">记住密码</Label>
+            </div>
           </div>
         ) : (
           <Alert variant="destructive">

@@ -1,5 +1,5 @@
 import type { AuthStatus } from "@shared/client-api"
-import { ensureCsrf, fetchAuthStatus } from "@shared/client-api"
+import { fetchAuthStatus } from "@shared/client-api"
 import { describeError } from "@shared/format"
 import { useSyncExternalStore } from "react"
 
@@ -34,7 +34,6 @@ export const useAuthStatus = () =>
 
 export const refreshAuthStatus = async (showError: boolean): Promise<void> => {
   try {
-    await ensureCsrf()
     setState({ status: await fetchAuthStatus(), error: null })
   } catch (error) {
     if (showError) setState({ ...state, error: describeError(error) })

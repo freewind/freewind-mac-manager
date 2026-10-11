@@ -5,7 +5,6 @@ export const AuthStatusSchema = z.object({
   configured: z.boolean(),
 })
 
-export const CsrfTokenSchema = z.object({ csrfToken: z.string() })
 export const LoginBodySchema = z.object({
   password: z.string().min(1).max(1024),
 })

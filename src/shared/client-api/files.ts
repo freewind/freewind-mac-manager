@@ -7,6 +7,7 @@ import type {
 } from "@shared/api-contract"
 import { UploadResponseSchema } from "@shared/api-contract/schemas/files"
 import { ApiPath } from "@shared/api-path"
+import { buildAuthorizationHeader } from "./access-password"
 import {
   ApiRequestError,
   apiClient,
@@ -200,11 +201,8 @@ export const uploadFile = (
     })
     const request = new XMLHttpRequest()
     request.open("POST", `${ApiPath.filesUploads}?${query}`)
-    const csrfToken = document.cookie.match(
-      /(?:^|; )mac_manager_csrf=([^;]*)/
-    )?.[1]
-    if (csrfToken) {
-      request.setRequestHeader("x-csrf-token", decodeURIComponent(csrfToken))
+    for (const [key, value] of Object.entries(buildAuthorizationHeader())) {
+      request.setRequestHeader(key, value)
     }
     request.setRequestHeader("content-type", "application/octet-stream")
     request.timeout = 10 * 60 * 1000

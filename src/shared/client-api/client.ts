@@ -4,6 +4,7 @@ import {
   TASK_REQUEST_ID_HEADER,
 } from "@shared/api-contract"
 import { initClient } from "@ts-rest/core"
+import { buildAuthorizationHeader } from "./access-password"
 import { beginWrite } from "./write-activity"
 
 /**
@@ -43,12 +44,6 @@ export const dispatchUnauthorized = (): void => {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("mac-manager:unauthorized"))
   }
-}
-
-const readCsrfToken = (): string => {
-  if (typeof document === "undefined") return ""
-  const match = document.cookie.match(/(?:^|; )mac_manager_csrf=([^;]*)/)
-  return match ? decodeURIComponent(match[1]) : ""
 }
 
 export const unwrap = <T>(result: { status: number; body: unknown }): T => {
@@ -95,16 +90,16 @@ export const assertWriteOnline = (): void => {
 export const isWriteMethod = (method: string): boolean =>
   WRITE_METHODS.includes(method.toUpperCase())
 
-/** 前端统一走相对路径，并在写请求中附带 CSRF 与任务请求标识。 */
+/** 前端统一走相对路径，所有请求都附带访问密码与任务请求标识。 */
 export const apiClient = initClient(contract, {
   baseUrl: "",
   api: async ({ path, method, headers, body, signal }) => {
     const requestHeaders = new Headers(headers)
-    const write = isWriteMethod(method)
-    if (write) {
-      const csrfToken = readCsrfToken()
-      if (csrfToken) requestHeaders.set("x-csrf-token", csrfToken)
+    // 访问密码从 cookie 读出后放进 Authorization：不依赖 cookie 自动携带。
+    for (const [key, value] of Object.entries(buildAuthorizationHeader())) {
+      requestHeaders.set(key, value)
     }
+    const write = isWriteMethod(method)
     const requestId = requestHeaders.get(TASK_REQUEST_ID_HEADER)
     if (write) assertWriteOnline()
     const endWrite = write ? beginWrite() : () => {}

@@ -1,3 +1,9 @@
+export {
+  buildAuthorizationHeader,
+  clearAccessPasswordCookie,
+  readAccessPasswordFromCookie,
+  writeAccessPasswordCookie,
+} from "./access-password"
 export * from "./auth"
 export * from "./auth-types"
 export * from "./caddy"

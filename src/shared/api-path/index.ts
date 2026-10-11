@@ -1,10 +1,8 @@
 export const API_BASE = "/api" as const
 
 export const ApiPath = {
-  authCsrf: `${API_BASE}/auth/csrf`,
   authStatus: `${API_BASE}/auth/status`,
   authLogin: `${API_BASE}/auth/login`,
-  authLogout: `${API_BASE}/auth/logout`,
   health: `${API_BASE}/health`,
   clashVergeStatus: `${API_BASE}/clash-verge/status`,
   clashVergeProxies: `${API_BASE}/clash-verge/proxies`,

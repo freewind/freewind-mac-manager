@@ -2,6 +2,7 @@ import {
   TASK_REQUEST_ID_HEADER,
   TaskRequestIdSchema,
 } from "@shared/api-contract"
+import { AUTH_COOKIE_NAME } from "@shared/auth"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   ApiRequestError,
@@ -196,6 +197,38 @@ describe("request identity", () => {
     await vi.waitFor(() => expect(seen).toBeDefined())
     controller.abort()
     await assertion
+  })
+
+  it("sends the access password as Authorization and no CSRF header", async () => {
+    vi.stubGlobal("document", {
+      cookie: `${AUTH_COOKIE_NAME}=${encodeURIComponent("p@ss=;^!")}`,
+    })
+    const captures: RequestInit[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: unknown, init: RequestInit) => {
+        captures.push(init)
+        return new Response(
+          JSON.stringify({
+            taskId: "task-1",
+            kind: "disk_scan",
+            status: "running",
+            startedAt: 1,
+          }),
+          { status: 202, headers: { "content-type": "application/json" } }
+        )
+      })
+    )
+
+    await apiClient.startScan({
+      headers: taskRequestHeaders("req_0123456789abcdef"),
+    })
+
+    const headers = new Headers(captures[0].headers)
+    // cookie 里的密码解出来原样进 Bearer，特殊字符不解错
+    expect(headers.get("authorization")).toBe("Bearer p@ss=;^!")
+    // CSRF 机制已移除：写请求不再带这个头
+    expect(headers.get("x-csrf-token")).toBeNull()
   })
 
   it("surfaces 401 without turning it into a write result", async () => {

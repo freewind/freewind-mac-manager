@@ -1,197 +1,164 @@
-import { randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto"
-import { promisify } from "node:util"
+import { timingSafeEqual } from "node:crypto"
 import { contract } from "@shared/api-contract"
 import { API_BASE } from "@shared/api-path"
+import { AUTH_COOKIE_NAME } from "@shared/auth"
 import { initServer } from "@ts-rest/express"
 import type { NextFunction, Request, Response } from "express"
 import { getAuthPassword, isAuthConfigured } from "./env"
 
+/**
+ * 访问密码认证：无状态，不保存会话。
+ *
+ * - 密码的唯一来源仍是 .env 的 MAC_MANAGER_PASSWORD（见 env.ts）；每次请求直接核对。
+ * - 凭据双来源：Authorization: Bearer（普通请求）+ cookie（浏览器原生请求如
+ *   下载、<img> 无法自设 header，只能靠它自动携带）；禁用 query 参数取 token，
+ *   因为 URL 会进访问日志、浏览器历史与 Referer。
+ * - 认证只拦 /api；页面与静态资源全部交给 SPA —— 登录界面是前端组件。
+ * - 认证中间件只做核对，不再维护进程内 session，所以 dev 热重载不会让用户被动登出。
+ */
+
 const s = initServer()
-const SESSION_COOKIE = "mac_manager_session"
-const CSRF_COOKIE = "mac_manager_csrf"
-const SESSION_TTL_SECONDS = 60 * 60 * 12
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
-const RATE_LIMIT_MAX_ATTEMPTS = 5
-const deriveKey = promisify(scrypt)
 
-type Session = { expiresAt: number }
-type AttemptState = { count: number; resetAt: number }
+/** 免鉴权端点：登录页自身要用。 */
+const AUTH_EXEMPT_PATHS = new Set([
+  `${API_BASE}/auth/status`,
+  `${API_BASE}/auth/login`,
+])
 
-const parseCookies = (header: string | undefined): Record<string, string> => {
-  const cookies: Record<string, string> = {}
-  for (const item of header?.split(";") ?? []) {
-    const index = item.indexOf("=")
-    if (index <= 0) continue
-    const key = item.slice(0, index).trim()
-    try {
-      cookies[key] = decodeURIComponent(item.slice(index + 1).trim())
-    } catch {}
+/* ---------- 限流：按 IP 的内存计数，中间件与登录端点共用同一份状态 ---------- */
+
+const MAX_FAILURES = 5
+const LOCK_MS = 60_000
+type RateLimitEntry = { failures: number; lockUntil: number }
+const rateLimits = new Map<string, RateLimitEntry>()
+
+/** 剩余锁定秒数；0 表示未锁定（此时条目仍保留失败计数）。 */
+const lockRemainingSecs = (ip: string): number => {
+  const entry = rateLimits.get(ip)
+  if (!entry) return 0
+  const remaining = entry.lockUntil - Date.now()
+  // 只在「曾锁定且已过期」时删条目；未锁定条目要保留失败计数。
+  if (entry.lockUntil > 0 && remaining <= 0) {
+    rateLimits.delete(ip)
+    return 0
   }
-  return cookies
+  return entry.lockUntil > 0 ? Math.ceil(remaining / 1000) : 0
 }
 
-const serializeCookie = (
-  name: string,
-  value: string,
-  options: { httpOnly?: boolean; maxAge?: number }
-): string => {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : ""
-  const httpOnly = options.httpOnly ? "; HttpOnly" : ""
-  const maxAge =
-    options.maxAge === undefined ? "" : `; Max-Age=${options.maxAge}`
-  return `${name}=${encodeURIComponent(value)}; Path=/; SameSite=Strict${httpOnly}${maxAge}${secure}`
+const recordFailure = (ip: string): void => {
+  const now = Date.now()
+  let entry = rateLimits.get(ip)
+  // 锁定期间再失败：不重置计数、不延长锁。
+  if (entry && entry.lockUntil > now) return
+  // 上一轮锁已过期：这算新一轮的第一次失败。
+  if (entry && entry.lockUntil > 0 && entry.lockUntil <= now) {
+    entry = { failures: 0, lockUntil: 0 }
+  }
+  const failures = (entry?.failures ?? 0) + 1
+  rateLimits.set(ip, {
+    failures,
+    lockUntil: failures >= MAX_FAILURES ? now + LOCK_MS : 0,
+  })
 }
 
-const appendCookie = (response: Response, cookie: string): void => {
-  response.append("Set-Cookie", cookie)
+const recordSuccess = (ip: string): void => {
+  rateLimits.delete(ip)
 }
 
-const createToken = (): string => randomBytes(32).toString("hex")
+/* ---------- 凭据与地址 ---------- */
+
+/** Authorization: Bearer 优先，其次 cookie。 */
+const extractPassword = (request: Request): string | null => {
+  const authorization = request.headers.authorization
+  if (authorization?.startsWith("Bearer ")) {
+    return authorization.slice("Bearer ".length)
+  }
+  for (const part of request.headers.cookie?.split(";") ?? []) {
+    const index = part.indexOf("=")
+    if (index > 0 && part.slice(0, index).trim() === AUTH_COOKIE_NAME) {
+      const raw = part.slice(index + 1).trim()
+      try {
+        return decodeURIComponent(raw)
+      } catch {
+        return raw
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * 本机直连部署取 TCP 对端地址，不信任可伪造的 X-Forwarded-For；
+ * IPv6 映射地址要剥掉 ::ffff: 前缀才能与 IPv4 归一。
+ */
+const getClientIp = (request: Request): string => {
+  const raw = request.socket?.remoteAddress ?? ""
+  return raw.startsWith("::ffff:") ? raw.slice("::ffff:".length) : raw
+}
+
+/** 先比长度再用 timingSafeEqual：长度不同时直接返回，避免比较抛错。 */
+const safeEqual = (left: string, right: string): boolean => {
+  const a = Buffer.from(left)
+  const b = Buffer.from(right)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+const tooManyAttempts = (seconds: number) => ({
+  message: `尝试过于频繁，请 ${seconds} 秒后重试`,
+})
 
 export const createAuthManager = () => {
-  const configuredPassword = getAuthPassword()
-  const passwordSalt = randomBytes(16)
-  const passwordHash = configuredPassword
-    ? scryptSync(configuredPassword, passwordSalt, 32)
-    : null
-  const sessions = new Map<string, Session>()
-  const attempts = new Map<string, AttemptState>()
-
-  const getCookies = (request: Request) => parseCookies(request.headers.cookie)
-
-  const getSession = (request: Request): Session | null => {
-    const token = getCookies(request)[SESSION_COOKIE]
-    if (!token) return null
-    const session = sessions.get(token)
-    if (!session) return null
-    if (session.expiresAt <= Date.now()) {
-      sessions.delete(token)
-      return null
-    }
-    return session
-  }
-
-  const issueCsrf = (request: Request, response: Response): string => {
-    const current = getCookies(request)[CSRF_COOKIE]
-    if (current) return current
-    const token = createToken()
-    appendCookie(
-      response,
-      serializeCookie(CSRF_COOKIE, token, { maxAge: SESSION_TTL_SECONDS })
-    )
-    return token
-  }
-
-  const clearAuth = (request: Request, response: Response): void => {
-    const sessionToken = getCookies(request)[SESSION_COOKIE]
-    if (sessionToken) sessions.delete(sessionToken)
-    appendCookie(
-      response,
-      serializeCookie(SESSION_COOKIE, "", { httpOnly: true, maxAge: 0 })
-    )
-    appendCookie(response, serializeCookie(CSRF_COOKIE, "", { maxAge: 0 }))
-  }
-
-  const csrfIsValid = (request: Request): boolean => {
-    const cookies = getCookies(request)
-    const header = request.get("x-csrf-token")
-    return Boolean(
-      header && cookies[CSRF_COOKIE] && header === cookies[CSRF_COOKIE]
-    )
-  }
-
-  const clientKey = (request: Request): string => request.ip || "unknown"
-
-  const getRateLimit = (request: Request): AttemptState | null => {
-    const key = clientKey(request)
-    const state = attempts.get(key)
-    if (!state) return null
-    if (state.resetAt <= Date.now()) {
-      attempts.delete(key)
-      return null
-    }
-    return state.count >= RATE_LIMIT_MAX_ATTEMPTS ? state : null
-  }
-
-  const recordFailedAttempt = (request: Request): void => {
-    const key = clientKey(request)
-    const now = Date.now()
-    const current = attempts.get(key)
-    if (!current || current.resetAt <= now) {
-      attempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-      return
-    }
-    current.count += 1
-  }
-
-  const passwordMatches = async (password: string): Promise<boolean> => {
-    if (!passwordHash) return false
-    const candidate = (await deriveKey(password, passwordSalt, 32)) as Buffer
-    return timingSafeEqual(candidate, passwordHash)
-  }
-
-  const login = async (
-    request: Request,
-    response: Response,
-    password: string
-  ): Promise<boolean> => {
-    if (!configuredPassword || getRateLimit(request)) {
-      recordFailedAttempt(request)
-      return false
-    }
-    if (!(await passwordMatches(password))) {
-      recordFailedAttempt(request)
-      return false
-    }
-    attempts.delete(clientKey(request))
-    const token = createToken()
-    sessions.set(token, { expiresAt: Date.now() + SESSION_TTL_SECONDS * 1000 })
-    appendCookie(
-      response,
-      serializeCookie(SESSION_COOKIE, token, {
-        httpOnly: true,
-        maxAge: SESSION_TTL_SECONDS,
-      })
-    )
-    return true
-  }
-
   const middleware = (
     request: Request,
     response: Response,
     next: NextFunction
   ): void => {
-    if (
-      request.path === `${API_BASE}/health` ||
-      request.path.startsWith(`${API_BASE}/auth/`) ||
-      request.method === "OPTIONS"
-    ) {
+    const path = request.path
+    const isApi = path === API_BASE || path.startsWith(`${API_BASE}/`)
+    // 非 API（页面、静态资源）交给 SPA；登录端点自身免鉴权。
+    if (!isApi || AUTH_EXEMPT_PATHS.has(path)) {
       next()
       return
     }
-    if (!getSession(request)) {
-      response.status(401).json({ message: "需要登录" })
+
+    const password = getAuthPassword()
+    // 未配置密码时 fail-closed：接口一律拒绝，不因为“本机”而放行。
+    if (!password) {
+      response.status(401).json({ message: "服务尚未配置访问密码" })
       return
     }
-    if (
-      ["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-      !csrfIsValid(request)
-    ) {
-      response.status(403).json({ message: "CSRF 校验失败" })
+
+    const ip = getClientIp(request)
+    const lockedSecs = lockRemainingSecs(ip)
+    if (lockedSecs > 0) {
+      response.setHeader("Retry-After", String(lockedSecs))
+      response.status(429).json(tooManyAttempts(lockedSecs))
       return
     }
+
+    const credential = extractPassword(request)
+    if (!credential) {
+      response.status(401).json({ message: "需要访问密码" })
+      return
+    }
+
+    if (!safeEqual(credential, password)) {
+      recordFailure(ip)
+      const afterFailureSecs = lockRemainingSecs(ip)
+      if (afterFailureSecs > 0) {
+        response.setHeader("Retry-After", String(afterFailureSecs))
+        response.status(429).json(tooManyAttempts(afterFailureSecs))
+        return
+      }
+      response.status(401).json({ message: "密码错误" })
+      return
+    }
+
+    recordSuccess(ip)
     next()
   }
 
-  return {
-    getSession,
-    issueCsrf,
-    clearAuth,
-    csrfIsValid,
-    getRateLimit,
-    login,
-    middleware,
-  }
+  return { middleware }
 }
 
 /**
@@ -199,52 +166,61 @@ export const createAuthManager = () => {
  * 直接用 routes/auth.ts 的裸路径会注册到 /auth/*，与前端请求的 /api/auth/* 不一致。
  */
 export const authContract = {
-  getAuthCsrf: contract.getAuthCsrf,
   getAuthStatus: contract.getAuthStatus,
   login: contract.login,
-  logout: contract.logout,
 }
 
-export const createAuthRouter = (manager: AuthManager) =>
+/**
+ * 认证已无状态：router 不依赖实例。参数保留，让 app.ts 的
+ * `createAuthRouter(auth)` 调用形态不变。
+ */
+export const createAuthRouter = (_manager: AuthManager) =>
   s.router(authContract, {
-    getAuthCsrf: async ({ req, res }) => ({
-      status: 200 as const,
-      body: { csrfToken: manager.issueCsrf(req, res) },
-    }),
-    getAuthStatus: async ({ req }) => ({
-      status: 200 as const,
-      body: {
-        authenticated: manager.getSession(req) !== null,
-        configured: isAuthConfigured(),
-      },
-    }),
-    login: async ({ body, req, res }) => {
-      if (!manager.csrfIsValid(req)) {
-        return { status: 403 as const, body: { message: "CSRF 校验失败" } }
-      }
-      if (manager.getRateLimit(req)) {
+    getAuthStatus: async ({ req }) => {
+      const configured = isAuthConfigured()
+      if (!configured) {
         return {
-          status: 429 as const,
-          body: { message: "登录尝试过于频繁，请稍后再试" },
+          status: 200 as const,
+          body: { authenticated: false, configured: false },
         }
       }
-      if (!(await manager.login(req, res, body.password))) {
+      const credential = extractPassword(req)
+      return {
+        status: 200 as const,
+        body: {
+          authenticated:
+            credential !== null && safeEqual(credential, getAuthPassword()),
+          configured: true,
+        },
+      }
+    },
+    login: async ({ body, req, res }) => {
+      const password = getAuthPassword()
+      const ip = getClientIp(req)
+      const lockedSecs = lockRemainingSecs(ip)
+      if (lockedSecs > 0) {
+        res.setHeader("Retry-After", String(lockedSecs))
+        return { status: 429 as const, body: tooManyAttempts(lockedSecs) }
+      }
+      // 密码错误与未配置密码返回同一文案，不对外区分原因。
+      if (!password || !safeEqual(body.password, password)) {
+        recordFailure(ip)
+        const afterFailureSecs = lockRemainingSecs(ip)
+        if (afterFailureSecs > 0) {
+          res.setHeader("Retry-After", String(afterFailureSecs))
+          return {
+            status: 429 as const,
+            body: tooManyAttempts(afterFailureSecs),
+          }
+        }
         return {
           status: 401 as const,
           body: { message: "密码错误或服务尚未配置密码" },
         }
       }
-      return { status: 200 as const, body: { authenticated: true } }
-    },
-    logout: async ({ req, res }) => {
-      if (!manager.csrfIsValid(req)) {
-        return { status: 403 as const, body: { message: "CSRF 校验失败" } }
-      }
-      manager.clearAuth(req, res)
-      return { status: 200 as const, body: { authenticated: false } }
+      recordSuccess(ip)
+      return { status: 200 as const, body: { authenticated: true as const } }
     },
   })
 
 export type AuthManager = ReturnType<typeof createAuthManager>
-export type AuthRequest = Request
-export type AuthResponse = Response

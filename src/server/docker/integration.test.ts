@@ -228,21 +228,6 @@ const createFakeCli = (state: State) => {
 
 const BUILTIN_NETWORKS = ["bridge", "host", "none"]
 
-/** 从响应里取出指定 cookie 的 name=value 片段。 */
-const cookieOf = (response: Response, name: string): string => {
-  const found = response.headers
-    .getSetCookie()
-    .find((cookie) => cookie.startsWith(`${name}=`))
-  expect(found, `缺少 cookie ${name}`).toBeTruthy()
-  return (found ?? "").split(";")[0] ?? ""
-}
-
-const csrfCookieOf = (response: Response): string =>
-  cookieOf(response, "mac_manager_csrf")
-
-const sessionCookieOf = (response: Response): string =>
-  cookieOf(response, "mac_manager_session")
-
 let dir: string
 let store: TaskStore
 let runtime: TaskRuntime
@@ -252,8 +237,7 @@ let state: State
 
 /** 应用要求登录（鉴权是既有能力），集成测试也走真实的登录流程。 */
 const TEST_PASSWORD = "integration-password-1234"
-let cookieHeader = ""
-let csrfToken = ""
+let authorization = ""
 
 const send = async (
   method: string,
@@ -263,10 +247,8 @@ const send = async (
   const headers: Record<string, string> = {
     "content-type": "application/json",
   }
-  if (cookieHeader) headers.cookie = cookieHeader
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
-    headers["x-csrf-token"] = csrfToken
-  }
+  // 认证无状态：登录后每次请求都带 Bearer（密码本身就是凭据）。
+  if (authorization) headers.authorization = authorization
   if (options.requestId) headers[TASK_REQUEST_ID_HEADER] = options.requestId
   const response = await fetch(`${baseUrl}${url}`, {
     method,
@@ -283,7 +265,7 @@ const send = async (
 }
 
 beforeEach(async () => {
-  // createAuthManager 在应用创建时读密码：这里先注入，测试结束后恢复
+  // 密码按请求直接核对：这里先注入，测试结束后恢复
   process.env.MAC_MANAGER_PASSWORD = TEST_PASSWORD
   state = newState()
   state.containers.set("c1", containerOf("c1", "smoke-web"))
@@ -365,26 +347,20 @@ beforeEach(async () => {
   const port = typeof address === "object" && address ? address.port : 0
   baseUrl = `http://127.0.0.1:${port}`
 
-  // 真实登录：csrf → login，把两个 cookie 都带上
-  const csrfResponse = await fetch(`${baseUrl}/api/auth/csrf`)
-  const csrfBody = (await csrfResponse.json()) as { csrfToken: string }
-  csrfToken = csrfBody.csrfToken
-  const csrfCookie = csrfCookieOf(csrfResponse)
+  // 真实登录：POST /api/auth/login 校验密码，后续请求带 Authorization: Bearer
   const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-csrf-token": csrfToken,
-      cookie: csrfCookie,
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ password: TEST_PASSWORD }),
   })
   expect(loginResponse.status).toBe(200)
-  cookieHeader = `${csrfCookie}; ${sessionCookieOf(loginResponse)}`
+  expect(await loginResponse.json()).toEqual({ authenticated: true })
+  authorization = `Bearer ${TEST_PASSWORD}`
 })
 
 afterEach(async () => {
   delete process.env.MAC_MANAGER_PASSWORD
+  authorization = ""
   runtime.runner.shutdown()
   store.close()
   rmSync(dir, { recursive: true, force: true })

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { AUTH_COOKIE_NAME } from "@shared/auth"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   inspectUploadTarget,
@@ -81,6 +82,32 @@ describe("upload result handling", () => {
     await expect(pending).resolves.toEqual(entry)
     expect(activeWriteCount()).toBe(0)
   })
+  it("carries the access password in the Authorization header, not CSRF", async () => {
+    document.cookie = `${AUTH_COOKIE_NAME}=${encodeURIComponent("p@ss word")}`
+    const pending = uploadFile("/tmp/auth", file())
+    const request = UploadRequest.instances[0]
+    const entry = {
+      name: "notes.txt",
+      path: "/tmp/auth/notes.txt",
+      kind: "file",
+      size: 4,
+      modified: 1,
+    }
+    request.responseText = JSON.stringify({ message: "已上传", file: entry })
+    request.dispatchEvent(new Event("load"))
+    await expect(pending).resolves.toEqual(entry)
+    expect(request.setRequestHeader).toHaveBeenCalledWith(
+      "Authorization",
+      "Bearer p@ss word"
+    )
+    expect(
+      request.setRequestHeader.mock.calls.some(
+        ([name]) => name === "x-csrf-token"
+      )
+    ).toBe(false)
+    document.cookie = `${AUTH_COOKIE_NAME}=; path=/; Max-Age=0`
+  })
+
   it("blocks direct retransmission of a target after an unknown result", async () => {
     const pending = uploadFile("/tmp/unresolved", file())
     UploadRequest.instances[0].dispatchEvent(new Event("error"))
