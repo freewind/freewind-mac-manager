@@ -8,7 +8,6 @@ import {
   TaskHostError,
   type TaskOutcome,
 } from "@server/common/tasks/worker-host"
-import { getAuthPassword } from "@server/env"
 import {
   TASK_KINDS,
   TASK_REQUEST_ID_HEADER,
@@ -59,7 +58,13 @@ let failImmediately = false
 let completeImmediately = false
 let unknownImmediately = false
 
+/** 测试显式注入的密码，不读 .env，避免缺 .env 时全数 401。 */
+const TEST_PASSWORD = "test-password"
+let savedPassword: string | undefined
+
 beforeEach(async () => {
+  savedPassword = process.env.MAC_MANAGER_PASSWORD
+  process.env.MAC_MANAGER_PASSWORD = TEST_PASSWORD
   dir = mkdtempSync(path.join(tmpdir(), "mac-manager-integration-"))
   store = new TaskStore(path.join(dir, "tasks.sqlite3"))
   dispatched = []
@@ -113,6 +118,11 @@ afterEach(async () => {
   await new Promise((resolve) => server.close(resolve))
   store.close()
   rmSync(dir, { recursive: true, force: true })
+  if (savedPassword === undefined) {
+    delete process.env.MAC_MANAGER_PASSWORD
+  } else {
+    process.env.MAC_MANAGER_PASSWORD = savedPassword
+  }
   expect(businessStore).not.toHaveBeenCalled()
   expect(command).not.toHaveBeenCalled()
   expect(migrate).not.toHaveBeenCalled()
@@ -120,12 +130,12 @@ afterEach(async () => {
 
 /**
  * 认证是 fail-closed 的：这些请求要过真实中间件，必须带访问密码。
- * 密码仍取自 .env（与生产同源），不硬编码。
+ * 测试显式注入 TEST_PASSWORD，不读 .env，避免缺 .env 时全数 401。
  */
 const authHeaders = (
   extra: Record<string, string> = {}
 ): Record<string, string> => ({
-  authorization: `Bearer ${getAuthPassword()}`,
+  authorization: `Bearer ${TEST_PASSWORD}`,
   ...extra,
 })
 
