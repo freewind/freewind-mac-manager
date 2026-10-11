@@ -12,7 +12,7 @@ import { useSyncExternalStore } from "react"
 export const PwaStatus = () => {
   const pending = usePendingRequests()
   const editing = useHasProtectedEdits()
-  const { online } = usePwaStatus()
+  const { online, registrationFailed } = usePwaStatus()
   const mutations = useIsMutating()
   const writes = useSyncExternalStore(
     subscribeWrites,
@@ -31,6 +31,14 @@ export const PwaStatus = () => {
   const { updateAvailable, applyUpdate } = usePwaStatus(blocked)
   return (
     <>
+      {registrationFailed ? (
+        <div
+          role="alert"
+          className="fixed right-3 bottom-28 z-50 rounded-md border bg-background p-3 text-destructive"
+        >
+          离线应用壳注册失败，当前无法保证离线使用
+        </div>
+      ) : null}
       {!online ? (
         <div
           role="status"

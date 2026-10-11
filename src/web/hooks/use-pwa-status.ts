@@ -2,17 +2,18 @@ import { activeWriteCount } from "@shared/client-api"
 import { useQueryClient } from "@tanstack/react-query"
 import { listPendingRequests } from "@web/features/tasks/pending-requests"
 import { useSyncExternalStore } from "react"
-import { toast } from "sonner"
 import { hasProtectedEdits } from "./use-edit-protection"
 
 type PwaState = {
   online: boolean
   updateAvailable: boolean
+  registrationFailed: boolean
   applyUpdate: () => void
 }
 
 let waitingWorker: ServiceWorker | null = null
 let waitingInitialized = false
+let registrationFailed = false
 const waitingListeners = new Set<() => void>()
 
 const notifyWaiting = (worker: ServiceWorker | null) => {
@@ -49,8 +50,8 @@ const initializeWaitingStore = () => {
     .register("/sw.js")
     .then(observeRegistration)
     .catch(() => {
-      waitingInitialized = false
-      toast.error("离线应用壳注册失败，当前无法保证离线使用")
+      registrationFailed = true
+      for (const listener of waitingListeners) listener()
     })
 }
 
@@ -62,6 +63,7 @@ const subscribeWaiting = (onChange: () => void) => {
 
 const getWaiting = () => waitingWorker
 const getWaitingServer = () => null
+const getRegistrationFailed = () => registrationFailed
 
 const subscribeOnline = (onChange: () => void) => {
   window.addEventListener("online", onChange)
@@ -88,6 +90,12 @@ export const usePwaStatus = (updateBlocked = false): PwaState => {
     getWaitingServer
   )
 
+  const failed = useSyncExternalStore(
+    subscribeWaiting,
+    getRegistrationFailed,
+    () => false
+  )
+
   const applyUpdate = () => {
     if (
       !waiting ||
@@ -106,5 +114,10 @@ export const usePwaStatus = (updateBlocked = false): PwaState => {
     waiting.postMessage({ type: "SKIP_WAITING" })
   }
 
-  return { online, updateAvailable: waiting !== null, applyUpdate }
+  return {
+    online,
+    updateAvailable: waiting !== null,
+    registrationFailed: failed,
+    applyUpdate,
+  }
 }
