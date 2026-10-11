@@ -971,6 +971,8 @@ export const writeFileContent = async (
   const tempPath = `${value}.${randomUUID()}.writing`
   const output = await open(tempPath, "wx", info.mode)
   const owned = await output.stat()
+  let failure: unknown
+  let failed = false
   try {
     await output.writeFile(content, { encoding: "utf8" })
     await output.close()
@@ -983,13 +985,27 @@ export const writeFileContent = async (
       throw new Error("保存目标已变化，未覆盖新对象")
     }
     await (options?.publish ?? rename)(tempPath, value)
+  } catch (error) {
+    failed = true
+    failure = error
   } finally {
     await output.close().catch(() => undefined)
     const current = await lstat(tempPath).catch(() => null)
     if (current?.dev === owned.dev && current.ino === owned.ino) {
-      await rm(tempPath, { force: true })
+      try {
+        await rm(tempPath, { force: true })
+      } catch (cleanupError) {
+        failure = failed
+          ? new AggregateError(
+              [failure, cleanupError],
+              "保存失败且临时副本清理失败"
+            )
+          : cleanupError
+        failed = true
+      }
     }
   }
+  if (failed) throw failure
 }
 
 export type DownloadHandle = {
