@@ -7,6 +7,7 @@ import { diskGrowthRoutes } from "./routes/disk-growth"
 import { dockerRoutes } from "./routes/docker"
 import { filesRoutes } from "./routes/files"
 import { frpRoutes } from "./routes/frp"
+import { hardwareRoutes } from "./routes/hardware"
 import { healthRoutes } from "./routes/health"
 import { piRoutes } from "./routes/pi"
 import { portsRoutes } from "./routes/ports"
@@ -20,6 +21,7 @@ export const contract = c.router(
   {
     ...authRoutes,
     ...healthRoutes,
+    ...hardwareRoutes,
     ...clashVergeRoutes,
     ...diskGrowthRoutes,
     ...dockerRoutes,
