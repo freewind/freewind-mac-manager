@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { DockerVolume } from "@shared/api-contract"
+import type { DockerVolume, DockerVolumesResponse } from "@shared/api-contract"
 import { ApiRequestError } from "@shared/client-api"
 import { formatBytes } from "@shared/format"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
@@ -99,6 +99,32 @@ describe("卷列表", () => {
     expect(knownRow?.textContent).toContain("挂载点 /var/lib/docker/volumes")
     const unknownRow = (await screen.findByText("unknown")).closest("li")
     expect(unknownRow?.textContent).toContain("未知")
+  })
+
+  it("加载期间不显示确定数量，加载完成后才显示真实数量", async () => {
+    let resolveVolumes: (value: DockerVolumesResponse) => void = () => undefined
+    api.fetchDockerVolumes.mockImplementation(
+      () =>
+        new Promise<DockerVolumesResponse>((done) => {
+          resolveVolumes = done
+        })
+    )
+    renderList()
+
+    // 加载中只说规则，不报「共 0 个」
+    expect(screen.getByText("正在读取卷列表…")).toBeTruthy()
+    expect(screen.queryByText(/共 \d+ 个/)).toBeNull()
+    expect(screen.getByText("被容器使用的卷不能删除")).toBeTruthy()
+
+    resolveVolumes({
+      volumes: Array.from({ length: 10 }, (_, index) =>
+        volume({ name: `vol-${index + 1}` })
+      ),
+    })
+
+    expect(
+      await screen.findByText("共 10 个；被容器使用的卷不能删除")
+    ).toBeTruthy()
   })
 
   it("被容器使用的卷：删除按钮禁用并说明原因", async () => {

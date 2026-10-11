@@ -83,7 +83,9 @@ export const ImageList = () => {
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-medium">镜像</h2>
         <p className="text-xs text-muted-foreground">
-          共 {model.images.length} 个；拉取进度在任务中心查看
+          {model.isLoading
+            ? "拉取进度在任务中心查看"
+            : `共 ${model.images.length} 个；拉取进度在任务中心查看`}
         </p>
         <Button
           variant="outline"

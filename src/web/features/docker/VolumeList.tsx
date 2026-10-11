@@ -51,7 +51,9 @@ export const VolumeList = () => {
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-medium">卷</h2>
         <p className="text-xs text-muted-foreground">
-          共 {model.volumes.length} 个；被容器使用的卷不能删除
+          {model.isLoading
+            ? "被容器使用的卷不能删除"
+            : `共 ${model.volumes.length} 个；被容器使用的卷不能删除`}
         </p>
       </div>
 

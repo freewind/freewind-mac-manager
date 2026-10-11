@@ -49,7 +49,9 @@ export const NetworkList = () => {
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-medium">网络</h2>
         <p className="text-xs text-muted-foreground">
-          共 {model.networks.length} 个；内置网络不能删除
+          {model.isLoading
+            ? "内置网络不能删除"
+            : `共 ${model.networks.length} 个；内置网络不能删除`}
         </p>
       </div>
 

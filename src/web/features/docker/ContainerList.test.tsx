@@ -124,11 +124,21 @@ afterEach(() => {
 
 describe("容器列表", () => {
   it("手机宽度用卡片展示名称、状态、端口与启动时间", async () => {
+    // 长镜像名（316px 宽）曾把卡片撑出视口：截断只影响视觉，完整值仍要可取
+    api.fetchDockerContainers.mockResolvedValue(
+      containersResponse([
+        container({ image: "docker.litellm.ai/berriai/litellm:main-stable" }),
+      ])
+    )
     renderList()
     expect(await screen.findByText("web")).toBeTruthy()
     expect(screen.getByText("运行中")).toBeTruthy()
     expect(screen.getByText(/端口 127.0.0.1:8080→80\/tcp/)).toBeTruthy()
     expect(screen.getByText(/启动于/)).toBeTruthy()
+    // 卡片副标题里镜像名完整可取得
+    expect(screen.getByText(/litellm:main-stable/).textContent).toContain(
+      "docker.litellm.ai/berriai/litellm:main-stable"
+    )
     // 手机不渲染表格
     expect(screen.queryByRole("table")).toBeNull()
     // 图标按钮有可访问名称

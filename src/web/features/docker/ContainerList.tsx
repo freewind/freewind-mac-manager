@@ -312,8 +312,8 @@ const ContainerActions = (props: {
 
 const ContainerSummary = ({ container }: { container: DockerContainer }) => (
   <>
-    <ItemTitle className="truncate">{container.name}</ItemTitle>
-    <ItemDescription className="truncate">
+    <ItemTitle className="min-w-0 truncate">{container.name}</ItemTitle>
+    <ItemDescription className="min-w-0 truncate">
       {container.image} ·{" "}
       {container.status || containerStateLabels[container.state]}
     </ItemDescription>
