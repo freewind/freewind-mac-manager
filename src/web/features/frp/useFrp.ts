@@ -23,6 +23,7 @@ import {
 } from "@web/features/frp/queries"
 import { useFrpLocalStore } from "@web/features/frp/store"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
+import { publishDraftProtection } from "@web/hooks/use-edit-protection"
 import { useTaskAction } from "@web/hooks/use-task-action"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { toast } from "sonner"
@@ -53,6 +54,10 @@ export const useFrp = () => {
   const dirty = config
     ? configSignature(config) !== config.savedSignature
     : false
+
+  useEffect(() => {
+    publishDraftProtection("frp", dirty)
+  }, [dirty])
 
   const visibleProxies = useMemo(() => {
     const keyword = local.search.trim().toLowerCase()
@@ -208,6 +213,7 @@ export const useFrp = () => {
       const persisted = await fetchFrpConfig()
       queryClient.setQueryData(frpKeys.persisted, persisted)
       queryClient.setQueryData(frpKeys.config, persisted)
+      publishDraftProtection("frp", false)
       toast.info("已放弃草稿并读取已保存配置")
     } catch (error) {
       toast.error(`读取失败，草稿已保留：${describeError(error)}`)
