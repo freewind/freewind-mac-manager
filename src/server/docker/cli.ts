@@ -524,6 +524,20 @@ export const parseVolumeSizes = (text: string): Map<string, number> => {
   return sizes
 }
 
+/** 解析 `docker system df` 的 TYPE/SIZE 列（Images 的 SIZE 已去重共享层）。 */
+export const parseDiskUsage = (text: string): Map<string, number> => {
+  const usage = new Map<string, number>()
+  for (const raw of text.split("\n")) {
+    const columns = raw.trim().split(/\s{2,}/)
+    if (columns.length < 4) continue
+    const type = (columns[0] ?? "").trim()
+    const size = parseDockerSize(columns[3] ?? "")
+    if (type.length === 0 || size === null) continue
+    usage.set(type, size)
+  }
+  return usage
+}
+
 /** 卷名在 docker 里只能是 [A-Za-z0-9][A-Za-z0-9_.-]*，过滤掉异常值再拼参数。 */
 const isValidVolumeName = (name: string): boolean =>
   /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(name)
@@ -559,17 +573,19 @@ export const parseVersion = (text: string): string => {
 }
 
 /**
- * colima status 的输出是几行 INFO/FATA 文本（colima 把日志写到 stderr）。
- * 停止状态各版本措辞不同，统一按「不处于 running」处理。
+ * colima status 的输出是几行日志（logrus 写法 `msg="arch: x86_64"`）。
+ * 停止状态各版本措辞不同，统一按「不处于 running」处理；取值要去掉行尾引号。
  */
 export const parseColimaStatus = (
   text: string
 ): { running: boolean; runtime: string | null; arch: string | null } => {
   const running = /colima is running/i.test(text)
+  const field = (name: string): string | null =>
+    new RegExp(`${name}:\\s*([^"\\s\\\\]+)`).exec(text)?.[1] ?? null
   return {
     running,
-    runtime: /runtime:\s*(\S+)/i.exec(text)?.[1] ?? null,
-    arch: /arch:\s*(\S+)/i.exec(text)?.[1] ?? null,
+    runtime: field("runtime"),
+    arch: field("arch"),
   }
 }
 
@@ -578,7 +594,7 @@ const COLIMA_STOPPED_PATTERN =
   /colima is not running|no instance found|not running/i
 
 /** 容器在取 id 与 inspect 之间被删掉时，docker 会报这个。 */
-const isMissingContainer = (error: unknown): boolean =>
+export const isMissingContainerError = (error: unknown): boolean =>
   error instanceof DockerCommandError &&
   error.kind === "failed" &&
   /no such (container|object)/i.test(error.detail)
@@ -643,14 +659,14 @@ export const createDockerCli = (
       return await inspect(ids)
     } catch (error) {
       // 取列表与 inspect 之间容器可能已被删掉：只跳过那一个，其余照常读。
-      if (!isMissingContainer(error)) throw error
+      if (!isMissingContainerError(error)) throw error
       if (ids.length === 1) return []
       const found: InspectedContainer[] = []
       for (const id of ids) {
         try {
           found.push(...(await inspect([id])))
         } catch (inner) {
-          if (!isMissingContainer(inner)) throw inner
+          if (!isMissingContainerError(inner)) throw inner
         }
       }
       return found
@@ -785,6 +801,12 @@ export const createDockerCli = (
       )
     )
 
+  /** 概览要的磁盘占用：Images 行已去重共享层，比逐镜像求和更准。 */
+  const getDiskUsage = (): Promise<Map<string, number>> =>
+    cache("docker:disk-usage", TTL.info, async () =>
+      parseDiskUsage((await docker(["system", "df"], TIMEOUT.list)).stdout)
+    )
+
   const getVersion = (): Promise<string> =>
     cache("docker:version", TTL.version, async () =>
       parseVersion(
@@ -876,6 +898,7 @@ export const createDockerCli = (
     listNetworks,
     getContainerLogs,
     getInfo,
+    getDiskUsage,
     getVersion,
     getColimaStatus,
     startColima,

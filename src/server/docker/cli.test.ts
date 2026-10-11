@@ -408,6 +408,15 @@ describe("docker 输出解析", () => {
           "INFO[0000] arch: aarch64\nINFO[0000] runtime: docker\n"
       )
     ).toEqual({ running: true, arch: "aarch64", runtime: "docker" })
+    // 真机实测的 logrus 写法：值被引号包住，不能把引号带进结果
+    expect(
+      parseColimaStatus(
+        'time="2026-10-11T16:05:57+08:00" level=info msg="colima is running using QEMU"\n' +
+          'time="2026-10-11T16:05:57+08:00" level=info msg="arch: x86_64"\n' +
+          'time="2026-10-11T16:05:57+08:00" level=info msg="runtime: docker"\n' +
+          'time="2026-10-11T16:05:57+08:00" level=info msg="docker socket: unix:///Users/me/.colima/default/docker.sock"\n'
+      )
+    ).toEqual({ running: true, arch: "x86_64", runtime: "docker" })
     expect(parseColimaStatus("FATA[0000] colima is not running")).toEqual({
       running: false,
       arch: null,

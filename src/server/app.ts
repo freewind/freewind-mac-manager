@@ -6,6 +6,8 @@ import {
   createDiskGrowthRouter,
   diskGrowthContract,
 } from "./disk-growth/handlers"
+import { createDockerRouter, dockerContract } from "./docker/handlers"
+import { createDockerService } from "./docker/service"
 import {
   createFilesRouter,
   filesContract,
@@ -58,6 +60,13 @@ export const createApp = (injected?: {
     options
   )
   registerUploadEndpoint(app)
+  // Docker 目前只有只读端点；写操作由后续任务往同一 router 里追加。
+  createExpressEndpoints(
+    dockerContract,
+    createDockerRouter(createDockerService()),
+    app,
+    options
+  )
   createExpressEndpoints(
     frpContract,
     createFrpRouter(taskRuntime),
