@@ -110,6 +110,19 @@ export const createApp = (injected?: {
     options
   )
 
+  // /api 未命中任何端点时必须回 JSON 404。dev 下它会接着交给 Vite
+  // 兜底返回 index.html，生产下会回 Express 默认的 HTML 404；两种情况
+  // 都会让客户端把页面当成接口数据，前端渲染时直接白屏。
+  app.use((request, response, next) => {
+    if (!request.path.startsWith("/api")) {
+      next()
+      return
+    }
+    response
+      .status(404)
+      .json({ message: `接口不存在：${request.method} ${request.path}` })
+  })
+
   // dev 模式下 api 中间件只加载 createApp，采样在这里启动（重复调用是幂等的）。
   if (injected?.initializeBusiness !== false) startTrafficSampler()
   return app

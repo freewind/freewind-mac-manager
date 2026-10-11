@@ -1,5 +1,4 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
-import { c } from "../init"
 import {
   ClashVergeConnectionsResponseSchema,
   ClashVergeProxiesResponseSchema,
@@ -28,5 +27,3 @@ export const clashVergeRoutes = {
     responses: { 200: ClashVergeConnectionsResponseSchema, ...readErrors },
   },
 } as const
-
-export const clashVergeContract = c.router(clashVergeRoutes)
