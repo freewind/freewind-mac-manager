@@ -213,11 +213,13 @@ const summaryOf = (service: SystemService): string => {
 }
 
 const MetadataField = (props: { label: string; children: React.ReactNode }) => (
-  <Field orientation="horizontal" className="gap-2">
-    <FieldLabel className="w-36 shrink-0 text-muted-foreground">
+  <Field orientation="horizontal" className="gap-2 min-w-0">
+    <FieldLabel className="w-24 shrink-0 text-muted-foreground lg:w-36">
       {props.label}
     </FieldLabel>
-    <FieldContent className="text-xs break-all">{props.children}</FieldContent>
+    <FieldContent className="text-xs min-w-0 overflow-x-auto whitespace-nowrap">
+      {props.children}
+    </FieldContent>
   </Field>
 )
 
@@ -326,7 +328,7 @@ export const SystemServicesPage = () => {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
         <aside className="flex max-h-72 w-full shrink-0 flex-col border-b md:max-h-none md:w-80 md:border-r md:border-b-0">
           <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
             服务列表
@@ -387,7 +389,7 @@ export const SystemServicesPage = () => {
           </ScrollArea>
         </aside>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
           {model.isLoading ? (
             <div className="flex flex-col gap-3 px-4 py-3">
               <Skeleton className="h-16 w-full" />
