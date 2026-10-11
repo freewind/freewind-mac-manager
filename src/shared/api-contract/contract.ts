@@ -1,10 +1,12 @@
 import { API_BASE } from "@shared/api-path"
 import { c } from "./init"
+import { clashVergeRoutes } from "./routes/clash-verge"
 import { dashboardRoutes } from "./routes/dashboard"
 import { diskGrowthRoutes } from "./routes/disk-growth"
 import { filesRoutes } from "./routes/files"
 import { frpRoutes } from "./routes/frp"
 import { healthRoutes } from "./routes/health"
+import { piRoutes } from "./routes/pi"
 import { portsRoutes } from "./routes/ports"
 import { processesRoutes } from "./routes/processes"
 import { systemServicesRoutes } from "./routes/system-services"
@@ -15,6 +17,7 @@ import { trafficRoutes } from "./routes/traffic"
 export const contract = c.router(
   {
     ...healthRoutes,
+    ...clashVergeRoutes,
     ...diskGrowthRoutes,
     ...trafficRoutes,
     ...dashboardRoutes,
@@ -24,6 +27,7 @@ export const contract = c.router(
     ...systemServicesRoutes,
     ...frpRoutes,
     ...tasksRoutes,
+    ...piRoutes,
   },
   { pathPrefix: API_BASE }
 )

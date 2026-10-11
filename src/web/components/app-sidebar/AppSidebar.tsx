@@ -8,6 +8,7 @@ import {
   EthernetPortIcon,
   FolderShared01Icon,
   Globe02Icon,
+  Robot01Icon,
   ServerStack01Icon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons"
@@ -42,6 +43,7 @@ export type FeatureKey =
   | "ports"
   | "frp"
   | "system-services"
+  | "pi"
 
 type FeatureItem = {
   key: FeatureKey
@@ -57,6 +59,7 @@ const FEATURES: FeatureItem[] = [
   { key: "processes", label: "进程管理", icon: CpuIcon },
   { key: "traffic", label: "流量监控", icon: DashboardSpeed02Icon },
   { key: "ports", label: "端口管理", icon: EthernetPortIcon },
+  { key: "pi", label: "Pi Agent", icon: Robot01Icon },
 ]
 
 /** 可折叠「服务」组下的子项。 */

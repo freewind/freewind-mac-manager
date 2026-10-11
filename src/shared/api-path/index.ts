@@ -2,6 +2,9 @@ export const API_BASE = "/api" as const
 
 export const ApiPath = {
   health: `${API_BASE}/health`,
+  clashVergeStatus: `${API_BASE}/clash-verge/status`,
+  clashVergeProxies: `${API_BASE}/clash-verge/proxies`,
+  clashVergeConnections: `${API_BASE}/clash-verge/connections`,
   diskGrowthScans: `${API_BASE}/disk-growth/scans`,
   diskGrowthEntries: `${API_BASE}/disk-growth/entries`,
   diskGrowthTree: `${API_BASE}/disk-growth/tree`,
@@ -37,6 +40,8 @@ export const ApiPath = {
   systemServicesReveal: `${API_BASE}/system-services/reveal`,
   frpConfig: `${API_BASE}/frp/config`,
   frpProbe: `${API_BASE}/frp/probe`,
+  piModels: `${API_BASE}/pi/models`,
+  piProvider: `${API_BASE}/pi/providers/:providerId`,
   tasks: `${API_BASE}/tasks`,
   task: `${API_BASE}/tasks/:id`,
 } as const

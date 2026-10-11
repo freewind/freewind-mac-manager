@@ -59,6 +59,27 @@ export type TrafficSnapshotResponse = z.infer<
   typeof TrafficSnapshotResponseSchema
 >
 export type TrafficGroupsResponse = z.infer<typeof TrafficGroupsResponseSchema>
+
+import type {
+  ClashVergeAvailabilitySchema,
+  ClashVergeConnectionSchema,
+  ClashVergeConnectionsResponseSchema,
+  ClashVergeProxiesResponseSchema,
+  ClashVergeProxySchema,
+  ClashVergeStatusSchema,
+} from "./schemas/clash-verge"
+
+export type ClashVergeAvailability = z.infer<typeof ClashVergeAvailabilitySchema>
+export type ClashVergeStatus = z.infer<typeof ClashVergeStatusSchema>
+export type ClashVergeProxy = z.infer<typeof ClashVergeProxySchema>
+export type ClashVergeProxiesResponse = z.infer<
+  typeof ClashVergeProxiesResponseSchema
+>
+export type ClashVergeConnection = z.infer<typeof ClashVergeConnectionSchema>
+export type ClashVergeConnectionsResponse = z.infer<
+  typeof ClashVergeConnectionsResponseSchema
+>
+
 export type KillProcessesBody = z.infer<typeof KillProcessesBodySchema>
 export type KillProcessesResponse = z.infer<typeof KillProcessesResponseSchema>
 
@@ -158,6 +179,18 @@ export type ServicesResponse = z.infer<typeof ServicesResponseSchema>
 export type ServiceTargetBody = z.infer<typeof ServiceTargetBodySchema>
 export type ServiceTargetQuery = z.infer<typeof ServiceTargetQuerySchema>
 export type ServiceEnabledBody = z.infer<typeof ServiceEnabledBodySchema>
+
+import type {
+  PiModelSchema,
+  PiModelsResponseSchema,
+  PiProviderInputSchema,
+  PiProviderSchema,
+} from "./schemas/pi"
+
+export type PiModel = z.infer<typeof PiModelSchema>
+export type PiProvider = z.infer<typeof PiProviderSchema>
+export type PiProviderInput = z.infer<typeof PiProviderInputSchema>
+export type PiModelsResponse = z.infer<typeof PiModelsResponseSchema>
 
 import type {
   FrpConfigInputSchema,

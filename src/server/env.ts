@@ -18,6 +18,10 @@ export const PROJECT_ROOT = findRoot(import.meta.dirname)
 export const WEB_DIST_DIR = path.join(PROJECT_ROOT, "dist")
 export const DATA_DIR = path.join(PROJECT_ROOT, "data")
 export const DATABASE_FILE = path.join(DATA_DIR, "snapshots.sqlite3")
+export const PI_AGENT_DIR = path.resolve(
+  process.env.PI_CODING_AGENT_DIR ??
+    path.join(process.env.HOME ?? "", ".pi", "agent")
+)
 
 /**
  * 应用配置的唯一来源：项目根的 .env。启动时加载一次，覆盖 dev、生产与脚本。
@@ -33,6 +37,15 @@ export const HTTPS_CERT_FILE =
 export const HTTPS_KEY_FILE =
   process.env.HTTPS_KEY_FILE ??
   path.join(process.env.HOME ?? "", ".freewind-certs/192.168.1.59-key.pem")
+
+export const env = {
+  get CLASH_VERGE_CONTROLLER_URL() {
+    return process.env.CLASH_VERGE_CONTROLLER_URL
+  },
+  get CLASH_VERGE_SECRET() {
+    return process.env.CLASH_VERGE_SECRET
+  },
+}
 
 /**
  * 文件管理可访问的根目录：默认整个文件系统，可用 FILE_ROOT 收窄到某个子目录。

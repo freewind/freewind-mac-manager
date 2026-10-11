@@ -11,6 +11,7 @@ import { DashboardPage } from "@web/features/dashboard/DashboardPage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
 import { FilesPage } from "@web/features/files/FilesPage"
 import { FrpPage } from "@web/features/frp/FrpPage"
+import { PiPage } from "@web/features/pi/PiPage"
 import { PortsPage } from "@web/features/ports/PortsPage"
 import { ProcessesPage } from "@web/features/processes/ProcessesPage"
 import { SystemServicesPage } from "@web/features/system-services/SystemServicesPage"
@@ -27,6 +28,7 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "ports",
   "frp",
   "system-services",
+  "pi",
 ]
 
 const featureFromUrl = (): FeatureKey => {
@@ -114,6 +116,7 @@ export const App = () => {
         {feature === "ports" ? <PortsPage /> : null}
         {feature === "frp" ? <FrpPage /> : null}
         {feature === "system-services" ? <SystemServicesPage /> : null}
+        {feature === "pi" ? <PiPage /> : null}
       </SidebarInset>
     </SidebarProvider>
   )
