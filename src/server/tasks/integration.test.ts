@@ -349,6 +349,21 @@ describe("task wiring through the real app", () => {
     expect(dispatched).toHaveLength(1)
   })
 
+  it("无凭据的危险动作被拒且不派发任务", async () => {
+    // 载荷与上面 it.each 里 diskEntryTrash 行动作一致（含请求标识），唯一区别是不带
+    // Authorization。所以 401 + 零派发直接证明未认证的危险动作不会执行，
+    // 不再依赖「中间件挂在域路由之前」这条挂载顺序推理。
+    const response = await fetch(
+      `${baseUrl}${ApiPath.diskGrowthEntry}?path=${encodeURIComponent("/tmp/audit")}`,
+      {
+        method: "DELETE",
+        headers: { [TASK_REQUEST_ID_HEADER]: "req_unauthorized_audit" },
+      }
+    )
+    expect(response.status).toBe(401)
+    expect(dispatched).toHaveLength(0)
+  })
+
   it("keeps a fast unknown result queryable without replaying execution", async () => {
     failImmediately = true
     const requestId = "req_fast_unknown_audit"
