@@ -1,14 +1,18 @@
 // @vitest-environment jsdom
-import type {
-  CaddyRule,
-  CaddyRuleChanges,
-  CaddyRulesResponse,
-  CaddyVersionSummary,
+import {
+  type CaddyRule,
+  type CaddyRuleChanges,
+  type CaddyRulesResponse,
+  type CaddyVersionSummary,
+  TASK_KINDS,
+  type TaskRecord,
 } from "@shared/api-contract"
 import { ApiRequestError } from "@shared/client-api"
 import { formatTimestamp } from "@shared/format"
+import { caddyConfigTaskTarget } from "@shared/task-targets"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -16,6 +20,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react"
+import { runTaskCompletion } from "@web/features/tasks/completion"
 import { clearPendingRequests } from "@web/features/tasks/pending-requests"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { CaddyPage } from "./CaddyPage"
@@ -200,6 +205,73 @@ afterEach(() => {
     fn.mockReset()
   }
   vi.unstubAllGlobals()
+})
+
+const applyTask = (status: "done" | "failed" | "unknown"): TaskRecord => ({
+  id: "task-caddy-apply",
+  kind: TASK_KINDS.caddyConfigApply,
+  requestId: null,
+  target: caddyConfigTaskTarget(),
+  status,
+  progress: null,
+  message: null,
+  error: status === "done" ? null : "未完成",
+  result:
+    status === "done"
+      ? {
+          message: "已应用 1 条规则，并已在运行配置里核实",
+          versionId: "v2",
+          appliedAt: 1_700_000_200,
+          ruleCount: 1,
+          verified: true,
+          backupFile: null,
+        }
+      : null,
+  startedAt: 1000,
+  finishedAt: 2000,
+  updatedAt: 2000,
+})
+
+describe("Caddy 任务完成后的数据失效", () => {
+  it("应用完成后重新读取规则与历史版本", async () => {
+    api.fetchCaddyRules.mockResolvedValue(
+      rulesResponse({
+        hasUnappliedChanges: true,
+        currentSignature: "sig-2",
+        changes: { ...emptyChanges(), added: [rule({ id: "r2" })] },
+      })
+    )
+    renderPage()
+    await screen.findByRole("button", { name: "应用变更" })
+    const rulesBefore = api.fetchCaddyRules.mock.calls.length
+    const versionsBefore = api.fetchCaddyVersions.mock.calls.length
+
+    fireEvent.click(screen.getByRole("button", { name: "应用变更" }))
+    const dialog = await screen.findByRole("alertdialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "应用变更" }))
+
+    await waitFor(() =>
+      expect(api.fetchCaddyRules.mock.calls.length).toBeGreaterThan(rulesBefore)
+    )
+    expect(api.fetchCaddyVersions.mock.calls.length).toBeGreaterThan(
+      versionsBefore
+    )
+  })
+
+  it("任务在别处终结且成功时重新读取；未完成时不刷新", async () => {
+    renderPage()
+    await screen.findByText("模型服务")
+    const rulesBefore = api.fetchCaddyRules.mock.calls.length
+
+    // 失败终态不刷新数据：页面不把失败当成「已生效」
+    await act(async () => runTaskCompletion(applyTask("failed")))
+    expect(api.fetchCaddyRules.mock.calls.length).toBe(rulesBefore)
+
+    await act(async () => runTaskCompletion(applyTask("done")))
+    await waitFor(() =>
+      expect(api.fetchCaddyRules.mock.calls.length).toBeGreaterThan(rulesBefore)
+    )
+  })
 })
 
 describe("Caddy 页面状态", () => {
