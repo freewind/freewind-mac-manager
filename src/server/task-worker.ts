@@ -1,4 +1,4 @@
-import { describeError } from "@shared/format"
+import { publicSystemError } from "./common/public-error"
 import {
   parseWorkerJob,
   serializeWorkerMessage,
@@ -57,7 +57,7 @@ const main = async (): Promise<void> => {
       status: outcome.status ?? "done",
     })
   } catch (error) {
-    write({ type: "failed", error: describeError(error) })
+    write({ type: "failed", error: publicSystemError(error).body.message })
     process.exitCode = 1
   }
 }
