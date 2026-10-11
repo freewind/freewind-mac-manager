@@ -4,7 +4,10 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { createApp } from "@server/app"
 import { TaskStore } from "@server/common/tasks/store"
-import type { TaskOutcome } from "@server/common/tasks/worker-host"
+import {
+  TaskHostError,
+  type TaskOutcome,
+} from "@server/common/tasks/worker-host"
 import {
   TASK_KINDS,
   TASK_REQUEST_ID_HEADER,
@@ -46,12 +49,18 @@ let runtime: TaskRuntime
 let server: Server
 let baseUrl: string
 /** 记录被派发的任务，测试自己决定它什么时候结束。 */
-let dispatched: { taskId: string; resolve: (outcome: TaskOutcome) => void }[]
+let dispatched: {
+  taskId: string
+  resolve: (outcome: TaskOutcome) => void
+  reject: (error: unknown) => void
+}[]
+let failImmediately = false
 
 beforeEach(async () => {
   dir = mkdtempSync(path.join(tmpdir(), "mac-manager-integration-"))
   store = new TaskStore(path.join(dir, "tasks.sqlite3"))
   dispatched = []
+  failImmediately = false
   runtime = createTaskRuntime({
     store,
     recoverInterrupted: false,
@@ -59,8 +68,11 @@ beforeEach(async () => {
     thresholdMs: 30,
     host: {
       execute: (job) =>
-        new Promise<TaskOutcome>((resolve) => {
-          dispatched.push({ taskId: job.taskId, resolve })
+        new Promise<TaskOutcome>((resolve, reject) => {
+          dispatched.push({ taskId: job.taskId, resolve, reject })
+          if (failImmediately) {
+            reject(new TaskHostError("unknown", "执行进程退出，结果未知"))
+          }
         }),
     },
   })
@@ -153,6 +165,42 @@ describe("task wiring through the real app", () => {
     expect(history.body.total).toBe(1)
     expect(history.body.tasks).toHaveLength(1)
     expect(history.body.tasks[0].status).toBe("done")
+  })
+
+  it("keeps a fast unknown result queryable without replaying execution", async () => {
+    failImmediately = true
+    const requestId = "req_fast_unknown_audit"
+    const send = () =>
+      fetch(`${baseUrl}${ApiPath.diskGrowthScan}`, {
+        method: "POST",
+        headers: { [TASK_REQUEST_ID_HEADER]: requestId },
+      })
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await send()
+      expect(response.status).toBe(409)
+      expect(await response.json()).toMatchObject({
+        executionStatus: "unknown",
+      })
+    }
+    expect(dispatched).toHaveLength(1)
+    const record = await get(
+      `${ApiPath.tasks}?status=all&requestId=${requestId}`
+    )
+    expect(record.body.tasks[0].status).toBe("unknown")
+
+    const conflict = await fetch(`${baseUrl}${ApiPath.diskGrowthReveal}`, {
+      method: "POST",
+      headers: {
+        [TASK_REQUEST_ID_HEADER]: requestId,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ path: "/tmp/audit" }),
+    })
+    expect(conflict.status).toBe(409)
+    expect(await conflict.json()).toMatchObject({
+      executionStatus: "not_started",
+    })
+    expect(dispatched).toHaveLength(1)
   })
 
   it("is reachable under /api and starts empty", async () => {

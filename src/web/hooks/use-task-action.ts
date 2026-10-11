@@ -1,4 +1,4 @@
-import type { TaskAccepted } from "@shared/api-contract"
+import { ApiErrorSchema, type TaskAccepted } from "@shared/api-contract"
 import {
   ApiRequestError,
   assertWriteOnline,
@@ -128,11 +128,15 @@ export const useTaskAction = <TBody, TPayload = undefined>(
       const rejectedBeforeExecution =
         !requestSent ||
         (error instanceof ApiRequestError &&
+          !error.resultUnknown &&
           error.status !== null &&
           (error.status === 0 ||
             (error.status >= 400 &&
               error.status < 500 &&
-              error.status !== 408)))
+              error.status !== 408 &&
+              (error.status !== 409 ||
+                ApiErrorSchema.safeParse(error.responseBody).data
+                  ?.executionStatus === "not_started"))))
       if (rejectedBeforeExecution) {
         forgetPendingRequest({ requestId })
       }

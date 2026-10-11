@@ -190,10 +190,7 @@ export class TaskRunner {
         message: final.error ?? "操作失败",
       }
     }
-    return {
-      kind: "completed",
-      ...request.toCompletedResponse(toOutcome(final)),
-    }
+    return this.completedResponse(final, request)
   }
 
   /** 服务关闭：中止仍在执行的子进程，并把它们标成结果未知。 */
@@ -233,9 +230,24 @@ export class TaskRunner {
         message: row.error ?? "该请求此前执行失败，未重复执行",
       }
     }
-    return {
-      kind: "completed",
-      ...request.toCompletedResponse(toOutcome(row)),
+    return this.completedResponse(row, request)
+  }
+
+  private completedResponse<TBody>(
+    row: TaskStoredRow,
+    request: TaskSubmitRequest<TBody>
+  ): TaskSubmitResult<TBody> {
+    try {
+      return {
+        kind: "completed",
+        ...request.toCompletedResponse(toOutcome(row)),
+      }
+    } catch {
+      // 副作用已经执行，响应转换失败不能再由 handler 当作入参错误返回。
+      return {
+        kind: "unknown",
+        message: "任务已执行，但完成结果无法解析，请重新读取目标核实",
+      }
     }
   }
 

@@ -162,7 +162,8 @@ describe("POST /api/disk-growth/scan", () => {
     calls[0].resolve({ result: { ok: true }, message: null, status: "done" })
 
     const response = await submission
-    expect(response.status).toBe(500)
-    expect(response.body.message).toContain("不符合契约")
+    expect(response.status).toBe(409)
+    expect(response.body.executionStatus).toBe("unknown")
+    expect(response.body.message).toContain("重新读取目标核实")
   })
 })

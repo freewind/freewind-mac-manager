@@ -1,4 +1,8 @@
-import { contract, TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
+import {
+  ApiErrorSchema,
+  contract,
+  TASK_REQUEST_ID_HEADER,
+} from "@shared/api-contract"
 import { initClient } from "@ts-rest/core"
 import { beginWrite } from "./write-activity"
 
@@ -43,7 +47,9 @@ export const unwrap = <T>(result: { status: number; body: unknown }): T => {
       ? `请求失败（HTTP ${result.status}）：${detail}`
       : `请求失败（HTTP ${result.status}）`,
     result.status,
-    result.body
+    result.body,
+    undefined,
+    ApiErrorSchema.safeParse(result.body).data?.executionStatus === "unknown"
   )
 }
 

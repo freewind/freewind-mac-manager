@@ -71,6 +71,21 @@ describe("execution handling", () => {
     }
   })
 
+  it("distinguishes unknown execution from a pre-execution conflict", async () => {
+    await expect(
+      runExecution(async () => ({
+        status: 409,
+        body: { message: "无法核实", executionStatus: "unknown" },
+      }))
+    ).rejects.toMatchObject({ status: 409, resultUnknown: true })
+    await expect(
+      runExecution(async () => ({
+        status: 409,
+        body: { message: "目标冲突", executionStatus: "not_started" },
+      }))
+    ).rejects.toMatchObject({ status: 409, resultUnknown: false })
+  })
+
   it("surfaces an unknown result as an unknown-result error", async () => {
     try {
       await runExecution(async () => {

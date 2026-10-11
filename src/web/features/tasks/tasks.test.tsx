@@ -344,7 +344,10 @@ describe("useTaskAction", () => {
           kind: "file_delete",
           target: "/tmp/a",
           run: async () => {
-            throw new ApiRequestError("目标冲突", 409)
+            throw new ApiRequestError("目标冲突", 409, {
+              message: "目标冲突",
+              executionStatus: "not_started",
+            })
           },
           onCompleted: vi.fn(),
         }),
@@ -357,6 +360,45 @@ describe("useTaskAction", () => {
 
     expect(listPendingRequests()).toEqual([])
   })
+
+  it.each([true, false])(
+    "keeps an uncertain 409 response protected (explicit unknown: %s)",
+    async (explicitUnknown) => {
+      const run = vi.fn(async () => {
+        throw new ApiRequestError(
+          "无法核实结果",
+          409,
+          { message: "无法核实结果" },
+          undefined,
+          explicitUnknown
+        )
+      })
+      const client = makeClient()
+      const options = {
+        kind: "file_delete",
+        target: "/tmp/a",
+        run,
+        onCompleted: vi.fn(),
+      }
+      const first = renderHook(() => useTaskAction(options), {
+        wrapper: wrapper(client),
+      })
+      await act(async () => {
+        await first.result.current.run(undefined)
+      })
+      expect(listPendingRequests()).toHaveLength(1)
+      expect(first.result.current.busy).toBe(true)
+      first.unmount()
+      const restored = renderHook(() => useTaskAction(options), {
+        wrapper: wrapper(client),
+      })
+      expect(restored.result.current.busy).toBe(true)
+      await act(async () => {
+        await restored.result.current.run(undefined)
+      })
+      expect(run).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it("refreshes the active list when a task is accepted", async () => {
     const client = makeClient()

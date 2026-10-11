@@ -105,6 +105,25 @@ describe("task runner", () => {
     expect(store.get(calls[0].job.taskId)?.status).toBe("done")
   })
 
+  it("does not report a completed response conversion failure as rejection", async () => {
+    const { runner, calls } = harness
+    const request = {
+      kind: "file_copy",
+      target: "/tmp/a",
+      payload: {},
+      requestId: "req_response_conversion_audit",
+      toCompletedResponse: () => {
+        throw new Error("结果不符合契约")
+      },
+    }
+    const submission = runner.submit(request)
+    await waitFor(() => calls.length === 1)
+    calls[0].resolve(ok({ invalid: true }))
+    expect(await submission).toMatchObject({ kind: "unknown" })
+    expect(await runner.submit(request)).toMatchObject({ kind: "unknown" })
+    expect(calls).toHaveLength(1)
+  })
+
   it("registers the task before the side effect starts", async () => {
     const { runner, calls, store } = harness
     const submission = runner.submit({

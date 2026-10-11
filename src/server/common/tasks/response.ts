@@ -12,7 +12,10 @@ import type { TaskSubmitResult } from "./runner"
 export type TaskHttpResponse<TBody, TStatus extends 200 | 201> =
   | { status: TStatus; body: TBody }
   | { status: 202; body: TaskAccepted }
-  | { status: 409; body: { message: string } }
+  | {
+      status: 409
+      body: { message: string; executionStatus: "not_started" | "unknown" }
+    }
   | { status: 500; body: { message: string } }
 
 export const toTaskHttpResponse = <TBody, TStatus extends 200 | 201>(
@@ -27,9 +30,15 @@ export const toTaskHttpResponse = <TBody, TStatus extends 200 | 201>(
     case "accepted":
       return { status: 202, body: outcome.body }
     case "conflict":
-      return { status: 409, body: { message: outcome.message } }
+      return {
+        status: 409,
+        body: { message: outcome.message, executionStatus: "not_started" },
+      }
     case "unknown":
-      return { status: 409, body: { message: outcome.message } }
+      return {
+        status: 409,
+        body: { message: outcome.message, executionStatus: "unknown" },
+      }
     case "failed":
       return { status: 500, body: { message: outcome.message } }
   }
