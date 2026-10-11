@@ -173,11 +173,17 @@ export const DiskGrowthPage = () => {
               className="pl-7"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={collapseAll}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-11"
+            onClick={collapseAll}
+          >
             全部收起
           </Button>
           <ActionButton
             size="sm"
+            className="min-h-11"
             busy={scan.busy}
             busyLabel="扫描中…"
             onClick={() => void scan.run(undefined)}

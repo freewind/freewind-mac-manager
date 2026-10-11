@@ -242,6 +242,7 @@ export const SystemServicesPage = () => {
           action === "unload" || action === "stop" ? "outline" : "secondary"
         }
         size="sm"
+        className="min-h-11"
         disabled={availability.disabled || model.isPending}
         title={availability.reason ?? undefined}
         onClick={() => model.requestAction(action, service)}
@@ -272,7 +273,7 @@ export const SystemServicesPage = () => {
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto"
+            className="ml-auto min-h-11"
             onClick={model.refresh}
           >
             <HugeiconsIcon icon={RefreshIcon} />
@@ -293,7 +294,7 @@ export const SystemServicesPage = () => {
           <ToggleGroup
             variant="outline"
             size="sm"
-            className="flex-wrap"
+            className="min-h-11 flex-wrap"
             value={[model.stateFilter]}
             onValueChange={(values) =>
               model.setStateFilter((values[0] ?? "all") as StateFilter)
@@ -309,7 +310,7 @@ export const SystemServicesPage = () => {
           <ToggleGroup
             variant="outline"
             size="sm"
-            className="flex-wrap"
+            className="min-h-11 flex-wrap"
             value={[model.domainFilter]}
             onValueChange={(values) =>
               model.setDomainFilter((values[0] ?? "all") as DomainFilter)

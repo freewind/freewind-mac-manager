@@ -87,6 +87,7 @@ export const ProcessesPage = () => {
             }}
             variant="outline"
             size="sm"
+            className="min-h-11"
           >
             {PROCESS_SCOPES.map((item) => (
               <ToggleGroupItem key={item.key} value={item.key}>
@@ -99,11 +100,17 @@ export const ProcessesPage = () => {
             onPressedChange={model.setAutoRefresh}
             variant="outline"
             size="sm"
+            className="min-h-11"
           >
             <HugeiconsIcon icon={model.autoRefresh ? PauseIcon : PlayIcon} />
             {model.autoRefresh ? "自动刷新" : "已暂停"}
           </Toggle>
-          <Button variant="outline" size="sm" onClick={model.refresh}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-11"
+            onClick={model.refresh}
+          >
             <HugeiconsIcon icon={RefreshIcon} />
             立即刷新
           </Button>
@@ -148,7 +155,7 @@ export const ProcessesPage = () => {
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto"
+            className="ml-auto min-h-11"
             onClick={() => requestTerminate(model.checkedProcesses, false)}
           >
             结束进程
@@ -156,6 +163,7 @@ export const ProcessesPage = () => {
           <Button
             variant="destructive"
             size="sm"
+            className="min-h-11"
             onClick={() => requestTerminate(model.checkedProcesses, true)}
           >
             强制结束
@@ -163,6 +171,7 @@ export const ProcessesPage = () => {
           <Button
             variant="ghost"
             size="sm"
+            className="min-h-11"
             onClick={() => model.setChecked([])}
           >
             取消选择

@@ -29,6 +29,7 @@ export const FilesToolbar = ({
       <Button
         key={action.key}
         size="sm"
+        className="min-h-11"
         variant="outline"
         disabled={action.disabled}
         onClick={action.run}
@@ -39,7 +40,9 @@ export const FilesToolbar = ({
     ))}
 
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
+      <DropdownMenuTrigger
+        render={<Button size="sm" className="min-h-11" variant="outline" />}
+      >
         <HugeiconsIcon icon={MoreHorizontalIcon} />
         操作
       </DropdownMenuTrigger>
@@ -62,7 +65,12 @@ export const FilesToolbar = ({
       </DropdownMenuContent>
     </DropdownMenu>
 
-    <Button size="sm" variant="outline" onClick={model.refresh}>
+    <Button
+      size="sm"
+      className="min-h-11"
+      variant="outline"
+      onClick={model.refresh}
+    >
       <HugeiconsIcon icon={RefreshIcon} />
       刷新
     </Button>

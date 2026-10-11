@@ -170,7 +170,12 @@ export const App = () => {
           ) : null}
           <div className="ml-auto flex items-center gap-2">
             <TaskCenter authenticated={authStatus.authenticated} />
-            <Button size="sm" variant="outline" onClick={() => void signOut()}>
+            <Button
+              size="sm"
+              className="min-h-11"
+              variant="outline"
+              onClick={() => void signOut()}
+            >
               退出登录
             </Button>
           </div>

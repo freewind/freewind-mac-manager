@@ -34,8 +34,8 @@ export const ClashVergePage = () => {
           </span>
         ) : null}
         <Button
-          className="ml-auto min-h-11 min-w-11"
           size="sm"
+          className="ml-auto min-h-11 min-w-11"
           variant="outline"
           onClick={model.refresh}
           disabled={model.isFetching}

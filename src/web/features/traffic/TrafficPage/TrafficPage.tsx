@@ -98,7 +98,12 @@ export const TrafficPage = () => {
               />
               忽略代理进程
             </label>
-            <Button size="sm" variant="outline" onClick={model.refresh}>
+            <Button
+              size="sm"
+              className="min-h-11"
+              variant="outline"
+              onClick={model.refresh}
+            >
               <HugeiconsIcon icon={RefreshIcon} />
               刷新
             </Button>

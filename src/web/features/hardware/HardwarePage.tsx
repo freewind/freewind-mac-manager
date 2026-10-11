@@ -482,8 +482,8 @@ export const HardwarePage = () => {
         <Badge variant="outline">含敏感信息</Badge>
         <div className="ml-auto flex flex-wrap gap-2">
           <Button
-            className="min-h-11"
             size="sm"
+            className="min-h-11"
             variant="outline"
             onClick={() => void model.copy()}
             disabled={!data}
@@ -492,8 +492,8 @@ export const HardwarePage = () => {
             复制文本
           </Button>
           <Button
-            className="min-h-11"
             size="sm"
+            className="min-h-11"
             variant="outline"
             onClick={model.exportText}
             disabled={!data}
@@ -502,8 +502,8 @@ export const HardwarePage = () => {
             导出
           </Button>
           <Button
-            className="min-h-11"
             size="sm"
+            className="min-h-11"
             variant="outline"
             onClick={() => void model.refresh()}
             disabled={model.isFetching}

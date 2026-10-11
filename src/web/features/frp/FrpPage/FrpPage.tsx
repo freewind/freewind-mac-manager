@@ -126,6 +126,7 @@ export const FrpPage = () => {
             <Button
               variant="outline"
               size="sm"
+              className="min-h-11"
               disabled={model.saving}
               onClick={openCreate}
             >
@@ -135,6 +136,7 @@ export const FrpPage = () => {
             <ActionButton
               variant="outline"
               size="sm"
+              className="min-h-11"
               busy={model.probing}
               busyLabel="探测中…"
               onClick={() => void model.probeAll()}
@@ -145,6 +147,7 @@ export const FrpPage = () => {
             <ActionButton
               variant="outline"
               size="sm"
+              className="min-h-11"
               busy={model.isFetching}
               busyLabel="读取中…"
               onClick={model.refresh}
@@ -157,6 +160,7 @@ export const FrpPage = () => {
               <Button
                 variant="outline"
                 size="sm"
+                className="min-h-11"
                 disabled={model.saving}
                 onClick={() => setDiscardOpen(true)}
               >
@@ -165,6 +169,7 @@ export const FrpPage = () => {
             ) : null}
             <ActionButton
               size="sm"
+              className="min-h-11"
               busy={model.saving}
               busyLabel="保存中…"
               disabled={!model.dirty || formOpen || pendingDelete !== null}
