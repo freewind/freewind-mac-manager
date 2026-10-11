@@ -106,9 +106,11 @@ export const TaskCard = ({
         <span>更新于 {formatTimestamp(updatedAt)}</span>
       </div>
       <TaskResult task={task} />
-      {detail ? <div>{detail}</div> : null}
-      {task.message ? <div>{task.message}</div> : null}
-      {task.error ? <div className="text-destructive">{task.error}</div> : null}
+      {detail ? <div className="break-all">{detail}</div> : null}
+      {task.message ? <div className="break-all">{task.message}</div> : null}
+      {task.error ? (
+        <div className="text-destructive break-all">{task.error}</div>
+      ) : null}
       {task.status === "unknown" ? (
         <div className="text-destructive">
           这次操作的结果无法确认，请重新读取目标后再决定是否重试。
