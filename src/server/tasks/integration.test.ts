@@ -102,6 +102,60 @@ const get = async (url: string) => {
 describe("task wiring through the real app", () => {
   it.each([
     {
+      kind: TASK_KINDS.fileCopy,
+      url: ApiPath.filesEntriesCopy,
+      method: "POST",
+      body: { paths: ["/tmp/audit"], destPath: "/tmp/dest" },
+      result: { completed: ["/tmp/audit"], failed: [], skipped: [], bytes: 1 },
+    },
+    {
+      kind: TASK_KINDS.fileMove,
+      url: ApiPath.filesEntriesMove,
+      method: "POST",
+      body: { paths: ["/tmp/audit"], destPath: "/tmp/dest" },
+      result: { completed: ["/tmp/audit"], failed: [], skipped: [], bytes: 1 },
+    },
+    {
+      kind: TASK_KINDS.fileDelete,
+      url: `${ApiPath.filesEntries}?paths[0]=%2Ftmp%2Faudit`,
+      method: "DELETE",
+      body: undefined,
+      result: {
+        completed: ["/tmp/audit"],
+        failed: [],
+        skipped: [],
+        bytes: null,
+      },
+    },
+    {
+      kind: TASK_KINDS.diskSnapshotDelete,
+      url: `${ApiPath.diskGrowthScans}?scanIds=1`,
+      method: "DELETE",
+      body: undefined,
+      result: { removed: 1 },
+    },
+    {
+      kind: TASK_KINDS.trafficSnapshotSave,
+      url: ApiPath.trafficSnapshots,
+      method: "POST",
+      body: undefined,
+      result: { snapshotId: "audit", rangeText: "审计区间" },
+    },
+    {
+      kind: TASK_KINDS.trafficSnapshotMerge,
+      url: ApiPath.trafficSnapshotsMerge,
+      method: "PUT",
+      body: { ids: ["a", "b"] },
+      result: { snapshotIds: ["audit"] },
+    },
+    {
+      kind: TASK_KINDS.trafficSnapshotDelete,
+      url: `${ApiPath.trafficSnapshots}?ids=a`,
+      method: "DELETE",
+      body: undefined,
+      result: { snapshotIds: [] },
+    },
+    {
       kind: TASK_KINDS.fileCreate,
       url: ApiPath.filesEntries,
       method: "POST",
@@ -177,8 +231,10 @@ describe("task wiring through the real app", () => {
     )
     expect(byRequest.body.tasks[0].id).toBe(accepted.taskId)
 
+    const result =
+      "result" in action ? action.result : { message: "动作已完成" }
     dispatched[0].resolve({
-      result: { message: "动作已完成" },
+      result,
       message: "动作已完成",
       status: "done",
     })
@@ -188,7 +244,7 @@ describe("task wiring through the real app", () => {
     expect(TaskRecordSchema.parse(done.body)).toMatchObject({
       kind: action.kind,
       status: "done",
-      result: { message: "动作已完成" },
+      result,
     })
     expect((await get(ApiPath.tasks)).body.tasks).toEqual([])
     const history = await get(
