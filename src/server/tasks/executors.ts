@@ -40,6 +40,7 @@ import {
   piBenchmarkErrorMessage,
   runPiBenchmarkTask,
 } from "@server/pi/benchmark"
+import { runPiLab } from "@server/pi/lab"
 import {
   runServiceActionTask,
   SERVICE_ACTION_KIND,
@@ -118,6 +119,24 @@ export const createExecutorRegistry = (
  * 载荷必须先按该种类自己的 schema 校验，再交给实现。
  */
 export const taskExecutors: TaskExecutor[] = [
+  {
+    kind: TASK_KINDS.piLab,
+    run: async (payload) => {
+      const outcome = await runPiLab(payload)
+      if (outcome.status === "failed") throw new Error(outcome.message)
+      return {
+        result: outcome,
+        message: outcome.message,
+        error: outcome.status === "unknown" ? outcome.message : null,
+        status:
+          outcome.status === "unknown"
+            ? "unknown"
+            : outcome.status === "partial"
+              ? "partial"
+              : "done",
+      }
+    },
+  },
   {
     kind: TASK_KINDS.piBenchmark,
     run: async (payload, context) => {

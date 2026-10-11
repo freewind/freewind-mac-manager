@@ -49,6 +49,7 @@ import {
 } from "@web/features/tasks/pending-requests"
 import { useState } from "react"
 import { toast } from "sonner"
+import { LabTab } from "./LabTab"
 import { piKeys, usePiBenchmarks, usePiModels } from "./queries"
 import { SettingsTab } from "./SettingsTab"
 
@@ -99,7 +100,9 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 export const PiPage = () => {
   const queryClient = useQueryClient()
   const query = usePiModels()
-  const [activeTab, setActiveTab] = useState<"models" | "settings">("models")
+  const [activeTab, setActiveTab] = useState<"models" | "settings" | "probe">(
+    "models"
+  )
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
@@ -302,6 +305,13 @@ export const PiPage = () => {
           >
             设置
           </Button>
+          <Button
+            className="min-h-11"
+            variant={activeTab === "probe" ? "default" : "ghost"}
+            onClick={() => setActiveTab("probe")}
+          >
+            能力探测
+          </Button>
         </div>
         {activeTab === "models" ? (
           <div className="ml-auto flex gap-2">
@@ -323,6 +333,8 @@ export const PiPage = () => {
       </header>
       {activeTab === "settings" ? (
         <SettingsTab />
+      ) : activeTab === "probe" ? (
+        <LabTab key={activeTab} mode={activeTab} />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {query.isLoading ? <p role="status">正在读取 Pi 配置…</p> : null}

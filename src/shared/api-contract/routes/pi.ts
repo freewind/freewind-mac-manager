@@ -18,6 +18,13 @@ import {
   PiSettingsMutationSchema,
   PiSettingsResponseSchema,
 } from "../schemas/pi"
+import {
+  PiLabClearSchema,
+  PiLabListSchema,
+  PiLabPathSchema,
+  PiLabRequestSchema,
+  PiLabResultSchema,
+} from "../schemas/pi-lab"
 
 const errorResponses = {
   400: ApiErrorSchema,
@@ -28,6 +35,41 @@ const errorResponses = {
 } as const
 
 export const piRoutes = {
+  startPiLab: {
+    method: "POST",
+    path: toContractPath(ApiPath.piLabRuns),
+    body: PiLabRequestSchema,
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: PiLabResultSchema,
+      202: TaskAcceptedSchema,
+      ...errorResponses,
+    },
+  },
+  listPiLab: {
+    method: "GET",
+    path: toContractPath(ApiPath.piLabRuns),
+    responses: { 200: PiLabListSchema, ...errorResponses },
+  },
+  readPiLab: {
+    method: "GET",
+    path: toContractPath(ApiPath.piLabRun),
+    pathParams: PiLabPathSchema,
+    responses: { 200: PiLabResultSchema, ...errorResponses },
+  },
+  cancelPiLab: {
+    method: "POST",
+    path: toContractPath(ApiPath.piLabCancel),
+    pathParams: PiLabPathSchema,
+    body: PiLabPathSchema,
+    responses: { 204: null, ...errorResponses },
+  },
+  clearPiLab: {
+    method: "DELETE",
+    path: toContractPath(ApiPath.piLabSession),
+    body: PiLabClearSchema,
+    responses: { 204: null, ...errorResponses },
+  },
   listPiModels: {
     method: "GET",
     path: toContractPath(ApiPath.piModels),

@@ -8,6 +8,10 @@ import type {
   PiSettingsResponse,
 } from "@shared/api-contract"
 import { TaskRequestIdSchema } from "@shared/api-contract/schemas/common"
+import type {
+  PiLabInput,
+  PiLabResult,
+} from "@shared/api-contract/schemas/pi-lab"
 import {
   ApiRequestError,
   apiClient,
@@ -54,6 +58,22 @@ export const fetchPiBenchmarks = async (): Promise<PiBenchmarkList> =>
 
 export const deletePiBenchmarks = (ids: string[]) =>
   apiClient.deletePiBenchmarks({ body: { ids } })
+
+export const startPiLab = async (input: PiLabInput, requestId: string) =>
+  runExecution<PiLabResult>(() =>
+    apiClient.startPiLab({
+      body: input,
+      headers: taskRequestHeaders(requestId),
+    })
+  )
+export const fetchPiLab = async (id: string): Promise<PiLabResult> =>
+  unwrap<PiLabResult>(await apiClient.readPiLab({ params: { id } }))
+export const fetchPiLabRuns = async (): Promise<PiLabResult[]> =>
+  unwrap<{ runs: PiLabResult[] }>(await apiClient.listPiLab()).runs
+export const cancelPiLab = async (id: string) =>
+  unwrap(await apiClient.cancelPiLab({ params: { id }, body: { id } }))
+export const clearPiLab = async (sessionId: string) =>
+  unwrap(await apiClient.clearPiLab({ body: { sessionId } }))
 
 export const fetchPiModels = async (): Promise<PiModelsResponse> =>
   unwrap<PiModelsResponse>(await apiClient.listPiModels())

@@ -10,6 +10,7 @@ import {
   PiBenchmarkRequestSchema,
   PiBenchmarkResultSchema,
 } from "@shared/api-contract/schemas/pi"
+import { PiLabResultSchema } from "@shared/api-contract/schemas/pi-lab"
 import { initServer } from "@ts-rest/express"
 import {
   deletePiBenchmarks,
@@ -26,10 +27,22 @@ import {
   savePiSettings,
   updatePiProvider,
 } from "./config"
+import {
+  cancelLabRun,
+  clearLabSession,
+  labTarget,
+  listLabRuns,
+  readLabRun,
+} from "./lab"
 
 const s = initServer()
 
 export const piContract = {
+  startPiLab: contract.startPiLab,
+  listPiLab: contract.listPiLab,
+  readPiLab: contract.readPiLab,
+  cancelPiLab: contract.cancelPiLab,
+  clearPiLab: contract.clearPiLab,
   listPiModels: contract.listPiModels,
   addPiProvider: contract.addPiProvider,
   updatePiProvider: contract.updatePiProvider,
@@ -43,6 +56,54 @@ export const piContract = {
 
 export const createPiRouter = (runtime: TaskRuntime) =>
   s.router(piContract, {
+    startPiLab: async ({ body, headers }) => {
+      try {
+        const payload = { ...body, requestId: headers[TASK_REQUEST_ID_HEADER] }
+        const outcome = await runtime.runner.submit({
+          kind: TASK_KINDS.piLab,
+          target: labTarget(payload),
+          payload,
+          requestId: payload.requestId,
+          toCompletedResponse: (result) => ({
+            status: 200,
+            body: PiLabResultSchema.parse(result.result),
+          }),
+        })
+        return toTaskHttpResponse(outcome, 200)
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    listPiLab: async () => {
+      try {
+        return { status: 200 as const, body: { runs: listLabRuns() } }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    readPiLab: async ({ params }) => {
+      try {
+        return { status: 200 as const, body: readLabRun(params.id) }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    cancelPiLab: async ({ params }) => {
+      try {
+        cancelLabRun(params.id)
+        return { status: 204 as const, body: null }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    clearPiLab: async ({ body }) => {
+      try {
+        clearLabSession(body.sessionId)
+        return { status: 204 as const, body: null }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
     listPiModels: async () => {
       try {
         return { status: 200 as const, body: await listPiModels() }
