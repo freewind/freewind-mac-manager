@@ -2,6 +2,7 @@ import { z } from "zod"
 import { ActionResponseSchema } from "./common"
 import { ScanTaskResultSchema } from "./disk-growth"
 import { FileBatchResultSchema } from "./files"
+import { PiBenchmarkResultSchema } from "./pi"
 import {
   SnapshotMutationResultSchema,
   SnapshotSaveResultSchema,
@@ -53,6 +54,7 @@ export const TASK_KINDS = {
   dockerAction: "docker_action",
   // Colima 虚拟机动作：与容器/镜像/卷/网络的 docker_action 分开，作用域也不同
   dockerColimaAction: "docker_colima_action",
+  piBenchmark: "pi_benchmark",
   diskEntryReveal: "disk_entry_reveal",
   diskEntryTrash: "disk_entry_trash",
   trafficSnapshotSave: "traffic_snapshot_save",
@@ -171,6 +173,13 @@ export const DockerActionTaskSchema = z.object({
   result: ActionResponseSchema.nullable(),
 })
 
+/** 模型测速任务：结果只保留脱敏指标摘要。 */
+export const PiBenchmarkTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.piBenchmark),
+  result: PiBenchmarkResultSchema.nullable(),
+})
+
 export const DiskEntryRevealTaskSchema = z.object({
   ...taskBase,
   kind: z.literal(TASK_KINDS.diskEntryReveal),
@@ -204,6 +213,7 @@ export const TaskRecordSchema = z.discriminatedUnion("kind", [
   ServiceActionTaskSchema,
   DockerActionTaskSchema,
   DockerColimaActionTaskSchema,
+  PiBenchmarkTaskSchema,
   DiskEntryRevealTaskSchema,
   DiskEntryTrashTaskSchema,
   TrafficSnapshotSaveTaskSchema,

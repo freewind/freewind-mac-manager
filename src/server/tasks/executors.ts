@@ -37,6 +37,10 @@ import {
 } from "@server/files/task"
 import { FRP_SAVE_KIND, runSaveFrpTask } from "@server/frp/task"
 import {
+  piBenchmarkErrorMessage,
+  runPiBenchmarkTask,
+} from "@server/pi/benchmark"
+import {
   runServiceActionTask,
   SERVICE_ACTION_KIND,
 } from "@server/system-services/task"
@@ -51,7 +55,8 @@ import {
   MergePayloadSchema as TrafficMergePayloadSchema,
   SavePayloadSchema as TrafficSavePayloadSchema,
 } from "@server/traffic/task"
-import type { TaskProgress } from "@shared/api-contract"
+import { TASK_KINDS, type TaskProgress } from "@shared/api-contract"
+import { PiBenchmarkTaskPayloadSchema } from "@shared/api-contract/schemas/pi"
 
 export type TaskExecutorOutcome = {
   result: unknown
@@ -113,6 +118,25 @@ export const createExecutorRegistry = (
  * 载荷必须先按该种类自己的 schema 校验，再交给实现。
  */
 export const taskExecutors: TaskExecutor[] = [
+  {
+    kind: TASK_KINDS.piBenchmark,
+    run: async (payload, context) => {
+      const parsed = PiBenchmarkTaskPayloadSchema.safeParse(payload)
+      if (!parsed.success) throw new Error("Pi 测速任务载荷无效")
+      const outcome = await runPiBenchmarkTask(parsed.data, {
+        report: context.report,
+      })
+      if (outcome.status === "failed" || outcome.status === "running") {
+        throw new Error(piBenchmarkErrorMessage("provider_error"))
+      }
+      return {
+        result: outcome,
+        message: outcome.message,
+        error: outcome.status === "unknown" ? outcome.message : null,
+        status: outcome.status,
+      }
+    },
+  },
   {
     kind: SCAN_KIND,
     run: async (payload, context) => {

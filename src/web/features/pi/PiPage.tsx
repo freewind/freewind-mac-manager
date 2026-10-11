@@ -7,11 +7,16 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  ApiRequestError,
   addPiProvider,
+  deletePiBenchmarks,
   deletePiProvider,
+  fetchTaskByRequestId,
+  newRequestId,
+  startPiBenchmark,
   updatePiProvider,
 } from "@shared/client-api"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
@@ -30,10 +35,21 @@ import {
 } from "@web/components/ui/dialog"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@web/components/ui/select"
 import { Textarea } from "@web/components/ui/textarea"
+import {
+  forgetPendingRequest,
+  rememberPendingRequest,
+} from "@web/features/tasks/pending-requests"
 import { useState } from "react"
 import { toast } from "sonner"
-import { piKeys, usePiModels } from "./queries"
+import { piKeys, usePiBenchmarks, usePiModels } from "./queries"
 import { SettingsTab } from "./SettingsTab"
 
 type ProviderEntry = ReturnType<typeof usePiModels>["data"] extends infer T
@@ -87,6 +103,30 @@ export const PiPage = () => {
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
+  const [benchmarkProvider, setBenchmarkProvider] = useState("")
+  const [benchmarkModel, setBenchmarkModel] = useState("")
+  const [benchmarkThinking, setBenchmarkThinking] = useState<
+    "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+  >("medium")
+  const [activeBenchmark, setActiveBenchmark] = useState<{
+    requestId: string
+    taskId: string | null
+  } | null>(null)
+  const history = usePiBenchmarks(activeTab === "models")
+  const activeTask = useQuery({
+    queryKey: [
+      ...piKeys.all,
+      "benchmark-task",
+      activeBenchmark?.requestId ?? "",
+    ],
+    queryFn: () => fetchTaskByRequestId(activeBenchmark?.requestId ?? ""),
+    enabled: activeBenchmark !== null,
+    retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.status === "running" || query.state.data === null
+        ? 1000
+        : false,
+  })
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: piKeys.all })
   const save = useMutation({
@@ -135,6 +175,69 @@ export const PiPage = () => {
     onError: (error) =>
       toast.error(error.message || "保存失败，请重新读取确认"),
   })
+  const benchmark = useMutation({
+    mutationFn: async () => {
+      if (!benchmarkProvider || !benchmarkModel)
+        throw new Error("请选择 Provider 和模型")
+      const requestId = newRequestId()
+      rememberPendingRequest({
+        requestId,
+        kind: "pi_benchmark",
+        target: `Pi ${benchmarkProvider}/${benchmarkModel}`,
+        startedAt: Date.now(),
+        taskId: null,
+      })
+      return {
+        requestId,
+        result: await startPiBenchmark(
+          {
+            providerId: benchmarkProvider,
+            modelId: benchmarkModel,
+            thinkingLevel: benchmarkThinking,
+          },
+          requestId
+        ),
+      }
+    },
+    onSuccess: async ({ requestId, result }) => {
+      if (result.kind === "completed") {
+        forgetPendingRequest({ requestId })
+        setActiveBenchmark(null)
+        if (result.body.status === "done") toast.success("Pi 模型测速完成")
+        else toast.error(result.body.message)
+      } else {
+        setActiveBenchmark({ requestId, taskId: result.body.taskId })
+        rememberPendingRequest({
+          requestId,
+          kind: "pi_benchmark",
+          target: `Pi ${benchmarkProvider}/${benchmarkModel}`,
+          startedAt: result.body.startedAt * 1000,
+          taskId: result.body.taskId,
+        })
+      }
+      await queryClient.invalidateQueries({ queryKey: piKeys.benchmarks() })
+    },
+    onError: async (error) => {
+      if (
+        error instanceof ApiRequestError &&
+        error.resultUnknown &&
+        error.requestId
+      ) {
+        setActiveBenchmark({ requestId: error.requestId, taskId: null })
+        toast.error("测速响应未知，正在通过请求标识核实任务")
+      } else {
+        toast.error(error.message || "测速未完成")
+      }
+      await queryClient.invalidateQueries({ queryKey: piKeys.benchmarks() })
+    },
+  })
+  const removeHistory = useMutation({
+    mutationFn: deletePiBenchmarks,
+    onSuccess: async (response) => {
+      if (response.status !== 204) toast.error("历史删除未完成")
+      await queryClient.invalidateQueries({ queryKey: piKeys.benchmarks() })
+    },
+  })
   const remove = useMutation({
     mutationFn: async (entry: ProviderEntry) =>
       deletePiProvider({
@@ -171,6 +274,10 @@ export const PiPage = () => {
       modelsJson: JSON.stringify(entry.provider.models, null, 2),
     })
   }
+
+  const benchmarkRunning =
+    activeBenchmark !== null &&
+    (!activeTask.data || activeTask.data.status === "running")
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -233,6 +340,159 @@ export const PiPage = () => {
           {query.data?.providers.length === 0 ? (
             <p className="text-sm text-muted-foreground">尚无 Provider。</p>
           ) : null}
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>模型测速</CardTitle>
+              <CardDescription>
+                点击后产生真实请求；本次输出取配置上限与 4096 的较小值。正文 TPS
+                仅在上游提供推理 token 拆分时计算。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              <Label className="grid gap-1 text-xs">
+                Provider
+                <Select
+                  value={benchmarkProvider}
+                  onValueChange={(value) => {
+                    setBenchmarkProvider(value ?? "")
+                    setBenchmarkModel("")
+                  }}
+                >
+                  <SelectTrigger aria-label="测速 Provider">
+                    <SelectValue placeholder="选择 Provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {query.data?.providers.map((entry) => (
+                      <SelectItem key={entry.id} value={entry.id}>
+                        {entry.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Label>
+              <Label className="grid gap-1 text-xs">
+                模型
+                <Select
+                  value={benchmarkModel}
+                  onValueChange={(value) => setBenchmarkModel(value ?? "")}
+                >
+                  <SelectTrigger aria-label="测速模型">
+                    <SelectValue placeholder="选择模型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {query.data?.providers
+                      .find((entry) => entry.id === benchmarkProvider)
+                      ?.provider.models.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.name ?? model.id} · max{" "}
+                          {model.maxTokens ?? "未声明"}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </Label>
+              <Label className="grid gap-1 text-xs">
+                Thinking
+                <Select
+                  value={benchmarkThinking}
+                  onValueChange={(value) => {
+                    if (value)
+                      setBenchmarkThinking(value as typeof benchmarkThinking)
+                  }}
+                >
+                  <SelectTrigger aria-label="测速 Thinking">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      "off",
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max",
+                    ].map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Label>
+              <Button
+                className="min-h-11"
+                onClick={() => benchmark.mutate()}
+                disabled={
+                  benchmark.isPending ||
+                  benchmarkRunning ||
+                  !benchmarkProvider ||
+                  !benchmarkModel
+                }
+              >
+                {benchmark.isPending || benchmarkRunning
+                  ? "测速中…"
+                  : "开始一次测速"}
+              </Button>
+              {activeBenchmark ? (
+                <p role="status">
+                  {activeTask.data?.status ?? "核实中"}；可在任务历史查看结果。
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>测速历史（最多 100 条）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {history.isLoading ? (
+                <p role="status">正在读取测速历史…</p>
+              ) : null}
+              {history.isError ? (
+                <p role="alert">测速历史读取失败：{history.error.message}</p>
+              ) : null}
+              {history.data?.benchmarks.length === 0 ? (
+                <p>暂无测速记录。</p>
+              ) : null}
+              {history.data?.benchmarks.map((item) => (
+                <div key={item.id} className="rounded border p-3 text-sm">
+                  <p>
+                    {item.providerId}/{item.modelId} · {item.status} · 配置上限{" "}
+                    {item.configuredMaxTokens} tokens
+                  </p>
+                  <p>
+                    首事件 {item.metrics.firstEventMs ?? "—"} ms · 首正文{" "}
+                    {item.metrics.firstTextMs ?? "—"} ms · 总时长{" "}
+                    {item.metrics.durationMs ?? "—"} ms
+                  </p>
+                  <p>
+                    输入 {item.metrics.inputTokens ?? "—"} · 输出{" "}
+                    {item.metrics.outputTokens ?? "—"} · 文本输出{" "}
+                    {item.metrics.textOutputTokens ?? "—"} · 缓存读{" "}
+                    {item.metrics.cacheReadTokens ?? "—"} · 缓存写{" "}
+                    {item.metrics.cacheWriteTokens ?? "—"}
+                  </p>
+                  <p>
+                    正文 tokens/s：{item.metrics.outputTokensPerSecond ?? "—"} ·
+                    停止原因：{item.stopReason ?? "—"} ·{" "}
+                    {item.error ?? "无错误"}
+                  </p>
+                  <p>
+                    {new Date(item.startedAt).toLocaleString()} · {item.message}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => removeHistory.mutate([item.id])}
+                    disabled={removeHistory.isPending}
+                  >
+                    删除记录
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {query.data?.providers.map((entry) => (
               <Card key={entry.id}>

@@ -1,9 +1,10 @@
-import { fetchPiModels } from "@shared/client-api"
+import { fetchPiBenchmarks, fetchPiModels } from "@shared/client-api"
 import { useQuery } from "@tanstack/react-query"
 
 export const piKeys = {
   all: ["pi"] as const,
   models: () => [...piKeys.all, "models"] as const,
+  benchmarks: () => [...piKeys.all, "benchmarks"] as const,
 }
 
 export const usePiModels = () =>
@@ -11,4 +12,16 @@ export const usePiModels = () =>
     queryKey: piKeys.models(),
     queryFn: fetchPiModels,
     retry: false,
+  })
+
+export const usePiBenchmarks = (enabled: boolean) =>
+  useQuery({
+    queryKey: piKeys.benchmarks(),
+    queryFn: fetchPiBenchmarks,
+    enabled,
+    retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.benchmarks.some((item) => item.status === "running")
+        ? 1000
+        : false,
   })

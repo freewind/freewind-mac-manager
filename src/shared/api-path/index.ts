@@ -47,6 +47,8 @@ export const ApiPath = {
   frpProbe: `${API_BASE}/frp/probe`,
   piModels: `${API_BASE}/pi/models`,
   piSettings: `${API_BASE}/pi/settings`,
+  piBenchmarks: `${API_BASE}/pi/benchmarks`,
+  piBenchmark: `${API_BASE}/pi/benchmarks/:id`,
   piProvider: `${API_BASE}/pi/providers/:providerId`,
   dockerOverview: `${API_BASE}/docker/overview`,
   dockerContainers: `${API_BASE}/docker/containers`,

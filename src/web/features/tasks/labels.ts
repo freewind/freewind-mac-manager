@@ -18,6 +18,7 @@ const KIND_LABELS = {
   [TASK_KINDS.serviceAction]: "系统服务操作",
   [TASK_KINDS.dockerAction]: "Docker 操作",
   [TASK_KINDS.dockerColimaAction]: "Colima 操作",
+  [TASK_KINDS.piBenchmark]: "Pi 模型测速",
   [TASK_KINDS.diskEntryReveal]: "在访达中定位",
   [TASK_KINDS.diskEntryTrash]: "移到废纸篓",
   [TASK_KINDS.trafficSnapshotSave]: "保存流量快照",

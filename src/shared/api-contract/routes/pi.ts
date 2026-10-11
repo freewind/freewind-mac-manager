@@ -1,6 +1,15 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
-import { ApiErrorSchema } from "../schemas/common"
 import {
+  ApiErrorSchema,
+  TaskAcceptedSchema,
+  TaskRequestIdHeadersSchema,
+} from "../schemas/common"
+import {
+  PiBenchmarkDeleteSchema,
+  PiBenchmarkErrorSchema,
+  PiBenchmarkListSchema,
+  PiBenchmarkRequestSchema,
+  PiBenchmarkResultSchema,
   PiModelsResponseSchema,
   PiProviderDeleteBodySchema,
   PiProviderIdSchema,
@@ -47,6 +56,32 @@ export const piRoutes = {
     path: toContractPath(ApiPath.piSettings),
     body: PiSettingsMutationSchema,
     responses: { 200: PiSettingsResponseSchema, ...errorResponses },
+  },
+  startPiBenchmark: {
+    method: "POST",
+    path: toContractPath(ApiPath.piBenchmarks),
+    body: PiBenchmarkRequestSchema,
+    headers: TaskRequestIdHeadersSchema,
+    responses: {
+      200: PiBenchmarkResultSchema,
+      202: TaskAcceptedSchema,
+      400: PiBenchmarkErrorSchema,
+      403: PiBenchmarkErrorSchema,
+      404: PiBenchmarkErrorSchema,
+      409: PiBenchmarkErrorSchema,
+      500: PiBenchmarkErrorSchema,
+    },
+  },
+  listPiBenchmarks: {
+    method: "GET",
+    path: toContractPath(ApiPath.piBenchmarks),
+    responses: { 200: PiBenchmarkListSchema, ...errorResponses },
+  },
+  deletePiBenchmarks: {
+    method: "DELETE",
+    path: toContractPath(ApiPath.piBenchmarks),
+    body: PiBenchmarkDeleteSchema,
+    responses: { 204: null, ...errorResponses },
   },
   deletePiProvider: {
     method: "DELETE",

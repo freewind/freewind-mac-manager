@@ -4,17 +4,29 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { PiPage } from "./PiPage"
 
-const { fetchModels, addProvider, updateProvider, deleteProvider } = vi.hoisted(
-  () => ({
-    fetchModels: vi.fn(),
-    addProvider: vi.fn(),
-    updateProvider: vi.fn(),
-    deleteProvider: vi.fn(),
-  })
-)
+const {
+  fetchModels,
+  fetchBenchmarks,
+  startBenchmark,
+  deleteBenchmarks,
+  addProvider,
+  updateProvider,
+  deleteProvider,
+} = vi.hoisted(() => ({
+  fetchModels: vi.fn(),
+  fetchBenchmarks: vi.fn(),
+  startBenchmark: vi.fn(),
+  deleteBenchmarks: vi.fn(),
+  addProvider: vi.fn(),
+  updateProvider: vi.fn(),
+  deleteProvider: vi.fn(),
+}))
 
 vi.mock("@shared/client-api", () => ({
   fetchPiModels: fetchModels,
+  fetchPiBenchmarks: fetchBenchmarks,
+  startPiBenchmark: startBenchmark,
+  deletePiBenchmarks: deleteBenchmarks,
   addPiProvider: addProvider,
   updatePiProvider: updateProvider,
   deletePiProvider: deleteProvider,
@@ -51,6 +63,13 @@ const renderPage = () => {
 
 beforeEach(() => {
   fetchModels.mockReset().mockResolvedValue(response)
+  fetchBenchmarks.mockReset().mockResolvedValue({ benchmarks: [] })
+  startBenchmark.mockReset().mockResolvedValue({
+    kind: "completed",
+    status: 200,
+    body: { id: "req_test_benchmark_001" },
+  })
+  deleteBenchmarks.mockReset().mockResolvedValue({ status: 204, body: null })
   addProvider.mockReset().mockResolvedValue({ status: 201, body: {} })
   updateProvider.mockReset().mockResolvedValue({ status: 200, body: {} })
   deleteProvider.mockReset().mockResolvedValue({ status: 204, body: null })
@@ -77,6 +96,23 @@ describe("Pi model manager page", () => {
     expect(updateProvider.mock.calls[0][0]).toBe("test")
     expect(updateProvider.mock.calls[0][1].provider.apiKey).toBeUndefined()
     expect(updateProvider.mock.calls[0][1].clearApiKey).toBe(false)
+  })
+
+  it("starts a benchmark only after an explicit user action", async () => {
+    renderPage()
+    await screen.findByText("test")
+    expect(startBenchmark).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: /测速 Provider/ }))
+    fireEvent.click(await screen.findByRole("option", { name: "test" }))
+    fireEvent.click(screen.getByRole("button", { name: "测速模型" }))
+    fireEvent.click(await screen.findByRole("option", { name: /model-one/ }))
+    fireEvent.click(screen.getByRole("button", { name: "开始一次测速" }))
+    await waitFor(() => expect(startBenchmark).toHaveBeenCalledTimes(1))
+    expect(startBenchmark.mock.calls[0][0]).toMatchObject({
+      providerId: "test",
+      modelId: "model-one",
+      thinkingLevel: "medium",
+    })
   })
 
   it("requires an explicit delete action", async () => {

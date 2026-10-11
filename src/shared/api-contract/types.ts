@@ -157,6 +157,13 @@ import type { HardwareOverviewSchema } from "./schemas/hardware"
 export type HardwareOverview = z.infer<typeof HardwareOverviewSchema>
 
 import type {
+  PiBenchmarkDeleteSchema,
+  PiBenchmarkErrorSchema,
+  PiBenchmarkListSchema,
+  PiBenchmarkRequestSchema,
+  PiBenchmarkResultSchema,
+  PiBenchmarkStartSchema,
+  PiBenchmarkTaskPayloadSchema,
   PiModelSchema,
   PiModelsResponseSchema,
   PiProviderInputSchema,
@@ -173,6 +180,15 @@ import type {
 } from "./schemas/processes"
 
 export type PiModel = z.infer<typeof PiModelSchema>
+export type PiBenchmarkRequest = z.input<typeof PiBenchmarkRequestSchema>
+export type PiBenchmarkTaskPayload = z.infer<
+  typeof PiBenchmarkTaskPayloadSchema
+>
+export type PiBenchmarkResult = z.infer<typeof PiBenchmarkResultSchema>
+export type PiBenchmarkStart = z.infer<typeof PiBenchmarkStartSchema>
+export type PiBenchmarkList = z.infer<typeof PiBenchmarkListSchema>
+export type PiBenchmarkDelete = z.infer<typeof PiBenchmarkDeleteSchema>
+export type PiBenchmarkError = z.infer<typeof PiBenchmarkErrorSchema>
 export type PiProvider = z.infer<typeof PiProviderSchema>
 export type PiProviderInput = z.infer<typeof PiProviderInputSchema>
 export type PiModelsResponse = z.infer<typeof PiModelsResponseSchema>

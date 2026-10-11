@@ -17,7 +17,7 @@ import {
 import { createFrpRouter, frpContract } from "./frp/handlers"
 import { hardwareContract, hardwareRouter } from "./hardware/handlers"
 import { healthContract, healthRouter } from "./health/handlers"
-import { piContract, piRouter } from "./pi/handlers"
+import { createPiRouter, piContract } from "./pi/handlers"
 import { portsContract, portsRouter } from "./ports/handlers"
 import { processesContract, processesRouter } from "./processes/handlers"
 import {
@@ -85,7 +85,7 @@ export const createApp = (injected?: {
     options
   )
   createExpressEndpoints(portsContract, portsRouter, app, options)
-  createExpressEndpoints(piContract, piRouter, app, options)
+  createExpressEndpoints(piContract, createPiRouter(taskRuntime), app, options)
   createExpressEndpoints(processesContract, processesRouter, app, options)
   createExpressEndpoints(
     systemServicesContract,

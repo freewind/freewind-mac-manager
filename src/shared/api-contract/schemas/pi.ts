@@ -128,6 +128,88 @@ export const PiSettingsResponseSchema = z.object({
   }),
 })
 
+export const PiBenchmarkRequestSchema = z.object({
+  providerId: z.string().min(1).max(256),
+  modelId: z.string().min(1).max(256),
+  thinkingLevel: z
+    .enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+    .default("medium"),
+  timeoutMs: z.number().int().min(1000).max(60_000).default(30_000),
+  prompt: z.string().min(1).max(4096).default("请简短回答：1 + 1 等于多少？"),
+})
+
+export const PiBenchmarkTaskPayloadSchema = PiBenchmarkRequestSchema.extend({
+  requestId: z
+    .string()
+    .min(16)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/),
+  maxTokens: z.number().int().positive().max(10_000_000),
+}).strict()
+
+export const PiBenchmarkStartSchema = z.object({
+  taskId: z.string().min(1),
+  kind: z.literal("pi_benchmark"),
+  status: z.literal("running"),
+  startedAt: z.number(),
+})
+
+export const PiBenchmarkErrorSchema = z.object({
+  message: z.string(),
+  executionStatus: z.enum(["not_started", "failed", "unknown"]).optional(),
+  requestId: z
+    .string()
+    .min(16)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
+})
+
+export const PiBenchmarkMetricsSchema = z.object({
+  firstEventMs: z.number().nonnegative().nullable(),
+  firstTextMs: z.number().nonnegative().nullable(),
+  durationMs: z.number().nonnegative().nullable(),
+  inputTokens: z.number().int().nonnegative().nullable(),
+  outputTokens: z.number().int().nonnegative().nullable(),
+  textOutputTokens: z.number().int().nonnegative().nullable(),
+  cacheReadTokens: z.number().int().nonnegative().nullable(),
+  cacheWriteTokens: z.number().int().nonnegative().nullable(),
+  totalTokens: z.number().int().nonnegative().nullable(),
+  outputTokensPerSecond: z.number().nonnegative().nullable(),
+  thinkingTokens: z.number().int().nonnegative().nullable(),
+})
+
+export const PiBenchmarkResultSchema = z.object({
+  message: z.string().max(160),
+  id: z.string().min(16).max(64),
+  requestId: z
+    .string()
+    .min(16)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/),
+  providerId: z.string(),
+  modelId: z.string(),
+  thinkingLevel: z.string(),
+  configuredMaxTokens: z.number().int().positive(),
+  status: z.enum(["running", "done", "partial", "failed", "unknown"]),
+  metrics: PiBenchmarkMetricsSchema,
+  stopReason: z.string().nullable(),
+  error: z
+    .enum(["timeout", "cancelled", "provider_error", "output_limit"])
+    .nullable(),
+  startedAt: z.number(),
+  finishedAt: z.number().nullable(),
+  source: z.literal("pi-sdk"),
+})
+
+export const PiBenchmarkListSchema = z.object({
+  benchmarks: z.array(PiBenchmarkResultSchema).max(100),
+})
+
+export const PiBenchmarkDeleteSchema = z.object({
+  ids: z.array(z.string().min(16).max(64)).min(1).max(50),
+})
+
 export const PiSettingsMutationSchema = z
   .object({
     signature: z.string().length(64),
