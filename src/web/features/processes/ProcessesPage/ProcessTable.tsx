@@ -105,7 +105,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
     rows.every((item) => model.checkedPids.includes(item.pid))
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
+    <div className="min-h-0 min-w-0 flex-1 overflow-auto">
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
@@ -139,7 +139,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
               active={sortKey === "cpu"}
               descending={descending}
               onClick={() => toggleSort("cpu")}
-              className="w-28"
+              className="w-36"
             />
             <SortableHead
               label="内存"
@@ -280,7 +280,7 @@ const ProcessRow = (props: ProcessRowProps) => {
         <span className="flex items-center gap-2">
           <span
             className={cn(
-              "w-11 text-right tabular-nums",
+              "min-w-12 text-right tabular-nums",
               hot ? "text-destructive" : undefined
             )}
           >

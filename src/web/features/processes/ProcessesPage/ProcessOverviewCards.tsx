@@ -40,8 +40,8 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
   const memoryUsedRatio = memory.total === 0 ? 0 : memory.used / memory.total
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      <Card size="sm" className="gap-2 py-3">
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4 min-w-0">
+      <Card size="sm" className="gap-2 py-3 min-w-0">
         <CardHeader className="px-3">
           <CardTitle className="flex items-center gap-1.5 text-xs">
             <HugeiconsIcon
@@ -70,7 +70,7 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
         </CardContent>
       </Card>
 
-      <Card size="sm" className="gap-2 py-3">
+      <Card size="sm" className="gap-2 py-3 min-w-0">
         <CardHeader className="px-3">
           <CardTitle className="flex items-center gap-1.5 text-xs">
             <HugeiconsIcon
@@ -103,7 +103,7 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
         </CardContent>
       </Card>
 
-      <Card size="sm" className="gap-2 py-3">
+      <Card size="sm" className="gap-2 py-3 min-w-0">
         <CardHeader className="px-3">
           <CardTitle className="flex items-center gap-1.5 text-xs">
             <HugeiconsIcon
@@ -149,7 +149,7 @@ export const ProcessOverviewCards = (props: ProcessOverviewCardsProps) => {
         </CardContent>
       </Card>
 
-      <Card size="sm" className="gap-2 py-3">
+      <Card size="sm" className="gap-2 py-3 min-w-0">
         <CardHeader className="px-3">
           <CardTitle className="flex items-center gap-1.5 text-xs">
             <HugeiconsIcon
