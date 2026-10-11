@@ -19,14 +19,14 @@ APP_PORT=51510 NODE_ENV=production node dist-ssr/server/main.js
 
 ## 正确流程：先构建，再重启
 
-用 `deploy` 脚本，它把两步串起来，构建失败就停下、不重启：
+用 `deploy:prod` 脚本，它把两步串起来，构建失败就停下、不重启：
 
 ```bash
-pnpm run deploy
+pnpm deploy:prod
 ```
 
-注意必须带 `run`：`deploy` 是 pnpm 自带子命令（workspace 部署），裸执行
-`pnpm deploy` 会报 `ERR_PNPM_INVALID_DEPLOY_TARGET`，不会走到本项目的脚本。
+脚本名带 `:prod` 后缀，是为了避开 pnpm 内置的 `deploy`（workspace 部署）子命令；
+本项目已有生产与开发两个 launchd 服务，后缀也点明了重启的是生产服务。
 
 等价于 `pnpm build` 成功后才执行
 `launchctl kickstart -k gui/$(id -u)/com.freewind.mac-manager`。
@@ -54,5 +54,5 @@ lsof -nP -iTCP -sTCP:LISTEN | grep 51510
 该产物的构建时间，是**过期进程**。也就是说，问题不在代码，而在部署环节：
 改了代码、没有重新构建就重启了服务，于是旧进程继续按旧代码监听。
 
-结论与防复发：部署必须走 `pnpm build` 之后再重启；`deploy` 脚本把这个顺序固化下来，
+结论与防复发：部署必须走 `pnpm build` 之后再重启；`deploy:prod` 脚本把这个顺序固化下来，
 构建不通过就不会重启服务。
