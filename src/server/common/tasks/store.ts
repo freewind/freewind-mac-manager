@@ -12,6 +12,7 @@ export type TaskStoredRow = {
   kind: string
   target: string
   lockTarget: string
+  ownerPid: number | null
   status: TaskStatus
   /** 进度 JSON；未上报过为 null。 */
   progress: string | null
@@ -40,6 +41,19 @@ export type TaskListFilter = {
   offset: number
 }
 
+const processIsAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return !(
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "ESRCH"
+    )
+  }
+}
+
 const toRow = (raw: Record<string, unknown>): TaskStoredRow => ({
   id: String(raw.id),
   requestId: raw.request_id === null ? null : String(raw.request_id),
@@ -51,6 +65,7 @@ const toRow = (raw: Record<string, unknown>): TaskStoredRow => ({
     raw.lock_target === null || raw.lock_target === undefined
       ? String(raw.target)
       : String(raw.lock_target),
+  ownerPid: raw.owner_pid == null ? null : Number(raw.owner_pid),
   status: raw.status as TaskStatus,
   progress: raw.progress === null ? null : String(raw.progress),
   message: raw.message === null ? null : String(raw.message),
@@ -139,6 +154,9 @@ export class TaskStore {
            WHERE status = 'running' AND target LIKE 'files:%'`
         )
       }
+      if (!columns.some((column) => column.name === "owner_pid")) {
+        this.db.exec("ALTER TABLE task_record ADD COLUMN owner_pid INTEGER")
+      }
       this.db.exec(
         "UPDATE task_record SET lock_target = target WHERE lock_target = ''"
       )
@@ -161,11 +179,12 @@ export class TaskStore {
     target: string
     lockTarget?: string
     startedAt: number
+    ownerPid?: number
   }): void {
     this.db
       .prepare(
-        `INSERT INTO task_record (id, request_id, request_fingerprint, kind, target, lock_target, status, started_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?)`
+        `INSERT INTO task_record (id, request_id, request_fingerprint, kind, target, lock_target, status, started_at, updated_at, owner_pid)
+         VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?, ?)`
       )
       .run(
         row.id,
@@ -175,7 +194,8 @@ export class TaskStore {
         row.target,
         row.lockTarget ?? row.target,
         row.startedAt,
-        row.startedAt
+        row.startedAt,
+        row.ownerPid ?? process.pid
       )
   }
 
@@ -275,16 +295,26 @@ export class TaskStore {
    * 启动时把上一进程遗留的运行中任务标为未知：服务重启会终止子进程，
    * 这些动作的真实结果无法从任务侧确认，需要用户按目标重新核实。
    */
-  markInterrupted(updatedAt: number): number {
-    const result = this.db
-      .prepare(
-        `UPDATE task_record
-         SET status = 'unknown', finished_at = ?, updated_at = ?,
-             error = COALESCE(error, '服务重启，结果未知，请重新读取目标确认')
-         WHERE status = 'running'`
+  markInterrupted(
+    updatedAt: number,
+    isAlive: (pid: number) => boolean = processIsAlive
+  ): number {
+    let count = 0
+    for (const row of this.listActive()) {
+      // 旧记录无归属、PID复用或权限拒绝都无法证明进程已死，保守保留锁。
+      if (row.ownerPid === null || isAlive(row.ownerPid)) continue
+      if (
+        this.finish(row.id, {
+          status: "unknown",
+          result: null,
+          message: null,
+          error: "任务所属进程已退出，结果未知，请重新读取目标确认",
+          finishedAt: updatedAt,
+        })
       )
-      .run(updatedAt, updatedAt)
-    return Number(result.changes ?? 0)
+        count += 1
+    }
+    return count
   }
 
   /** 只清理已终结的历史记录，绝不删除仍在运行的任务。 */

@@ -39,7 +39,7 @@ export const createTaskRuntime = (options?: {
     thresholdMs: options?.thresholdMs ?? TASK_RESPONSE_THRESHOLD_MS,
   })
 
-  // 只在本进程独占真实任务表时回收遗留任务；注入 store 的测试自行决定。
+  // 共库实例只回收已有证据退出的任务所属进程；注入 store 的测试自行决定。
   const shouldRecover = options?.recoverInterrupted ?? ownsStore
   if (shouldRecover) {
     const count = runner.recoverInterrupted()

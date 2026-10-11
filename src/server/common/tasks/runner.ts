@@ -199,8 +199,16 @@ export class TaskRunner {
     for (const running of this.running.values()) {
       running.controller.abort()
     }
+    for (const taskId of this.running.keys()) {
+      this.store.finish(taskId, {
+        status: "unknown",
+        result: null,
+        message: null,
+        error: "服务关闭，结果未知，请重新读取目标确认",
+        finishedAt: nowSeconds(),
+      })
+    }
     this.running.clear()
-    this.store.markInterrupted(nowSeconds())
   }
 
   private replay<TBody>(

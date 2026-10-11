@@ -164,9 +164,16 @@ describe("task store", () => {
     expect(store.get("task-1")?.progress).toBe('{"done":5}')
   })
 
+  it("preserves live owners when another instance starts", () => {
+    insert()
+    expect(store.markInterrupted(2000, () => true)).toBe(0)
+    expect(store.get("task-1")?.status).toBe("running")
+    expect(store.findActive("/tmp/a")).not.toBeNull()
+  })
+
   it("marks leftover running tasks as unknown on restart", () => {
     insert()
-    expect(store.markInterrupted(2000)).toBe(1)
+    expect(store.markInterrupted(2000, () => false)).toBe(1)
     const row = store.get("task-1")
     expect(row?.status).toBe("unknown")
     expect(row?.error).toContain("结果未知")

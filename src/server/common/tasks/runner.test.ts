@@ -403,6 +403,29 @@ describe("task runner", () => {
     expect(calls).toHaveLength(1)
   })
 
+  it("does not interrupt another runner sharing the same database", async () => {
+    const otherStore = new TaskStore(path.join(harness.dir, "tasks.sqlite3"))
+    const otherHost = makeHost()
+    const other = new TaskRunner({ store: otherStore, host: otherHost.host })
+    try {
+      const accepted = await harness.runner.submit({
+        kind: "file_copy",
+        target: "/tmp/a",
+        payload: {},
+        requestId: "req_shared_runtime_audit",
+        toCompletedResponse,
+      })
+      expect(accepted.kind).toBe("accepted")
+      expect(other.recoverInterrupted()).toBe(0)
+      other.shutdown()
+      expect(otherStore.findActive("/tmp/a")?.status).toBe("running")
+      harness.calls[0].resolve(ok({}))
+      await waitFor(() => harness.store.listActive().length === 0)
+    } finally {
+      otherStore.close()
+    }
+  })
+
   it("marks long-running work unknown when the service shuts down", async () => {
     const { runner, calls, store } = harness
     const result = await runner.submit({
