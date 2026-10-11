@@ -13,6 +13,29 @@ afterEach(() => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
 })
+it("exposes a persistent registration failure instead of an unhandled rejection", async () => {
+  vi.resetModules()
+  vi.stubEnv("PROD", true)
+  vi.stubGlobal("navigator", {
+    onLine: true,
+    serviceWorker: {
+      register: vi.fn(async () => {
+        throw new Error("offline")
+      }),
+    },
+  })
+  const { usePwaStatus: useFreshPwaStatus } = await import("./use-pwa-status")
+  const client = new QueryClient()
+  const { result } = renderHook(() => useFreshPwaStatus(), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  })
+  await waitFor(() => expect(result.current.registrationFailed).toBe(true))
+  expect(result.current.updateAvailable).toBe(false)
+  client.clear()
+})
+
 it("checks active writes at update time before activating the waiting worker", async () => {
   vi.stubEnv("PROD", true)
   const message = vi.fn()
