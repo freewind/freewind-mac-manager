@@ -30,7 +30,19 @@ export const useHistoryOverlay = (open: boolean, onClose: () => void) => {
         window.location.href
       )
     }
-    if (!open && wasOpen.current && stack.at(-1) === id) window.history.back()
+    if (!open && wasOpen.current) {
+      if (stack.at(-1) === id) window.history.back()
+      else if (stack.includes(id)) {
+        window.history.replaceState(
+          {
+            ...window.history.state,
+            macManagerOverlays: stack.filter((item) => item !== id),
+          },
+          "",
+          window.location.href
+        )
+      }
+    }
     wasOpen.current = open
   }, [open, id])
   useEffect(() => {
