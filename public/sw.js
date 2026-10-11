@@ -1,6 +1,5 @@
-const SHELL_CACHE = "mac-manager-shell-v1"
-const SHELL_URLS = ["/", "/index.html", "/manifest.webmanifest"]
-const STATIC_DESTINATIONS = new Set(["script", "style", "font", "image"])
+const SHELL_CACHE = `mac-manager-shell-${"__SHELL_VERSION__"}`
+const SHELL_URLS = ["__SHELL_URLS__"]
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -37,38 +36,14 @@ self.addEventListener("fetch", (event) => {
     request.method !== "GET" ||
     url.origin !== self.location.origin ||
     url.pathname.startsWith("/api/")
-  ) {
+  )
     return
-  }
-
-  if (request.destination === "document") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone()
-          void caches
-            .open(SHELL_CACHE)
-            .then((cache) => cache.put(request, copy))
-          return response
-        })
-        .catch(() => caches.match("/index.html"))
-    )
-    return
-  }
-
-  if (STATIC_DESTINATIONS.has(request.destination)) {
-    event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ??
-          fetch(request).then((response) => {
-            const copy = response.clone()
-            void caches
-              .open(SHELL_CACHE)
-              .then((cache) => cache.put(request, copy))
-            return response
-          })
-      )
-    )
-  }
+  const shellUrl =
+    request.destination === "document" ? "/index.html" : url.pathname
+  if (!SHELL_URLS.includes(shellUrl)) return
+  event.respondWith(
+    caches
+      .open(SHELL_CACHE)
+      .then(async (cache) => (await cache.match(shellUrl)) ?? fetch(request))
+  )
 })

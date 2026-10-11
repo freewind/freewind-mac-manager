@@ -2,6 +2,7 @@ import { activeWriteCount } from "@shared/client-api"
 import { useQueryClient } from "@tanstack/react-query"
 import { listPendingRequests } from "@web/features/tasks/pending-requests"
 import { useSyncExternalStore } from "react"
+import { toast } from "sonner"
 
 type PwaState = {
   online: boolean
@@ -43,7 +44,13 @@ const initializeWaitingStore = () => {
     return
   }
   waitingInitialized = true
-  void navigator.serviceWorker.register("/sw.js").then(observeRegistration)
+  void navigator.serviceWorker
+    .register("/sw.js")
+    .then(observeRegistration)
+    .catch(() => {
+      waitingInitialized = false
+      toast.error("离线应用壳注册失败，当前无法保证离线使用")
+    })
 }
 
 const subscribeWaiting = (onChange: () => void) => {
