@@ -456,8 +456,9 @@ export const createPiBenchmarkService = (
         }
         if (next.value.done) break
         const event = next.value.value
+        // 首个事件（含 start）即记为 firstEvent，不依赖正文是否到达
+        metrics.firstEventMs ??= dependencies.clock.monotonic() - start
         if (event.type === "thinking_delta" && event.delta.length > 0) {
-          metrics.firstEventMs ??= dependencies.clock.monotonic() - start
           textBytes += Buffer.byteLength(event.delta, "utf8")
           if (textBytes > PI_BENCHMARK_OUTPUT_LIMIT_BYTES) {
             failure = "output_limit"
@@ -467,9 +468,6 @@ export const createPiBenchmarkService = (
             break
           }
         } else if (event.type === "text_delta" && event.delta.length > 0) {
-          if (metrics.firstEventMs === null) {
-            metrics.firstEventMs = dependencies.clock.monotonic() - start
-          }
           if (metrics.firstTextMs === null)
             metrics.firstTextMs = dependencies.clock.monotonic() - start
           textBytes += Buffer.byteLength(event.delta, "utf8")

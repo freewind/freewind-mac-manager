@@ -187,7 +187,7 @@ describe("Pi benchmark service", () => {
   })
 
   it("keeps absent usage null and reports a length stop as partial", async () => {
-    events = stream("", "length", undefined)
+    events = stream("", "length", null)
     const result = await run()
     expect(result.status).toBe("partial")
     expect(result.stopReason).toBe("length")
