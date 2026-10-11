@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
 import { readFile } from "node:fs/promises"
+import { readRuntime } from "@server/common/launchd"
 import { PublicOperationError } from "@server/common/public-error"
 import {
   CADDY_ADMIN_URL,
@@ -7,7 +8,6 @@ import {
   CADDY_CONFIG_FILE,
   CADDY_LAUNCHD_LABEL,
 } from "@server/env"
-import { readRuntime } from "@server/system-services/launchctl"
 import type { CaddyRulesResponse, CaddyStatus } from "@shared/api-contract"
 import { type CaddyFileParse, parseCaddyfile } from "@shared/caddy-format"
 

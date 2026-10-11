@@ -255,6 +255,67 @@ describe("parseCaddyfile", () => {
       "path:/dup/*#2",
     ])
   })
+
+  it("多个站点块各自使用本块的 matcher，不串用", () => {
+    const parsed = parseCaddyfile(`alpha.example.com {
+	@same host alpha.example.com
+	handle @same {
+		reverse_proxy 127.0.0.1:15001
+	}
+}
+
+beta.example.com {
+	@same host beta.example.com
+	handle @same {
+		reverse_proxy 127.0.0.1:15002
+	}
+}
+`)
+    expect(parsed.siteAddresses).toEqual([
+      "alpha.example.com",
+      "beta.example.com",
+    ])
+    expect(parsed.unsupported).toEqual([])
+    expect(
+      parsed.rules.map((rule) => [rule.host, rule.upstream])
+    ).toMatchInlineSnapshot(`
+      [
+        [
+          "alpha.example.com",
+          "127.0.0.1:15001",
+        ],
+        [
+          "beta.example.com",
+          "127.0.0.1:15002",
+        ],
+      ]
+    `)
+  })
+
+  it("站点块内 handle @foo 没有同名 matcher 时计入无法识别", () => {
+    const parsed = parseCaddyfile(`alpha.example.com {
+	@same host alpha.example.com
+	handle @same {
+		reverse_proxy 127.0.0.1:15001
+	}
+}
+
+beta.example.com {
+	handle @same {
+		reverse_proxy 127.0.0.1:15002
+	}
+}
+`)
+    expect(parsed.rules.map((rule) => rule.host)).toEqual(["alpha.example.com"])
+    expect(parsed.unsupported).toMatchInlineSnapshot(`
+      [
+        {
+          "line": 9,
+          "text": "handle @same {",
+        },
+      ]
+    `)
+  })
 })
 
 describe("校验器", () => {

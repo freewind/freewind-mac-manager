@@ -2,6 +2,16 @@ import { existsSync } from "node:fs"
 import path from "node:path"
 import { moveToTrash, revealInFinder } from "@server/common/file-actions"
 import {
+  bootoutPlist,
+  bootstrapPlist,
+  kickstart,
+  kickstartRestart,
+  readDisabledMap,
+  readRuntime,
+  setEnabled,
+  terminate,
+} from "@server/common/launchd"
+import {
   PublicOperationError,
   publicSystemError,
 } from "@server/common/public-error"
@@ -11,16 +21,6 @@ import type {
   ServicesResponse,
   SystemService,
 } from "@shared/api-contract"
-import {
-  bootoutPlist,
-  bootstrapPlist,
-  kickstart,
-  kickstartRestart,
-  readDisabledMap,
-  readRuntime,
-  setEnabled,
-  terminate,
-} from "./launchctl"
 import { readPlistJson, readPlistText, toPlistFields } from "./plist"
 import { directoryOf, listPlistFiles, SERVICE_DIRECTORIES } from "./scanner"
 

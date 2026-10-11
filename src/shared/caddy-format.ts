@@ -113,8 +113,6 @@ export const parseCaddyfile = (text: string): CaddyFileParse => {
   const siteAddresses: string[] = []
   const rules: ParsedCaddyRule[] = []
   const unsupported: { line: number; text: string }[] = []
-  /** 站点块里出现过的 matcher 名字到 host 的映射，供 handle @名字 取用。 */
-  const matcherHosts = new Map<string, string>()
   /** 同一匹配条件可能出现多次，用出现次数派生唯一 id。 */
   const idCounts = new Map<string, number>()
   let hasGlobalOptionsBlock = false
@@ -177,6 +175,11 @@ export const parseCaddyfile = (text: string): CaddyFileParse => {
 
   /** 扫描站点块内部，返回站点块闭合行之后的下一行下标。 */
   const scanSiteBody = (startIndex: number): number => {
+    /**
+     * 每个站点块一份 matcher 映射：同名 matcher 在不同站点块可以指向不同
+     * host，共用一份会把别的站点块的 host 套进本块，凭空识别出不存在的规则。
+     */
+    const matcherHosts = new Map<string, string>()
     let index = startIndex
     while (index < lines.length) {
       const header = (lines[index] ?? "").trim()
