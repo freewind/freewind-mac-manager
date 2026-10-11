@@ -4,7 +4,9 @@ import { initServer } from "@ts-rest/express"
 import {
   addPiProvider,
   deletePiProvider,
+  getPiSettings,
   listPiModels,
+  savePiSettings,
   updatePiProvider,
 } from "./config"
 
@@ -15,6 +17,8 @@ export const piContract = {
   addPiProvider: contract.addPiProvider,
   updatePiProvider: contract.updatePiProvider,
   deletePiProvider: contract.deletePiProvider,
+  getPiSettings: contract.getPiSettings,
+  savePiSettings: contract.savePiSettings,
 }
 
 export const piRouter = s.router(piContract, {
@@ -38,6 +42,20 @@ export const piRouter = s.router(piContract, {
         status: 200 as const,
         body: await updatePiProvider(params.providerId, body),
       }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  getPiSettings: async () => {
+    try {
+      return { status: 200 as const, body: await getPiSettings() }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  savePiSettings: async ({ body }) => {
+    try {
+      return { status: 200 as const, body: await savePiSettings(body) }
     } catch (error) {
       return publicSystemError(error)
     }

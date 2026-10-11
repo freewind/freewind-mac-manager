@@ -3,16 +3,23 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { PublicOperationError } from "@server/common/public-error"
 import { PI_AGENT_DIR } from "@server/env"
-import type { PiModelsResponse, PiProviderInput } from "@shared/api-contract"
+import type {
+  PiModelsResponse,
+  PiProviderInput,
+  PiSettingsResponse,
+} from "@shared/api-contract"
 import {
   PiModelsResponseSchema,
   PiProviderDeleteSchema,
   PiProviderMutationSchema,
   PiProviderSchema,
+  PiSettingsMutationSchema,
+  PiSettingsResponseSchema,
 } from "@shared/api-contract/schemas/pi"
 
 const MAX_CONFIG_BYTES = 8 * 1024 * 1024
 const CONFIG_MODELS = "models.json"
+const CONFIG_SETTINGS = "settings.json"
 const locks = new Map<string, Promise<void>>()
 
 type ProviderRecord = Record<string, unknown>
@@ -28,6 +35,7 @@ type LoadedDocument = {
 }
 
 const modelsPath = (): string => path.join(PI_AGENT_DIR, CONFIG_MODELS)
+const settingsPath = (): string => path.join(PI_AGENT_DIR, CONFIG_SETTINGS)
 
 const sign = (raw: string): string =>
   createHash("sha256").update(raw).digest("hex")
@@ -35,8 +43,8 @@ const sign = (raw: string): string =>
 const isNodeError = (error: unknown): error is NodeJS.ErrnoException =>
   error instanceof Error && "code" in error
 
-const withLock = async <T>(operation: () => Promise<T>): Promise<T> => {
-  const key = modelsPath()
+const withFileLock = async <T>(operation: () => Promise<T>): Promise<T> => {
+  const key = PI_AGENT_DIR
   const previous = locks.get(key) ?? Promise.resolve()
   let release = (): void => {}
   const current = new Promise<void>((resolve) => {
@@ -51,6 +59,9 @@ const withLock = async <T>(operation: () => Promise<T>): Promise<T> => {
     if (locks.get(key) === current) locks.delete(key)
   }
 }
+
+const withModelLock = <T>(operation: () => Promise<T>): Promise<T> =>
+  withFileLock(operation)
 
 const parseDocument = (raw: string): ModelsDocument => {
   if (Buffer.byteLength(raw, "utf8") > MAX_CONFIG_BYTES) {
@@ -179,6 +190,182 @@ const readSettings = async (): Promise<Record<string, unknown> | null> => {
     )
   }
 }
+
+const settingsDefaults = {
+  defaultThinkingLevel: "medium",
+  theme: "system",
+  retry: { enabled: true, maxRetries: 3, baseDelayMs: 2000 },
+  compaction: { enabled: true, reserveTokens: 16384, keepRecentTokens: 20000 },
+}
+
+const loadSettingsDocument = async (): Promise<{
+  raw: string
+  signature: string
+  mode: number
+  settings: Record<string, unknown>
+  exists: boolean
+}> => {
+  const file = settingsPath()
+  try {
+    const stat = await fs.lstat(file)
+    if (stat.isSymbolicLink() || !stat.isFile() || stat.size > 1024 * 1024) {
+      throw new PublicOperationError(
+        403,
+        "拒绝访问非普通或过大的 settings.json"
+      )
+    }
+    const raw = await fs.readFile(file, "utf8")
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      throw new PublicOperationError(
+        400,
+        "settings.json 不是合法 JSON，未修改文件"
+      )
+    }
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      throw new PublicOperationError(400, "settings.json 必须是 JSON 对象")
+    }
+    return {
+      raw,
+      signature: sign(raw),
+      mode: stat.mode,
+      settings: parsed as Record<string, unknown>,
+      exists: true,
+    }
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return {
+        raw: "",
+        signature: sign(""),
+        mode: 0o600,
+        settings: {},
+        exists: false,
+      }
+    }
+    throw error
+  }
+}
+
+const publicSettingsResponse = (loaded: {
+  settings: Record<string, unknown>
+  signature: string
+}): PiSettingsResponse =>
+  PiSettingsResponseSchema.parse({
+    settings: redactHeaders(loaded.settings),
+    signature: loaded.signature,
+    updatedAt: Date.now(),
+    defaults: settingsDefaults,
+  })
+
+const writeSettings = async (
+  loaded: Awaited<ReturnType<typeof loadSettingsDocument>>,
+  settings: Record<string, unknown>
+): Promise<void> => {
+  const current = await loadSettingsDocument()
+  if (current.signature !== loaded.signature) {
+    throw new PublicOperationError(
+      409,
+      "settings.json 已被其他程序修改，请刷新后重试"
+    )
+  }
+  const file = settingsPath()
+  if (loaded.exists) {
+    const backup = `${file}.bak-${Date.now()}-${randomBytes(4).toString("hex")}`
+    try {
+      await fs.copyFile(file, backup, 1)
+      await fs.chmod(backup, loaded.mode & 0o777)
+    } catch {
+      throw new PublicOperationError(
+        500,
+        "无法建立配置备份，未修改 settings.json"
+      )
+    }
+  } else {
+    await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
+  }
+  try {
+    await atomicWrite(
+      file,
+      `${JSON.stringify(settings, null, 2)}\n`,
+      loaded.mode
+    )
+  } catch {
+    throw new PublicOperationError(500, "Pi 设置写入失败，请重新读取核实")
+  }
+}
+
+export const getPiSettings = async (): Promise<PiSettingsResponse> =>
+  publicSettingsResponse(await loadSettingsDocument())
+
+export const savePiSettings = async (
+  input: unknown
+): Promise<PiSettingsResponse> =>
+  withFileLock(async () => {
+    const mutation = PiSettingsMutationSchema.safeParse(input)
+    if (!mutation.success)
+      throw new PublicOperationError(400, "Pi 设置未通过校验")
+    const loaded = await loadSettingsDocument()
+    if (loaded.signature !== mutation.data.signature) {
+      throw new PublicOperationError(
+        409,
+        "settings.json 已被其他程序修改，请刷新后重试"
+      )
+    }
+    const modelsFile = await readDocument()
+    if (modelsFile.signature !== mutation.data.modelsSignature) {
+      throw new PublicOperationError(
+        409,
+        "Pi 模型配置已变化，请重新读取设置后重试"
+      )
+    }
+    const providers = modelsFile.document.providers
+    const defaultProvider = mutation.data.settings.defaultProvider
+    const defaultModel = mutation.data.settings.defaultModel
+    if (
+      typeof defaultProvider === "string" &&
+      typeof defaultModel === "string" &&
+      providers[defaultProvider]
+    ) {
+      const models = providers[defaultProvider].models
+      if (
+        Array.isArray(models) &&
+        !models.some(
+          (model) =>
+            typeof model === "object" &&
+            model !== null &&
+            (model as { id?: unknown }).id === defaultModel
+        )
+      ) {
+        throw new PublicOperationError(400, "默认模型不属于所选 Provider")
+      }
+    }
+    const settings = mergeSecrets(
+      loaded.settings,
+      mutation.data.settings
+    ) as Record<string, unknown>
+    for (const field of mutation.data.clearFields) delete settings[field]
+    for (const field of mutation.data.clearSubfields) {
+      const [group, key] = field.split(".")
+      const value = settings[group]
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
+        delete (value as Record<string, unknown>)[key]
+        if (Object.keys(value).length === 0) delete settings[group]
+      }
+    }
+    await writeSettings(loaded, settings)
+    const raw = `${JSON.stringify(settings, null, 2)}\n`
+    return publicSettingsResponse({ settings, signature: sign(raw) })
+  })
 
 const validateDefaultReference = async (
   providers: Record<string, ProviderRecord>,
@@ -314,7 +501,7 @@ export const listPiModels = async (): Promise<PiModelsResponse> =>
 export const addPiProvider = async (
   input: unknown
 ): Promise<{ providerId: string; hasApiKey: boolean }> =>
-  withLock(async () => {
+  withModelLock(async () => {
     const mutation = parseMutation(input)
     const loaded = await readDocument()
     if (loaded.signature !== mutation.signature) {
@@ -343,7 +530,7 @@ export const updatePiProvider = async (
   providerId: string,
   input: unknown
 ): Promise<{ providerId: string; hasApiKey: boolean }> =>
-  withLock(async () => {
+  withModelLock(async () => {
     validateProviderId(providerId)
     const mutation = parseMutation(input)
     const loaded = await readDocument()
@@ -380,7 +567,7 @@ export const deletePiProvider = async (
   providerId: string,
   input: unknown
 ): Promise<void> =>
-  withLock(async () => {
+  withModelLock(async () => {
     const parsed = PiProviderDeleteSchema.safeParse(input)
     if (!parsed.success)
       throw new PublicOperationError(400, "删除 provider 入参无效")

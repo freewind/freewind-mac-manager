@@ -88,6 +88,76 @@ describe("Pi model configuration", () => {
     await expect(api.listPiModels()).rejects.toThrow("非普通")
   })
 
+  it("edits core settings, preserves extension fields, and redacts secrets", async () => {
+    await fs.writeFile(
+      path.join(directory, "settings.json"),
+      JSON.stringify({
+        defaultProvider: "initial",
+        defaultModel: "one",
+        packages: ["npm:keep-me"],
+        privateToken: "settings-secret",
+      })
+    )
+    const api = await loadConfig()
+    const current = await api.getPiSettings()
+    expect(JSON.stringify(current)).not.toContain("settings-secret")
+    const saved = await api.savePiSettings({
+      signature: current.signature,
+      modelsSignature: (await api.listPiModels()).signature,
+      settings: {
+        defaultProvider: "initial",
+        defaultModel: "one",
+        defaultThinkingLevel: "high",
+        theme: "dark",
+        retry: { enabled: true, maxRetries: 2, baseDelayMs: 1000 },
+        compaction: {
+          enabled: true,
+          reserveTokens: 1000,
+          keepRecentTokens: 2000,
+        },
+        packages: ["npm:keep-me"],
+        privateToken: "••••••",
+      },
+    })
+    const stored = JSON.parse(
+      await fs.readFile(path.join(directory, "settings.json"), "utf8")
+    )
+    expect(stored.defaultThinkingLevel).toBe("high")
+    expect(stored.packages).toEqual(["npm:keep-me"])
+    expect(stored.privateToken).toBe("settings-secret")
+    expect((saved.settings as Record<string, unknown>).privateToken).toBe(
+      "••••••"
+    )
+  })
+
+  it("rejects a model that does not belong to an existing custom provider", async () => {
+    const api = await loadConfig()
+    const current = await api.getPiSettings()
+    await expect(
+      api.savePiSettings({
+        signature: current.signature,
+        modelsSignature: (await api.listPiModels()).signature,
+        settings: {
+          defaultProvider: "initial",
+          defaultModel: "missing",
+        },
+      })
+    ).rejects.toThrow("不属于所选 Provider")
+  })
+
+  it("rejects stale settings writes", async () => {
+    const api = await loadConfig()
+    const current = await api.getPiSettings()
+    await fs.appendFile(path.join(directory, "settings.json"), " ")
+    await expect(
+      api.savePiSettings({
+        signature: current.signature,
+        modelsSignature: (await api.listPiModels()).signature,
+        settings: { theme: "dark" },
+      })
+    ).rejects.toThrow("其他程序修改")
+  })
+
   it("rejects malformed JSON without overwriting it", async () => {
     await fs.writeFile(configFile, "{")
     const api = await loadConfig()

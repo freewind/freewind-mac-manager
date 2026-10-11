@@ -1,4 +1,9 @@
-import type { PiModelsResponse, PiProviderInput } from "@shared/api-contract"
+import type {
+  PiModelsResponse,
+  PiProviderInput,
+  PiSettingsInput,
+  PiSettingsResponse,
+} from "@shared/api-contract"
 import { apiClient, unwrap } from "./client"
 
 export const fetchPiModels = async (): Promise<PiModelsResponse> =>
@@ -18,6 +23,12 @@ export const updatePiProvider = async (
     provider: PiProviderInput
   }
 ) => apiClient.updatePiProvider({ params: { providerId }, body: input })
+
+export const fetchPiSettings = async (): Promise<PiSettingsResponse> =>
+  unwrap<PiSettingsResponse>(await apiClient.getPiSettings())
+
+export const savePiSettings = async (input: PiSettingsInput) =>
+  apiClient.savePiSettings({ body: input })
 
 export const deletePiProvider = async (input: {
   providerId: string

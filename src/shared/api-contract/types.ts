@@ -153,11 +153,28 @@ export type KillPortProcessesResponse = z.infer<
 >
 
 import type {
+  PiModelSchema,
+  PiModelsResponseSchema,
+  PiProviderInputSchema,
+  PiProviderSchema,
+  PiSettingsDocumentSchema,
+  PiSettingsMutationSchema,
+  PiSettingsResponseSchema,
+} from "./schemas/pi"
+import type {
   ProcessEntrySchema,
   ProcessKindSchema,
   ProcessListResponseSchema,
   ProcessStateSchema,
 } from "./schemas/processes"
+
+export type PiModel = z.infer<typeof PiModelSchema>
+export type PiProvider = z.infer<typeof PiProviderSchema>
+export type PiProviderInput = z.infer<typeof PiProviderInputSchema>
+export type PiModelsResponse = z.infer<typeof PiModelsResponseSchema>
+export type PiSettingsResponse = z.infer<typeof PiSettingsResponseSchema>
+export type PiSettingsDocument = z.infer<typeof PiSettingsDocumentSchema>
+export type PiSettingsInput = z.input<typeof PiSettingsMutationSchema>
 
 export type ProcessEntry = z.infer<typeof ProcessEntrySchema>
 export type ProcessState = z.infer<typeof ProcessStateSchema>
@@ -181,18 +198,6 @@ export type ServicesResponse = z.infer<typeof ServicesResponseSchema>
 export type ServiceTargetBody = z.infer<typeof ServiceTargetBodySchema>
 export type ServiceTargetQuery = z.infer<typeof ServiceTargetQuerySchema>
 export type ServiceEnabledBody = z.infer<typeof ServiceEnabledBodySchema>
-
-import type {
-  PiModelSchema,
-  PiModelsResponseSchema,
-  PiProviderInputSchema,
-  PiProviderSchema,
-} from "./schemas/pi"
-
-export type PiModel = z.infer<typeof PiModelSchema>
-export type PiProvider = z.infer<typeof PiProviderSchema>
-export type PiProviderInput = z.infer<typeof PiProviderInputSchema>
-export type PiModelsResponse = z.infer<typeof PiModelsResponseSchema>
 
 import type {
   FrpConfigInputSchema,

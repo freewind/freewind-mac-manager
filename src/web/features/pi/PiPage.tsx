@@ -34,6 +34,7 @@ import { Textarea } from "@web/components/ui/textarea"
 import { useState } from "react"
 import { toast } from "sonner"
 import { piKeys, usePiModels } from "./queries"
+import { SettingsTab } from "./SettingsTab"
 
 type ProviderEntry = ReturnType<typeof usePiModels>["data"] extends infer T
   ? T extends { providers: (infer P)[] }
@@ -82,6 +83,7 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 export const PiPage = () => {
   const queryClient = useQueryClient()
   const query = usePiModels()
+  const [activeTab, setActiveTab] = useState<"models" | "settings">("models")
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
@@ -178,90 +180,112 @@ export const PiPage = () => {
         <span className="text-xs text-muted-foreground">
           密钥仅写入、不回显；模型参数由 Pi 上游格式校验
         </span>
-        <div className="ml-auto flex gap-2">
+        <div className="flex gap-1 rounded-md bg-muted p-1">
           <Button
-            variant="outline"
             size="sm"
-            onClick={() => void query.refetch()}
-            disabled={query.isFetching}
+            variant={activeTab === "models" ? "default" : "ghost"}
+            onClick={() => setActiveTab("models")}
           >
-            <HugeiconsIcon icon={RefreshIcon} />
-            刷新
+            模型
           </Button>
-          <Button size="sm" onClick={() => startEdit()}>
-            <HugeiconsIcon icon={Add01Icon} />
-            添加 Provider
+          <Button
+            size="sm"
+            variant={activeTab === "settings" ? "default" : "ghost"}
+            onClick={() => setActiveTab("settings")}
+          >
+            设置
           </Button>
         </div>
+        {activeTab === "models" ? (
+          <div className="ml-auto flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void query.refetch()}
+              disabled={query.isFetching}
+            >
+              <HugeiconsIcon icon={RefreshIcon} />
+              刷新
+            </Button>
+            <Button size="sm" onClick={() => startEdit()}>
+              <HugeiconsIcon icon={Add01Icon} />
+              添加 Provider
+            </Button>
+          </div>
+        ) : null}
       </header>
-      <div className="min-h-0 flex-1 overflow-auto p-4">
-        {query.isLoading ? <p role="status">正在读取 Pi 配置…</p> : null}
-        {query.isError ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>无法读取 Pi 配置</CardTitle>
-              <CardDescription>{query.error.message}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={() => void query.refetch()}>重试读取</Button>
-            </CardContent>
-          </Card>
-        ) : null}
-        {query.data?.providers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">尚无 Provider。</p>
-        ) : null}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {query.data?.providers.map((entry) => (
-            <Card key={entry.id}>
+      {activeTab === "settings" ? (
+        <SettingsTab />
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          {query.isLoading ? <p role="status">正在读取 Pi 配置…</p> : null}
+          {query.isError ? (
+            <Card>
               <CardHeader>
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="break-all">{entry.id}</CardTitle>
-                    <CardDescription className="mt-1 break-all">
-                      {entry.provider.baseUrl}
-                    </CardDescription>
-                  </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {entry.hasApiKey ? "密钥已配置" : "无内置密钥"}
-                  </span>
-                </div>
+                <CardTitle>无法读取 Pi 配置</CardTitle>
+                <CardDescription>{query.error.message}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-xs">
-                  API：{entry.provider.api} · 模型：{entry.modelCount}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => startEdit(entry)}
-                  >
-                    <HugeiconsIcon icon={Edit01Icon} />
-                    编辑
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => setDeleteTarget(entry)}
-                  >
-                    <HugeiconsIcon icon={Delete02Icon} />
-                    删除
-                  </Button>
-                </div>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  {entry.provider.models.map((model) => (
-                    <p key={model.id} className="break-all">
-                      {model.name ?? model.id} ·{" "}
-                      {model.contextWindow ?? "未声明"} context /{" "}
-                      {model.maxTokens ?? "未声明"} 输出
-                    </p>
-                  ))}
-                </div>
+              <CardContent>
+                <Button onClick={() => void query.refetch()}>重试读取</Button>
               </CardContent>
             </Card>
-          ))}
+          ) : null}
+          {query.data?.providers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">尚无 Provider。</p>
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {query.data?.providers.map((entry) => (
+              <Card key={entry.id}>
+                <CardHeader>
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="break-all">{entry.id}</CardTitle>
+                      <CardDescription className="mt-1 break-all">
+                        {entry.provider.baseUrl}
+                      </CardDescription>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {entry.hasApiKey ? "密钥已配置" : "无内置密钥"}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-xs">
+                    API：{entry.provider.api} · 模型：{entry.modelCount}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => startEdit(entry)}
+                    >
+                      <HugeiconsIcon icon={Edit01Icon} />
+                      编辑
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setDeleteTarget(entry)}
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} />
+                      删除
+                    </Button>
+                  </div>
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    {entry.provider.models.map((model) => (
+                      <p key={model.id} className="break-all">
+                        {model.name ?? model.id} ·{" "}
+                        {model.contextWindow ?? "未声明"} context /{" "}
+                        {model.maxTokens ?? "未声明"} 输出
+                      </p>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <Dialog
         open={draft !== null}

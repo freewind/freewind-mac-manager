@@ -82,3 +82,82 @@ export const PiProviderWriteResultSchema = z.object({
   providerId: z.string(),
   hasApiKey: z.boolean(),
 })
+
+export const PiSettingsDocumentSchema = z
+  .object({
+    defaultProvider: z.string().optional(),
+    defaultModel: z.string().optional(),
+    defaultThinkingLevel: z
+      .enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+      .optional(),
+    theme: z.string().optional(),
+    retry: z
+      .object({
+        enabled: z.boolean().optional(),
+        maxRetries: z.number().int().min(0).max(20).optional(),
+        baseDelayMs: z.number().int().min(0).max(300_000).optional(),
+      })
+      .optional(),
+    compaction: z
+      .object({
+        enabled: z.boolean().optional(),
+        reserveTokens: z.number().int().min(0).max(1_000_000).optional(),
+        keepRecentTokens: z.number().int().min(0).max(1_000_000).optional(),
+      })
+      .optional(),
+  })
+  .catchall(JsonValueSchema)
+
+export const PiSettingsResponseSchema = z.object({
+  settings: PiSettingsDocumentSchema,
+  signature: z.string(),
+  updatedAt: z.number(),
+  defaults: z.object({
+    defaultThinkingLevel: z.string(),
+    theme: z.string(),
+    retry: z.object({
+      enabled: z.boolean(),
+      maxRetries: z.number(),
+      baseDelayMs: z.number(),
+    }),
+    compaction: z.object({
+      enabled: z.boolean(),
+      reserveTokens: z.number(),
+      keepRecentTokens: z.number(),
+    }),
+  }),
+})
+
+export const PiSettingsMutationSchema = z
+  .object({
+    signature: z.string().length(64),
+    modelsSignature: z.string().length(64),
+    settings: PiSettingsDocumentSchema,
+    clearFields: z
+      .array(
+        z.enum([
+          "defaultProvider",
+          "defaultModel",
+          "defaultThinkingLevel",
+          "theme",
+          "retry",
+          "compaction",
+        ])
+      )
+      .default([]),
+    clearSubfields: z
+      .array(
+        z.enum([
+          "defaultThinkingLevel",
+          "theme",
+          "retry.enabled",
+          "retry.maxRetries",
+          "retry.baseDelayMs",
+          "compaction.enabled",
+          "compaction.reserveTokens",
+          "compaction.keepRecentTokens",
+        ])
+      )
+      .default([]),
+  })
+  .catchall(JsonValueSchema)

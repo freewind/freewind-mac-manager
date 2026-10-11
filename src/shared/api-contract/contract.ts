@@ -24,12 +24,12 @@ export const contract = c.router(
     ...trafficRoutes,
     ...dashboardRoutes,
     ...portsRoutes,
+    ...piRoutes,
     ...filesRoutes,
     ...processesRoutes,
     ...systemServicesRoutes,
     ...frpRoutes,
     ...tasksRoutes,
-    ...piRoutes,
   },
   { pathPrefix: API_BASE }
 )

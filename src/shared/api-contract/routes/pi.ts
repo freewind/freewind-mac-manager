@@ -6,6 +6,8 @@ import {
   PiProviderIdSchema,
   PiProviderMutationSchema,
   PiProviderWriteResultSchema,
+  PiSettingsMutationSchema,
+  PiSettingsResponseSchema,
 } from "../schemas/pi"
 
 const errorResponses = {
@@ -34,6 +36,17 @@ export const piRoutes = {
     pathParams: PiProviderIdSchema,
     body: PiProviderMutationSchema,
     responses: { 200: PiProviderWriteResultSchema, ...errorResponses },
+  },
+  getPiSettings: {
+    method: "GET",
+    path: toContractPath(ApiPath.piSettings),
+    responses: { 200: PiSettingsResponseSchema, ...errorResponses },
+  },
+  savePiSettings: {
+    method: "PUT",
+    path: toContractPath(ApiPath.piSettings),
+    body: PiSettingsMutationSchema,
+    responses: { 200: PiSettingsResponseSchema, ...errorResponses },
   },
   deletePiProvider: {
     method: "DELETE",
