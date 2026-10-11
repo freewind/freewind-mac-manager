@@ -8,7 +8,7 @@ import {
   dockerVolumeTaskTarget,
 } from "@shared/task-targets"
 import { z } from "zod"
-import { type DockerCli, dockerCli } from "./cli"
+import { type DockerCli, DockerCommandError, dockerCli } from "./cli"
 
 /** 容器/镜像/卷/网络的写操作共用一种任务种类（与 service_action 做法一致）。 */
 export const DOCKER_ACTION_KIND = TASK_KINDS.dockerAction
@@ -56,6 +56,12 @@ export const DockerActionPayloadSchema = z.discriminatedUnion("action", [
     .strict(),
   z
     .object({
+      action: z.literal("containerKill"),
+      containerId: identifier(128),
+    })
+    .strict(),
+  z
+    .object({
       action: z.literal("containerRemove"),
       containerId: identifier(128),
       force: z.boolean().optional(),
@@ -97,6 +103,7 @@ export const dockerActionTargetOf = (payload: DockerActionPayload): string => {
     case "containerStart":
     case "containerStop":
     case "containerRestart":
+    case "containerKill":
     case "containerRemove":
       return dockerContainerTaskTarget(payload.containerId)
     case "containerCreate":
@@ -115,18 +122,20 @@ export const dockerActionTargetOf = (payload: DockerActionPayload): string => {
   }
 }
 
-/** 执行器只需要这些写能力，测试可以只实现它们。 */
+/** 执行器只需要这些读写能力，测试可以只实现它们。 */
 export type DockerActionCli = Pick<
   DockerCli,
   | "startContainer"
   | "stopContainer"
   | "restartContainer"
+  | "killContainer"
   | "removeContainer"
   | "createContainer"
   | "pullImage"
   | "removeImage"
   | "removeVolume"
   | "removeNetwork"
+  | "inspectContainer"
 >
 
 /** 进度文案：动作名与对象都写成中文可读形式。 */
@@ -138,6 +147,8 @@ const stageOf = (payload: DockerActionPayload): string => {
       return `停止容器 ${payload.containerId}`
     case "containerRestart":
       return `重启容器 ${payload.containerId}`
+    case "containerKill":
+      return `强制终止容器 ${payload.containerId}`
     case "containerRemove":
       return `删除容器 ${payload.containerId}`
     case "containerCreate":
@@ -154,9 +165,63 @@ const stageOf = (payload: DockerActionPayload): string => {
 }
 
 /**
- * 按动作分派到 cli。
- * 命令执行完只说明命令跑完了：容器启停与创建是否真的生效，由列表重新读取确认，
- * 因此文案不承诺「已运行」。
+ * 动作后重新读取真实状态：命令退出码为 0 不等于状态真的变了，
+ * 因此 message 一律以核实结果为准；核不到就如实报失败，不谎报成功。
+ */
+const verifyContainer = async (
+  cli: DockerActionCli,
+  options: {
+    containerId: string
+    /** 期望状态；removed 表示期望已经不存在 */
+    expectation: "running" | "stopped" | "removed"
+    /** 成功时的文案；未提供时按期望状态生成 */
+    successMessage?: (label: string) => string
+    /** 删除前拿到的名字，删除后就查不到了 */
+    fallbackLabel?: string
+  }
+): Promise<string> => {
+  const container = await cli.inspectContainer(options.containerId)
+  if (options.expectation === "removed") {
+    if (container === null) {
+      const label = options.fallbackLabel || options.containerId
+      return `已删除 ${label}`
+    }
+    throw new DockerCommandError(
+      "failed",
+      `容器 ${container.name || options.containerId} 仍然存在，删除未生效`
+    )
+  }
+  if (container === null) {
+    throw new DockerCommandError(
+      "failed",
+      `容器 ${options.containerId} 已不存在，无法确认结果`
+    )
+  }
+  const label = container.name || options.containerId
+  const running = container.state === "running"
+  if (options.expectation === "running" && !running) {
+    throw new DockerCommandError(
+      "failed",
+      `容器 ${label} 的状态是 ${container.state}，未启动成功`
+    )
+  }
+  if (options.expectation === "stopped" && running) {
+    throw new DockerCommandError(
+      "failed",
+      `容器 ${label} 仍在运行，停止命令未生效`
+    )
+  }
+  return options.successMessage
+    ? options.successMessage(label)
+    : options.expectation === "running"
+      ? `已启动 ${label}`
+      : `已停止 ${label}`
+}
+
+/**
+ * 按动作分派到 cli，并在执行后重新读取目标状态。
+ * 容器动作以核实到的状态为准；镜像/卷/网络的列表带缓存，本轮只如实说明
+ * 「已发出命令」，不把命令跑完当成状态已变。
  */
 const dispatch = async (
   cli: DockerActionCli,
@@ -165,18 +230,44 @@ const dispatch = async (
   switch (payload.action) {
     case "containerStart":
       await cli.startContainer(payload.containerId)
-      return `容器 ${payload.containerId} 的启动命令已执行，请重新读取列表确认`
+      return await verifyContainer(cli, {
+        containerId: payload.containerId,
+        expectation: "running",
+        successMessage: (label) => `已启动 ${label}`,
+      })
     case "containerStop":
       await cli.stopContainer(payload.containerId, { force: payload.force })
-      return `容器 ${payload.containerId} 的停止命令已执行，请重新读取列表确认`
+      return await verifyContainer(cli, {
+        containerId: payload.containerId,
+        expectation: "stopped",
+        successMessage: (label) => `已停止 ${label}`,
+      })
+    case "containerKill":
+      await cli.killContainer(payload.containerId)
+      return await verifyContainer(cli, {
+        containerId: payload.containerId,
+        expectation: "stopped",
+        successMessage: (label) => `已终止 ${label}`,
+      })
     case "containerRestart":
       await cli.restartContainer(payload.containerId, {
         force: payload.force,
       })
-      return `容器 ${payload.containerId} 的重启命令已执行，请重新读取列表确认`
-    case "containerRemove":
+      return await verifyContainer(cli, {
+        containerId: payload.containerId,
+        expectation: "running",
+        successMessage: (label) => `已重启 ${label}`,
+      })
+    case "containerRemove": {
+      // 删除后就查不到名字了，先记住它
+      const before = await cli.inspectContainer(payload.containerId)
       await cli.removeContainer(payload.containerId, { force: payload.force })
-      return `容器 ${payload.containerId} 已删除`
+      return await verifyContainer(cli, {
+        containerId: payload.containerId,
+        expectation: "removed",
+        fallbackLabel: before?.name ?? payload.containerId,
+      })
+    }
     case "containerCreate": {
       const containerId = await cli.createContainer(payload.container)
       return `容器 ${containerId || (payload.container.name ?? payload.container.image)} 已创建`
@@ -186,13 +277,13 @@ const dispatch = async (
       return `镜像 ${payload.image} 拉取完成`
     case "imageRemove":
       await cli.removeImage(payload.imageId, { force: payload.force })
-      return `镜像 ${payload.imageId} 已删除`
+      return `已发出删除镜像 ${payload.imageId} 的命令，请重新读取列表确认`
     case "volumeRemove":
       await cli.removeVolume(payload.name)
-      return `卷 ${payload.name} 已删除`
+      return `已发出删除卷 ${payload.name} 的命令，请重新读取列表确认`
     case "networkRemove":
       await cli.removeNetwork(payload.networkId)
-      return `网络 ${payload.networkId} 已删除`
+      return `已发出删除网络 ${payload.networkId} 的命令，请重新读取列表确认`
   }
 }
 

@@ -1,7 +1,12 @@
 import { z } from "zod"
 
 /** 能对单个容器执行的动作；页面按钮与后端校验共用这份清单。 */
-export const DOCKER_CONTAINER_ACTIONS = ["start", "stop", "restart"] as const
+export const DOCKER_CONTAINER_ACTIONS = [
+  "start",
+  "stop",
+  "restart",
+  "kill",
+] as const
 
 export const DockerContainerActionSchema = z.enum(DOCKER_CONTAINER_ACTIONS)
 

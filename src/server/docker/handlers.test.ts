@@ -1,4 +1,10 @@
+import { mkdtempSync, rmSync } from "node:fs"
 import type { Server } from "node:http"
+import { tmpdir } from "node:os"
+import path from "node:path"
+import { TaskStore } from "@server/common/tasks/store"
+import { createInlineHost } from "@server/common/tasks/worker-host"
+import { createTaskRuntime, type TaskRuntime } from "@server/tasks/runtime"
 import type {
   DockerColimaStatus,
   DockerContainer,
@@ -23,6 +29,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { type DockerCache, DockerCommandError } from "./cli"
 import { createDockerRouter, dockerContract } from "./handlers"
 import { createDockerService, type DockerServiceCli } from "./service"
+import { type DockerActionCli, runDockerActionTask } from "./task"
 
 const colimaRunning: DockerColimaStatus = {
   installed: true,
@@ -127,9 +134,12 @@ const diskUsageFixture = new Map<string, number>([
   ["Local Volumes", 865_200_000],
 ])
 
-const createFakeCli = (
-  overrides: Partial<DockerServiceCli> = {}
-): DockerServiceCli => ({
+/** 读能力 + 写能力：任务执行器与 service 共用同一个受控替身。 */
+type TestCli = DockerServiceCli & DockerActionCli
+
+const noop = async (): Promise<void> => undefined
+
+const createFakeCli = (overrides: Partial<TestCli> = {}): TestCli => ({
   getColimaStatus: async () => colimaRunning,
   getInfo: async () => ({
     serverVersion: "29.5.2",
@@ -145,6 +155,17 @@ const createFakeCli = (
   listVolumes: async () => volumesFixture,
   listNetworks: async () => networksFixture,
   getContainerLogs: async (containerId) => ({ ...logsFixture, containerId }),
+  inspectContainer: async (containerId) => container({ id: containerId }),
+  startContainer: noop,
+  stopContainer: noop,
+  restartContainer: noop,
+  killContainer: noop,
+  removeContainer: noop,
+  createContainer: async () => "created-by-test",
+  pullImage: noop,
+  removeImage: noop,
+  removeVolume: noop,
+  removeNetwork: noop,
   ...overrides,
 })
 
@@ -153,14 +174,50 @@ const servers: Server[] = []
 /** handler 测试一律不做缓存，否则用例之间会串数据。 */
 const noCache: DockerCache = (_key, _ttl, load) => load()
 
+const runtimes: { runtime: TaskRuntime; store: TaskStore; dir: string }[] = []
+
+/**
+ * 受控运行时：任务真的走 TaskRuntime，但执行器用同一个假 cli，
+ * 因此不会发出任何真实 docker 命令。
+ */
 const startServer = async (
-  cli: DockerServiceCli,
-  cache: DockerCache = noCache
+  cli: TestCli,
+  options: {
+    cache?: DockerCache
+    /** 阈值内完成返回 200，否则返回 202 */
+    thresholdMs?: number
+    /** 任务一直不结束，用来观察冲突判定 */
+    hold?: boolean
+  } = {}
 ): Promise<string> => {
+  const dir = mkdtempSync(path.join(tmpdir(), "mac-manager-docker-http-"))
+  const store = new TaskStore(path.join(dir, "tasks.sqlite3"))
+  const host = createInlineHost(async (job, context) => {
+    if (options.hold === true) {
+      await new Promise<never>(() => undefined)
+    }
+    const outcome = await runDockerActionTask({
+      payload: job.payload,
+      report: context.onProgress,
+      cli,
+    })
+    return { result: outcome.result, message: outcome.message, status: "done" }
+  })
+  const runtime = createTaskRuntime({
+    store,
+    host,
+    thresholdMs: options.thresholdMs ?? 1_000,
+  })
+  runtimes.push({ runtime, store, dir })
   const app = express()
+  // 与 app.ts 一致：写端点要能解析 JSON 正文
+  app.use(express.json({ limit: "32mb" }))
   createExpressEndpoints(
     dockerContract,
-    createDockerRouter(createDockerService(cli, cache)),
+    createDockerRouter(
+      createDockerService(cli, options.cache ?? noCache),
+      runtime
+    ),
     app,
     { logInitialization: false }
   )
@@ -173,6 +230,11 @@ const startServer = async (
 }
 
 afterEach(async () => {
+  for (const item of runtimes.splice(0)) {
+    item.runtime.runner.shutdown()
+    item.store.close()
+    rmSync(item.dir, { recursive: true, force: true })
+  }
   await Promise.all(
     servers.splice(0).map((server) => new Promise((r) => server.close(r)))
   )
@@ -183,22 +245,77 @@ const get = async (baseUrl: string, url: string) => {
   return { status: response.status, body: await response.json() }
 }
 
+const REQUEST_ID = "req-docker-handler-0001"
+
+/** 写请求：带契约要求的请求标识，重发靠它复用任务。 */
+const send = async (
+  baseUrl: string,
+  url: string,
+  method: string,
+  body: unknown,
+  requestId = REQUEST_ID
+) => {
+  const response = await fetch(`${baseUrl}${url}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      "x-task-request-id": requestId,
+    },
+    body: JSON.stringify(body),
+  })
+  return { status: response.status, body: await response.json() }
+}
+
+/** 有状态的受控 cli：动作会真的改状态，核实读到的就是改完之后的状态。 */
+const createStatefulCli = (initial: DockerContainer["state"]) => {
+  let state: DockerContainer["state"] | "removed" = initial
+  const calls: string[] = []
+  const cli: TestCli = {
+    ...createFakeCli(),
+    startContainer: async () => {
+      calls.push("startContainer")
+      state = "running"
+    },
+    stopContainer: async () => {
+      calls.push("stopContainer")
+      state = "exited"
+    },
+    killContainer: async () => {
+      calls.push("killContainer")
+      state = "exited"
+    },
+    restartContainer: async () => {
+      calls.push("restartContainer")
+      state = "running"
+    },
+    removeContainer: async () => {
+      calls.push("removeContainer")
+      state = "removed"
+    },
+    inspectContainer: async (containerId) =>
+      state === "removed"
+        ? null
+        : container({ id: containerId, state, name: "smoke-target" }),
+  }
+  return { cli, calls, stateOf: () => state }
+}
+
 describe("只读端点", () => {
-  it("只暴露 7 条 GET 路由，没有写操作", () => {
-    expect(Object.keys(dockerContract)).toMatchInlineSnapshot(`
-      [
-        "getDockerOverview",
-        "listDockerContainers",
-        "getDockerContainerLogs",
-        "listDockerImages",
-        "listDockerVolumes",
-        "listDockerNetworks",
-        "getDockerColimaStatus",
-      ]
-    `)
-    for (const route of Object.values(dockerContract)) {
-      expect(route.method).toBe("GET")
+  it("7 条只读路由都是 GET，两条容器动作分别是 POST 与 DELETE", () => {
+    const readRoutes = [
+      "getDockerOverview",
+      "listDockerContainers",
+      "getDockerContainerLogs",
+      "listDockerImages",
+      "listDockerVolumes",
+      "listDockerNetworks",
+      "getDockerColimaStatus",
+    ] as const
+    for (const key of readRoutes) {
+      expect(dockerContract[key].method).toBe("GET")
     }
+    expect(dockerContract.actOnDockerContainer.method).toBe("POST")
+    expect(dockerContract.removeDockerContainer.method).toBe("DELETE")
   })
 
   it("概览返回契约结构，计数与磁盘占用取真实来源", async () => {
@@ -353,7 +470,7 @@ describe("概览的宽容返回", () => {
           return colimaRunning
         },
       }),
-      cache
+      { cache }
     )
     await get(baseUrl, "/api/docker/colima")
     await get(baseUrl, "/api/docker/colima")
@@ -466,5 +583,223 @@ describe("错误映射", () => {
     expect(broken.body).toEqual({
       message: "操作未能完成，请重新读取目标核实",
     })
+  })
+})
+
+describe("容器动作端点", () => {
+  it("启动完成后以重新读取到的状态给出 message", async () => {
+    const { cli, calls } = createStatefulCli("exited")
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "3a2352da7b30", action: "start" }
+    )
+    expect(status).toBe(200)
+    expect(body).toEqual({ message: "已启动 smoke-target" })
+    // 命令跑完只是开始：message 来自动作后的 inspect 核实
+    expect(calls).toEqual(["startContainer"])
+  })
+
+  it("停止与 kill 分别派出不同命令，message 取自核实结果", async () => {
+    const stopped = createStatefulCli("running")
+    const stoppedUrl = await startServer(stopped.cli)
+    const stopResult = await send(
+      stoppedUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "3a2352da7b30", action: "stop" }
+    )
+    expect(stopResult.status).toBe(200)
+    expect(stopResult.body).toEqual({ message: "已停止 smoke-target" })
+    expect(stopped.calls).toEqual(["stopContainer"])
+
+    const killed = createStatefulCli("running")
+    const killedUrl = await startServer(killed.cli)
+    const killResult = await send(
+      killedUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "3a2352da7b30", action: "kill" }
+    )
+    expect(killResult.status).toBe(200)
+    expect(killResult.body).toEqual({ message: "已终止 smoke-target" })
+    expect(killed.calls).toEqual(["killContainer"])
+  })
+
+  it("命令成功但状态没变时如实报失败，不谎报成功", async () => {
+    // inspect 永远返回运行中：stop 命令“成功”了，但状态没变
+    const cli = createFakeCli({
+      stopContainer: async () => undefined,
+      inspectContainer: async (containerId) =>
+        container({ id: containerId, state: "running", name: "smoke" }),
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "3a2352da7b30", action: "stop" }
+    )
+    expect(status).toBe(500)
+    expect(body).toMatchObject({ executionStatus: "failed" })
+    expect(JSON.stringify(body)).toContain("仍在运行")
+  })
+
+  it("删除运行中的容器且未 force 返回 409，且没有执行 rm", async () => {
+    const { cli, calls, stateOf } = createStatefulCli("running")
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/container",
+      "DELETE",
+      { containerId: "3a2352da7b30" }
+    )
+    expect(status).toBe(409)
+    expect(body).toEqual({
+      message: "容器正在运行，请先停止容器，或显式选择强制删除",
+      executionStatus: "not_started",
+    })
+    // 绝不能偷偷加 -f：rm 没有被执行，容器还在
+    expect(calls).toEqual([])
+    expect(stateOf()).toBe("running")
+  })
+
+  it("显式 force 才允许删除运行中的容器", async () => {
+    const { cli, calls, stateOf } = createStatefulCli("running")
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/container",
+      "DELETE",
+      { containerId: "3a2352da7b30", force: true }
+    )
+    expect(status).toBe(200)
+    expect(body).toEqual({ message: "已删除 smoke-target" })
+    expect(calls).toEqual(["removeContainer"])
+    expect(stateOf()).toBe("removed")
+  })
+
+  it("容器不存在返回 404", async () => {
+    const cli = createFakeCli({ inspectContainer: async () => null })
+    const baseUrl = await startServer(cli)
+    expect(
+      await send(baseUrl, "/api/docker/containers/action", "POST", {
+        containerId: "3a2352da7b30",
+        action: "start",
+      })
+    ).toEqual({
+      status: 404,
+      body: { message: "容器不存在，请重新读取列表" },
+    })
+    expect(
+      await send(baseUrl, "/api/docker/container", "DELETE", {
+        containerId: "3a2352da7b30",
+      })
+    ).toEqual({
+      status: 404,
+      body: { message: "容器不存在，请重新读取列表" },
+    })
+  })
+
+  it("载荷非法（契约层校验）返回 400", async () => {
+    const baseUrl = await startServer(createFakeCli())
+    const { status } = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "../../etc/passwd", action: "start" }
+    )
+    expect(status).toBe(400)
+    const unknownAction = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "3a2352da7b30", action: "shellExec" }
+    )
+    expect(unknownAction.status).toBe(400)
+  })
+
+  it("Docker 未运行时返回 500 与可读中文消息", async () => {
+    const cli = createFakeCli({
+      inspectContainer: async () => {
+        throw new DockerCommandError(
+          "daemon_unavailable",
+          "Docker 服务未运行，请先启动 Docker 或执行 colima start。"
+        )
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "3a2352da7b30", action: "restart" }
+    )
+    expect(status).toBe(500)
+    // 未执行任何动作，因此不标记 executionStatus
+    expect(body).toEqual({ message: "Docker 未运行，请先启动 Colima" })
+  })
+
+  it("未完成时返回 202 与受理回执，同容器再次提交返回 409", async () => {
+    const { cli } = createStatefulCli("running")
+    const baseUrl = await startServer(cli, { hold: true, thresholdMs: 20 })
+    const first = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "3a2352da7b30", action: "restart" },
+      REQUEST_ID
+    )
+    expect(first.status).toBe(202)
+    expect(first.body).toMatchObject({
+      kind: "docker_action",
+      status: "running",
+    })
+
+    const again = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "3a2352da7b30", action: "restart" },
+      "req-docker-handler-0002"
+    )
+    expect(again.status).toBe(409)
+    expect(again.body).toMatchObject({ executionStatus: "not_started" })
+
+    // 不同容器不受影响
+    const other = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      { containerId: "d953d207e653", action: "restart" },
+      "req-docker-handler-0003"
+    )
+    expect(other.status).toBe(202)
+  })
+
+  it("同容器同 requestId 重发只执行一次", async () => {
+    const { cli, calls } = createStatefulCli("exited")
+    const baseUrl = await startServer(cli)
+    const payload = { containerId: "3a2352da7b30", action: "start" }
+    const first = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      payload,
+      REQUEST_ID
+    )
+    const second = await send(
+      baseUrl,
+      "/api/docker/containers/action",
+      "POST",
+      payload,
+      REQUEST_ID
+    )
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(second.body).toEqual(first.body)
+    expect(calls).toEqual(["startContainer"])
   })
 })

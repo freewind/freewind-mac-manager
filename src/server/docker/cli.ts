@@ -922,11 +922,52 @@ export const createDockerCli = (
     options: { force?: boolean } = {}
   ): Promise<void> => {
     assertContainerId(containerId)
-    // docker stop 只有优雅等待，没有 --force；强制停止用 kill。
+    // 强制停止仍发 SIGTERM（只是不等待），给进程清理机会；
+    // 直接 SIGKILL 会损坏正在写盘的容器（如 postgres），那是 killContainer 的事。
     await docker(
-      options.force === true ? ["kill", containerId] : ["stop", containerId],
+      options.force === true
+        ? ["stop", "-t", "0", containerId]
+        : ["stop", containerId],
       TIMEOUT.write
     )
+  }
+
+  /** 立即杀死容器（SIGKILL）：只在前端用更重的确认文案后才调用。 */
+  const killContainer = async (containerId: string): Promise<void> => {
+    assertContainerId(containerId)
+    await docker(["kill", containerId], TIMEOUT.write)
+  }
+
+  /**
+   * 重新读取单个容器的真实状态（动作后核实用）。
+   * 不经过列表缓存，避免拿旧数据当「命令生效」的证据。
+   */
+  const inspectContainer = async (
+    containerId: string
+  ): Promise<DockerContainer | null> => {
+    assertContainerId(containerId)
+    try {
+      const { stdout } = await docker(["inspect", containerId], TIMEOUT.quick)
+      const [inspected] = parseInspectedContainers(stdout)
+      if (!inspected) return null
+      return {
+        id: inspected.id,
+        name: inspected.name,
+        image: inspected.image,
+        command: inspected.command,
+        state: inspected.state,
+        // inspect 没有 ps 的「Up 34 minutes」文案，这里用状态本身
+        status: inspected.state,
+        createdAt: inspected.createdAt ?? 0,
+        startedAt: inspected.startedAt,
+        ports: inspected.ports,
+        mounts: inspected.mounts,
+      }
+    } catch (error) {
+      // 容器已被删除是事实状态，不是故障
+      if (isMissingContainerError(error)) return null
+      throw error
+    }
   }
 
   const restartContainer = async (
@@ -1079,12 +1120,14 @@ export const createDockerCli = (
     startContainer,
     stopContainer,
     restartContainer,
+    killContainer,
     removeContainer,
     createContainer,
     pullImage,
     removeImage,
     removeVolume,
     removeNetwork,
+    inspectContainer,
   }
 }
 

@@ -1,3 +1,4 @@
+export * from "./clash-verge"
 export {
   ApiRequestError,
   apiClient,
@@ -7,9 +8,9 @@ export {
   taskRequestHeaders,
   unwrap,
 } from "./client"
-export * from "./clash-verge"
 export * from "./dashboard"
 export * from "./disk-growth"
+export * from "./docker"
 export * from "./execution"
 export * from "./files"
 export * from "./frp"

@@ -1,6 +1,7 @@
 import { cached } from "@server/common/collect"
 import type {
   DockerColimaStatus,
+  DockerContainer,
   DockerContainerLogsQuery,
   DockerContainerLogsResponse,
   DockerContainersResponse,
@@ -30,6 +31,7 @@ export type DockerServiceCli = Pick<
   | "listVolumes"
   | "listNetworks"
   | "getContainerLogs"
+  | "inspectContainer"
 >
 
 export type DockerService = ReturnType<typeof createDockerService>
@@ -155,6 +157,11 @@ export const createDockerService = (
 
   const getColimaStatus = (): Promise<DockerColimaStatus> => readColimaStatus()
 
+  /** 写操作前的目标核实：读单个容器的真实状态，读不经过列表缓存。 */
+  const findContainer = (
+    containerId: string
+  ): Promise<DockerContainer | null> => cli.inspectContainer(containerId)
+
   return {
     getOverview,
     listContainers,
@@ -163,5 +170,6 @@ export const createDockerService = (
     listNetworks,
     getContainerLogs,
     getColimaStatus,
+    findContainer,
   }
 }

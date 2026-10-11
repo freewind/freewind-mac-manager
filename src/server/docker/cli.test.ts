@@ -921,6 +921,9 @@ describe("写命令参数", () => {
     expect(
       (await runWith((cli) => cli.stopContainer("abc", { force: true })))
         .calls[0]?.args
+    ).toEqual(["stop", "-t", "0", "abc"])
+    expect(
+      (await runWith((cli) => cli.killContainer("abc"))).calls[0]?.args
     ).toEqual(["kill", "abc"])
     expect(
       (await runWith((cli) => cli.restartContainer("abc"))).calls[0]?.args
@@ -999,6 +1002,53 @@ describe("写命令参数", () => {
       ]
     `)
     expect(value).toBe("new-container-id")
+  })
+
+  it("force 停止用 stop -t 0（不是 kill），kill 单独是 SIGKILL", async () => {
+    // 两者不能混用：stop 给进程清理机会，kill 不给
+    expect(
+      (await runWith((cli) => cli.stopContainer("abc", { force: true })))
+        .calls[0]?.args
+    ).toEqual(["stop", "-t", "0", "abc"])
+    expect(
+      (await runWith((cli) => cli.killContainer("abc"))).calls[0]?.args
+    ).toEqual(["kill", "abc"])
+  })
+
+  it("核实用 inspect 读单个容器，已删除时返回 null 而不是报错", async () => {
+    const { runner, calls } = createFakeRunner(
+      succeed(
+        JSON.stringify([
+          {
+            Id: "3a2352da7b30",
+            Created: "2026-10-11T07:25:40Z",
+            State: { Status: "exited", StartedAt: "0001-01-01T00:00:00Z" },
+            Name: "/smoke",
+            Config: { Image: "redis:7-alpine" },
+            Mounts: [],
+          },
+        ])
+      )
+    )
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const found = await cli.inspectContainer("3a2352da7b30")
+    expect(calls[0]?.args).toEqual(["inspect", "3a2352da7b30"])
+    expect(found).toMatchObject({
+      id: "3a2352da7b30",
+      name: "smoke",
+      state: "exited",
+      startedAt: null,
+    })
+
+    const missing = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: docker inspect"), {
+          stderr: "Error: No such container: gone",
+        })
+      )
+    )
+    const goneCli = createDockerCli({ run: missing.runner, cache: noCache })
+    expect(await goneCli.inspectContainer("gone")).toBeNull()
   })
 
   it("非法标识与非法挂载点在发命令前就被拒绝", async () => {

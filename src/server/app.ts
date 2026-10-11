@@ -60,10 +60,10 @@ export const createApp = (injected?: {
     options
   )
   registerUploadEndpoint(app)
-  // Docker 目前只有只读端点；写操作由后续任务往同一 router 里追加。
+  // Docker 容器动作走统一任务运行时；只读端点不需要。
   createExpressEndpoints(
     dockerContract,
-    createDockerRouter(createDockerService()),
+    createDockerRouter(createDockerService(), taskRuntime),
     app,
     options
   )

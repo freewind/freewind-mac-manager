@@ -10,7 +10,11 @@ import type {
   TaskRunnerHost,
 } from "@server/common/tasks/worker-host"
 import { createExecutorRegistry, taskExecutors } from "@server/tasks/executors"
-import { TASK_KINDS, type TaskProgress } from "@shared/api-contract"
+import {
+  type DockerContainer,
+  TASK_KINDS,
+  type TaskProgress,
+} from "@shared/api-contract"
 import {
   dockerColimaTaskTarget,
   dockerContainerTaskTarget,
@@ -30,21 +34,39 @@ import {
 
 type Call = { method: string; args: unknown[] }
 
-/** 受控替身：只记录调用了哪个写方法、带了什么参数，不真的执行 docker。 */
-const createFakeCli = (): { cli: DockerActionCli; calls: Call[] } => {
+/** 受控替身：动作会真的改状态（除非 stuck），核实读到的就是改完之后的状态。 */
+const createFakeCli = (options: { state?: string; stuck?: boolean } = {}) => {
+  let state: string = options.state ?? "running"
   const calls: Call[] = []
+  const move = (next: string): void => {
+    if (options.stuck !== true) state = next
+  }
   const cli: DockerActionCli = {
     startContainer: async (containerId) => {
       calls.push({ method: "startContainer", args: [containerId] })
+      move("running")
     },
-    stopContainer: async (containerId, options) => {
-      calls.push({ method: "stopContainer", args: [containerId, options] })
+    stopContainer: async (containerId, stopOptions) => {
+      calls.push({ method: "stopContainer", args: [containerId, stopOptions] })
+      move("exited")
     },
-    restartContainer: async (containerId, options) => {
-      calls.push({ method: "restartContainer", args: [containerId, options] })
+    restartContainer: async (containerId, restartOptions) => {
+      calls.push({
+        method: "restartContainer",
+        args: [containerId, restartOptions],
+      })
+      move("running")
     },
-    removeContainer: async (containerId, options) => {
-      calls.push({ method: "removeContainer", args: [containerId, options] })
+    killContainer: async (containerId) => {
+      calls.push({ method: "killContainer", args: [containerId] })
+      move("exited")
+    },
+    removeContainer: async (containerId, removeOptions) => {
+      calls.push({
+        method: "removeContainer",
+        args: [containerId, removeOptions],
+      })
+      move("removed")
     },
     createContainer: async (config) => {
       calls.push({ method: "createContainer", args: [config] })
@@ -53,8 +75,8 @@ const createFakeCli = (): { cli: DockerActionCli; calls: Call[] } => {
     pullImage: async (image) => {
       calls.push({ method: "pullImage", args: [image] })
     },
-    removeImage: async (imageId, options) => {
-      calls.push({ method: "removeImage", args: [imageId, options] })
+    removeImage: async (imageId, removeOptions) => {
+      calls.push({ method: "removeImage", args: [imageId, removeOptions] })
     },
     removeVolume: async (name) => {
       calls.push({ method: "volumeRemove", args: [name] })
@@ -62,14 +84,30 @@ const createFakeCli = (): { cli: DockerActionCli; calls: Call[] } => {
     removeNetwork: async (networkId) => {
       calls.push({ method: "networkRemove", args: [networkId] })
     },
+    inspectContainer: async (containerId) =>
+      state === "removed"
+        ? null
+        : {
+            id: containerId,
+            name: "smoke",
+            image: "redis:7-alpine",
+            command: "redis-server",
+            state: state as DockerContainer["state"],
+            status: state,
+            createdAt: 1_700_000_000_000,
+            startedAt: state === "running" ? 1_700_000_000_500 : null,
+            ports: [],
+            mounts: [],
+          },
   }
-  return { cli, calls }
+  return { cli, calls, stateOf: () => state }
 }
 
 const LEGAL_PAYLOADS: DockerActionPayload[] = [
   { action: "containerStart", containerId: "3a2352da7b30" },
   { action: "containerStop", containerId: "3a2352da7b30", force: true },
   { action: "containerRestart", containerId: "3a2352da7b30" },
+  { action: "containerKill", containerId: "3a2352da7b30" },
   { action: "containerRemove", containerId: "3a2352da7b30", force: true },
   { action: "containerCreate", container: { image: "nginx:latest" } },
   { action: "imagePull", image: "nginx:latest" },
@@ -150,6 +188,10 @@ describe("Docker 动作分派", () => {
       {
         payload: { action: "containerRestart", containerId: "abc" },
         method: "restartContainer",
+      },
+      {
+        payload: { action: "containerKill", containerId: "abc" },
+        method: "killContainer",
       },
       {
         payload: { action: "containerRemove", containerId: "abc" },
@@ -259,7 +301,74 @@ describe("Docker 动作分派", () => {
         },
       ]
     `)
-    expect(outcome.message).toBe("卷 myvol 已删除")
+    expect(outcome.message).toBe(
+      "已发出删除卷 myvol 的命令，请重新读取列表确认"
+    )
+  })
+
+  it("容器动作以重新读取到的状态为准，不认命令退出码", async () => {
+    const started = createFakeCli({ state: "exited" })
+    expect(
+      await runDockerActionTask({
+        payload: { action: "containerStart", containerId: "3a2352da7b30" },
+        report: () => undefined,
+        cli: started.cli,
+      })
+    ).toMatchObject({ message: "已启动 smoke" })
+    expect(started.stateOf()).toBe("running")
+
+    const killed = createFakeCli({ state: "running" })
+    expect(
+      await runDockerActionTask({
+        payload: { action: "containerKill", containerId: "3a2352da7b30" },
+        report: () => undefined,
+        cli: killed.cli,
+      })
+    ).toMatchObject({ message: "已终止 smoke" })
+
+    const removed = createFakeCli({ state: "running" })
+    expect(
+      await runDockerActionTask({
+        payload: {
+          action: "containerRemove",
+          containerId: "3a2352da7b30",
+          force: true,
+        },
+        report: () => undefined,
+        cli: removed.cli,
+      })
+    ).toMatchObject({ message: "已删除 smoke" })
+  })
+
+  it("状态没变时如实报失败，不谎报成功", async () => {
+    // stop 命令“成功”了，但 inspect 仍是 running
+    const stuck = createFakeCli({ state: "running", stuck: true })
+    await expect(
+      runDockerActionTask({
+        payload: { action: "containerStop", containerId: "3a2352da7b30" },
+        report: () => undefined,
+        cli: stuck.cli,
+      })
+    ).rejects.toThrow("仍在运行")
+
+    // rm 命令“成功”了，但容器还在
+    const notRemoved = createFakeCli({ state: "exited", stuck: true })
+    await expect(
+      runDockerActionTask({
+        payload: { action: "containerRemove", containerId: "3a2352da7b30" },
+        report: () => undefined,
+        cli: notRemoved.cli,
+      })
+    ).rejects.toThrow("仍然存在")
+
+    // 启动后状态还是 exited
+    await expect(
+      runDockerActionTask({
+        payload: { action: "containerStart", containerId: "3a2352da7b30" },
+        report: () => undefined,
+        cli: createFakeCli({ state: "exited", stuck: true }).cli,
+      })
+    ).rejects.toThrow("未启动成功")
   })
 })
 
