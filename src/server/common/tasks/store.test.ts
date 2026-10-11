@@ -90,13 +90,28 @@ describe("task store", () => {
     `)
     db.close()
 
+    expect(() => new TaskStore(path.join(dir, "tasks.sqlite3"))).toThrow(
+      "未释放任何任务锁"
+    )
+    const legacy = new DatabaseSync(path.join(dir, "tasks.sqlite3"))
+    expect(
+      legacy.prepare("SELECT status FROM task_record WHERE id = 'legacy'").get()
+    ).toMatchObject({ status: "running" })
+    expect(
+      legacy
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE name = 'idx_task_record_target'"
+        )
+        .get()
+    ).toBeTruthy()
+    legacy.exec("UPDATE task_record SET status = 'done' WHERE id = 'legacy'")
+    legacy.close()
     store = new TaskStore(path.join(dir, "tasks.sqlite3"))
     expect(store.get("legacy")).toMatchObject({
       target: "files:%2Ftmp%2Fa",
       lockTarget: "files:%2Ftmp%2Fa",
-      status: "unknown",
+      status: "done",
     })
-    expect(store.get("legacy")?.error).toContain("结果未知")
   })
 
   it("locks distinct display targets by their explicit lock target", () => {

@@ -120,8 +120,6 @@ const SCHEMA = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_task_record_request
     ON task_record (request_id);
-  DROP INDEX IF EXISTS idx_task_record_active_target;
-  DROP INDEX IF EXISTS idx_task_record_target;
   CREATE INDEX IF NOT EXISTS idx_task_record_status
     ON task_record (status, updated_at DESC);
   -- running tasks use lock_target for mutual exclusion; target remains display data.
@@ -150,12 +148,14 @@ export class TaskStore {
         this.db.exec(
           "ALTER TABLE task_record ADD COLUMN lock_target TEXT NOT NULL DEFAULT ''"
         )
-        // 新版本共用文件域锁，避免新旧实例的活动文件操作跨重启冲突。
-        this.db.exec(
-          `UPDATE task_record
-           SET status = 'unknown', error = '服务更新期间文件操作结果未知', finished_at = updated_at
-           WHERE status = 'running' AND target LIKE 'files:%'`
-        )
+        // 无归属的旧任务不能证明已经停止；拒绝升级而非释放运行锁。
+        const active = this.db
+          .prepare(
+            "SELECT COUNT(*) AS count FROM task_record WHERE status = 'running'"
+          )
+          .get() as { count: number }
+        if (active.count > 0)
+          throw new Error("旧任务表仍有运行记录，升级已中止，未释放任何任务锁")
       }
       if (!columns.some((column) => column.name === "error_status")) {
         this.db.exec("ALTER TABLE task_record ADD COLUMN error_status INTEGER")
@@ -167,11 +167,15 @@ export class TaskStore {
         "UPDATE task_record SET lock_target = target WHERE lock_target = ''"
       )
       this.db.exec(
+        "DROP INDEX IF EXISTS idx_task_record_active_target; DROP INDEX IF EXISTS idx_task_record_target"
+      )
+      this.db.exec(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_task_record_lock_target ON task_record (lock_target) WHERE status = 'running'"
       )
       this.db.exec("COMMIT")
     } catch (error) {
       this.db.exec("ROLLBACK")
+      this.db.close()
       throw error
     }
   }
