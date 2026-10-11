@@ -101,7 +101,9 @@ describe("file batch operations", () => {
     expect(progress.at(-1)).toMatchObject({ done: 1, bytesDone: data.length })
     expect(outcome.bytes).toBe(data.length)
     expect(readFileSync(path.join(destination, "large.bin"))).toEqual(data)
-  })
+    // 负载下真实 IO（staging 目录、256KB 分块复制 1MB、发布）可能超过默认 5 秒；
+    // 15 秒覆盖重负载，若真挂死会在 15 秒内暴露，不会无限等
+  }, 15_000)
 
   it("stages a failed partial file write without publishing it", async () => {
     makeTree()
