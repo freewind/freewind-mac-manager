@@ -300,6 +300,7 @@ export const PiPage = () => {
         <div className="flex gap-1 rounded-md bg-muted p-1">
           <Button
             size="sm"
+            className="min-h-11"
             variant={activeTab === "models" ? "default" : "ghost"}
             onClick={() => setActiveTab("models")}
           >
@@ -307,6 +308,7 @@ export const PiPage = () => {
           </Button>
           <Button
             size="sm"
+            className="min-h-11"
             variant={activeTab === "groups" ? "default" : "ghost"}
             onClick={() => setActiveTab("groups")}
           >
@@ -314,6 +316,7 @@ export const PiPage = () => {
           </Button>
           <Button
             size="sm"
+            className="min-h-11"
             variant={activeTab === "settings" ? "default" : "ghost"}
             onClick={() => setActiveTab("settings")}
           >
