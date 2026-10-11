@@ -5,11 +5,13 @@ import { useIsMutating } from "@tanstack/react-query"
 import { Button } from "@web/components/ui/button"
 import { usePendingRequests } from "@web/features/tasks/pending-requests"
 import { useActiveTasks } from "@web/features/tasks/queries"
+import { useHasProtectedEdits } from "@web/hooks/use-edit-protection"
 import { usePwaStatus } from "@web/hooks/use-pwa-status"
 import { useSyncExternalStore } from "react"
 
 export const PwaStatus = () => {
   const pending = usePendingRequests()
+  const editing = useHasProtectedEdits()
   const { online } = usePwaStatus()
   const mutations = useIsMutating()
   const writes = useSyncExternalStore(
@@ -19,6 +21,7 @@ export const PwaStatus = () => {
   )
   const tasks = useActiveTasks(online)
   const blocked =
+    editing ||
     pending.length > 0 ||
     mutations > 0 ||
     writes > 0 ||

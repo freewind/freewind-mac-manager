@@ -41,6 +41,7 @@ import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Separator } from "@web/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { useFrp } from "@web/features/frp/useFrp"
+import { useEditProtection } from "@web/hooks/use-edit-protection"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -69,6 +70,7 @@ export const FrpPage = () => {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<FrpProxy | null>(null)
   const [pendingDelete, setPendingDelete] = useState<FrpProxy | null>(null)
+  useEditProtection(model.dirty || formOpen)
 
   useHistoryOverlay(formOpen || pendingDelete !== null, () => {
     setFormOpen(false)

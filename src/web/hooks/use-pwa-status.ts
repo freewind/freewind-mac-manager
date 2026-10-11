@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { listPendingRequests } from "@web/features/tasks/pending-requests"
 import { useSyncExternalStore } from "react"
 import { toast } from "sonner"
+import { hasProtectedEdits } from "./use-edit-protection"
 
 type PwaState = {
   online: boolean
@@ -92,6 +93,7 @@ export const usePwaStatus = (updateBlocked = false): PwaState => {
       !waiting ||
       !navigator.onLine ||
       updateBlocked ||
+      hasProtectedEdits() ||
       activeWriteCount() > 0 ||
       queryClient.isMutating() > 0 ||
       listPendingRequests().length > 0

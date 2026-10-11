@@ -11,6 +11,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
+import { useEditProtection } from "@web/hooks/use-edit-protection"
 import { useState } from "react"
 
 type EntryNameDialogProps = {
@@ -73,6 +74,7 @@ const EntryNameForm = ({
   const submission = useDialogSubmit(onClose, busy)
   const [name, setName] = useState(initialValue)
   const trimmed = name.trim()
+  useEditProtection(true)
 
   return (
     <form
