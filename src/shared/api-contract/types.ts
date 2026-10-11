@@ -152,6 +152,10 @@ export type KillPortProcessesResponse = z.infer<
   typeof KillPortProcessesResponseSchema
 >
 
+import type { HardwareOverviewSchema } from "./schemas/hardware"
+
+export type HardwareOverview = z.infer<typeof HardwareOverviewSchema>
+
 import type {
   PiModelSchema,
   PiModelsResponseSchema,

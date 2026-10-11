@@ -30,6 +30,7 @@ export const ApiPath = {
   trafficGroups: `${API_BASE}/traffic/groups`,
   trafficProcessesKill: `${API_BASE}/traffic/processes/kill`,
   dashboardOverview: `${API_BASE}/dashboard/overview`,
+  hardwareOverview: `${API_BASE}/hardware/overview`,
   dashboardProcesses: `${API_BASE}/dashboard/processes`,
   dashboardPorts: `${API_BASE}/dashboard/ports`,
   portsBindings: `${API_BASE}/ports/bindings`,
