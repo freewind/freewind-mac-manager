@@ -176,15 +176,61 @@ export const PortTable = (props: PortTableProps) => {
                   <TableCell>
                     <Badge variant="outline">{group.service.label}</Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground tabular-nums">
-                    {group.addresses.join(" · ")}
+                  <TableCell className="max-w-[14rem] text-muted-foreground tabular-nums">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="block truncate">
+                            {group.addresses.join(" · ")}
+                          </span>
+                        }
+                      />
+                      <TooltipContent className="max-w-lg break-all">
+                        {group.addresses.join(" · ")}
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
-                  <TableCell>{group.processNames.join(", ")}</TableCell>
-                  <TableCell className="text-muted-foreground tabular-nums">
-                    {group.pids.join(", ")}
+                  <TableCell className="max-w-[12rem]">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="block truncate">
+                            {group.processNames.join(", ")}
+                          </span>
+                        }
+                      />
+                      <TooltipContent className="max-w-lg break-all">
+                        {group.processNames.join(", ")}
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {group.starters.join(", ")}
+                  <TableCell className="max-w-[10rem] text-muted-foreground tabular-nums">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="block truncate">
+                            {group.pids.join(", ")}
+                          </span>
+                        }
+                      />
+                      <TooltipContent className="max-w-lg break-all">
+                        {group.pids.join(", ")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell className="max-w-[8rem] text-muted-foreground">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="block truncate">
+                            {group.starters.join(", ")}
+                          </span>
+                        }
+                      />
+                      <TooltipContent className="max-w-lg break-all">
+                        {group.starters.join(", ")}
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
                   <TableCell>
                     <StateBadge state={group.state} />

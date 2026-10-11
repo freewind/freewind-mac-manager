@@ -122,9 +122,9 @@ export const PortsPage = () => {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
         <PortQuickViews model={model} />
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <PortFilterBar model={model} />
           <PortTable
             model={model}
