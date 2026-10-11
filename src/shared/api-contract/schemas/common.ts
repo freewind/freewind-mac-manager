@@ -3,7 +3,7 @@ import { z } from "zod"
 export const ApiErrorSchema = z.object({
   message: z.string(),
   /** 任务冲突必须区分执行前拒绝与已执行但结果未知。 */
-  executionStatus: z.enum(["not_started", "unknown"]).optional(),
+  executionStatus: z.enum(["not_started", "failed", "unknown"]).optional(),
 })
 
 export const ActionResponseSchema = z.object({

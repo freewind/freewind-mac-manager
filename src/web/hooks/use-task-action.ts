@@ -135,8 +135,10 @@ export const useTaskAction = <TBody, TPayload = undefined>(
               error.status < 500 &&
               error.status !== 408 &&
               (error.status !== 409 ||
-                ApiErrorSchema.safeParse(error.responseBody).data
-                  ?.executionStatus === "not_started"))))
+                ["not_started", "failed"].includes(
+                  ApiErrorSchema.safeParse(error.responseBody).data
+                    ?.executionStatus ?? ""
+                )))))
       if (rejectedBeforeExecution) {
         forgetPendingRequest({ requestId })
       }
