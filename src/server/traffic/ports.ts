@@ -57,7 +57,13 @@ export const parseLsofOutput = (output: string): Map<number, number[]> => {
   )
 }
 
-/** 每批命令有大小与时间上限，只有明确的无匹配结果可以作为空连接。 */
+/**
+ * 每批命令有大小与时间上限。
+ *
+ * lsof 在部分 pid 已退出时返回 exit 1，但 stdout 里其余 pid 的数据仍然完好、
+ * stderr 为空；这与真正的失败（权限、系统错误）不同，后者会把原因写进 stderr。
+ * 因此判失败的依据是 stderr 有内容、被超时杀死、收到信号或非 1 的退出码。
+ */
 const runPortCommand = (pids: number[]): Promise<string> =>
   new Promise((resolve, reject) => {
     execFile(
@@ -66,13 +72,9 @@ const runPortCommand = (pids: number[]): Promise<string> =>
       { maxBuffer: MAX_BUFFER, timeout: COMMAND_TIMEOUT_MS },
       (error, stdout, stderr) => {
         if (error) {
-          const noMatch =
-            error.code === 1 &&
-            !error.killed &&
-            !error.signal &&
-            stderr.trim() === "" &&
-            stdout.trim() === ""
-          if (noMatch) resolve("")
+          const partialOrNoMatch =
+            error.code === 1 && !error.killed && !error.signal && stderr === ""
+          if (partialOrNoMatch) resolve(stdout)
           else
             reject(
               new Error(error.killed ? "端口采集超时" : "端口采集失败", {

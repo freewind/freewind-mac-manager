@@ -248,6 +248,10 @@ export const useTraffic = () => {
     hiddenCount: allGroups.length - groups.length,
     isLoading: snapshotsQuery.isLoading || groupsQuery.isLoading,
     error: snapshotsQuery.error ?? groupsQuery.error,
+    // 进程级明细的可用性：失败或加载中时 totals 里的 0 不是真实的 0，
+    // 页面据此区分「读取中 / 读取失败 / 确定的数值」
+    groupsLoading: groupsQuery.isPending,
+    groupsFailed: groupsQuery.isError,
 
     // 本地共享状态
     selectedIds: local.selectedIds,

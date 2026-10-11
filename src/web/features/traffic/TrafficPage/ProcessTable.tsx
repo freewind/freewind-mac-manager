@@ -92,7 +92,16 @@ export const ProcessTable = (props: ProcessTableProps) => {
 
   return (
     <ScrollArea className="min-h-0 flex-1">
-      {sortedGroups.length === 0 ? (
+      {model.groupsFailed ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>进程明细读取失败</EmptyTitle>
+            <EmptyDescription>
+              上方的累计与进程数不可用；点「刷新」重试，不代表流量为 0。
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : sortedGroups.length === 0 ? (
         <Empty>
           <EmptyHeader>
             <EmptyTitle>这个区间没有流量记录</EmptyTitle>

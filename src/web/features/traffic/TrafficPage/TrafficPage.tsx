@@ -124,14 +124,27 @@ export const TrafficPage = () => {
                   ? `${model.selectedSnapshotCount} 份快照合计`
                   : "本快照合计"
             }
-            value={formatBytes(model.totals.total)}
+            value={
+              model.groupsFailed
+                ? "读取失败"
+                : model.groupsLoading
+                  ? "读取中…"
+                  : formatBytes(model.totals.total)
+            }
             description={
-              <span className="flex items-center gap-1">
-                <HugeiconsIcon icon={Upload01Icon} className="size-3" />
-                {formatBytes(model.totals.bytesIn)}
-                <HugeiconsIcon icon={Download01Icon} className="ml-1 size-3" />
-                {formatBytes(model.totals.bytesOut)}
-              </span>
+              model.groupsFailed ? (
+                "进程级数据不可用，不代表流量为 0"
+              ) : (
+                <span className="flex items-center gap-1">
+                  <HugeiconsIcon icon={Upload01Icon} className="size-3" />
+                  {formatBytes(model.totals.bytesIn)}
+                  <HugeiconsIcon
+                    icon={Download01Icon}
+                    className="ml-1 size-3"
+                  />
+                  {formatBytes(model.totals.bytesOut)}
+                </span>
+              )
             }
           />
         </div>
@@ -177,7 +190,11 @@ export const TrafficPage = () => {
 
       <footer className="flex flex-wrap items-center gap-3 border-t px-4 py-2 text-xs text-muted-foreground">
         <span>
-          共 {model.totals.processCount} 个进程
+          {model.groupsFailed
+            ? "进程明细读取失败，累计与进程数不可用"
+            : model.groupsLoading
+              ? "正在读取进程明细…"
+              : `共 ${model.totals.processCount} 个进程`}
           {model.ignoreProxy && model.hiddenCount > 0
             ? `（已隐藏 ${model.hiddenCount} 个代理进程）`
             : ""}

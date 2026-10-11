@@ -21,6 +21,26 @@ describe("traffic port collection", () => {
       maxBuffer: 16 * 1024 * 1024,
     })
   })
+  it("accepts partial matches: lsof exits 1 when some pids have exited, but stdout is still usable", async () => {
+    // 实测形态：exit 1 + stderr 为空 + stdout 里有存活 pid 的数据，
+    // 曾经被误判成「端口采集失败」导致整个进程明细接口 500
+    reply(
+      Object.assign(new Error("some pids no longer exist"), { code: 1 }),
+      "COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\nnode 123 user 1u IPv4 1 0t0 TCP *:3000 (LISTEN)\n"
+    )
+    expect([
+      ...(await snapshotPorts([123, 456])).entries(),
+    ]).toMatchInlineSnapshot(`
+      [
+        [
+          123,
+          [
+            3000,
+          ],
+        ],
+      ]
+    `)
+  })
   it.each([
     {
       error: Object.assign(new Error("timeout"), { code: 1, killed: true }),
