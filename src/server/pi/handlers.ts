@@ -34,6 +34,12 @@ import {
   listLabRuns,
   readLabRun,
 } from "./lab"
+import {
+  addPiModelGroup,
+  deletePiModelGroup,
+  listPiModelGroups,
+  replacePiModelGroup,
+} from "./model-groups"
 
 const s = initServer()
 
@@ -44,6 +50,10 @@ export const piContract = {
   cancelPiLab: contract.cancelPiLab,
   clearPiLab: contract.clearPiLab,
   listPiModels: contract.listPiModels,
+  listPiModelGroups: contract.listPiModelGroups,
+  addPiModelGroup: contract.addPiModelGroup,
+  replacePiModelGroup: contract.replacePiModelGroup,
+  deletePiModelGroup: contract.deletePiModelGroup,
   addPiProvider: contract.addPiProvider,
   updatePiProvider: contract.updatePiProvider,
   deletePiProvider: contract.deletePiProvider,
@@ -107,6 +117,38 @@ export const createPiRouter = (runtime: TaskRuntime) =>
     listPiModels: async () => {
       try {
         return { status: 200 as const, body: await listPiModels() }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    listPiModelGroups: async () => {
+      try {
+        return { status: 200 as const, body: await listPiModelGroups() }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    addPiModelGroup: async ({ body }) => {
+      try {
+        return { status: 201 as const, body: await addPiModelGroup(body) }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    replacePiModelGroup: async ({ params, body }) => {
+      try {
+        return {
+          status: 200 as const,
+          body: await replacePiModelGroup(params.groupId, body),
+        }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    deletePiModelGroup: async ({ params, body }) => {
+      try {
+        await deletePiModelGroup(params.groupId, body)
+        return { status: 204 as const, body: null }
       } catch (error) {
         return publicSystemError(error)
       }

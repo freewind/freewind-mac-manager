@@ -25,6 +25,14 @@ import {
   PiLabRequestSchema,
   PiLabResultSchema,
 } from "../schemas/pi-lab"
+import {
+  PiModelGroupAddSchema,
+  PiModelGroupDeleteSchema,
+  PiModelGroupIdSchema,
+  PiModelGroupReplaceSchema,
+  PiModelGroupsResponseSchema,
+  PiModelGroupWriteResultSchema,
+} from "../schemas/pi-model-groups"
 
 const errorResponses = {
   400: ApiErrorSchema,
@@ -74,6 +82,31 @@ export const piRoutes = {
     method: "GET",
     path: toContractPath(ApiPath.piModels),
     responses: { 200: PiModelsResponseSchema, ...errorResponses },
+  },
+  listPiModelGroups: {
+    method: "GET",
+    path: toContractPath(ApiPath.piModelGroups),
+    responses: { 200: PiModelGroupsResponseSchema, ...errorResponses },
+  },
+  addPiModelGroup: {
+    method: "POST",
+    path: toContractPath(ApiPath.piModelGroups),
+    body: PiModelGroupAddSchema,
+    responses: { 201: PiModelGroupWriteResultSchema, ...errorResponses },
+  },
+  replacePiModelGroup: {
+    method: "PUT",
+    path: toContractPath(ApiPath.piModelGroup),
+    pathParams: PiModelGroupIdSchema,
+    body: PiModelGroupReplaceSchema,
+    responses: { 200: PiModelGroupWriteResultSchema, ...errorResponses },
+  },
+  deletePiModelGroup: {
+    method: "DELETE",
+    path: toContractPath(ApiPath.piModelGroup),
+    pathParams: PiModelGroupIdSchema,
+    body: PiModelGroupDeleteSchema,
+    responses: { 204: null, ...errorResponses },
   },
   addPiProvider: {
     method: "POST",
