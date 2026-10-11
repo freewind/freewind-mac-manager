@@ -226,6 +226,19 @@ describe("task wiring through the real app", () => {
     expect(replay.status).toBe(202)
     expect((await replay.json()).taskId).toBe(accepted.taskId)
     expect(dispatched).toHaveLength(1)
+    const conflict = await fetch(`${baseUrl}${action.url}`, {
+      method: action.method,
+      headers: {
+        [TASK_REQUEST_ID_HEADER]: `${requestId}_other`,
+        "content-type": "application/json",
+      },
+      body: action.body ? JSON.stringify(action.body) : undefined,
+    })
+    expect(conflict.status).toBe(409)
+    expect(await conflict.json()).toMatchObject({
+      executionStatus: "not_started",
+    })
+    expect(dispatched).toHaveLength(1)
 
     const active = await get(ApiPath.tasks)
     expect(active.body.total).toBe(1)
