@@ -380,3 +380,133 @@ export const normalizeCaddyPathPrefix = (value: string): string => {
   if (withoutWildcard.length <= 1) return withoutWildcard
   return withoutWildcard.replace(/\/+$/, "")
 }
+
+/**
+ * 受管区域文本的生成、替换与指纹。
+ *
+ * 这里定义「本功能写进配置文件的内容」的唯一形状：应用（#4）与页面预览（#5）
+ * 都调这些函数，避免各处手写文本而漂移。入参只取生成必需字段，不依赖契约类型。
+ */
+
+/** 生成只看这些字段；契约里的 name / note / 时间戳都不进配置文件。 */
+export type CaddyRuleSignatureInput = {
+  matchKind: CaddyMatchKind
+  host: string | null
+  pathPrefix: string | null
+  stripPrefix: boolean
+  upstream: string
+  enabled: boolean
+  sortOrder: number
+}
+
+export type ManagedRuleForGenerate = CaddyRuleSignatureInput & { id: string }
+
+/** 受管区域内的说明行，随标记一起写进文件，提醒不要手工改。 */
+export const CADDY_MANAGED_NOTICE =
+  "# 本区域由 mac-manager 生成，手工改动会在下次应用时被覆盖。"
+
+/** 站点块一层的缩进：标记行与规则块同层。 */
+const INDENT = "\t"
+const BODY_INDENT = "\t\t"
+
+/** FNV-1a 取 4 位十六进制，用来区分被截断的 id。 */
+const hashSuffix = (value: string): string => {
+  let hash = 0x811c9dc5
+  for (const character of value) {
+    hash ^= character.codePointAt(0) ?? 0
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return hash.toString(16).padStart(8, "0").slice(0, 4)
+}
+
+/**
+ * 由规则 id 派生 matcher 名：同一 id 永远得到同一名字（重新生成文件不会无谓
+ * 改动），不同 id 得到不同名字，总长不超过 20 个字符。
+ */
+export const caddyMatcherName = (id: string): string => {
+  const alphanumeric = id.replace(/[^A-Za-z0-9]/g, "")
+  return `mm_${alphanumeric.slice(0, 13)}${hashSuffix(id)}`
+}
+
+/**
+ * 生成两个标记之间的正文行，不含标记行与站点块花括号。
+ * 停用的规则不产出任何行；没有任何启用规则时返回空串，区域里只剩标记行。
+ */
+export const generateManagedRules = (
+  rules: ManagedRuleForGenerate[]
+): string => {
+  const enabled = rules
+    .filter((rule) => rule.enabled)
+    .sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder || (left.id < right.id ? -1 : 1)
+    )
+  if (enabled.length === 0) return ""
+
+  const lines = [`${INDENT}${CADDY_MANAGED_NOTICE}`]
+  for (const rule of enabled) {
+    if (rule.matchKind === "host") {
+      const matcher = caddyMatcherName(rule.id)
+      lines.push(`${INDENT}@${matcher} host ${rule.host ?? ""}`)
+      lines.push(`${INDENT}handle @${matcher} {`)
+    } else {
+      const directive = rule.stripPrefix ? "handle_path" : "handle"
+      lines.push(`${INDENT}${directive} ${rule.pathPrefix ?? ""} {`)
+    }
+    lines.push(`${BODY_INDENT}reverse_proxy ${rule.upstream}`)
+    lines.push(`${INDENT}}`)
+  }
+  return `${lines.join("\n")}\n`
+}
+
+/**
+ * 只替换两个标记行之间的内容：标记行本身与文件其余部分逐字节保持原样，
+ * 换行风格（LF / CRLF）按原文件写回。找不到成对标记时原样返回。
+ */
+export const replaceManagedRegion = (
+  text: string,
+  body: string
+): { text: string; replaced: boolean } => {
+  const lines = text.split("\n")
+  const startIndex = lines.findIndex(
+    (line) => line.trim() === CADDY_MANAGED_START
+  )
+  const endIndex =
+    startIndex < 0
+      ? -1
+      : lines.findIndex(
+          (line, index) =>
+            index > startIndex && line.trim() === CADDY_MANAGED_END
+        )
+  if (startIndex < 0 || endIndex < 0) return { text, replaced: false }
+
+  // 换行风格跟着标记行走：CRLF 文件里每行末尾都带 \r。
+  const carriageReturn = (lines[startIndex] ?? "").endsWith("\r") ? "\r" : ""
+  const bodyLines = body === "" ? [] : body.split("\n")
+  if (bodyLines[bodyLines.length - 1] === "") bodyLines.pop()
+
+  const next = [
+    ...lines.slice(0, startIndex + 1),
+    ...bodyLines.map((line) => `${line}${carriageReturn}`),
+    ...lines.slice(endIndex),
+  ]
+  return { text: next.join("\n"), replaced: true }
+}
+
+/**
+ * 规则集合的稳定指纹：只纳入会写进文件的字段，按 sortOrder 排序后序列化，
+ * 因此改名或改备注不算变化，改顺序、上游、启停或匹配方式才算。
+ */
+export const caddyRulesSignature = (rules: CaddyRuleSignatureInput[]): string =>
+  JSON.stringify(
+    [...rules]
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((rule) => [
+        rule.matchKind,
+        rule.host,
+        rule.pathPrefix,
+        rule.stripPrefix,
+        rule.upstream,
+        rule.enabled,
+      ])
+  )

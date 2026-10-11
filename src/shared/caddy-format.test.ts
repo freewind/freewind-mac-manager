@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest"
 import {
   CADDY_MANAGED_END,
   CADDY_MANAGED_START,
+  type CaddyRuleSignatureInput,
+  caddyMatcherName,
+  caddyRulesSignature,
+  generateManagedRules,
+  type ManagedRuleForGenerate,
   normalizeCaddyPathPrefix,
   parseCaddyfile,
+  replaceManagedRegion,
   validateCaddyHost,
   validateCaddyPathPrefix,
   validateCaddyUpstream,
@@ -393,5 +399,314 @@ describe("校验器", () => {
         "/",
       ]
     `)
+  })
+})
+
+const GENERATE_RULES: ManagedRuleForGenerate[] = [
+  {
+    id: "path:/alpha/*",
+    matchKind: "path",
+    host: null,
+    pathPrefix: "/alpha/*",
+    stripPrefix: true,
+    upstream: "127.0.0.1:15001",
+    enabled: true,
+    sortOrder: 0,
+  },
+  {
+    id: "path:/beta/*",
+    matchKind: "path",
+    host: null,
+    pathPrefix: "/beta/*",
+    stripPrefix: true,
+    upstream: "127.0.0.1:15002",
+    enabled: true,
+    sortOrder: 1,
+  },
+  {
+    id: "path:/gamma/*",
+    matchKind: "path",
+    host: null,
+    pathPrefix: "/gamma/*",
+    stripPrefix: true,
+    upstream: "127.0.0.1:15003",
+    enabled: true,
+    sortOrder: 2,
+  },
+  {
+    id: "path:/delta",
+    matchKind: "path",
+    host: null,
+    pathPrefix: "/delta",
+    stripPrefix: false,
+    upstream: "127.0.0.1:15004",
+    enabled: true,
+    sortOrder: 3,
+  },
+  {
+    id: "host:alpha.example.com",
+    matchKind: "host",
+    host: "alpha.example.com",
+    pathPrefix: null,
+    stripPrefix: false,
+    upstream: "127.0.0.1:15001",
+    enabled: true,
+    sortOrder: 4,
+  },
+  {
+    id: "host:alpha-dev.example.com",
+    matchKind: "host",
+    host: "alpha-dev.example.com",
+    pathPrefix: null,
+    stripPrefix: false,
+    upstream: "127.0.0.1:15002",
+    enabled: true,
+    sortOrder: 5,
+  },
+  {
+    id: "host:beta.example.com",
+    matchKind: "host",
+    host: "beta.example.com",
+    pathPrefix: null,
+    stripPrefix: false,
+    upstream: "127.0.0.1:15003",
+    enabled: true,
+    sortOrder: 6,
+  },
+  {
+    id: "host:gamma.example.com",
+    matchKind: "host",
+    host: "gamma.example.com",
+    pathPrefix: null,
+    stripPrefix: false,
+    upstream: "127.0.0.1:15004",
+    enabled: true,
+    sortOrder: 7,
+  },
+]
+
+const SIGNATURE_RULE: CaddyRuleSignatureInput = {
+  matchKind: "path",
+  host: null,
+  pathPrefix: "/alpha/*",
+  stripPrefix: true,
+  upstream: "127.0.0.1:15001",
+  enabled: true,
+  sortOrder: 0,
+}
+
+const WITH_REGION = `{
+	admin off
+}
+
+# 单一 HTTPS 网关：只监听本机 8443。
+:8443 {
+	tls /Users/example/.config/caddy/ca/server.crt /Users/example/.config/caddy/ca/server.key
+
+	# 按 URL 路径剥离前缀后转发到对应应用。
+	handle_path /keep/* {
+		reverse_proxy 127.0.0.1:15009
+	}
+
+	# mac-manager:rules:start
+	handle_path /old/* {
+		reverse_proxy 127.0.0.1:15001
+	}
+	# mac-manager:rules:end
+}
+`
+
+describe("受管区域文本", () => {
+  it("按 sortOrder 生成 4 条 path 与 4 条 host 的正文", () => {
+    expect(generateManagedRules(GENERATE_RULES)).toMatchInlineSnapshot(`
+      "	# 本区域由 mac-manager 生成，手工改动会在下次应用时被覆盖。
+      	handle_path /alpha/* {
+      		reverse_proxy 127.0.0.1:15001
+      	}
+      	handle_path /beta/* {
+      		reverse_proxy 127.0.0.1:15002
+      	}
+      	handle_path /gamma/* {
+      		reverse_proxy 127.0.0.1:15003
+      	}
+      	handle /delta {
+      		reverse_proxy 127.0.0.1:15004
+      	}
+      	@mm_hostalphaexam4192 host alpha.example.com
+      	handle @mm_hostalphaexam4192 {
+      		reverse_proxy 127.0.0.1:15001
+      	}
+      	@mm_hostalphadeve6f7c host alpha-dev.example.com
+      	handle @mm_hostalphadeve6f7c {
+      		reverse_proxy 127.0.0.1:15002
+      	}
+      	@mm_hostbetaexampb985 host beta.example.com
+      	handle @mm_hostbetaexampb985 {
+      		reverse_proxy 127.0.0.1:15003
+      	}
+      	@mm_hostgammaexamc0a9 host gamma.example.com
+      	handle @mm_hostgammaexamc0a9 {
+      		reverse_proxy 127.0.0.1:15004
+      	}
+      "
+    `)
+  })
+
+  it("停用规则不产出任何行，全部停用时正文为空", () => {
+    expect(generateManagedRules([])).toBe("")
+    expect(
+      generateManagedRules([{ ...GENERATE_RULES[0], enabled: false }])
+    ).toBe("")
+    const mixed = generateManagedRules([
+      { ...GENERATE_RULES[0], enabled: true },
+      { ...GENERATE_RULES[4], enabled: false },
+    ])
+    expect(mixed).not.toContain("@mm_")
+    expect(mixed).toMatchInlineSnapshot(`
+      "	# 本区域由 mac-manager 生成，手工改动会在下次应用时被覆盖。
+      	handle_path /alpha/* {
+      		reverse_proxy 127.0.0.1:15001
+      	}
+      "
+    `)
+  })
+
+  it("matcher 名对同一 id 稳定、对不同 id 不同且不超过 20 个字符", () => {
+    const longId = `host:${"a".repeat(120)}.example.com`
+    const names = [
+      caddyMatcherName("host:alpha.example.com"),
+      caddyMatcherName(longId),
+      caddyMatcherName("host:alpha-dev.example.com"),
+    ]
+    expect(caddyMatcherName("host:alpha.example.com")).toBe(names[0])
+    expect(new Set(names).size).toBe(names.length)
+    expect(names.every((name) => name.length <= 20)).toBe(true)
+    expect(names).toMatchInlineSnapshot(`
+      [
+        "mm_hostalphaexam4192",
+        "mm_hostaaaaaaaaabdd3",
+        "mm_hostalphadeve6f7c",
+      ]
+    `)
+  })
+
+  it("只替换标记之间的内容，其余部分逐字节不变", () => {
+    const body = `${generateManagedRules(GENERATE_RULES.slice(0, 1))}`
+    const result = replaceManagedRegion(WITH_REGION, body)
+    expect(result.replaced).toBe(true)
+    const startIndex = WITH_REGION.indexOf(CADDY_MANAGED_START)
+    const endIndex = WITH_REGION.indexOf(CADDY_MANAGED_END)
+    expect(result.text.startsWith(WITH_REGION.slice(0, startIndex))).toBe(true)
+    expect(result.text.endsWith(WITH_REGION.slice(endIndex))).toBe(true)
+    expect(result.text).toContain("handle_path /keep/*")
+    expect(result.text).toContain("tls /Users/example/")
+    expect(result.text).not.toContain("/old/*")
+    expect(result.text).toMatchInlineSnapshot(`
+      "{
+      	admin off
+      }
+
+      # 单一 HTTPS 网关：只监听本机 8443。
+      :8443 {
+      	tls /Users/example/.config/caddy/ca/server.crt /Users/example/.config/caddy/ca/server.key
+
+      	# 按 URL 路径剥离前缀后转发到对应应用。
+      	handle_path /keep/* {
+      		reverse_proxy 127.0.0.1:15009
+      	}
+
+      	# mac-manager:rules:start
+      	# 本区域由 mac-manager 生成，手工改动会在下次应用时被覆盖。
+      	handle_path /alpha/* {
+      		reverse_proxy 127.0.0.1:15001
+      	}
+      	# mac-manager:rules:end
+      }
+      "
+    `)
+  })
+
+  it("CRLF 文件里插入的正文也用 CRLF", () => {
+    const crlf = WITH_REGION.replace(/\n/g, "\r\n")
+    const body = generateManagedRules(GENERATE_RULES.slice(0, 1))
+    const result = replaceManagedRegion(crlf, body)
+    expect(result.replaced).toBe(true)
+    expect(result.text).toContain(
+      `${CADDY_MANAGED_START}\r\n\t# 本区域由 mac-manager 生成`
+    )
+    expect(result.text).toContain("}\r\n\t# mac-manager:rules:end")
+    expect(result.text).not.toMatch(/[^\r]\n\t# 本区域/)
+  })
+
+  it("正文为空时区域内只剩标记行", () => {
+    const result = replaceManagedRegion(WITH_REGION, "")
+    expect(result.replaced).toBe(true)
+    expect(result.text).toMatchInlineSnapshot(`
+      "{
+      	admin off
+      }
+
+      # 单一 HTTPS 网关：只监听本机 8443。
+      :8443 {
+      	tls /Users/example/.config/caddy/ca/server.crt /Users/example/.config/caddy/ca/server.key
+
+      	# 按 URL 路径剥离前缀后转发到对应应用。
+      	handle_path /keep/* {
+      		reverse_proxy 127.0.0.1:15009
+      	}
+
+      	# mac-manager:rules:start
+      	# mac-manager:rules:end
+      }
+      "
+    `)
+  })
+
+  it("找不到成对标记时原样返回", () => {
+    const missing = WITH_REGION.replace(`${CADDY_MANAGED_END}\n`, "")
+    expect(replaceManagedRegion(missing, "x\n")).toEqual({
+      text: missing,
+      replaced: false,
+    })
+    expect(replaceManagedRegion(":8443 {\n}\n", "x\n")).toEqual({
+      text: ":8443 {\n}\n",
+      replaced: false,
+    })
+  })
+})
+
+describe("规则指纹", () => {
+  it("改名与改备注不改指纹", () => {
+    const renamed = { ...SIGNATURE_RULE, name: "改名了", note: "备注" }
+    expect(caddyRulesSignature([renamed])).toBe(
+      caddyRulesSignature([SIGNATURE_RULE])
+    )
+  })
+
+  it("上游、启停、前缀剥离与顺序会改指纹", () => {
+    const base = caddyRulesSignature([SIGNATURE_RULE])
+    expect(
+      caddyRulesSignature([{ ...SIGNATURE_RULE, upstream: "127.0.0.1:15002" }])
+    ).not.toBe(base)
+    expect(
+      caddyRulesSignature([{ ...SIGNATURE_RULE, enabled: false }])
+    ).not.toBe(base)
+    expect(
+      caddyRulesSignature([{ ...SIGNATURE_RULE, stripPrefix: false }])
+    ).not.toBe(base)
+    const second: CaddyRuleSignatureInput = {
+      ...SIGNATURE_RULE,
+      pathPrefix: "/beta/*",
+      sortOrder: 1,
+    }
+    expect(caddyRulesSignature([second, SIGNATURE_RULE])).toBe(
+      caddyRulesSignature([SIGNATURE_RULE, second])
+    )
+    expect(
+      caddyRulesSignature([
+        { ...second, sortOrder: 0 },
+        { ...SIGNATURE_RULE, sortOrder: 1 },
+      ])
+    ).not.toBe(base)
   })
 })
