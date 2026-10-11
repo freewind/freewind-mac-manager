@@ -15,13 +15,28 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@web/components/ui/empty"
 import { Skeleton } from "@web/components/ui/skeleton"
+import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { ContainerList } from "@web/features/docker/ContainerList"
+import { ImageList } from "@web/features/docker/ImageList"
 import { colimaStateOf, useDocker } from "@web/features/docker/useDocker"
+import {
+  DOCKER_TABS,
+  type DockerTab,
+  useDockerTab,
+} from "@web/features/docker/useDockerTab"
 
 /** 概览一屏：Colima 状态与容器/镜像/卷/网络的真实计数。 */
 export const DockerPage = () => {
   const model = useDocker()
+  const { tab, selectTab } = useDockerTab()
   const overview = model.overview
 
   return (
@@ -73,7 +88,7 @@ export const DockerPage = () => {
         <DockerOverviewCards overview={overview} />
       ) : null}
 
-      <ContainerList />
+      <DockerSections tab={tab} selectTab={selectTab} />
     </div>
   )
 }
@@ -181,3 +196,62 @@ const ColimaCard = ({ colima }: { colima: DockerColimaStatus }) => {
     </Card>
   )
 }
+
+/**
+ * 分区导航与分区内容。
+ * 分区状态放 URL（?tab=images），刷新、分享与浏览器返回都能恢复；
+ * 手机与桌面共用同一套分区，只由各列表自己决定卡片还是表格。
+ */
+const DockerSections = (props: {
+  tab: DockerTab
+  selectTab: (tab: DockerTab) => void
+}) => (
+  <div className="flex min-w-0 flex-col gap-3">
+    <ToggleGroup
+      variant="outline"
+      className="flex-wrap"
+      value={[props.tab]}
+      onValueChange={(values) => {
+        const next = values[0]
+        if (next) props.selectTab(next as DockerTab)
+      }}
+    >
+      {DOCKER_TABS.map((item) => (
+        <ToggleGroupItem
+          key={item.key}
+          value={item.key}
+          className="min-h-11 px-3"
+        >
+          {item.label}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+
+    {props.tab === "containers" ? <ContainerList /> : null}
+    {props.tab === "images" ? <ImageList /> : null}
+    {props.tab === "volumes" ? (
+      <SectionPlaceholder
+        title="卷"
+        description="卷列表与删除在下一批任务接入；当前概览里的卷数量已经可用。"
+      />
+    ) : null}
+    {props.tab === "networks" ? (
+      <SectionPlaceholder
+        title="网络"
+        description="网络列表与删除在下一批任务接入；当前概览里的网络数量已经可用。"
+      />
+    ) : null}
+  </div>
+)
+
+const SectionPlaceholder = (props: { title: string; description: string }) => (
+  <Empty className="py-6">
+    <EmptyHeader>
+      <EmptyMedia variant="icon">
+        <HugeiconsIcon icon={ContainerIcon} />
+      </EmptyMedia>
+      <EmptyTitle>{props.title}</EmptyTitle>
+      <EmptyDescription>{props.description}</EmptyDescription>
+    </EmptyHeader>
+  </Empty>
+)

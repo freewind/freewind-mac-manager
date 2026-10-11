@@ -2,17 +2,27 @@ import {
   type ActionResponse,
   type DockerColimaStatus,
   type DockerContainer,
+  type DockerImage,
   type DockerOverview,
   TASK_KINDS,
 } from "@shared/api-contract"
-import { actOnDockerContainer, removeDockerContainer } from "@shared/client-api"
+import {
+  actOnDockerContainer,
+  pullDockerImage,
+  removeDockerContainer,
+  removeDockerImage,
+} from "@shared/client-api"
 import { describeError, formatTimestamp } from "@shared/format"
-import { dockerContainerTaskTarget } from "@shared/task-targets"
+import {
+  dockerContainerTaskTarget,
+  dockerImageTaskTarget,
+} from "@shared/task-targets"
 import { useQueryClient } from "@tanstack/react-query"
 import type { ContainerAction, DangerAction } from "@web/features/docker/labels"
 import {
   dockerKeys,
   useDockerContainersQuery,
+  useDockerImagesQuery,
   useDockerOverviewQuery,
 } from "@web/features/docker/queries"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
@@ -62,6 +72,104 @@ export const useDocker = (): DockerPageModel => {
   }
 }
 
+/**
+ * Docker 写操作可能改变任何一类资源（容器/镜像/卷/网络）与概览计数，
+ * 因此统一失效整个 docker 前缀的只读查询；日志键也在前缀内，随页面挂载情况刷新。
+ *
+ * registerTaskCompletion 是同一 kind 覆盖注册：只能有一处注册，避免后注册的覆盖前者。
+ */
+export const useDockerCacheRefresh = (): (() => void) => {
+  const queryClient = useQueryClient()
+  const refresh = useCallback((): void => {
+    void queryClient.invalidateQueries({ queryKey: ["docker"] })
+  }, [queryClient])
+
+  useEffect(() => {
+    registerTaskCompletion(TASK_KINDS.dockerAction, refresh)
+  }, [refresh])
+
+  return refresh
+}
+
+export type ImageActionInput = {
+  image: string
+  action: "pull" | "remove"
+  /** 只对删除有意义：被容器引用时必须显式 force 才强删 */
+  force?: boolean
+}
+
+/**
+ * 镜像列表与拉取/删除编排。
+ *
+ * - 拉取只提交任务：进度由任务中心呈现，这里不伪造百分比。
+ * - 删除被引用时后端返回 409，错误留在页面上持续展示，不靠 toast 一闪而过。
+ */
+export const useDockerImages = () => {
+  const queryClient = useQueryClient()
+  const query = useDockerImagesQuery()
+  const refresh = useDockerCacheRefresh()
+  const [pendingRemove, setPendingRemove] = useState<DockerImage | null>(null)
+  const [pullOpen, setPullOpen] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
+
+  const action = useTaskAction<ActionResponse, ImageActionInput>({
+    kind: TASK_KINDS.dockerAction,
+    target: (payload) => dockerImageTaskTarget(payload.image),
+    run: async (requestId, payload) => {
+      setFailure(null)
+      try {
+        return payload.action === "remove"
+          ? await removeDockerImage(requestId, {
+              imageId: payload.image,
+              force: payload.force,
+            })
+          : await pullDockerImage(requestId, { image: payload.image })
+      } catch (error) {
+        // 失败原因（例如被容器引用）要留在页面上，不能只提示一下就消失
+        setFailure(describeError(error))
+        throw error
+      }
+    },
+    onCompleted: (result) => {
+      refresh()
+      // 成功提示只在编排处触发一次
+      toast.success(result.message)
+    },
+  })
+
+  return {
+    images: query.data?.images ?? [],
+    isLoading: query.isPending,
+    isRefreshing: query.isFetching && !query.isPending,
+    error: query.isError ? describeError(query.error) : null,
+    action,
+    /** 上一次动作的失败原因：在页面上持续展示 */
+    failure,
+    clearFailure: (): void => setFailure(null),
+    pendingRemove,
+    requestRemove: (image: DockerImage): void => {
+      setFailure(null)
+      setPendingRemove(image)
+    },
+    cancelRemove: (): void => {
+      setFailure(null)
+      setPendingRemove(null)
+    },
+    pullOpen,
+    openPull: (): void => {
+      setFailure(null)
+      setPullOpen(true)
+    },
+    closePull: (): void => {
+      setFailure(null)
+      setPullOpen(false)
+    },
+    refreshImages: (): void => {
+      void queryClient.invalidateQueries({ queryKey: dockerKeys.images })
+    },
+  }
+}
+
 export type ContainerActionInput = {
   containerId: string
   action: ContainerAction
@@ -76,23 +184,14 @@ export type ContainerActionInput = {
  * 这里只负责把载荷映射到 client-api 的具名调用，并在完成时失效 Docker 缓存。
  */
 export const useDockerContainers = () => {
-  const queryClient = useQueryClient()
   const query = useDockerContainersQuery()
   const [pendingDanger, setPendingDanger] = useState<{
     container: DockerContainer
     action: DangerAction
   } | null>(null)
 
-  // 动作改了真实状态：概览与列表都要重新读取
-  const refresh = useCallback((): void => {
-    void queryClient.invalidateQueries({ queryKey: dockerKeys.containers })
-    void queryClient.invalidateQueries({ queryKey: dockerKeys.overview })
-  }, [queryClient])
-
-  // 慢路径（受理后由任务终态触发）同样要刷新
-  useEffect(() => {
-    registerTaskCompletion(TASK_KINDS.dockerAction, refresh)
-  }, [refresh])
+  // 动作改了真实状态：Docker 域的只读数据全部重新读取
+  const refresh = useDockerCacheRefresh()
 
   const action = useTaskAction<ActionResponse, ContainerActionInput>({
     kind: TASK_KINDS.dockerAction,

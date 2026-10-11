@@ -3,23 +3,28 @@
 import type { DockerOverview } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { DockerPage } from "./DockerPage"
 
-const { fetchDockerOverview, fetchDockerContainers } = vi.hoisted(() => ({
-  fetchDockerOverview: vi.fn(),
-  fetchDockerContainers: vi.fn(),
-}))
+const { fetchDockerOverview, fetchDockerContainers, fetchDockerImages } =
+  vi.hoisted(() => ({
+    fetchDockerOverview: vi.fn(),
+    fetchDockerContainers: vi.fn(),
+    fetchDockerImages: vi.fn(),
+  }))
 
 // 概览页现在也渲染容器列表：只替身读接口，其余（错误类型、请求标识等）保持真实
 vi.mock(import("@shared/client-api"), async (importOriginal) => ({
   ...(await importOriginal()),
   fetchDockerOverview,
   fetchDockerContainers,
+  fetchDockerImages,
   fetchDockerContainerLogs: vi.fn(),
   actOnDockerContainer: vi.fn(),
   removeDockerContainer: vi.fn(),
+  pullDockerImage: vi.fn(),
+  removeDockerImage: vi.fn(),
 }))
 
 const overview: DockerOverview = {
@@ -45,6 +50,8 @@ const overview: DockerOverview = {
 
 beforeEach(() => {
   fetchDockerContainers.mockResolvedValue({ containers: [], skipped: [] })
+  fetchDockerImages.mockResolvedValue({ images: [] })
+  window.history.replaceState({}, "", "/")
   // 概览页也会渲染容器列表，jsdom 默认没有 matchMedia
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: false,
@@ -73,6 +80,7 @@ afterEach(() => {
   cleanup()
   fetchDockerOverview.mockReset()
   fetchDockerContainers.mockReset()
+  fetchDockerImages.mockReset()
   vi.unstubAllGlobals()
 })
 
@@ -160,5 +168,48 @@ describe("DockerPage 概览", () => {
     expect(screen.getByText("未安装")).toBeTruthy()
     expect(screen.getByText("未安装 colima，Docker 能力不可用")).toBeTruthy()
     expect(screen.getByText("暂无容器")).toBeTruthy()
+  })
+})
+
+describe("DockerPage 分区导航", () => {
+  it("默认停在容器分区，切换镜像分区会写进 URL", async () => {
+    renderPage()
+    expect(await screen.findByRole("heading", { name: "容器" })).toBeTruthy()
+    expect(new URL(window.location.href).searchParams.get("tab")).toBeNull()
+
+    screen.getByRole("button", { name: "镜像" }).click()
+    await waitFor(() =>
+      expect(new URL(window.location.href).searchParams.get("tab")).toBe(
+        "images"
+      )
+    )
+    expect(await screen.findByRole("heading", { name: "镜像" })).toBeTruthy()
+    expect(screen.queryByRole("heading", { name: "容器" })).toBeNull()
+  })
+
+  it("URL 带 tab 时直接进入该分区（刷新可恢复）", async () => {
+    window.history.replaceState({}, "", "/?feature=docker&tab=images")
+    renderPage()
+    expect(await screen.findByRole("heading", { name: "镜像" })).toBeTruthy()
+    expect(screen.queryByRole("heading", { name: "容器" })).toBeNull()
+  })
+
+  it("未知 tab 回落到容器分区", async () => {
+    window.history.replaceState({}, "", "/?feature=docker&tab=nope")
+    renderPage()
+    expect(await screen.findByRole("heading", { name: "容器" })).toBeTruthy()
+  })
+
+  it("卷与网络分区给出后续任务说明，不显示空壳", async () => {
+    window.history.replaceState({}, "", "/?feature=docker&tab=volumes")
+    renderPage()
+    expect(await screen.findByText(/卷列表与删除在下一批任务接入/)).toBeTruthy()
+
+    window.history.replaceState({}, "", "/?feature=docker&tab=networks")
+    cleanup()
+    renderPage()
+    expect(
+      await screen.findByText(/网络列表与删除在下一批任务接入/)
+    ).toBeTruthy()
   })
 })
