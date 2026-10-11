@@ -202,7 +202,7 @@ export const createProcessHost = (options: {
           resolve(outcome)
           return
         }
-        const detail = stderr.trim().split("\n").slice(-1)[0] ?? ""
+        const detail = ""
         if (outcome) {
           reject(
             new TaskHostError(
@@ -235,11 +235,13 @@ export const createProcessHost = (options: {
         if (stderr.length < STDERR_LIMIT) stderr += chunk
       })
 
-      child.on("error", (error) => {
+      child.on("error", () => {
         const status = child.pid === undefined ? "failed" : "unknown"
         processFailure = new TaskHostError(
           status,
-          `${child.pid === undefined ? "无法启动" : "执行进程发生错误"}：${error.message}`
+          child.pid === undefined
+            ? "无法启动执行进程"
+            : "执行进程发生错误，结果未知"
         )
         if (child.pid === undefined) finishWithError(processFailure)
       })
