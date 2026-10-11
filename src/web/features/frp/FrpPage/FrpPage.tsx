@@ -73,7 +73,8 @@ export const FrpPage = () => {
   const [pendingDelete, setPendingDelete] = useState<FrpProxy | null>(null)
   useEditProtection(model.dirty || formOpen)
 
-  useHistoryOverlay(formOpen || pendingDelete !== null, () => {
+  useHistoryOverlay(formOpen || pendingDelete !== null || discardOpen, () => {
+    setDiscardOpen(false)
     setFormOpen(false)
     setEditing(null)
     setPendingDelete(null)

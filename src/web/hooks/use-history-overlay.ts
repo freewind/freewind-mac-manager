@@ -40,6 +40,19 @@ export const useHistoryOverlay = (open: boolean, onClose: () => void) => {
       }
     }
     window.addEventListener("popstate", onPopState)
-    return () => window.removeEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+      const stack = stackOf(window.history.state)
+      if (stack.includes(id)) {
+        window.history.replaceState(
+          {
+            ...window.history.state,
+            macManagerOverlays: stack.filter((item) => item !== id),
+          },
+          "",
+          window.location.href
+        )
+      }
+    }
   }, [id])
 }
