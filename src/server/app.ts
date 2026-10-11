@@ -15,6 +15,7 @@ import {
   registerUploadEndpoint,
 } from "./files/handlers"
 import { createFrpRouter, frpContract } from "./frp/handlers"
+import { hardwareContract, hardwareRouter } from "./hardware/handlers"
 import { healthContract, healthRouter } from "./health/handlers"
 import { piContract, piRouter } from "./pi/handlers"
 import { portsContract, portsRouter } from "./ports/handlers"
@@ -49,6 +50,7 @@ export const createApp = (injected?: {
   createExpressEndpoints(authContract, createAuthRouter(auth), app, options)
   app.use(auth.middleware)
   createExpressEndpoints(healthContract, healthRouter, app, options)
+  createExpressEndpoints(hardwareContract, hardwareRouter, app, options)
   createExpressEndpoints(clashVergeContract, clashVergeRouter, app, options)
   createExpressEndpoints(dashboardContract, dashboardRouter, app, options)
   createExpressEndpoints(
