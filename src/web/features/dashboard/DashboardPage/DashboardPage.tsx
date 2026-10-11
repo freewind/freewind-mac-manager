@@ -233,7 +233,7 @@ export const DashboardPage = () => {
           </div>
         )}
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+        <div className="mt-3 grid items-start gap-3 xl:grid-cols-2">
           <Card className="gap-0 py-0">
             <CardHeader className="py-3">
               <CardTitle className="text-sm">资源占用最高进程</CardTitle>
@@ -327,9 +327,12 @@ export const DashboardPage = () => {
               <CardDescription className="text-xs">
                 共 {model.ports.length} 个端口在监听
               </CardDescription>
+              <p className="text-xs text-muted-foreground md:hidden">
+                手机上可左右滑动查看完整的监听地址
+              </p>
             </CardHeader>
             <Separator />
-            <CardContent className="px-0">
+            <CardContent className="max-h-[28rem] overflow-y-auto px-0">
               <Table>
                 <TableHeader>
                   <TableRow>
