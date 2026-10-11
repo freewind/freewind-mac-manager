@@ -11,7 +11,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { Readable } from "node:stream"
 import { afterEach, beforeEach, expect, it } from "vitest"
-import { receiveUpload } from "./service"
+import { receiveUpload, writeFileContent } from "./service"
 
 let root: string
 beforeEach(() => {
@@ -50,6 +50,15 @@ it("does not overwrite a destination created during streaming", async () => {
   )
   await expect(receiveUpload(dest, "a.txt", stream)).rejects.toThrow()
   expect(readFileSync(target, "utf8")).toBe("concurrent")
+})
+
+it("preserves an unrelated writing file while saving content", async () => {
+  const target = path.join(root, "dest", "a.txt")
+  writeFileSync(target, "old")
+  writeFileSync(`${target}.writing`, "unrelated")
+  await writeFileContent(target, "new")
+  expect(readFileSync(target, "utf8")).toBe("new")
+  expect(readFileSync(`${target}.writing`, "utf8")).toBe("unrelated")
 })
 
 it("publishes a complete nested upload", async () => {

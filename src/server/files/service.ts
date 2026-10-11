@@ -965,13 +965,27 @@ export const writeFileContent = async (
   if (Buffer.byteLength(content, "utf8") > MAX_EDITABLE_BYTES) {
     throw new Error("文件内容超过 2 MB，不支持保存")
   }
-  const tempPath = `${value}.writing`
+  const tempPath = `${value}.${randomUUID()}.writing`
+  const output = await open(tempPath, "wx", info.mode)
+  const owned = await output.stat()
   try {
-    await writeFile(tempPath, content, { encoding: "utf8", flag: "wx" })
+    await output.writeFile(content, { encoding: "utf8" })
+    await output.close()
+    const current = await lstat(value)
+    if (
+      current.dev !== info.dev ||
+      current.ino !== info.ino ||
+      current.isSymbolicLink()
+    ) {
+      throw new Error("保存目标已变化，未覆盖新对象")
+    }
     await rename(tempPath, value)
-  } catch (error) {
-    await rm(tempPath, { force: true })
-    throw error
+  } finally {
+    await output.close().catch(() => undefined)
+    const current = await lstat(tempPath).catch(() => null)
+    if (current?.dev === owned.dev && current.ino === owned.ino) {
+      await rm(tempPath, { force: true })
+    }
   }
 }
 
