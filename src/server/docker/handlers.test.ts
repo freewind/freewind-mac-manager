@@ -147,6 +147,8 @@ const noop = async (): Promise<void> => undefined
 const createFakeCli = (overrides: Partial<TestCli> = {}): TestCli => {
   // 镜像存在性是有状态的：拉取后存在、删除后不存在，核实才有意义
   let imagePresent = true
+  let volumePresent = true
+  let networkPresent = true
   return {
     getColimaStatus: async () => colimaRunning,
     getInfo: async () => ({
@@ -177,8 +179,14 @@ const createFakeCli = (overrides: Partial<TestCli> = {}): TestCli => {
     removeImage: async () => {
       imagePresent = false
     },
-    removeVolume: noop,
-    removeNetwork: noop,
+    removeVolume: async () => {
+      volumePresent = false
+    },
+    volumeExists: async () => volumePresent,
+    removeNetwork: async () => {
+      networkPresent = false
+    },
+    networkExists: async () => networkPresent,
     ...overrides,
   }
 }
@@ -1059,5 +1067,113 @@ describe("镜像端点", () => {
       imageId: "../etc/passwd",
     })
     expect(remove.status).toBe(400)
+  })
+})
+
+describe("卷与网络删除端点", () => {
+  it("删除一次性卷与网络返回 200", async () => {
+    const baseUrl = await startServer(createFakeCli())
+    const volume = await send(baseUrl, "/api/docker/volume", "DELETE", {
+      name: "mac-manager-smoke-vol",
+    })
+    expect(volume.status).toBe(200)
+    expect(volume.body).toEqual({ message: "已删除卷 mac-manager-smoke-vol" })
+
+    const network = await send(
+      baseUrl,
+      "/api/docker/network",
+      "DELETE",
+      { networkId: "mac-manager-smoke-net" },
+      "req-docker-net-rm-0001"
+    )
+    expect(network.status).toBe(200)
+    expect(network.body).toEqual({
+      message: "已删除网络 mac-manager-smoke-net",
+    })
+  })
+
+  it("被容器使用的卷返回 409，卷仍存在", async () => {
+    const cli = createFakeCli({
+      removeVolume: async () => {
+        throw new DockerCommandError("conflict", "该卷被容器使用中")
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/volume",
+      "DELETE",
+      {
+        name: "litellm_postgres_data",
+      }
+    )
+    expect(status).toBe(409)
+    expect(body).toEqual({
+      message: "该卷正被容器使用，请先删除相关容器",
+      executionStatus: "failed",
+    })
+    // 卷没有被删掉
+    expect(await cli.volumeExists("litellm_postgres_data")).toBe(true)
+  })
+
+  it("删除内置网络返回 409 且不发任何 docker 命令", async () => {
+    const sent: string[] = []
+    const cli = createFakeCli({
+      removeNetwork: async (networkId) => {
+        sent.push(networkId)
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/network",
+      "DELETE",
+      {
+        networkId: "bridge",
+      }
+    )
+    expect(status).toBe(409)
+    expect(body).toEqual({
+      message: "这是 Docker 内置网络，不能删除",
+      executionStatus: "failed",
+    })
+    expect(sent).toEqual([])
+  })
+
+  it("仍有容器接入的网络返回 409", async () => {
+    const cli = createFakeCli({
+      removeNetwork: async () => {
+        throw new DockerCommandError("conflict", "该网络仍有容器接入")
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/network",
+      "DELETE",
+      {
+        networkId: "litellm_default",
+      }
+    )
+    expect(status).toBe(409)
+    expect(body).toEqual({
+      message: "该网络仍有容器接入，请先断开",
+      executionStatus: "failed",
+    })
+  })
+
+  it("载荷非法返回 400", async () => {
+    const baseUrl = await startServer(createFakeCli())
+    expect(
+      (await send(baseUrl, "/api/docker/volume", "DELETE", { name: "a b" }))
+        .status
+    ).toBe(400)
+    expect(
+      (
+        await send(baseUrl, "/api/docker/network", "DELETE", {
+          networkId: "../etc/passwd",
+        })
+      ).status
+    ).toBe(400)
   })
 })

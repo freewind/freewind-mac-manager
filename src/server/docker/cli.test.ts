@@ -1268,3 +1268,126 @@ describe("镜像删除的冲突映射", () => {
     expect(calls[0]?.args).toEqual(["image", "rm", "-f", "3d88bd757134"])
   })
 })
+
+describe("内置网络与删除后核实", () => {
+  it.each(["bridge", "host", "none", "Bridge"])(
+    "拒绝删除内置网络 %s，且不发任何 docker 命令",
+    async (name) => {
+      const { runner, calls } = createFakeRunner(succeed(""))
+      const cli = createDockerCli({ run: runner, cache: noCache })
+      const error = await cli.removeNetwork(name).catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(DockerCommandError)
+      expect((error as DockerCommandError).kind).toBe("conflict")
+      expect((error as DockerCommandError).message).toBe(
+        "这是 Docker 内置网络，不能删除"
+      )
+      expect(calls).toHaveLength(0)
+    }
+  )
+
+  it("普通网络照常删除", async () => {
+    const { runner, calls } = createFakeRunner(succeed(""))
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    await cli.removeNetwork("litellm_default")
+    expect(calls[0]?.args).toEqual(["network", "rm", "litellm_default"])
+  })
+
+  it("按名/按 id 询问卷与网络是否存在，不存在返回 false", async () => {
+    const present = createFakeRunner(succeed("myvol\n"))
+    const presentCli = createDockerCli({ run: present.runner, cache: noCache })
+    expect(await presentCli.volumeExists("myvol")).toBe(true)
+    expect(present.calls[0]?.args).toEqual([
+      "volume",
+      "inspect",
+      "--format",
+      "{{.Name}}",
+      "myvol",
+    ])
+
+    const missingVolume = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: docker volume inspect"), {
+          stderr: "Error response from daemon: get myvol: no such volume",
+        })
+      )
+    )
+    const missingVolumeCli = createDockerCli({
+      run: missingVolume.runner,
+      cache: noCache,
+    })
+    expect(await missingVolumeCli.volumeExists("myvol")).toBe(false)
+
+    const presentNetwork = createFakeRunner(succeed("net1\n"))
+    const networkCli = createDockerCli({
+      run: presentNetwork.runner,
+      cache: noCache,
+    })
+    expect(await networkCli.networkExists("net1")).toBe(true)
+
+    const missingNetwork = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: docker network inspect"), {
+          stderr: "Error response from daemon: network net1 not found",
+        })
+      )
+    )
+    const missingNetworkCli = createDockerCli({
+      run: missingNetwork.runner,
+      cache: noCache,
+    })
+    expect(await missingNetworkCli.networkExists("net1")).toBe(false)
+  })
+
+  it("卷被使用、网络有端点、内置网络按 id 删除都算冲突（真机文案）", async () => {
+    const cases: [string, string][] = [
+      [
+        "volume",
+        "Error response from daemon: remove myvol: volume is in use - [45f67c21d6a5]",
+      ],
+      [
+        "network",
+        'Error response from daemon: error while removing network: network net1 has active endpoints (name:"c1" id:"676f657a57cf")',
+      ],
+      [
+        "network",
+        "Error response from daemon: bridge is a pre-defined network and cannot be removed",
+      ],
+    ]
+    for (const [kind, stderr] of cases) {
+      const { runner } = createFakeRunner(() =>
+        Promise.reject(
+          Object.assign(new Error(`Command failed: docker ${kind} rm`), {
+            stderr,
+          })
+        )
+      )
+      const cli = createDockerCli({ run: runner, cache: noCache })
+      const error =
+        kind === "volume"
+          ? await cli.removeVolume("myvol").catch((e: unknown) => e)
+          : await cli
+              .removeNetwork(
+                kind === "network" && stderr.includes("bridge")
+                  ? "9f0c8d0a1b2c"
+                  : "net1"
+              )
+              .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(DockerCommandError)
+      expect((error as DockerCommandError).kind).toBe("conflict")
+    }
+  })
+
+  it("docker 未运行时存在性查询照旧抛出，不吞成 false", async () => {
+    const { runner } = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: docker volume inspect"), {
+          stderr:
+            "Cannot connect to the Docker daemon at unix:///x. Is the docker daemon running?",
+        })
+      )
+    )
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    await expect(cli.volumeExists("myvol")).rejects.toThrow("Docker 服务未运行")
+    await expect(cli.networkExists("net1")).rejects.toThrow("Docker 服务未运行")
+  })
+})

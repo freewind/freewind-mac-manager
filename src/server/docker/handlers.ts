@@ -21,6 +21,8 @@ import { DockerContainerCreatedSchema } from "@shared/api-contract/schemas/docke
 import {
   dockerContainerTaskTarget,
   dockerImageTaskTarget,
+  dockerNetworkTaskTarget,
+  dockerVolumeTaskTarget,
 } from "@shared/task-targets"
 import { initServer } from "@ts-rest/express"
 import { DockerCommandError, isMissingContainerError } from "./cli"
@@ -42,6 +44,8 @@ export const dockerContract = {
   createDockerContainer: contract.createDockerContainer,
   pullDockerImage: contract.pullDockerImage,
   removeDockerImage: contract.removeDockerImage,
+  removeDockerVolume: contract.removeDockerVolume,
+  removeDockerNetwork: contract.removeDockerNetwork,
 }
 
 /** 只读端点没有「创建」与「状态冲突」语义，409 一律收敛成 500。 */
@@ -334,6 +338,36 @@ export const createDockerRouter = (
             force: body.force,
           },
           target: dockerImageTaskTarget(body.imageId),
+          requestId: headers[TASK_REQUEST_ID_HEADER],
+          completedStatus: 200,
+          parseCompleted: actionResponseOf,
+        })
+      } catch (error) {
+        return failWrite(error)
+      }
+    },
+
+    removeDockerVolume: async ({ headers, body }) => {
+      try {
+        // 被容器使用的卷由 docker 拒绝，再映射成 409
+        return await submitDockerAction(runtime, {
+          payload: { action: "volumeRemove", name: body.name },
+          target: dockerVolumeTaskTarget(body.name),
+          requestId: headers[TASK_REQUEST_ID_HEADER],
+          completedStatus: 200,
+          parseCompleted: actionResponseOf,
+        })
+      } catch (error) {
+        return failWrite(error)
+      }
+    },
+
+    removeDockerNetwork: async ({ headers, body }) => {
+      try {
+        // 内置网络与仍有容器接入的网络都会在执行器里被拒绝（409）
+        return await submitDockerAction(runtime, {
+          payload: { action: "networkRemove", networkId: body.networkId },
+          target: dockerNetworkTaskTarget(body.networkId),
           requestId: headers[TASK_REQUEST_ID_HEADER],
           completedStatus: 200,
           parseCompleted: actionResponseOf,

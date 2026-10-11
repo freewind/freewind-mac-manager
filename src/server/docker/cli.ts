@@ -191,8 +191,12 @@ export const toCommandError = (
       detail
     )
   }
+  // 文案取自真机实测：镜像被引用、卷被使用、网络有活跃端点、内置网络
   if (
     /image is being used by|must be forced|conflict: unable to delete/i.test(
+      detail
+    ) ||
+    /volume is in use|has active endpoints|is a pre-defined network/i.test(
       detail
     )
   ) {
@@ -665,6 +669,18 @@ const assertNetworkId = (networkId: string): void => {
     )
   }
 }
+
+/** Docker 内置网络：删掉会破坏容器网络，任何情况下都不允许。 */
+export const BUILTIN_NETWORKS = ["bridge", "host", "none"] as const
+
+export const isBuiltinNetwork = (name: string): boolean =>
+  (BUILTIN_NETWORKS as readonly string[]).includes(name.trim().toLowerCase())
+
+/** docker 说「没有这个资源」是事实状态，不是故障。 */
+const missingResource = (error: unknown, pattern: RegExp): boolean =>
+  error instanceof DockerCommandError &&
+  error.kind === "failed" &&
+  pattern.test(error.detail)
 
 /** 容器名的字符集与契约一致，首字符不能是连字符。 */
 const assertContainerName = (name: string): void => {
@@ -1170,13 +1186,7 @@ export const createDockerCli = (
       )
       return true
     } catch (error) {
-      if (
-        error instanceof DockerCommandError &&
-        error.kind === "failed" &&
-        /no such image/i.test(error.detail)
-      ) {
-        return false
-      }
+      if (missingResource(error, /no such image/i)) return false
       throw error
     }
   }
@@ -1199,7 +1209,44 @@ export const createDockerCli = (
 
   const removeNetwork = async (networkId: string): Promise<void> => {
     assertNetworkId(networkId)
+    // 内置网络先拒绝：删了会破坏容器网络，也不能白跑一条注定失败的 docker 命令
+    if (isBuiltinNetwork(networkId)) {
+      throw new DockerCommandError("conflict", "这是 Docker 内置网络，不能删除")
+    }
     await docker(["network", "rm", networkId], TIMEOUT.write)
+  }
+
+  /** 卷是否还存在（删除后核实用），不经列表缓存。 */
+  const volumeExists = async (name: string): Promise<boolean> => {
+    assertVolumeName(name)
+    try {
+      await docker(
+        ["volume", "inspect", "--format", "{{.Name}}", name],
+        TIMEOUT.quick
+      )
+      return true
+    } catch (error) {
+      if (missingResource(error, /no such volume/i)) return false
+      throw error
+    }
+  }
+
+  /** 网络是否还存在（删除后核实用），不经列表缓存。 */
+  const networkExists = async (networkId: string): Promise<boolean> => {
+    assertNetworkId(networkId)
+    try {
+      await docker(
+        ["network", "inspect", "--format", "{{.Id}}", networkId],
+        TIMEOUT.quick
+      )
+      return true
+    } catch (error) {
+      // 真机实测：network X not found
+      if (missingResource(error, /no such network|network .* not found/i)) {
+        return false
+      }
+      throw error
+    }
   }
 
   const getColimaStatus = async (): Promise<DockerColimaStatus> => {
@@ -1300,7 +1347,9 @@ export const createDockerCli = (
     imageExists,
     removeImage,
     removeVolume,
+    volumeExists,
     removeNetwork,
+    networkExists,
     inspectContainer,
   }
 }

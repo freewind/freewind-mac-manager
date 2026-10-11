@@ -14,6 +14,7 @@ import {
   type DockerCli,
   DockerCommandError,
   dockerCli,
+  isBuiltinNetwork,
 } from "./cli"
 
 /** 容器/镜像/卷/网络的写操作共用一种任务种类（与 service_action 做法一致）。 */
@@ -140,7 +141,9 @@ export type DockerActionCli = Pick<
   | "pullImage"
   | "removeImage"
   | "removeVolume"
+  | "volumeExists"
   | "removeNetwork"
+  | "networkExists"
   | "inspectContainer"
   | "imageExists"
 >
@@ -169,6 +172,20 @@ const stageOf = (payload: DockerActionPayload): string => {
     case "networkRemove":
       return `删除网络 ${payload.networkId}`
   }
+}
+
+/**
+ * 资源被占用（卷被使用、网络有容器接入）统一翻译成 409；
+ * cli 自己给出的中文提示（如内置网络）优先原样透出。
+ */
+const inUseConflict = (error: unknown, fallback: string): unknown => {
+  if (!(error instanceof DockerCommandError) || error.kind !== "conflict") {
+    return error
+  }
+  return new PublicOperationError(
+    409,
+    error.message.includes("内置网络") ? error.message : fallback
+  )
 }
 
 /**
@@ -379,16 +396,39 @@ const dispatch = async (
       }
       return { message: `已删除镜像 ${payload.imageId}` }
     }
-    case "volumeRemove":
-      await cli.removeVolume(payload.name)
-      return {
-        message: `已发出删除卷 ${payload.name} 的命令，请重新读取列表确认`,
+    case "volumeRemove": {
+      try {
+        await cli.removeVolume(payload.name)
+      } catch (error) {
+        throw inUseConflict(error, "该卷正被容器使用，请先删除相关容器")
       }
-    case "networkRemove":
-      await cli.removeNetwork(payload.networkId)
-      return {
-        message: `已发出删除网络 ${payload.networkId} 的命令，请重新读取列表确认`,
+      // 命令跑完不等于目标消失：必须重新核实
+      if (await cli.volumeExists(payload.name)) {
+        throw new PublicOperationError(
+          500,
+          `卷 ${payload.name} 仍然存在，删除未生效`
+        )
       }
+      return { message: `已删除卷 ${payload.name}` }
+    }
+    case "networkRemove": {
+      // 内置网络在发命令前就拒绝：删了会破坏容器网络
+      if (isBuiltinNetwork(payload.networkId)) {
+        throw new PublicOperationError(409, "这是 Docker 内置网络，不能删除")
+      }
+      try {
+        await cli.removeNetwork(payload.networkId)
+      } catch (error) {
+        throw inUseConflict(error, "该网络仍有容器接入，请先断开")
+      }
+      if (await cli.networkExists(payload.networkId)) {
+        throw new PublicOperationError(
+          500,
+          `网络 ${payload.networkId} 仍然存在，删除未生效`
+        )
+      }
+      return { message: `已删除网络 ${payload.networkId}` }
+    }
   }
 }
 

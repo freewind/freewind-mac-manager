@@ -6,6 +6,8 @@ import type {
   DockerContainerDeleteBody,
   DockerImageDeleteBody,
   DockerImagePullBody,
+  DockerNetworkDeleteBody,
+  DockerVolumeDeleteBody,
 } from "@shared/api-contract"
 import { apiClient, taskRequestHeaders } from "./client"
 import { type Execution, runExecution } from "./execution"
@@ -68,6 +70,30 @@ export const removeDockerImage = async (
 ): Promise<Execution<ActionResponse>> =>
   runExecution<ActionResponse>(() =>
     apiClient.removeDockerImage({
+      body,
+      headers: taskRequestHeaders(requestId),
+    })
+  )
+
+/** 删除卷：被容器使用时服务端返回 409，不会强行删除。 */
+export const removeDockerVolume = async (
+  requestId: string,
+  body: DockerVolumeDeleteBody
+): Promise<Execution<ActionResponse>> =>
+  runExecution<ActionResponse>(() =>
+    apiClient.removeDockerVolume({
+      body,
+      headers: taskRequestHeaders(requestId),
+    })
+  )
+
+/** 删除网络：内置网络与仍有容器接入的网络都会返回 409。 */
+export const removeDockerNetwork = async (
+  requestId: string,
+  body: DockerNetworkDeleteBody
+): Promise<Execution<ActionResponse>> =>
+  runExecution<ActionResponse>(() =>
+    apiClient.removeDockerNetwork({
       body,
       headers: taskRequestHeaders(requestId),
     })

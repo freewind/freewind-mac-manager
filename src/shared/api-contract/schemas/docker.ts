@@ -243,12 +243,20 @@ export const DockerImageDeleteBodySchema = z.object({
   force: z.boolean().optional(),
 })
 
+/** 卷名/网络标识：首字符必须是字母数字，挡住被当成 docker 选项的取值。 */
+const ResourceIdentifierSchema = (max: number) =>
+  z
+    .string()
+    .min(1)
+    .max(max)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, "标识包含非法字符")
+
 export const DockerVolumeDeleteBodySchema = z.object({
-  name: z.string().min(1).max(255),
+  name: ResourceIdentifierSchema(255),
 })
 
 export const DockerNetworkDeleteBodySchema = z.object({
-  networkId: z.string().min(1).max(128),
+  networkId: ResourceIdentifierSchema(128),
 })
 
 export const DockerColimaActionBodySchema = z.object({

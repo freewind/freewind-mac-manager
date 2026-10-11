@@ -47,10 +47,16 @@ const createFakeCli = (
     imageExists?: boolean
     /** 删除镜像时报错（模拟被容器引用） */
     removeImageError?: Error
+    /** 删除卷时报错（模拟被容器使用） */
+    removeVolumeError?: Error
+    /** 删除网络时报错（模拟仍有容器接入） */
+    removeNetworkError?: Error
   } = {}
 ) => {
   let state: string = options.state ?? "running"
   let imagePresent = options.imageExists ?? true
+  let volumePresent = true
+  let networkPresent = true
   const calls: Call[] = []
   const move = (next: string): void => {
     if (options.stuck !== true) state = next
@@ -100,10 +106,20 @@ const createFakeCli = (
     },
     removeVolume: async (name) => {
       calls.push({ method: "volumeRemove", args: [name] })
+      if (options.removeVolumeError !== undefined) {
+        throw options.removeVolumeError
+      }
+      volumePresent = false
     },
+    volumeExists: async () => volumePresent,
     removeNetwork: async (networkId) => {
       calls.push({ method: "networkRemove", args: [networkId] })
+      if (options.removeNetworkError !== undefined) {
+        throw options.removeNetworkError
+      }
+      networkPresent = false
     },
+    networkExists: async () => networkPresent,
     inspectContainer: async (containerId) =>
       state === "removed"
         ? null
@@ -321,9 +337,8 @@ describe("Docker 动作分派", () => {
         },
       ]
     `)
-    expect(outcome.message).toBe(
-      "已发出删除卷 myvol 的命令，请重新读取列表确认"
-    )
+    // 删除后核实过：直接说已删除
+    expect(outcome.message).toBe("已删除卷 myvol")
   })
 
   it("容器动作以重新读取到的状态为准，不认命令退出码", async () => {
@@ -685,5 +700,104 @@ describe("镜像拉取与删除", () => {
         cli: { ...cli, imageExists: async () => true },
       })
     ).rejects.toThrow("仍然存在，删除未生效")
+  })
+})
+
+describe("卷与网络删除", () => {
+  it("被容器使用的卷返回 409，且卷仍在", async () => {
+    const { cli, calls } = createFakeCli({
+      removeVolumeError: new DockerCommandError("conflict", "该卷被容器使用中"),
+    })
+    const error = await runDockerActionTask({
+      payload: { action: "volumeRemove", name: "mac-manager-smoke-vol" },
+      report: () => undefined,
+      cli,
+    }).catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(PublicOperationError)
+    expect((error as PublicOperationError).status).toBe(409)
+    expect((error as PublicOperationError).message).toBe(
+      "该卷正被容器使用，请先删除相关容器"
+    )
+    // 命令发出去了（docker 自己拒绝），卷还在
+    expect(calls).toEqual([
+      {
+        method: "volumeRemove",
+        args: ["mac-manager-smoke-vol"],
+      },
+    ])
+  })
+
+  it("仍有容器接入的网络返回 409", async () => {
+    const { cli } = createFakeCli({
+      removeNetworkError: new DockerCommandError(
+        "conflict",
+        "该网络仍有容器接入"
+      ),
+    })
+    const error = await runDockerActionTask({
+      payload: { action: "networkRemove", networkId: "new-api_default" },
+      report: () => undefined,
+      cli,
+    }).catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(PublicOperationError)
+    expect((error as PublicOperationError).status).toBe(409)
+    expect((error as PublicOperationError).message).toBe(
+      "该网络仍有容器接入，请先断开"
+    )
+  })
+
+  it("内置网络在发命令前就被拒绝", async () => {
+    const { cli, calls } = createFakeCli()
+    for (const networkId of ["bridge", "host", "none"]) {
+      const error = await runDockerActionTask({
+        payload: { action: "networkRemove", networkId },
+        report: () => undefined,
+        cli,
+      }).catch((value: unknown) => value)
+      expect(error).toBeInstanceOf(PublicOperationError)
+      expect((error as PublicOperationError).status).toBe(409)
+      expect((error as PublicOperationError).message).toBe(
+        "这是 Docker 内置网络，不能删除"
+      )
+    }
+    // 一条 docker 命令都没发
+    expect(calls).toHaveLength(0)
+  })
+
+  it("删除后目标仍在时报错，不谎报成功", async () => {
+    const { cli } = createFakeCli()
+    await expect(
+      runDockerActionTask({
+        payload: { action: "volumeRemove", name: "myvol" },
+        report: () => undefined,
+        cli: { ...cli, volumeExists: async () => true },
+      })
+    ).rejects.toThrow("卷 myvol 仍然存在，删除未生效")
+
+    await expect(
+      runDockerActionTask({
+        payload: { action: "networkRemove", networkId: "net1" },
+        report: () => undefined,
+        cli: { ...cli, networkExists: async () => true },
+      })
+    ).rejects.toThrow("网络 net1 仍然存在，删除未生效")
+  })
+
+  it("删除成功时如实说明已删除", async () => {
+    const { cli } = createFakeCli()
+    expect(
+      await runDockerActionTask({
+        payload: { action: "volumeRemove", name: "myvol" },
+        report: () => undefined,
+        cli,
+      })
+    ).toMatchObject({ message: "已删除卷 myvol" })
+    expect(
+      await runDockerActionTask({
+        payload: { action: "networkRemove", networkId: "net1" },
+        report: () => undefined,
+        cli,
+      })
+    ).toMatchObject({ message: "已删除网络 net1" })
   })
 })
