@@ -53,7 +53,7 @@ export const createApp = (injected?: {
   // 任务运行时先建好：长任务端点（如磁盘扫描）需要提交任务。
   const taskRuntime = injected?.tasks ?? createTaskRuntime()
   const auth = createAuthManager()
-  createExpressEndpoints(authContract, createAuthRouter(auth), app, options)
+  createExpressEndpoints(authContract, createAuthRouter(), app, options)
   app.use(auth.middleware)
   createExpressEndpoints(healthContract, healthRouter, app, options)
   createExpressEndpoints(hardwareContract, hardwareRouter, app, options)

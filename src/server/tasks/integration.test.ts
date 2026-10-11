@@ -8,6 +8,7 @@ import {
   TaskHostError,
   type TaskOutcome,
 } from "@server/common/tasks/worker-host"
+import { getAuthPassword } from "@server/env"
 import {
   TASK_KINDS,
   TASK_REQUEST_ID_HEADER,
@@ -117,8 +118,19 @@ afterEach(async () => {
   expect(migrate).not.toHaveBeenCalled()
 })
 
+/**
+ * 认证是 fail-closed 的：这些请求要过真实中间件，必须带访问密码。
+ * 密码仍取自 .env（与生产同源），不硬编码。
+ */
+const authHeaders = (
+  extra: Record<string, string> = {}
+): Record<string, string> => ({
+  authorization: `Bearer ${getAuthPassword()}`,
+  ...extra,
+})
+
 const get = async (url: string) => {
-  const response = await fetch(`${baseUrl}${url}`)
+  const response = await fetch(`${baseUrl}${url}`, { headers: authHeaders() })
   return { status: response.status, body: await response.json() }
 }
 
@@ -233,10 +245,10 @@ describe("task wiring through the real app", () => {
     const send = (identified: boolean) =>
       fetch(`${baseUrl}${action.url}`, {
         method: action.method,
-        headers: {
+        headers: authHeaders({
           ...(identified ? { [TASK_REQUEST_ID_HEADER]: requestId } : {}),
           "content-type": "application/json",
-        },
+        }),
         body: action.body ? JSON.stringify(action.body) : undefined,
       })
     expect((await send(false)).status).toBe(400)
@@ -252,10 +264,10 @@ describe("task wiring through the real app", () => {
     if (action.body) {
       const different = await fetch(`${baseUrl}${action.url}`, {
         method: action.method,
-        headers: {
+        headers: authHeaders({
           [TASK_REQUEST_ID_HEADER]: requestId,
           "content-type": "application/json",
-        },
+        }),
         body: JSON.stringify({
           ...action.body,
           ...("name" in action.body
@@ -286,10 +298,10 @@ describe("task wiring through the real app", () => {
     }
     const conflict = await fetch(`${baseUrl}${action.url}`, {
       method: action.method,
-      headers: {
+      headers: authHeaders({
         [TASK_REQUEST_ID_HEADER]: `${requestId}_other`,
         "content-type": "application/json",
-      },
+      }),
       body: action.body ? JSON.stringify(action.body) : undefined,
     })
     expect(conflict.status).toBe(409)
@@ -343,7 +355,7 @@ describe("task wiring through the real app", () => {
     const send = () =>
       fetch(`${baseUrl}${ApiPath.diskGrowthScan}`, {
         method: "POST",
-        headers: { [TASK_REQUEST_ID_HEADER]: requestId },
+        headers: authHeaders({ [TASK_REQUEST_ID_HEADER]: requestId }),
       })
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const response = await send()
@@ -360,10 +372,10 @@ describe("task wiring through the real app", () => {
 
     const conflict = await fetch(`${baseUrl}${ApiPath.diskGrowthReveal}`, {
       method: "POST",
-      headers: {
+      headers: authHeaders({
         [TASK_REQUEST_ID_HEADER]: requestId,
         "content-type": "application/json",
-      },
+      }),
       body: JSON.stringify({ path: "/tmp/audit" }),
     })
     expect(conflict.status).toBe(409)
@@ -378,7 +390,7 @@ describe("task wiring through the real app", () => {
     const requestId = "req_declared_unknown_http"
     const response = await fetch(`${baseUrl}${ApiPath.diskGrowthScan}`, {
       method: "POST",
-      headers: { [TASK_REQUEST_ID_HEADER]: requestId },
+      headers: authHeaders({ [TASK_REQUEST_ID_HEADER]: requestId }),
     })
     expect(response.status).toBe(409)
     expect(await response.json()).toMatchObject({
@@ -405,7 +417,7 @@ describe("task wiring through the real app", () => {
 
     const replay = await fetch(`${baseUrl}${ApiPath.diskGrowthScan}`, {
       method: "POST",
-      headers: { [TASK_REQUEST_ID_HEADER]: requestId },
+      headers: authHeaders({ [TASK_REQUEST_ID_HEADER]: requestId }),
     })
     expect(replay.status).toBe(409)
     expect(await replay.json()).toMatchObject({ executionStatus: "unknown" })
@@ -416,10 +428,10 @@ describe("task wiring through the real app", () => {
     completeImmediately = true
     const submission = fetch(`${baseUrl}${ApiPath.filesEntries}`, {
       method: "POST",
-      headers: {
+      headers: authHeaders({
         [TASK_REQUEST_ID_HEADER]: "req_fast_completed_audit",
         "content-type": "application/json",
-      },
+      }),
       body: JSON.stringify({ parentPath: "/tmp", name: "audit.txt" }),
     })
     const response = await submission
@@ -438,7 +450,7 @@ describe("task wiring through the real app", () => {
     expect(missing.status).toBe(404)
     expect(missing.body.message).toContain("没有找到")
 
-    const notApi = await fetch(`${baseUrl}/tasks`)
+    const notApi = await fetch(`${baseUrl}/tasks`, { headers: authHeaders() })
     expect(notApi.headers.get("content-type") ?? "").not.toContain(
       "application/json"
     )
@@ -447,6 +459,7 @@ describe("task wiring through the real app", () => {
   it("refuses a write without a request id instead of running it", async () => {
     const response = await fetch(`${baseUrl}/api/disk-growth/scan`, {
       method: "POST",
+      headers: authHeaders(),
     })
     expect(response.status).toBe(400)
     // 校验失败发生任何副作用之前：不会派发任务
@@ -457,7 +470,7 @@ describe("task wiring through the real app", () => {
     const requestId = `req_${"i".repeat(16)}`
     const started = await fetch(`${baseUrl}/api/disk-growth/scan`, {
       method: "POST",
-      headers: { [TASK_REQUEST_ID_HEADER]: requestId },
+      headers: authHeaders({ [TASK_REQUEST_ID_HEADER]: requestId }),
     })
     // 执行器不结束 -> 走受理分支
     expect(started.status).toBe(202)
@@ -492,7 +505,7 @@ describe("task wiring through the real app", () => {
 
   it("does not run the same request twice", async () => {
     const requestId = `req_${"j".repeat(16)}`
-    const headers = { [TASK_REQUEST_ID_HEADER]: requestId }
+    const headers = authHeaders({ [TASK_REQUEST_ID_HEADER]: requestId })
     const first = await fetch(`${baseUrl}/api/disk-growth/scan`, {
       method: "POST",
       headers,

@@ -170,11 +170,7 @@ export const authContract = {
   login: contract.login,
 }
 
-/**
- * 认证已无状态：router 不依赖实例。参数保留，让 app.ts 的
- * `createAuthRouter(auth)` 调用形态不变。
- */
-export const createAuthRouter = (_manager: AuthManager) =>
+export const createAuthRouter = () =>
   s.router(authContract, {
     getAuthStatus: async ({ req }) => {
       const configured = isAuthConfigured()
@@ -222,5 +218,3 @@ export const createAuthRouter = (_manager: AuthManager) =>
       return { status: 200 as const, body: { authenticated: true as const } }
     },
   })
-
-export type AuthManager = ReturnType<typeof createAuthManager>

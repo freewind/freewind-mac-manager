@@ -16,8 +16,9 @@ let server: TestServer | null = null
 /**
  * 每个用例重置模块：限流表是模块级单例，必须拿到干净的计数。
  *
- * 同时创建两个 manager —— router 用 A、中间件用 B。凭据在 A 上登录、在 B 的
- * 中间件下依旧有效，就证明核对不依赖任何实例状态（dev 热重载不会让人被动登出）。
+ * router 不接任何实例，中间件单独新建一个 manager：登录不经过实例、
+ * 之后的请求由新实例的中间件放行，就证明核对不依赖进程内实例状态
+ * （dev 热重载不会让人被动登出）。
  */
 const startServer = async (password: string | null): Promise<TestServer> => {
   vi.resetModules()
@@ -26,12 +27,9 @@ const startServer = async (password: string | null): Promise<TestServer> => {
   vi.stubEnv("MAC_MANAGER_PASSWORD", password ?? "")
   const app = express()
   app.use(express.json())
-  createExpressEndpoints(
-    auth.authContract,
-    auth.createAuthRouter(auth.createAuthManager()),
-    app,
-    { logInitialization: false }
-  )
+  createExpressEndpoints(auth.authContract, auth.createAuthRouter(), app, {
+    logInitialization: false,
+  })
   app.use(auth.createAuthManager().middleware)
   app.get("/api/ping", (_request, response) => {
     response.json({ ok: true })
@@ -189,10 +187,10 @@ describe("access password auth", () => {
     expect(await recovered.json()).toEqual({ authenticated: true })
   })
 
-  it("同一进程内两次 createAuthManager() 后凭据仍有效", async () => {
+  it("登录不经实例、请求由新建 manager 的中间件放行", async () => {
     server = await startServer("correct horse")
-    // router 与 middleware 分别来自两个 manager（见 startServer）：
-    // 在其中一个上完成登录，凭据在另一个的中间件下依然有效。
+    // 登录只经过无状态的 router，随后的 /api 请求由新建 manager 的中间件放行：
+    // 凭据核对没有进程内状态。
     expect((await login(server.baseUrl, "correct horse")).status).toBe(200)
     expect(
       (await ping(server.baseUrl, { authorization: "Bearer correct horse" }))
