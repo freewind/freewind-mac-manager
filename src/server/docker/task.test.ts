@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { PublicOperationError } from "@server/common/public-error"
 import { TaskRunner } from "@server/common/tasks/runner"
 import { TaskStore } from "@server/common/tasks/store"
 import type {
@@ -23,6 +24,7 @@ import {
   dockerVolumeTaskTarget,
 } from "@shared/task-targets"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { DockerCommandError } from "./cli"
 import {
   DOCKER_ACTION_KIND,
   type DockerActionCli,
@@ -35,8 +37,20 @@ import {
 type Call = { method: string; args: unknown[] }
 
 /** 受控替身：动作会真的改状态（除非 stuck），核实读到的就是改完之后的状态。 */
-const createFakeCli = (options: { state?: string; stuck?: boolean } = {}) => {
+const createFakeCli = (
+  options: {
+    state?: string
+    stuck?: boolean
+    /** 拉取输出：按行喂给 onLine，模拟 docker 的流式输出 */
+    pullLines?: string[]
+    /** 镜像是否落地 */
+    imageExists?: boolean
+    /** 删除镜像时报错（模拟被容器引用） */
+    removeImageError?: Error
+  } = {}
+) => {
   let state: string = options.state ?? "running"
+  let imagePresent = options.imageExists ?? true
   const calls: Call[] = []
   const move = (next: string): void => {
     if (options.stuck !== true) state = next
@@ -72,11 +86,17 @@ const createFakeCli = (options: { state?: string; stuck?: boolean } = {}) => {
       calls.push({ method: "createContainer", args: [config] })
       return "new-container-id"
     },
-    pullImage: async (image) => {
+    pullImage: async (image, pullOptions) => {
       calls.push({ method: "pullImage", args: [image] })
+      for (const line of options.pullLines ?? []) pullOptions?.onLine?.(line)
+      // 拉取结束镜像就落地了（除非用例显式设为 false 来验证核实失败）
+      imagePresent = options.imageExists ?? true
     },
+    imageExists: async () => imagePresent,
     removeImage: async (imageId, removeOptions) => {
       calls.push({ method: "removeImage", args: [imageId, removeOptions] })
+      if (options.removeImageError !== undefined) throw options.removeImageError
+      imagePresent = false
     },
     removeVolume: async (name) => {
       calls.push({ method: "volumeRemove", args: [name] })
@@ -573,5 +593,97 @@ describe("新建容器的核实", () => {
         cli: { ...cli, inspectContainer: async () => null },
       })
     ).rejects.toThrow("已创建但查不到")
+  })
+})
+
+describe("镜像拉取与删除", () => {
+  it("拉取过程中按层上报真实进度，不是只在首尾各报一次", async () => {
+    const reports: TaskProgress[] = []
+    const { cli } = createFakeCli({
+      pullLines: [
+        "alpine: Pulling from library/alpine",
+        "aaa111bbb222: Pulling fs layer",
+        "ccc333ddd444: Pulling fs layer",
+        "aaa111bbb222: Downloading 1.5MB/3MB",
+        "aaa111bbb222: Pull complete",
+        "ccc333ddd444: Already exists",
+      ],
+    })
+    const outcome = await runDockerActionTask({
+      payload: { action: "imagePull", image: "alpine:3.20" },
+      report: (progress) => reports.push(progress),
+      cli,
+    })
+    expect(outcome.message).toBe("镜像 alpine:3.20 拉取完成")
+    const pullReports = reports.filter((item) =>
+      item.stage.startsWith("正在拉取")
+    )
+    // 多次上报：每层出现、完成、字节变化都会推一次
+    expect(pullReports.length).toBeGreaterThan(2)
+    // 层数单调递增
+    expect(pullReports.map((item) => item.total)).toEqual([1, 2, 2, 2, 2, 2])
+    // 最后一次是命令结束后的最终态
+    expect(pullReports.map((item) => item.done)).toEqual([0, 0, 0, 1, 2, 2])
+    expect(pullReports.at(-1)).toMatchObject({
+      done: 2,
+      total: 2,
+      bytesDone: 1500000,
+      bytesTotal: 3000000,
+      stage: "正在拉取 alpine:3.20 (2/2 层)",
+      currentTarget: "alpine:3.20",
+    })
+  })
+
+  it("拉取结束但镜像没落地时报错，不报成功", async () => {
+    const { cli } = createFakeCli({ imageExists: false })
+    await expect(
+      runDockerActionTask({
+        payload: { action: "imagePull", image: "alpine:3.20" },
+        report: () => undefined,
+        cli,
+      })
+    ).rejects.toThrow("本地查不到该镜像")
+  })
+
+  it("删除被容器引用的镜像返回 409，且没有加 -f", async () => {
+    const { cli, calls } = createFakeCli({
+      removeImageError: new DockerCommandError(
+        "conflict",
+        "该镜像被容器使用中，请先删除相关容器，或显式选择强制删除"
+      ),
+    })
+    const error = await runDockerActionTask({
+      payload: { action: "imageRemove", imageId: "sha256:abc" },
+      report: () => undefined,
+      cli,
+    }).catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(PublicOperationError)
+    expect((error as PublicOperationError).status).toBe(409)
+    expect((error as PublicOperationError).message).toBe(
+      "该镜像被容器使用中，请先删除相关容器，或显式选择强制删除"
+    )
+    expect(calls[0]?.args).toEqual(["sha256:abc", { force: undefined }])
+  })
+
+  it("显式 force 才允许强删，删除后核实已不存在", async () => {
+    const { cli, calls } = createFakeCli()
+    const outcome = await runDockerActionTask({
+      payload: { action: "imageRemove", imageId: "sha256:abc", force: true },
+      report: () => undefined,
+      cli,
+    })
+    expect(outcome.message).toBe("已删除镜像 sha256:abc")
+    expect(calls[0]?.args).toEqual(["sha256:abc", { force: true }])
+  })
+
+  it("删除后镜像仍在时报错，不谎报成功", async () => {
+    const { cli } = createFakeCli()
+    await expect(
+      runDockerActionTask({
+        payload: { action: "imageRemove", imageId: "sha256:abc" },
+        report: () => undefined,
+        cli: { ...cli, imageExists: async () => true },
+      })
+    ).rejects.toThrow("仍然存在，删除未生效")
   })
 })

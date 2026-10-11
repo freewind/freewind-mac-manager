@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest"
 import {
   type CommandOutput,
   createDockerCli,
+  createLineSplitter,
+  createPullProgressTracker,
   type DockerCache,
   type DockerCli,
   DockerCommandError,
@@ -1123,5 +1125,146 @@ describe("镜像存在性查询", () => {
     await expect(brokenCli.imageExists("redis:7-alpine")).rejects.toThrow(
       "Docker 服务未运行"
     )
+  })
+})
+
+describe("拉取输出解析", () => {
+  it("\\n 与 \\r 都当换行，进度条不会被黏成一行", () => {
+    const lines: string[] = []
+    const splitter = createLineSplitter((line) => lines.push(line))
+    // TTY 下的进度条用 \r 回写同一行
+    splitter.push("a: Downloading 1kB/2kB\r")
+    splitter.push("a: Downloading 2kB/2kB\r\n")
+    splitter.push("b: Pull complete\n")
+    splitter.push("c: Already exists")
+    splitter.flush()
+    expect(lines).toMatchInlineSnapshot(`
+      [
+        "a: Downloading 1kB/2kB",
+        "a: Downloading 2kB/2kB",
+        "b: Pull complete",
+        "c: Already exists",
+      ]
+    `)
+  })
+
+  it("按层汇总进度，字节只取真实输出", () => {
+    const tracker = createPullProgressTracker()
+    const steps = [
+      "alpine: Pulling from library/alpine",
+      "aaa111bbb222: Pulling fs layer",
+      "ccc333ddd444: Already exists",
+      "aaa111bbb222: Downloading 1.5MB/3.2MB",
+      "aaa111bbb222: Download complete",
+      "aaa111bbb222: Pull complete",
+    ]
+    const snapshots = steps
+      .map((line) => tracker.push(line))
+      .filter((item) => item !== null)
+    expect(snapshots).toMatchInlineSnapshot(`
+      [
+        {
+          "bytesDone": null,
+          "bytesTotal": null,
+          "completed": 0,
+          "layers": 1,
+        },
+        {
+          "bytesDone": null,
+          "bytesTotal": null,
+          "completed": 1,
+          "layers": 2,
+        },
+        {
+          "bytesDone": 1500000,
+          "bytesTotal": 3200000,
+          "completed": 1,
+          "layers": 2,
+        },
+        {
+          "bytesDone": 1500000,
+          "bytesTotal": 3200000,
+          "completed": 2,
+          "layers": 2,
+        },
+      ]
+    `)
+    expect(tracker.snapshot()).toMatchInlineSnapshot(`
+      {
+        "bytesDone": 1500000,
+        "bytesTotal": 3200000,
+        "completed": 2,
+        "layers": 2,
+      }
+    `)
+  })
+
+  it("解析不到字节时给出 null，不编造数字", () => {
+    const tracker = createPullProgressTracker()
+    tracker.push("aaa111bbb222: Pulling fs layer")
+    expect(tracker.snapshot()).toEqual({
+      layers: 1,
+      completed: 0,
+      bytesDone: null,
+      bytesTotal: null,
+    })
+  })
+
+  it("pullImage 边执行边回调行，并等待最后一段缓冲", async () => {
+    const lines: string[] = []
+    const chunks = [
+      "alpine: Pulling from library/alpine\r",
+      "aaa111bbb222: Pull complete\n",
+      "Status: Downloaded newer image for alpine:3.20",
+    ]
+    const { runner, calls, timeouts } = createFakeRunner(
+      (() => {
+        return async () => ({ stdout: chunks.join(""), stderr: "" })
+      })()
+    )
+    const streaming: typeof runner = (command, args, options) => {
+      for (const chunk of chunks) options.onOutput?.(chunk)
+      return runner(command, args, options)
+    }
+    const cli = createDockerCli({ run: streaming, cache: noCache })
+    await cli.pullImage("alpine:3.20", { onLine: (line) => lines.push(line) })
+    expect(lines).toMatchInlineSnapshot(`
+      [
+        "alpine: Pulling from library/alpine",
+        "aaa111bbb222: Pull complete",
+        "Status: Downloaded newer image for alpine:3.20",
+      ]
+    `)
+    expect(calls[0]?.args).toEqual(["pull", "alpine:3.20"])
+    expect(timeouts[0]).toBe(600_000)
+  })
+})
+
+describe("镜像删除的冲突映射", () => {
+  it("被容器引用时映射成 conflict，且默认不带 -f", async () => {
+    const { runner, calls } = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: docker image rm"), {
+          stderr:
+            "Error response from daemon: conflict: unable to delete 3d88bd757134 (must be forced) - image is being used by stopped container 1a2b",
+        })
+      )
+    )
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const error = await cli.removeImage("3d88bd757134").catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(DockerCommandError)
+    expect((error as DockerCommandError).kind).toBe("conflict")
+    expect((error as DockerCommandError).message).toBe(
+      "该镜像被容器使用中，请先删除相关容器，或显式选择强制删除"
+    )
+    // 默认不带 -f，绝不自作主张强删
+    expect(calls[0]?.args).toEqual(["image", "rm", "3d88bd757134"])
+  })
+
+  it("显式 force 才发 image rm -f", async () => {
+    const { runner, calls } = createFakeRunner(succeed(""))
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    await cli.removeImage("3d88bd757134", { force: true })
+    expect(calls[0]?.args).toEqual(["image", "rm", "-f", "3d88bd757134"])
   })
 })

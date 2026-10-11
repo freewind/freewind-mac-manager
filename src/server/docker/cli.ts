@@ -45,6 +45,8 @@ const TTL = {
 
 export type DockerErrorKind =
   | "not_installed"
+  /** 资源被占用（如镜像仍被容器使用），需要显式 force 或先解除引用 */
+  | "conflict"
   | "daemon_unavailable"
   | "timeout"
   | "invalid_input"
@@ -69,7 +71,11 @@ export class DockerCommandError extends Error {
 
 export type CommandOutput = { stdout: string; stderr: string }
 
-export type CommandOptions = { timeoutMs: number }
+export type CommandOptions = {
+  timeoutMs: number
+  /** 流式输出回调：只有长命令（pull）需要，用来驱动真实进度。 */
+  onOutput?: (chunk: string) => void
+}
 
 export type DockerCommandRunner = (
   command: string,
@@ -91,10 +97,10 @@ export type DockerCache = <T>(
 export const execCommand: DockerCommandRunner = (
   command,
   args,
-  { timeoutMs }
+  { timeoutMs, onOutput }
 ) =>
   new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       command,
       args,
       { maxBuffer: MAX_BUFFER, timeout: timeoutMs, encoding: "utf8" },
@@ -106,6 +112,12 @@ export const execCommand: DockerCommandRunner = (
         resolve({ stdout: stdout ?? "", stderr: stderr ?? "" })
       }
     )
+    if (onOutput) {
+      // 进度看流式输出；execFile 回调仍在结束时给完整输出，两者互不影响
+      const emit = (chunk: string): void => onOutput(chunk)
+      child.stdout?.on("data", emit)
+      child.stderr?.on("data", emit)
+    }
   })
 
 const HOME_BIN_DIRS = ["/opt/homebrew/bin", "/usr/local/bin"]
@@ -176,6 +188,17 @@ export const toCommandError = (
     return new DockerCommandError(
       "daemon_unavailable",
       "Docker 服务未运行，请先启动 Docker 或执行 colima start。",
+      detail
+    )
+  }
+  if (
+    /image is being used by|must be forced|conflict: unable to delete/i.test(
+      detail
+    )
+  ) {
+    return new DockerCommandError(
+      "conflict",
+      "该镜像被容器使用中，请先删除相关容器，或显式选择强制删除",
       detail
     )
   }
@@ -699,6 +722,112 @@ export const containerCreateArgs = (
   return args
 }
 
+/**
+ * 把流式输出切成整行：docker 的进度条在同一行用 \r 回写，\n 与 \r 都算换行，
+ * 两种都要处理，否则进度会黏成一行。
+ */
+export const createLineSplitter = (onLine: (line: string) => void) => {
+  let buffer = ""
+  const emit = (text: string): void => {
+    const line = text.trim()
+    if (line.length > 0) onLine(line)
+  }
+  return {
+    push: (chunk: string): void => {
+      buffer += chunk
+      const parts = buffer.split(/\r\n|\r|\n/)
+      buffer = parts.pop() ?? ""
+      for (const part of parts) emit(part)
+    },
+    flush: (): void => {
+      const rest = buffer
+      buffer = ""
+      emit(rest)
+    },
+  }
+}
+
+/** 拉取进度：层数与字节全部来自 docker 的真实输出，解析不到就是 null。 */
+export type PullProgress = {
+  /** 输出里出现过的层数 */
+  layers: number
+  /** 已完成层数（Pull complete / Download complete / Already exists 按层各计一次） */
+  completed: number
+  bytesDone: number | null
+  bytesTotal: number | null
+}
+
+const PULL_LAYER_LINE = /^([0-9a-f]{7,64})[:：]\s*(.+)$/i
+const PULL_COMPLETED = /^(pull complete|download complete|already exists)/i
+const PULL_BYTES = /([\d.]+\s*[A-Za-z]+)\s*\/\s*([\d.]+\s*[A-Za-z]+)/
+
+type LayerProgress = {
+  completed: boolean
+  bytesDone: number | null
+  bytesTotal: number | null
+}
+
+/**
+ * 逐行累积拉取进度。同一层可能在 Download complete 之后又有 Pull complete，
+ * 因此按层去重，done 只增不减，也不会超过层数。
+ */
+export const createPullProgressTracker = () => {
+  const layers = new Map<string, LayerProgress>()
+  const snapshot = (): PullProgress => {
+    let bytesDone: number | null = null
+    let bytesTotal: number | null = null
+    let completed = 0
+    for (const layer of layers.values()) {
+      if (layer.completed) completed += 1
+      if (layer.bytesDone !== null)
+        bytesDone = (bytesDone ?? 0) + layer.bytesDone
+      if (layer.bytesTotal !== null) {
+        bytesTotal = (bytesTotal ?? 0) + layer.bytesTotal
+      }
+    }
+    return { layers: layers.size, completed, bytesDone, bytesTotal }
+  }
+  return {
+    /** 返回新进度；这行没带来变化时返回 null，避免刷屏式上报。 */
+    push: (line: string): PullProgress | null => {
+      const match = PULL_LAYER_LINE.exec(line)
+      if (!match) return null
+      const id = (match[1] ?? "").toLowerCase()
+      const rest = (match[2] ?? "").trim()
+      const previous = layers.get(id)
+      const layer: LayerProgress = previous ?? {
+        completed: false,
+        bytesDone: null,
+        bytesTotal: null,
+      }
+      let changed = previous === undefined
+      if (PULL_COMPLETED.test(rest)) {
+        if (!layer.completed) {
+          layer.completed = true
+          changed = true
+        }
+      } else {
+        const bytes = PULL_BYTES.exec(rest)
+        if (bytes) {
+          const done = parseDockerSize(bytes[1] ?? "")
+          const total = parseDockerSize(bytes[2] ?? "")
+          if (done !== null && done !== layer.bytesDone) {
+            layer.bytesDone = done
+            changed = true
+          }
+          if (total !== null && total !== layer.bytesTotal) {
+            layer.bytesTotal = total
+            changed = true
+          }
+        }
+      }
+      layers.set(id, layer)
+      return changed ? snapshot() : null
+    },
+    snapshot,
+  }
+}
+
 export const createDockerCli = (
   options: { run?: DockerCommandRunner; cache?: DockerCache } = {}
 ) => {
@@ -709,13 +838,14 @@ export const createDockerCli = (
   const runCommand = async (
     command: string,
     args: string[],
-    timeoutMs: number
+    timeoutMs: number,
+    onOutput?: (chunk: string) => void
   ): Promise<CommandOutput> => {
     const candidates = commandCandidates(command)
     let lastError: unknown = null
     for (const candidate of candidates) {
       try {
-        return await run(candidate, args, { timeoutMs })
+        return await run(candidate, args, { timeoutMs, onOutput })
       } catch (error) {
         lastError = error
         if (error instanceof DockerCommandError) {
@@ -728,8 +858,11 @@ export const createDockerCli = (
     throw toCommandError(candidates[0] ?? command, lastError, timeoutMs)
   }
 
-  const docker = (args: string[], timeoutMs: number): Promise<CommandOutput> =>
-    runCommand("docker", args, timeoutMs)
+  const docker = (
+    args: string[],
+    timeoutMs: number,
+    onOutput?: (chunk: string) => void
+  ): Promise<CommandOutput> => runCommand("docker", args, timeoutMs, onOutput)
 
   const colima = (args: string[], timeoutMs: number): Promise<CommandOutput> =>
     runCommand("colima", args, timeoutMs)
@@ -1003,9 +1136,25 @@ export const createDockerCli = (
     return stdout.trim().split("\n").at(-1) ?? ""
   }
 
-  const pullImage = async (image: string): Promise<void> => {
+  /**
+   * 拉取镜像：边执行边把输出按行回调出去（docker 的进度行用 \n 或 \r 分隔）。
+   * 其余命令不需要流式输出，只有 pull 这类长命令用。
+   */
+  const pullImage = async (
+    image: string,
+    options: { onLine?: (line: string) => void } = {}
+  ): Promise<void> => {
     assertImageReference(image)
-    await docker(["pull", image], TIMEOUT.pull)
+    const splitter = options.onLine ? createLineSplitter(options.onLine) : null
+    try {
+      await docker(
+        ["pull", image],
+        TIMEOUT.pull,
+        splitter ? (chunk) => splitter.push(chunk) : undefined
+      )
+    } finally {
+      splitter?.flush()
+    }
   }
 
   /**

@@ -226,13 +226,20 @@ export const DockerContainerDeleteBodySchema = z.object({
   force: z.boolean().optional(),
 })
 
+/** 镜像引用：首字符必须是字母数字，挡住 --rm 这类被当成 docker 选项的取值。 */
+const ImageReferenceSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._/:@-]*$/, "镜像引用包含非法字符")
+
 export const DockerImagePullBodySchema = z.object({
-  image: z.string().min(1).max(255),
+  image: ImageReferenceSchema,
 })
 
 /** 删除镜像：被容器引用时需要 force 才允许删除。 */
 export const DockerImageDeleteBodySchema = z.object({
-  imageId: z.string().min(1).max(255),
+  imageId: ImageReferenceSchema,
   force: z.boolean().optional(),
 })
 

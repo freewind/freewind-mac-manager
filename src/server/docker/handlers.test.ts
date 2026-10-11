@@ -2,8 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs"
 import type { Server } from "node:http"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { publicSystemError } from "@server/common/public-error"
 import { TaskStore } from "@server/common/tasks/store"
-import { createInlineHost } from "@server/common/tasks/worker-host"
+import {
+  createInlineHost,
+  TaskHostError,
+} from "@server/common/tasks/worker-host"
 import { createTaskRuntime, type TaskRuntime } from "@server/tasks/runtime"
 import type {
   DockerColimaStatus,
@@ -140,36 +144,44 @@ type TestCli = DockerServiceCli & DockerActionCli
 
 const noop = async (): Promise<void> => undefined
 
-const createFakeCli = (overrides: Partial<TestCli> = {}): TestCli => ({
-  getColimaStatus: async () => colimaRunning,
-  getInfo: async () => ({
-    serverVersion: "29.5.2",
-    containersTotal: 3,
-    containersRunning: 1,
-    containersPaused: 1,
-    containersStopped: 1,
-    imagesTotal: 2,
-  }),
-  getDiskUsage: async () => diskUsageFixture,
-  listContainers: async () => containersFixture,
-  listImages: async () => imagesFixture,
-  listVolumes: async () => volumesFixture,
-  listNetworks: async () => networksFixture,
-  getContainerLogs: async (containerId) => ({ ...logsFixture, containerId }),
-  inspectContainer: async (containerId) => container({ id: containerId }),
-  imageExists: async () => true,
-  startContainer: noop,
-  stopContainer: noop,
-  restartContainer: noop,
-  killContainer: noop,
-  removeContainer: noop,
-  createContainer: async () => "created-by-test",
-  pullImage: noop,
-  removeImage: noop,
-  removeVolume: noop,
-  removeNetwork: noop,
-  ...overrides,
-})
+const createFakeCli = (overrides: Partial<TestCli> = {}): TestCli => {
+  // 镜像存在性是有状态的：拉取后存在、删除后不存在，核实才有意义
+  let imagePresent = true
+  return {
+    getColimaStatus: async () => colimaRunning,
+    getInfo: async () => ({
+      serverVersion: "29.5.2",
+      containersTotal: 3,
+      containersRunning: 1,
+      containersPaused: 1,
+      containersStopped: 1,
+      imagesTotal: 2,
+    }),
+    getDiskUsage: async () => diskUsageFixture,
+    listContainers: async () => containersFixture,
+    listImages: async () => imagesFixture,
+    listVolumes: async () => volumesFixture,
+    listNetworks: async () => networksFixture,
+    getContainerLogs: async (containerId) => ({ ...logsFixture, containerId }),
+    inspectContainer: async (containerId) => container({ id: containerId }),
+    imageExists: async () => imagePresent,
+    startContainer: noop,
+    stopContainer: noop,
+    restartContainer: noop,
+    killContainer: noop,
+    removeContainer: noop,
+    createContainer: async () => "created-by-test",
+    pullImage: async () => {
+      imagePresent = true
+    },
+    removeImage: async () => {
+      imagePresent = false
+    },
+    removeVolume: noop,
+    removeNetwork: noop,
+    ...overrides,
+  }
+}
 
 const servers: Server[] = []
 
@@ -198,12 +210,23 @@ const startServer = async (
     if (options.hold === true) {
       await new Promise<never>(() => undefined)
     }
-    const outcome = await runDockerActionTask({
-      payload: job.payload,
-      report: context.onProgress,
-      cli,
-    })
-    return { result: outcome.result, message: outcome.message, status: "done" }
+    try {
+      const outcome = await runDockerActionTask({
+        payload: job.payload,
+        report: context.onProgress,
+        cli,
+      })
+      return {
+        result: outcome.result,
+        message: outcome.message,
+        status: "done",
+      }
+    } catch (error) {
+      // 与 src/server/task-worker.ts 一致：域内错误转成带 HTTP 状态的宿主错误，
+      // 否则测试会看到生产环境不存在的原始文案。
+      const failure = publicSystemError(error)
+      throw new TaskHostError("failed", failure.body.message, failure.status)
+    }
   })
   const runtime = createTaskRuntime({
     store,
@@ -955,5 +978,86 @@ describe("新建容器端点", () => {
     )
     expect(status).toBe(500)
     expect(body).toEqual({ message: "Docker 未运行，请先启动 Colima" })
+  })
+})
+
+describe("镜像端点", () => {
+  it("拉取完成返回 200", async () => {
+    const baseUrl = await startServer(createFakeCli())
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/images/pull",
+      "POST",
+      { image: "alpine:3.20" }
+    )
+    expect(status).toBe(200)
+    expect(body).toEqual({ message: "镜像 alpine:3.20 拉取完成" })
+  })
+
+  it("拉取耗时较长返回 202 受理回执", async () => {
+    const baseUrl = await startServer(createFakeCli(), {
+      hold: true,
+      thresholdMs: 20,
+    })
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/images/pull",
+      "POST",
+      { image: "alpine:3.20" },
+      "req-docker-pull-0001"
+    )
+    expect(status).toBe(202)
+    expect(body).toMatchObject({ kind: "docker_action", status: "running" })
+  })
+
+  it("删除镜像成功返回 200", async () => {
+    const baseUrl = await startServer(createFakeCli())
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/image",
+      "DELETE",
+      { imageId: "sha256:abc" }
+    )
+    expect(status).toBe(200)
+    expect(body).toEqual({ message: "已删除镜像 sha256:abc" })
+  })
+
+  it("被容器引用且未 force 返回 409，且没有加 -f", async () => {
+    const calls: unknown[] = []
+    const cli = createFakeCli({
+      removeImage: async (imageId, options) => {
+        calls.push([imageId, options])
+        throw new DockerCommandError(
+          "conflict",
+          "该镜像被容器使用中，请先删除相关容器，或显式选择强制删除"
+        )
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/image",
+      "DELETE",
+      { imageId: "sha256:abc" }
+    )
+    expect(status).toBe(409)
+    expect(body).toEqual({
+      message: "该镜像被容器使用中，请先删除相关容器，或显式选择强制删除",
+      executionStatus: "failed",
+    })
+    // 绝不自作主张强删
+    expect(calls).toEqual([["sha256:abc", { force: undefined }]])
+  })
+
+  it("载荷非法返回 400", async () => {
+    const baseUrl = await startServer(createFakeCli())
+    const pull = await send(baseUrl, "/api/docker/images/pull", "POST", {
+      image: "--rm",
+    })
+    expect(pull.status).toBe(400)
+    const remove = await send(baseUrl, "/api/docker/image", "DELETE", {
+      imageId: "../etc/passwd",
+    })
+    expect(remove.status).toBe(400)
   })
 })

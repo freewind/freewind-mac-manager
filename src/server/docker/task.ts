@@ -1,3 +1,4 @@
+import { PublicOperationError } from "@server/common/public-error"
 import type { ActionResponse, TaskProgress } from "@shared/api-contract"
 import { TASK_KINDS } from "@shared/api-contract"
 import { DockerContainerCreateBodySchema } from "@shared/api-contract/schemas/docker"
@@ -8,7 +9,12 @@ import {
   dockerVolumeTaskTarget,
 } from "@shared/task-targets"
 import { z } from "zod"
-import { type DockerCli, DockerCommandError, dockerCli } from "./cli"
+import {
+  createPullProgressTracker,
+  type DockerCli,
+  DockerCommandError,
+  dockerCli,
+} from "./cli"
 
 /** 容器/镜像/卷/网络的写操作共用一种任务种类（与 service_action 做法一致）。 */
 export const DOCKER_ACTION_KIND = TASK_KINDS.dockerAction
@@ -136,6 +142,7 @@ export type DockerActionCli = Pick<
   | "removeVolume"
   | "removeNetwork"
   | "inspectContainer"
+  | "imageExists"
 >
 
 /** 进度文案：动作名与对象都写成中文可读形式。 */
@@ -186,28 +193,28 @@ const verifyContainer = async (
       const label = options.fallbackLabel || options.containerId
       return `已删除 ${label}`
     }
-    throw new DockerCommandError(
-      "failed",
+    throw new PublicOperationError(
+      500,
       `容器 ${container.name || options.containerId} 仍然存在，删除未生效`
     )
   }
   if (container === null) {
-    throw new DockerCommandError(
-      "failed",
+    throw new PublicOperationError(
+      500,
       `容器 ${options.containerId} 已不存在，无法确认结果`
     )
   }
   const label = container.name || options.containerId
   const running = container.state === "running"
   if (options.expectation === "running" && !running) {
-    throw new DockerCommandError(
-      "failed",
+    throw new PublicOperationError(
+      500,
       `容器 ${label} 的状态是 ${container.state}，未启动成功`
     )
   }
   if (options.expectation === "stopped" && running) {
-    throw new DockerCommandError(
-      "failed",
+    throw new PublicOperationError(
+      500,
       `容器 ${label} 仍在运行，停止命令未生效`
     )
   }
@@ -237,8 +244,8 @@ const verifyCreated = async (
 ): Promise<{ message: string; created: CreatedContainer }> => {
   const container = await cli.inspectContainer(containerId)
   if (container === null) {
-    throw new DockerCommandError(
-      "failed",
+    throw new PublicOperationError(
+      500,
       `容器 ${fallbackName ?? containerId} 已创建但查不到，请重新读取列表确认`
     )
   }
@@ -255,7 +262,16 @@ const verifyCreated = async (
 
 const dispatch = async (
   cli: DockerActionCli,
-  payload: DockerActionPayload
+  payload: DockerActionPayload,
+  /** 中间进度上报：目前只有拉取镜像需要 */
+  reportProgress: (progress: {
+    done: number
+    total: number | null
+    bytesDone: number | null
+    bytesTotal: number | null
+    stage: string
+    currentTarget: string | null
+  }) => void
 ): Promise<{ message: string; created?: CreatedContainer }> => {
   switch (payload.action) {
     case "containerStart":
@@ -312,14 +328,57 @@ const dispatch = async (
       const containerId = await cli.createContainer(payload.container)
       return await verifyCreated(cli, containerId, payload.container.name)
     }
-    case "imagePull":
-      await cli.pullImage(payload.image)
-      return { message: `镜像 ${payload.image} 拉取完成` }
-    case "imageRemove":
-      await cli.removeImage(payload.imageId, { force: payload.force })
-      return {
-        message: `已发出删除镜像 ${payload.imageId} 的命令，请重新读取列表确认`,
+    case "imagePull": {
+      const image = payload.image
+      const tracker = createPullProgressTracker()
+      const reportPull = (): void => {
+        const progress = tracker.snapshot()
+        reportProgress({
+          done: progress.completed,
+          total: progress.layers,
+          bytesDone: progress.bytesDone,
+          bytesTotal: progress.bytesTotal,
+          stage: `正在拉取 ${image} (${progress.completed}/${progress.layers} 层)`,
+          currentTarget: image,
+        })
       }
+      await cli.pullImage(image, {
+        onLine: (line) => {
+          // 只有真带来变化（新层、完成、字节变化）的行才上报
+          if (tracker.push(line)) reportPull()
+        },
+      })
+      reportPull()
+      // 命令结束不等于镜像落地：必须重新核实
+      if (!(await cli.imageExists(image))) {
+        throw new PublicOperationError(
+          500,
+          `镜像 ${image} 拉取已结束，但本地查不到该镜像，请重新读取镜像列表确认`
+        )
+      }
+      return { message: `镜像 ${image} 拉取完成` }
+    }
+    case "imageRemove": {
+      try {
+        // 默认不带 -f：被容器引用时让 docker 拒绝，由下面翻译成 409
+        await cli.removeImage(payload.imageId, { force: payload.force })
+      } catch (error) {
+        if (error instanceof DockerCommandError && error.kind === "conflict") {
+          throw new PublicOperationError(
+            409,
+            "该镜像被容器使用中，请先删除相关容器，或显式选择强制删除"
+          )
+        }
+        throw error
+      }
+      if (await cli.imageExists(payload.imageId)) {
+        throw new PublicOperationError(
+          500,
+          `镜像 ${payload.imageId} 仍然存在，删除未生效`
+        )
+      }
+      return { message: `已删除镜像 ${payload.imageId}` }
+    }
     case "volumeRemove":
       await cli.removeVolume(payload.name)
       return {
@@ -356,7 +415,7 @@ export const runDockerActionTask = async (options: {
     stage: stageOf(payload),
     currentTarget: dockerActionTargetOf(payload),
   })
-  const outcome = await dispatch(cli, payload)
+  const outcome = await dispatch(cli, payload, options.report)
   options.report({
     done: 1,
     total: 1,

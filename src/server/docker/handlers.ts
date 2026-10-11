@@ -18,7 +18,10 @@ import {
 } from "@shared/api-contract"
 import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
 import { DockerContainerCreatedSchema } from "@shared/api-contract/schemas/docker"
-import { dockerContainerTaskTarget } from "@shared/task-targets"
+import {
+  dockerContainerTaskTarget,
+  dockerImageTaskTarget,
+} from "@shared/task-targets"
 import { initServer } from "@ts-rest/express"
 import { DockerCommandError, isMissingContainerError } from "./cli"
 import type { DockerService } from "./service"
@@ -37,6 +40,8 @@ export const dockerContract = {
   actOnDockerContainer: contract.actOnDockerContainer,
   removeDockerContainer: contract.removeDockerContainer,
   createDockerContainer: contract.createDockerContainer,
+  pullDockerImage: contract.pullDockerImage,
+  removeDockerImage: contract.removeDockerImage,
 }
 
 /** 只读端点没有「创建」与「状态冲突」语义，409 一律收敛成 500。 */
@@ -45,6 +50,8 @@ const toReadStatus = (status: PublicErrorStatus): 400 | 403 | 404 | 500 =>
 
 const statusOf = (error: DockerCommandError): PublicErrorStatus => {
   if (error.kind === "invalid_input") return 400
+  // 资源被占用是状态冲突，不是服务器故障
+  if (error.kind === "conflict") return 409
   if (isMissingContainerError(error)) return 404
   return 500
 }
@@ -61,6 +68,8 @@ const messageOf = (error: DockerCommandError): string => {
       return "未安装 Docker 或 Colima，请先安装"
     case "daemon_unavailable":
       return "Docker 未运行，请先启动 Colima"
+    case "conflict":
+      return "该镜像被容器使用中，请先删除相关容器，或显式选择强制删除"
     case "timeout":
       return "Docker 命令执行超时，请稍后重试"
     default:
@@ -124,7 +133,41 @@ const containerActionPayload = (
  * 容器动作经统一运行器提交：请求标识由契约 headers 强制校验，
  * 同容器同一时刻只做一个动作；载荷只含标识与枚举，不接受命令或参数。
  */
-const submitContainerAction = async (
+/** 动作类完成结果都是 ActionResponse；新建容器额外带资源标识。 */
+const actionResponseOf = (result: unknown): ActionResponse => {
+  const parsed = ActionResponseSchema.safeParse(result)
+  if (!parsed.success) {
+    throw new Error("动作结果不符合契约，无法作为完成结果返回")
+  }
+  return parsed.data
+}
+
+/** 所有 Docker 写端点共用：提交任务并按完成状态返回。 */
+const submitDockerAction = async <TBody>(
+  runtime: TaskRuntime,
+  options: {
+    payload: DockerActionPayload
+    /** 冲突锁：按操作对象，同对象互斥、不同对象可并行 */
+    target: string
+    requestId: string
+    completedStatus: 200 | 201
+    parseCompleted: (result: unknown) => TBody
+  }
+) => {
+  const outcome = await runtime.runner.submit<TBody>({
+    kind: DOCKER_ACTION_KIND,
+    target: options.target,
+    payload: options.payload,
+    requestId: options.requestId,
+    toCompletedResponse: (result) => ({
+      status: options.completedStatus,
+      body: options.parseCompleted(result.result),
+    }),
+  })
+  return toTaskHttpResponse(outcome, options.completedStatus)
+}
+
+const submitContainerAction = (
   runtime: TaskRuntime,
   options: {
     payload: DockerActionPayload
@@ -132,22 +175,14 @@ const submitContainerAction = async (
     containerId: string
     requestId: string
   }
-) => {
-  const outcome = await runtime.runner.submit<ActionResponse>({
-    kind: DOCKER_ACTION_KIND,
-    target: dockerContainerTaskTarget(options.containerId),
+) =>
+  submitDockerAction(runtime, {
     payload: options.payload,
+    target: dockerContainerTaskTarget(options.containerId),
     requestId: options.requestId,
-    toCompletedResponse: (result) => {
-      const parsed = ActionResponseSchema.safeParse(result.result)
-      if (!parsed.success) {
-        throw new Error("容器动作结果不符合契约，无法作为完成结果返回")
-      }
-      return { status: 200, body: parsed.data }
-    },
+    completedStatus: 200,
+    parseCompleted: actionResponseOf,
   })
-  return toTaskHttpResponse(outcome, 200)
-}
 
 export const createDockerRouter = (
   service: DockerService,
@@ -256,21 +291,53 @@ export const createDockerRouter = (
             },
           }
         }
-        const outcome = await runtime.runner.submit<DockerContainerCreated>({
-          kind: DOCKER_ACTION_KIND,
+        return await submitDockerAction<DockerContainerCreated>(runtime, {
+          payload: { action: "containerCreate", container: body },
           // 新容器还没有 id，按名字（未指定时按镜像）加锁
           target: dockerContainerTaskTarget(body.name ?? body.image),
-          payload: { action: "containerCreate", container: body },
           requestId: headers[TASK_REQUEST_ID_HEADER],
-          toCompletedResponse: (result) => {
-            const parsed = DockerContainerCreatedSchema.safeParse(result.result)
+          completedStatus: 201,
+          parseCompleted: (result) => {
+            const parsed = DockerContainerCreatedSchema.safeParse(result)
             if (!parsed.success) {
               throw new Error("新建容器结果不符合契约，无法作为完成结果返回")
             }
-            return { status: 201, body: parsed.data }
+            return parsed.data
           },
         })
-        return toTaskHttpResponse(outcome, 201)
+      } catch (error) {
+        return failWrite(error)
+      }
+    },
+
+    pullDockerImage: async ({ headers, body }) => {
+      try {
+        return await submitDockerAction(runtime, {
+          payload: { action: "imagePull", image: body.image },
+          target: dockerImageTaskTarget(body.image),
+          requestId: headers[TASK_REQUEST_ID_HEADER],
+          completedStatus: 200,
+          parseCompleted: actionResponseOf,
+        })
+      } catch (error) {
+        return failWrite(error)
+      }
+    },
+
+    removeDockerImage: async ({ headers, body }) => {
+      try {
+        // 默认不带 -f：被容器引用时由 docker 拒绝，再映射成 409
+        return await submitDockerAction(runtime, {
+          payload: {
+            action: "imageRemove",
+            imageId: body.imageId,
+            force: body.force,
+          },
+          target: dockerImageTaskTarget(body.imageId),
+          requestId: headers[TASK_REQUEST_ID_HEADER],
+          completedStatus: 200,
+          parseCompleted: actionResponseOf,
+        })
       } catch (error) {
         return failWrite(error)
       }

@@ -4,6 +4,8 @@ import type {
   DockerContainerCreateBody,
   DockerContainerCreated,
   DockerContainerDeleteBody,
+  DockerImageDeleteBody,
+  DockerImagePullBody,
 } from "@shared/api-contract"
 import { apiClient, taskRequestHeaders } from "./client"
 import { type Execution, runExecution } from "./execution"
@@ -42,6 +44,30 @@ export const createDockerContainer = async (
 ): Promise<Execution<DockerContainerCreated>> =>
   runExecution<DockerContainerCreated>(() =>
     apiClient.createDockerContainer({
+      body,
+      headers: taskRequestHeaders(requestId),
+    })
+  )
+
+/** 拉取镜像：可能很慢，返回 200 完成或 202 受理回执。 */
+export const pullDockerImage = async (
+  requestId: string,
+  body: DockerImagePullBody
+): Promise<Execution<ActionResponse>> =>
+  runExecution<ActionResponse>(() =>
+    apiClient.pullDockerImage({
+      body,
+      headers: taskRequestHeaders(requestId),
+    })
+  )
+
+/** 删除镜像：被容器引用且未 force 时服务端返回 409，不会偷偷加 -f。 */
+export const removeDockerImage = async (
+  requestId: string,
+  body: DockerImageDeleteBody
+): Promise<Execution<ActionResponse>> =>
+  runExecution<ActionResponse>(() =>
+    apiClient.removeDockerImage({
       body,
       headers: taskRequestHeaders(requestId),
     })
