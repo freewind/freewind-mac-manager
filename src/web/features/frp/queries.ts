@@ -1,5 +1,6 @@
 import type { FrpConfig, FrpProbe, FrpProxy } from "@shared/api-contract"
 import { fetchFrpConfig, probeFrpProxy } from "@shared/client-api"
+import { configSignature } from "@shared/frp-format"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useFrpLocalStore } from "@web/features/frp/store"
 
@@ -11,8 +12,20 @@ export const frpKeys = {
   config: ["frp", "config"] as const,
 }
 
-export const useFrpConfigQuery = () =>
-  useQuery({ queryKey: frpKeys.config, queryFn: fetchFrpConfig })
+export const useFrpConfigQuery = () => {
+  const client = useQueryClient()
+  return useQuery({
+    queryKey: frpKeys.config,
+    queryFn: async () => {
+      const remote = await fetchFrpConfig()
+      const current = client.getQueryData<FrpConfig>(frpKeys.config)
+      // 读取结束时检查最新草稿，保护等待期间产生的编辑。
+      return current && configSignature(current) !== current.savedSignature
+        ? { ...current, savedSignature: remote.savedSignature }
+        : remote
+    },
+  })
+}
 
 type QueryClient = ReturnType<typeof useQueryClient>
 

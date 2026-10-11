@@ -262,6 +262,23 @@ describe("FRP save and refresh feedback", () => {
     )
     client.clear()
   })
+  it("keeps an unsaved draft when an invalidated query reads remote state", async () => {
+    const { client } = mount()
+    const edited = { ...config, proxies: config.proxies.slice(0, 1) }
+    readApi.mockResolvedValue({
+      ...config,
+      savedSignature: configSignature(config),
+    })
+    act(() => client.setQueryData(frpKeys.config, edited))
+    await act(async () =>
+      client.invalidateQueries({ queryKey: frpKeys.config })
+    )
+    expect(client.getQueryData<FrpConfig>(frpKeys.config)?.proxies).toEqual(
+      edited.proxies
+    )
+    client.clear()
+  })
+
   it("reports refresh success only after the read finishes", async () => {
     let resolve: (value: FrpConfig) => void = () => {}
     readApi.mockReturnValue(
