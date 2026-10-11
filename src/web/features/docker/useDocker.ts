@@ -9,7 +9,7 @@ import { actOnDockerContainer, removeDockerContainer } from "@shared/client-api"
 import { describeError, formatTimestamp } from "@shared/format"
 import { dockerContainerTaskTarget } from "@shared/task-targets"
 import { useQueryClient } from "@tanstack/react-query"
-import type { ContainerAction } from "@web/features/docker/labels"
+import type { ContainerAction, DangerAction } from "@web/features/docker/labels"
 import {
   dockerKeys,
   useDockerContainersQuery,
@@ -78,9 +78,10 @@ export type ContainerActionInput = {
 export const useDockerContainers = () => {
   const queryClient = useQueryClient()
   const query = useDockerContainersQuery()
-  const [pendingRemove, setPendingRemove] = useState<DockerContainer | null>(
-    null
-  )
+  const [pendingDanger, setPendingDanger] = useState<{
+    container: DockerContainer
+    action: DangerAction
+  } | null>(null)
 
   // 动作改了真实状态：概览与列表都要重新读取
   const refresh = useCallback((): void => {
@@ -121,10 +122,10 @@ export const useDockerContainers = () => {
     isRefreshing: query.isFetching && !query.isPending,
     error: query.isError ? describeError(query.error) : null,
     action,
-    /** 待确认删除的容器：确认前不发任何请求 */
-    pendingRemove,
-    requestRemove: (container: DockerContainer): void =>
-      setPendingRemove(container),
-    cancelRemove: (): void => setPendingRemove(null),
+    /** 待二次确认的危险动作（删除 / 立即终止）：确认前不发任何请求 */
+    pendingDanger,
+    requestDanger: (container: DockerContainer, danger: DangerAction): void =>
+      setPendingDanger({ container, action: danger }),
+    cancelDanger: (): void => setPendingDanger(null),
   }
 }

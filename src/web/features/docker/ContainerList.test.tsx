@@ -246,4 +246,24 @@ describe("容器列表", () => {
     // 失败后上下文保留，对话框不关闭
     expect(screen.getByRole("alertdialog")).toBeTruthy()
   })
+
+  it("终止（kill）要二次确认，文案说明立即终止且没有清理机会", async () => {
+    renderList()
+    const killButton = await screen.findByRole("button", { name: "终止" })
+    killButton.click()
+    const dialog = await screen.findByRole("alertdialog")
+    expect(dialog.textContent).toContain("立即终止容器 web？")
+    expect(dialog.textContent).toContain("没有清理机会")
+    expect(api.actOnDockerContainer).not.toHaveBeenCalled()
+
+    within(dialog).getByRole("button", { name: "立即终止容器 web" }).click()
+    await waitFor(() =>
+      expect(api.actOnDockerContainer).toHaveBeenCalledTimes(1)
+    )
+    const [, body] = api.actOnDockerContainer.mock.calls[0] ?? []
+    expect(body).toMatchObject({ action: "kill", force: undefined })
+    await waitFor(() =>
+      expect(toastMock.success).toHaveBeenCalledWith("已启动 web")
+    )
+  })
 })

@@ -42,6 +42,7 @@ import {
   containerActionBusyLabels,
   containerActionLabels,
   containerStateLabels,
+  type DangerAction,
   formatContainerPorts,
   formatContainerStartedAt,
 } from "@web/features/docker/labels"
@@ -53,16 +54,23 @@ import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { useState } from "react"
 
-/** 一键可做的动作：运行中只给停止/重启/终止，非运行中给启动。 */
-const actionsFor = (container: DockerContainer): ContainerAction[] =>
-  container.state === "running" ? ["stop", "restart", "kill"] : ["start"]
+/**
+ * 一键可做的动作：运行中给停止/重启，非运行中给启动。
+ * 终止（kill）与删除都要先二次确认，因此不在这个快捷列表里。
+ */
+const QUICK_ACTIONS: ContainerAction[] = ["start", "stop", "restart"]
+
+const quickActionsFor = (container: DockerContainer): ContainerAction[] =>
+  container.state === "running"
+    ? QUICK_ACTIONS.filter((action) => action !== "start")
+    : ["start"]
 
 export const ContainerList = () => {
   const model = useDockerContainers()
   const isDesktop = useIsDesktop()
   const [logsFor, setLogsFor] = useState<DockerContainer | null>(null)
   const submission = useDialogSubmit(
-    () => model.cancelRemove(),
+    () => model.cancelDanger(),
     model.action.busy
   )
 
@@ -79,19 +87,15 @@ export const ContainerList = () => {
     void model.action.run(input)
   }
 
-  const confirmRemove = (container: DockerContainer): void => {
-    void submission.submit(() =>
-      model.action.run({ containerId: container.id, action: "remove" })
-    )
-  }
-
-  const forceRemove = (container: DockerContainer): void => {
-    // 强制删除是显式选择：这里必须带 force，后端不会替用户决定
+  const pending = model.pendingDanger
+  const confirmDanger = (force?: boolean): void => {
+    if (!pending) return
     void submission.submit(() =>
       model.action.run({
-        containerId: container.id,
-        action: "remove",
-        force: true,
+        containerId: pending.container.id,
+        action: pending.action,
+        // 强制删除是显式选择：只有这条路径才带 force，后端不替用户决定
+        force,
       })
     )
   }
@@ -121,7 +125,7 @@ export const ContainerList = () => {
         </p>
       ) : null}
 
-      {!model.isLoading && model.containers.length === 0 ? (
+      {model.containers.length === 0 ? (
         <Empty className="py-6">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -138,7 +142,7 @@ export const ContainerList = () => {
           containers={model.containers}
           busy={model.action.busy}
           onAction={runAction}
-          onRemove={model.requestRemove}
+          onDanger={model.requestDanger}
           onLogs={setLogsFor}
         />
       ) : (
@@ -146,7 +150,7 @@ export const ContainerList = () => {
           containers={model.containers}
           busy={model.action.busy}
           onAction={runAction}
-          onRemove={model.requestRemove}
+          onDanger={model.requestDanger}
           onLogs={setLogsFor}
         />
       )}
@@ -157,47 +161,56 @@ export const ContainerList = () => {
       />
 
       <AlertDialog
-        open={model.pendingRemove !== null}
+        open={pending !== null}
         onOpenChange={(open) => {
-          if (!open) model.cancelRemove()
+          if (!open) model.cancelDanger()
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              删除容器 {model.pendingRemove?.name ?? ""}？
+              {pending?.action === "kill"
+                ? `立即终止容器 ${pending.container.name}？`
+                : `删除容器 ${pending?.container.name ?? ""}？`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {model.pendingRemove?.state === "running"
-                ? `容器 ${model.pendingRemove.name} 正在运行。删除会丢掉容器本身的文件系统改动（挂载的卷与绑定目录不受影响），但不会删除镜像与卷。可以先停止它，再删除；或者显式选择强制删除。`
-                : `容器 ${model.pendingRemove?.name ?? ""} 已停止。删除会丢掉容器本身的文件系统改动（挂载的卷与绑定目录不受影响）。`}
+              {pending?.action === "kill"
+                ? `终止会立刻杀掉容器 ${pending.container.name} 的进程（SIGKILL），进程没有清理机会，未写入的数据可能丢失；挂载的卷与绑定目录不受影响。需要优雅停止请改用「停止」。`
+                : pending?.container.state === "running"
+                  ? `容器 ${pending.container.name} 正在运行。删除会丢掉容器本身的文件系统改动（挂载的卷与绑定目录不受影响），但不会删除镜像与卷。可以先停止它，再删除；或者显式选择强制删除。`
+                  : `容器 ${pending?.container.name ?? ""} 已停止。删除会丢掉容器本身的文件系统改动（挂载的卷与绑定目录不受影响）。`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submission.busy}>
               取消
             </AlertDialogCancel>
-            {model.pendingRemove?.state === "running" ? (
+            {pending?.action === "kill" ? (
+              <ActionButton
+                variant="destructive"
+                busy={submission.busy}
+                busyLabel={containerActionBusyLabels.kill}
+                onClick={() => confirmDanger()}
+              >
+                立即终止容器 {pending.container.name}
+              </ActionButton>
+            ) : pending?.container.state === "running" ? (
               <ActionButton
                 variant="destructive"
                 busy={submission.busy}
                 busyLabel={containerActionBusyLabels.remove}
-                onClick={() => {
-                  if (model.pendingRemove) forceRemove(model.pendingRemove)
-                }}
+                onClick={() => confirmDanger(true)}
               >
-                强制删除容器 {model.pendingRemove.name}
+                强制删除容器 {pending.container.name}
               </ActionButton>
             ) : (
               <ActionButton
                 variant="destructive"
                 busy={submission.busy}
                 busyLabel={containerActionBusyLabels.remove}
-                onClick={() => {
-                  if (model.pendingRemove) confirmRemove(model.pendingRemove)
-                }}
+                onClick={() => confirmDanger()}
               >
-                删除容器 {model.pendingRemove?.name ?? ""}
+                删除容器 {pending?.container.name ?? ""}
               </ActionButton>
             )}
           </AlertDialogFooter>
@@ -211,11 +224,11 @@ const ContainerActions = (props: {
   container: DockerContainer
   busy: boolean
   onAction: (container: DockerContainer, action: ContainerAction) => void
-  onRemove: (container: DockerContainer) => void
+  onDanger: (container: DockerContainer, action: DangerAction) => void
   onLogs: (container: DockerContainer) => void
 }) => (
   <div className="flex flex-wrap items-center gap-1.5">
-    {actionsFor(props.container).map((action) => (
+    {quickActionsFor(props.container).map((action) => (
       <ActionButton
         key={action}
         variant="outline"
@@ -227,6 +240,16 @@ const ContainerActions = (props: {
         {containerActionLabels[action]}
       </ActionButton>
     ))}
+    {props.container.state === "running" ? (
+      <Button
+        variant="outline"
+        className="min-h-11 px-3 text-destructive"
+        disabled={props.busy}
+        onClick={() => props.onDanger(props.container, "kill")}
+      >
+        {containerActionLabels.kill}
+      </Button>
+    ) : null}
     <Button
       variant="ghost"
       size="icon"
@@ -243,7 +266,7 @@ const ContainerActions = (props: {
       className="size-11 text-destructive"
       aria-label={`删除容器 ${props.container.name}`}
       disabled={props.busy}
-      onClick={() => props.onRemove(props.container)}
+      onClick={() => props.onDanger(props.container, "remove")}
     >
       <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
     </Button>
@@ -271,7 +294,7 @@ const ContainerCards = (props: {
   containers: DockerContainer[]
   busy: boolean
   onAction: (container: DockerContainer, action: ContainerAction) => void
-  onRemove: (container: DockerContainer) => void
+  onDanger: (container: DockerContainer, action: DangerAction) => void
   onLogs: (container: DockerContainer) => void
 }) => (
   <ItemGroup className="min-w-0">
@@ -298,7 +321,7 @@ const ContainerCards = (props: {
             container={container}
             busy={props.busy}
             onAction={props.onAction}
-            onRemove={props.onRemove}
+            onDanger={props.onDanger}
             onLogs={props.onLogs}
           />
         </ItemActions>
@@ -312,7 +335,7 @@ const ContainerTable = (props: {
   containers: DockerContainer[]
   busy: boolean
   onAction: (container: DockerContainer, action: ContainerAction) => void
-  onRemove: (container: DockerContainer) => void
+  onDanger: (container: DockerContainer, action: DangerAction) => void
   onLogs: (container: DockerContainer) => void
 }) => (
   <div className="min-w-0 overflow-x-auto">
@@ -351,7 +374,7 @@ const ContainerTable = (props: {
                   container={container}
                   busy={props.busy}
                   onAction={props.onAction}
-                  onRemove={props.onRemove}
+                  onDanger={props.onDanger}
                   onLogs={props.onLogs}
                 />
               </div>

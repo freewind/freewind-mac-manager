@@ -19,6 +19,9 @@ export const containerStateLabels: Record<DockerContainerState, string> = {
 /** 界面能对单个容器执行的动作。 */
 export type ContainerAction = "start" | "stop" | "restart" | "kill" | "remove"
 
+/** 需要二次确认的危险动作：删除与立即终止。 */
+export type DangerAction = "remove" | "kill"
+
 export const containerActionLabels: Record<ContainerAction, string> = {
   start: "启动",
   stop: "停止",
