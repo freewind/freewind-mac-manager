@@ -1,42 +1,45 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useId, useRef } from "react"
 
-type OverlayHistoryState = {
-  macManagerOverlay?: boolean
+type OverlayHistoryState = { macManagerOverlays?: string[] }
+const stackOf = (state: unknown): string[] => {
+  if (
+    typeof state !== "object" ||
+    state === null ||
+    !("macManagerOverlays" in state)
+  )
+    return []
+  const stack = (state as OverlayHistoryState).macManagerOverlays
+  return Array.isArray(stack)
+    ? stack.filter((id): id is string => typeof id === "string")
+    : []
 }
 
-const isOverlayHistory = (state: unknown): boolean =>
-  typeof state === "object" &&
-  state !== null &&
-  "macManagerOverlay" in state &&
-  (state as OverlayHistoryState).macManagerOverlay === true
-
-/** 将可见浮层接入浏览器返回，关闭浮层后不留下重复历史记录。 */
+/** 历史状态记录每层归属，返回只关闭已离开历史栈的浮层。 */
 export const useHistoryOverlay = (open: boolean, onClose: () => void) => {
+  const id = useId()
   const wasOpen = useRef(false)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
-
   useEffect(() => {
+    const stack = stackOf(window.history.state)
     if (open && !wasOpen.current) {
       window.history.pushState(
-        { ...window.history.state, macManagerOverlay: true },
+        { ...window.history.state, macManagerOverlays: [...stack, id] },
         "",
         window.location.href
       )
     }
-    if (!open && wasOpen.current && isOverlayHistory(window.history.state)) {
-      window.history.back()
-    }
+    if (!open && wasOpen.current && stack.at(-1) === id) window.history.back()
     wasOpen.current = open
-  }, [open])
-
+  }, [open, id])
   useEffect(() => {
-    const onPopState = (event: PopStateEvent): void => {
-      if (wasOpen.current && !isOverlayHistory(event.state)) {
+    const onPopState = (event: PopStateEvent) => {
+      if (wasOpen.current && !stackOf(event.state).includes(id)) {
+        wasOpen.current = false
         onCloseRef.current()
       }
     }
     window.addEventListener("popstate", onPopState)
     return () => window.removeEventListener("popstate", onPopState)
-  }, [])
+  }, [id])
 }
