@@ -533,17 +533,32 @@ describe("验收 1：接管语义等价", () => {
   })
 
   /**
-   * 已知限制：标记内的规则会被识别为受管区域内容，不再算「尚未接管」，
-   * 因此「先包标记再导入」会导入 0 条。接管必须先导入、再加标记。
+   * 导入识别文件里的全部规则（不区分在不在标记内）：接管顺序不影响结果，
+   * 数据库丢失时也能从受管区域把规则恢复回来。
    */
-  it("先包标记再导入会导入 0 条（因此接管必须先导入）", async () => {
+  it("先包标记再导入同样导入 8 条", async () => {
     const workspace = await makeWorkspace(buildFile(true))
     const parsed = parseCaddyfile(buildFile(true))
     expect(parsed.rules.every((rule) => rule.origin === "managed")).toBe(true)
     expect(
       await importCaddyRulesFromFile(workspace.targets, workspace.store)
-    ).toEqual({ imported: 0, skipped: 0 })
-    expect(workspace.store.listRules()).toEqual([])
+    ).toEqual({ imported: 8, skipped: 0 })
+    expect(workspace.store.listRules()).toHaveLength(8)
+    expect(
+      workspace.store
+        .listRules()
+        .map((rule) => [
+          rule.matchKind,
+          rule.host,
+          rule.pathPrefix,
+          rule.stripPrefix,
+          rule.upstream,
+        ])
+    ).toEqual(semanticsOf(parsed.rules))
+    // 再次导入全部跳过，不会重复入库
+    expect(
+      await importCaddyRulesFromFile(workspace.targets, workspace.store)
+    ).toEqual({ imported: 0, skipped: 8 })
   })
 })
 
@@ -623,6 +638,8 @@ describe("验收 3：无效配置、版本冲突与权限不足都阻止应用",
 
   it("指纹不符（版本冲突）时拒绝，且不产生写入", async () => {
     const workspace = await makeWorkspace(buildFile(true))
+    // 数据库里有规则，才轮得到指纹这一层（空库会先被上一条闸门拦住）
+    createCaddyRule(ruleInput(), workspace.store)
     const before = await readFile(workspace.filePath, "utf8")
     const rejection = await rejectionOf(workspace, "stale-signature")
     expect(rejection).toEqual({
@@ -649,6 +666,117 @@ describe("验收 3：无效配置、版本冲突与权限不足都阻止应用",
       await chmod(workspace.filePath, 0o600)
     }
     expect(await readFile(workspace.filePath, "utf8")).toBe(before)
+  })
+})
+
+describe("验收 3b：空库保护与数据库丢失恢复", () => {
+  it("从未应用 + 数据库空 + 受管区域有规则时拒绝应用，导入一次即解除", async () => {
+    const workspace = await makeWorkspace(buildFile(true))
+    const before = await readFile(workspace.filePath, "utf8")
+
+    const read = await readCaddyRules(
+      workspace.targets,
+      makeFakeIo(workspace).probes(),
+      workspace.store
+    )
+    expect(read.writable).toBe(false)
+    expect(read.blockedReason).toContain("避免应用后清空这些转发")
+    expect(read.blockedReason).toContain("8 条规则")
+
+    const rejection = await rejectionOf(workspace)
+    expect(rejection.status).toBe(409)
+    expect(rejection.body.message).toContain("避免应用后清空这些转发")
+    expect(await readFile(workspace.filePath, "utf8")).toBe(before)
+    expect(workspace.store.listApplyRecords()).toEqual([])
+
+    // 导入现有规则后闸门解除
+    expect(
+      await importCaddyRulesFromFile(workspace.targets, workspace.store)
+    ).toEqual({ imported: 8, skipped: 0 })
+    const afterImport = await readCaddyRules(
+      workspace.targets,
+      makeFakeIo(workspace).probes(),
+      workspace.store
+    )
+    expect(afterImport.writable).toBe(true)
+    expect(afterImport.blockedReason).toBeNull()
+  })
+
+  it("有成功应用记录后把规则全删光再应用是允许的（有意清空）", async () => {
+    const workspace = await makeWorkspace(buildFile(true))
+    expect(
+      await importCaddyRulesFromFile(workspace.targets, workspace.store)
+    ).toEqual({ imported: 8, skipped: 0 })
+    const deps = depsOf(workspace, makeFakeIo(workspace))
+
+    const first = await runCaddyApplyTask({
+      payload: { mode: "apply", expectedSignature: signatureOf(workspace) },
+      report: noProgress,
+      deps,
+    })
+    expect(first.status).toBe("success")
+
+    for (const rule of workspace.store.listRules()) {
+      deleteCaddyRule(rule.id, workspace.store)
+    }
+    const read = await readCaddyRules(
+      workspace.targets,
+      makeFakeIo(workspace).probes(),
+      workspace.store
+    )
+    // 数据库是权威：有成功记录后空库不再被拦
+    expect(read.writable).toBe(true)
+    expect(read.blockedReason).toBeNull()
+
+    const second = await runCaddyApplyTask({
+      payload: { mode: "apply", expectedSignature: signatureOf(workspace) },
+      report: noProgress,
+      deps,
+    })
+    expect(second.status).toBe("success")
+    expect(second.result.ruleCount).toBe(0)
+    const reparsed = parseCaddyfile(await readFile(workspace.filePath, "utf8"))
+    expect(reparsed.rules).toEqual([])
+    expect(workspace.store.listApplyRecords()).toHaveLength(2)
+  })
+
+  it("数据库丢失后能从受管区域把规则导入回来", async () => {
+    const workspace = await makeWorkspace(buildFile(false))
+    expect(
+      await importCaddyRulesFromFile(workspace.targets, workspace.store)
+    ).toEqual({ imported: 8, skipped: 0 })
+
+    // 接管后的状态：文件里已经有生成好的受管区域
+    const replaced = replaceManagedRegion(
+      buildFile(true),
+      generateManagedRules(workspace.store.listRules())
+    )
+    await writeFile(workspace.filePath, replaced.text, "utf8")
+
+    // 模拟数据库丢失：规则一条不剩
+    for (const rule of workspace.store.listRules()) {
+      deleteCaddyRule(rule.id, workspace.store)
+    }
+    expect(workspace.store.listRules()).toEqual([])
+    const blocked = await readCaddyRules(
+      workspace.targets,
+      makeFakeIo(workspace).probes(),
+      workspace.store
+    )
+    expect(blocked.writable).toBe(false)
+
+    // 受管区域内的 8 条规则同样能导入回来
+    expect(
+      await importCaddyRulesFromFile(workspace.targets, workspace.store)
+    ).toEqual({ imported: 8, skipped: 0 })
+    expect(workspace.store.listRules()).toHaveLength(8)
+    const recovered = await readCaddyRules(
+      workspace.targets,
+      makeFakeIo(workspace).probes(),
+      workspace.store
+    )
+    expect(recovered.writable).toBe(true)
+    expect(recovered.managedRegionDrifted).toBe(false)
   })
 })
 

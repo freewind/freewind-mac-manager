@@ -298,7 +298,7 @@ export const readCaddyRules = async (
   const appliedSignature =
     applied === null ? null : caddyRulesSignature(applied.rules)
 
-  // 三种情况都不能安全重写配置，必须让页面说清是哪种。
+  // 四种情况都不能安全重写配置，必须让页面说清是哪种。
   const blockedReason =
     parsed.managedRegion === null
       ? "现有配置尚未接管，应用会与手工规则重复"
@@ -306,7 +306,13 @@ export const readCaddyRules = async (
         ? "配置文件里有无法识别的行，应用可能覆盖手工配置"
         : externalRules.length > 0
           ? "配置文件里还有尚未接管的规则"
-          : null
+          : emptyDatabaseBlockReason({
+              hasApplied: applied !== null,
+              ruleCount: rules.length,
+              managedRuleCount: parsed.rules.filter(
+                (rule) => rule.origin === "managed"
+              ).length,
+            })
 
   return {
     status,
@@ -454,7 +460,32 @@ export const deleteCaddyRule = (
 }
 
 /**
- * 把文件里尚未接管的规则纳入管理：只写数据库，配置文件一个字节都不动。
+ * 第四条闸门：从未成功应用过、数据库里又没有规则，而文件里的受管区域已经有
+ * 规则。这时应用会把受管区域清空——通常是接管时先包了标记还没导入，必须先导入。
+ *
+ * 有成功应用记录时不拦：那时数据库是权威，用户可能确实想清空全部规则
+ * （把规则逐条删掉再应用），不能误拦。
+ */
+const emptyDatabaseBlockReason = (options: {
+  hasApplied: boolean
+  ruleCount: number
+  managedRuleCount: number
+}): string | null => {
+  if (
+    options.hasApplied ||
+    options.ruleCount > 0 ||
+    options.managedRuleCount === 0
+  ) {
+    return null
+  }
+  return `数据库里还没有规则，但文件里的受管区域已有 ${options.managedRuleCount} 条规则；请先导入现有规则，避免应用后清空这些转发`
+}
+
+/**
+ * 把文件里识别到的规则纳入管理：只写数据库，配置文件一个字节都不动。
+ *
+ * 不区分规则在不在标记内：接管顺序不该影响结果（先包标记再导入同样要成功），
+ * 数据库丢失或换机时也需要能从文件里的受管区域把规则恢复回来。
  * 入参文件规则的字段仍要过同一套校验，避免把无效目标带进数据库。
  */
 export const importCaddyRulesFromFile = async (
@@ -462,31 +493,29 @@ export const importCaddyRulesFromFile = async (
   store: CaddyStore = getCaddyStore()
 ): Promise<CaddyRuleImportResult> => {
   const parsed = parseCaddyfile(await readCaddyConfigText(targets.configFile))
-  const inputs: CaddyRuleInput[] = parsed.rules
-    .filter((rule) => rule.origin === "external")
-    .map((rule) => {
-      const label =
-        rule.matchKind === "host" ? (rule.host ?? "") : (rule.pathPrefix ?? "")
-      try {
-        return normalizeRuleInput({
-          name: label,
-          note: "",
-          matchKind: rule.matchKind,
-          host: rule.host,
-          pathPrefix: rule.pathPrefix,
-          stripPrefix: rule.stripPrefix,
-          upstream: rule.upstream,
-          enabled: true,
-        })
-      } catch (error) {
-        const reason =
-          error instanceof PublicOperationError ? error.message : "入参无效"
-        throw new PublicOperationError(
-          400,
-          `第 ${rule.line} 行的规则无法导入：${reason}`
-        )
-      }
-    })
+  const inputs: CaddyRuleInput[] = parsed.rules.map((rule) => {
+    const label =
+      rule.matchKind === "host" ? (rule.host ?? "") : (rule.pathPrefix ?? "")
+    try {
+      return normalizeRuleInput({
+        name: label,
+        note: "",
+        matchKind: rule.matchKind,
+        host: rule.host,
+        pathPrefix: rule.pathPrefix,
+        stripPrefix: rule.stripPrefix,
+        upstream: rule.upstream,
+        enabled: true,
+      })
+    } catch (error) {
+      const reason =
+        error instanceof PublicOperationError ? error.message : "入参无效"
+      throw new PublicOperationError(
+        400,
+        `第 ${rule.line} 行的规则无法导入：${reason}`
+      )
+    }
+  })
   return store.importRules(inputs)
 }
 
@@ -546,6 +575,15 @@ export const assertCaddyApplyReady = async (
   }
   if (parsed.rules.some((rule) => rule.origin === "external")) {
     throw new PublicOperationError(409, "配置文件里还有尚未接管的规则")
+  }
+  const emptyDatabaseReason = emptyDatabaseBlockReason({
+    hasApplied: store.latestApplyRecord() !== null,
+    ruleCount: rules.length,
+    managedRuleCount: parsed.rules.filter((rule) => rule.origin === "managed")
+      .length,
+  })
+  if (emptyDatabaseReason !== null) {
+    throw new PublicOperationError(409, emptyDatabaseReason)
   }
   if (
     expectedSignature !== undefined &&
