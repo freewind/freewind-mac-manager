@@ -18,6 +18,7 @@ const stackOf = (state: unknown): string[] => {
 export const useHistoryOverlay = (open: boolean, onClose: () => void) => {
   const id = useId()
   const wasOpen = useRef(false)
+  const mounted = useRef(false)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   useEffect(() => {
@@ -33,6 +34,7 @@ export const useHistoryOverlay = (open: boolean, onClose: () => void) => {
     wasOpen.current = open
   }, [open, id])
   useEffect(() => {
+    mounted.current = true
     const onPopState = (event: PopStateEvent) => {
       if (wasOpen.current && !stackOf(event.state).includes(id)) {
         wasOpen.current = false
@@ -42,17 +44,21 @@ export const useHistoryOverlay = (open: boolean, onClose: () => void) => {
     window.addEventListener("popstate", onPopState)
     return () => {
       window.removeEventListener("popstate", onPopState)
-      const stack = stackOf(window.history.state)
-      if (stack.includes(id)) {
-        window.history.replaceState(
-          {
-            ...window.history.state,
-            macManagerOverlays: stack.filter((item) => item !== id),
-          },
-          "",
-          window.location.href
-        )
-      }
+      mounted.current = false
+      queueMicrotask(() => {
+        if (mounted.current) return
+        const stack = stackOf(window.history.state)
+        if (stack.includes(id)) {
+          window.history.replaceState(
+            {
+              ...window.history.state,
+              macManagerOverlays: stack.filter((item) => item !== id),
+            },
+            "",
+            window.location.href
+          )
+        }
+      })
     }
   }, [id])
 }
