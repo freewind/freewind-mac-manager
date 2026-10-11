@@ -10,6 +10,7 @@ import { useFrpLocalStore } from "@web/features/frp/store"
  */
 export const frpKeys = {
   config: ["frp", "config"] as const,
+  persisted: ["frp", "persisted"] as const,
 }
 
 export const useFrpConfigQuery = () => {
@@ -18,6 +19,7 @@ export const useFrpConfigQuery = () => {
     queryKey: frpKeys.config,
     queryFn: async () => {
       const remote = await fetchFrpConfig()
+      client.setQueryData(frpKeys.persisted, remote)
       const current = client.getQueryData<FrpConfig>(frpKeys.config)
       // 读取结束时检查最新草稿，保护等待期间产生的编辑。
       return current && configSignature(current) !== current.savedSignature

@@ -299,6 +299,20 @@ describe("FRP save and refresh feedback", () => {
     expect(toast.info).toHaveBeenCalledWith("已重新读取 frpc 配置")
     client.clear()
   })
+  it("discards a draft only through the explicit discard action", async () => {
+    const persisted = { ...config, savedSignature: configSignature(config) }
+    readApi.mockResolvedValue(persisted)
+    const { result: hook, client } = mount()
+    act(() => client.setQueryData(frpKeys.config, { ...config, proxies: [] }))
+    await act(async () => hook.current.refresh())
+    expect(client.getQueryData<FrpConfig>(frpKeys.config)?.proxies).toEqual([])
+    await act(async () => hook.current.discardDraft())
+    expect(client.getQueryData<FrpConfig>(frpKeys.config)?.proxies).toEqual(
+      config.proxies
+    )
+    client.clear()
+  })
+
   it("reports refresh failure rather than success", async () => {
     readApi.mockRejectedValue(new Error("读取不可用"))
     const { result: hook, client } = mount()

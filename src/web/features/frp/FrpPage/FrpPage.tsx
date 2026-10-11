@@ -68,6 +68,7 @@ const InfoField = (props: { label: string; children: React.ReactNode }) => (
 export const FrpPage = () => {
   const model = useFrp()
   const [formOpen, setFormOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
   const [editing, setEditing] = useState<FrpProxy | null>(null)
   const [pendingDelete, setPendingDelete] = useState<FrpProxy | null>(null)
   useEditProtection(model.dirty || formOpen)
@@ -149,6 +150,16 @@ export const FrpPage = () => {
               <HugeiconsIcon icon={RefreshIcon} />
               重新读取
             </ActionButton>
+            {model.dirty ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={model.saving}
+                onClick={() => setDiscardOpen(true)}
+              >
+                放弃草稿
+              </Button>
+            ) : null}
             <ActionButton
               size="sm"
               busy={model.saving}
@@ -319,6 +330,22 @@ export const FrpPage = () => {
         />
       ) : null}
 
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>放弃未保存的 FRP 改动？</AlertDialogTitle>
+            <AlertDialogDescription>
+              重新读取磁盘配置，当前草稿将丢弃；读取失败则保留草稿。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>保留草稿</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void model.discardDraft()}>
+              放弃并重新读取
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {

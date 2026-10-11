@@ -165,6 +165,7 @@ export const useFrp = () => {
   const reconcileSaved = useCallback(async () => {
     try {
       const persisted = await fetchFrpConfig()
+      queryClient.setQueryData(frpKeys.persisted, persisted)
       queryClient.setQueryData<FrpConfig>(frpKeys.config, (previous) =>
         previous
           ? { ...previous, savedSignature: persisted.savedSignature }
@@ -201,6 +202,17 @@ export const useFrp = () => {
       toast.success(result.message)
     },
   })
+
+  const discardDraft = async () => {
+    try {
+      const persisted = await fetchFrpConfig()
+      queryClient.setQueryData(frpKeys.persisted, persisted)
+      queryClient.setQueryData(frpKeys.config, persisted)
+      toast.info("已放弃草稿并读取已保存配置")
+    } catch (error) {
+      toast.error(`读取失败，草稿已保留：${describeError(error)}`)
+    }
+  }
 
   /** 保存配置到 frpc 文件：受理不等于已保存，只有真正完成才更新指纹。 */
   const save = () => {
@@ -241,6 +253,7 @@ export const useFrp = () => {
     probe,
     probeAll,
     refresh,
+    discardDraft,
     save,
     saving: saveAction.busy,
     probing: local.checking.length > 0,
