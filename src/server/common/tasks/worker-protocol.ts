@@ -26,7 +26,8 @@ export const WorkerResultMessageSchema = z.object({
   type: z.literal("result"),
   result: z.unknown(),
   message: z.string().nullable(),
-  status: z.enum(["done", "partial"]),
+  error: z.string().nullable().optional(),
+  status: z.enum(["done", "partial", "unknown"]),
 })
 
 export const WorkerFailedMessageSchema = z.object({

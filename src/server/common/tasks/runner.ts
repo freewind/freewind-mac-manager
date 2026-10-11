@@ -307,7 +307,7 @@ export class TaskRunner {
         status: outcome.status,
         result: outcome.result,
         message: outcome.message,
-        error: null,
+        error: outcome.error ?? null,
       })
     } catch (error) {
       const status =

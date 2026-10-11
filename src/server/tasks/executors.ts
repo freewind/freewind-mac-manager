@@ -56,7 +56,8 @@ import type { TaskProgress } from "@shared/api-contract"
 export type TaskExecutorOutcome = {
   result: unknown
   message?: string | null
-  status?: "done" | "partial"
+  error?: string | null
+  status?: "done" | "partial" | "unknown"
 }
 
 export type TaskExecutorContext = {

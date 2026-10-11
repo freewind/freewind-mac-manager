@@ -32,8 +32,9 @@ const makeHost = () => {
 
 const ok = (
   result: unknown,
-  status: "done" | "partial" = "done"
-): TaskOutcome => ({ result, message: "完成", status })
+  status: "done" | "partial" | "unknown" = "done",
+  error: string | null = null
+): TaskOutcome => ({ result, message: "完成", error, status })
 
 const toCompletedResponse = (outcome: TaskOutcome) => ({
   status: 200 as const,
@@ -239,6 +240,36 @@ describe("task runner", () => {
     expect(differentKind.kind).toBe("conflict")
     expect(differentTarget.kind).toBe("conflict")
     expect(differentLock.kind).toBe("conflict")
+    expect(calls).toHaveLength(1)
+  })
+
+  it("stores a declared unknown outcome and replays it without rerunning", async () => {
+    const { runner, calls, store } = harness
+    const request = {
+      kind: "pi_benchmark",
+      target: "pi/benchmark/provider/model",
+      payload: { providerId: "provider", modelId: "model" },
+      requestId: "req_declared_unknown_audit",
+      toCompletedResponse,
+    }
+    const submission = runner.submit(request)
+    await waitFor(() => calls.length === 1)
+    calls[0].resolve(ok({ status: "unknown" }, "unknown", "测速超时，结果未知"))
+
+    expect(await submission).toMatchObject({
+      kind: "unknown",
+      message: "测速超时，结果未知",
+    })
+    expect(store.findByRequestId(request.requestId)).toMatchObject({
+      status: "unknown",
+      result: JSON.stringify({ status: "unknown" }),
+      message: "完成",
+      error: "测速超时，结果未知",
+    })
+    expect(await runner.submit(request)).toMatchObject({
+      kind: "unknown",
+      message: "测速超时，结果未知",
+    })
     expect(calls).toHaveLength(1)
   })
 

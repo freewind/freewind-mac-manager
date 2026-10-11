@@ -54,6 +54,7 @@ const main = async (): Promise<void> => {
       type: "result",
       result: outcome.result ?? null,
       message: outcome.message ?? null,
+      error: outcome.error ?? null,
       status: outcome.status ?? "done",
     })
   } catch (error) {

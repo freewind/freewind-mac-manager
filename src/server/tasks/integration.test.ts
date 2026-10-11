@@ -56,6 +56,7 @@ let dispatched: {
 }[]
 let failImmediately = false
 let completeImmediately = false
+let unknownImmediately = false
 
 beforeEach(async () => {
   dir = mkdtempSync(path.join(tmpdir(), "mac-manager-integration-"))
@@ -63,6 +64,7 @@ beforeEach(async () => {
   dispatched = []
   failImmediately = false
   completeImmediately = false
+  unknownImmediately = false
   runtime = createTaskRuntime({
     store,
     recoverInterrupted: false,
@@ -80,6 +82,19 @@ beforeEach(async () => {
             })
           if (failImmediately) {
             reject(new TaskHostError("unknown", "执行进程退出，结果未知"))
+          }
+          if (unknownImmediately) {
+            resolve({
+              result: {
+                snapshotId: 1,
+                fileCount: 0,
+                dirCount: 0,
+                totalSize: 0,
+              },
+              message: "测速未能确认",
+              error: "测速超时，结果未知",
+              status: "unknown",
+            })
           }
         }),
     },
@@ -355,6 +370,45 @@ describe("task wiring through the real app", () => {
     expect(await conflict.json()).toMatchObject({
       executionStatus: "not_started",
     })
+    expect(dispatched).toHaveLength(1)
+  })
+
+  it("persists a declared unknown outcome and exposes it through task reads", async () => {
+    unknownImmediately = true
+    const requestId = "req_declared_unknown_http"
+    const response = await fetch(`${baseUrl}${ApiPath.diskGrowthScan}`, {
+      method: "POST",
+      headers: { [TASK_REQUEST_ID_HEADER]: requestId },
+    })
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({
+      executionStatus: "unknown",
+      message: "测速超时，结果未知",
+    })
+    expect(dispatched).toHaveLength(1)
+
+    const history = await get(
+      `${ApiPath.tasks}?status=all&requestId=${requestId}`
+    )
+    const taskId = history.body.tasks[0].id
+    expect(history.body.tasks[0]).toMatchObject({
+      status: "unknown",
+      message: "测速未能确认",
+      error: "测速超时，结果未知",
+      result: { snapshotId: 1, fileCount: 0, dirCount: 0, totalSize: 0 },
+    })
+    const task = await get(`${ApiPath.tasks}/${taskId}`)
+    expect(task.body).toMatchObject({
+      status: "unknown",
+      error: "测速超时，结果未知",
+    })
+
+    const replay = await fetch(`${baseUrl}${ApiPath.diskGrowthScan}`, {
+      method: "POST",
+      headers: { [TASK_REQUEST_ID_HEADER]: requestId },
+    })
+    expect(replay.status).toBe(409)
+    expect(await replay.json()).toMatchObject({ executionStatus: "unknown" })
     expect(dispatched).toHaveLength(1)
   })
 

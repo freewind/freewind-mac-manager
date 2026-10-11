@@ -31,14 +31,18 @@ process.stdin.on("end", () => {
       require("node:fs").appendFileSync(job.payload.logFile, line + "\\n")
     }
   }
-  const result = (extra) => {
+  const result = (extra, status = "done", error = null) => {
     process.stdout.write(
-      JSON.stringify({ type: "result", result: extra, message: "完成", status: "done" }) + "\\n"
+      JSON.stringify({ type: "result", result: extra, message: "完成", error, status }) + "\\n"
     )
   }
   if (mode === "fail") {
     process.stdout.write(JSON.stringify({ type: "failed", error: "boom" }) + "\\n")
     process.exitCode = 1
+    return
+  }
+  if (mode === "unknown") {
+    result({ metrics: null }, "unknown", "测速超时，结果未知")
     return
   }
   if (mode === "silent") {
@@ -174,6 +178,16 @@ describe("worker protocol", () => {
 })
 
 describe("process worker host", () => {
+  it("accepts and preserves an unknown JSONL result", async () => {
+    const outcome = await run(makeHost(), { mode: "unknown" }).promise
+    expect(outcome).toEqual({
+      result: { metrics: null },
+      message: "完成",
+      error: "测速超时，结果未知",
+      status: "unknown",
+    })
+  })
+
   it("forwards real progress and returns the result", async () => {
     const { progress, promise } = run(makeHost(), { mode: "ok" })
     const outcome = await promise

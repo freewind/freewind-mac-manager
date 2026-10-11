@@ -12,7 +12,8 @@ export type TaskJob = WorkerJob
 export type TaskOutcome = {
   result: unknown
   message: string | null
-  status: "done" | "partial"
+  error?: string | null
+  status: "done" | "partial" | "unknown"
 }
 
 export type TaskRunContext = {
@@ -171,6 +172,7 @@ export const createProcessHost = (options: {
           outcome = {
             result: message.result,
             message: message.message,
+            error: message.error,
             status: message.status,
           }
         } else {
