@@ -952,7 +952,8 @@ export const readFileContent = async (
 
 export const writeFileContent = async (
   targetPath: string,
-  content: string
+  content: string,
+  options?: { publish?: typeof rename }
 ): Promise<void> => {
   const value = await resolveExistingPath(targetPath)
   const info = await stat(value)
@@ -979,7 +980,7 @@ export const writeFileContent = async (
     ) {
       throw new Error("保存目标已变化，未覆盖新对象")
     }
-    await rename(tempPath, value)
+    await (options?.publish ?? rename)(tempPath, value)
   } finally {
     await output.close().catch(() => undefined)
     const current = await lstat(tempPath).catch(() => null)

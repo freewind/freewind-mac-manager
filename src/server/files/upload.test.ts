@@ -1,6 +1,7 @@
 import {
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -59,6 +60,23 @@ it("preserves an unrelated writing file while saving content", async () => {
   await writeFileContent(target, "new")
   expect(readFileSync(target, "utf8")).toBe("new")
   expect(readFileSync(`${target}.writing`, "utf8")).toBe("unrelated")
+})
+
+it("cleans its own staging file when publication fails and preserves the original", async () => {
+  const dest = path.join(root, "dest")
+  const target = path.join(dest, "a.txt")
+  writeFileSync(target, "old")
+  writeFileSync(`${target}.writing`, "unrelated")
+  await expect(
+    writeFileContent(target, "new", {
+      publish: async () => {
+        throw new Error("受控发布失败")
+      },
+    })
+  ).rejects.toThrow("受控发布失败")
+  expect(readFileSync(target, "utf8")).toBe("old")
+  expect(readFileSync(`${target}.writing`, "utf8")).toBe("unrelated")
+  expect(readdirSync(dest).sort()).toEqual(["a.txt", "a.txt.writing"])
 })
 
 it("publishes a complete nested upload", async () => {
