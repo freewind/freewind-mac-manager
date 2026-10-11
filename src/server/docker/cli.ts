@@ -776,20 +776,22 @@ export const createDockerCli = (
   ): Promise<DockerContainerLogsResponse> => {
     assertContainerId(containerId)
     const tail = options.tail ?? 200
-    const args = ["logs", "--tail", String(tail)]
+    // 多要一行才能区分「正好 tail 行」与「上游还有更多」：
+    // 拿到 tail+1 行说明被截断，只保留最后 tail 行。
+    const args = ["logs", "--tail", String(tail + 1)]
     if (options.since !== undefined) args.push("--since", String(options.since))
     args.push(containerId)
     // 拒绝非法入参也要走 rejected promise，调用方 await 时行为一致。
     const { stdout, stderr } = await docker(args, TIMEOUT.logs)
     // docker 把容器 stderr 写到自己的 stderr，两边合起来才是完整日志。
-    const lines = `${stdout}${stderr}`
-      .split("\n")
-      .filter((line, index, all) => line.length > 0 || index < all.length - 1)
+    const raw = `${stdout}${stderr}`.split("\n")
+    // 只去掉结尾换行产生的那一个空元素，日志中间的空白行要保留。
+    if (raw.at(-1) === "") raw.pop()
+    const truncated = raw.length > tail
     return {
       containerId,
-      lines,
-      // 行数正好等于上限时无法区分是否被截断，按可能截断标记。
-      truncated: lines.length >= tail,
+      lines: truncated ? raw.slice(-tail) : raw,
+      truncated,
       fetchedAt: Date.now(),
     }
   }

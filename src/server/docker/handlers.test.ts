@@ -20,7 +20,7 @@ import {
 import { createExpressEndpoints } from "@ts-rest/express"
 import express from "express"
 import { afterEach, describe, expect, it } from "vitest"
-import { DockerCommandError } from "./cli"
+import { type DockerCache, DockerCommandError } from "./cli"
 import { createDockerRouter, dockerContract } from "./handlers"
 import { createDockerService, type DockerServiceCli } from "./service"
 
@@ -150,11 +150,17 @@ const createFakeCli = (
 
 const servers: Server[] = []
 
-const startServer = async (cli: DockerServiceCli): Promise<string> => {
+/** handler 测试一律不做缓存，否则用例之间会串数据。 */
+const noCache: DockerCache = (_key, _ttl, load) => load()
+
+const startServer = async (
+  cli: DockerServiceCli,
+  cache: DockerCache = noCache
+): Promise<string> => {
   const app = express()
   createExpressEndpoints(
     dockerContract,
-    createDockerRouter(createDockerService(cli)),
+    createDockerRouter(createDockerService(cli, cache)),
     app,
     { logInitialization: false }
   )
@@ -328,6 +334,37 @@ describe("概览的宽容返回", () => {
       available: true,
       colima: { installed: false, running: false, status: "未安装 colima" },
     })
+  })
+  it("colima 状态在 5 秒 TTL 内复用缓存", async () => {
+    let calls = 0
+    const seen: { key: string; ttl: number }[] = []
+    const store = new Map<string, unknown>()
+    const cache: DockerCache = async (key, ttl, load) => {
+      seen.push({ key, ttl })
+      if (store.has(key)) return store.get(key) as never
+      const value = await load()
+      store.set(key, value)
+      return value
+    }
+    const baseUrl = await startServer(
+      createFakeCli({
+        getColimaStatus: async () => {
+          calls += 1
+          return colimaRunning
+        },
+      }),
+      cache
+    )
+    await get(baseUrl, "/api/docker/colima")
+    await get(baseUrl, "/api/docker/colima")
+    await get(baseUrl, "/api/docker/overview")
+    // 三次请求（含概览）只起一次 colima 进程
+    expect(calls).toBe(1)
+    expect(seen).toEqual([
+      { key: "docker:colima-status", ttl: 5_000 },
+      { key: "docker:colima-status", ttl: 5_000 },
+      { key: "docker:colima-status", ttl: 5_000 },
+    ])
   })
 })
 

@@ -474,7 +474,7 @@ describe("命令调用方式", () => {
           "args": [
             "logs",
             "--tail",
-            "50",
+            "51",
             "1a2b",
           ],
           "command": "docker",
@@ -847,26 +847,50 @@ describe("错误映射", () => {
 })
 
 describe("日志读取", () => {
-  it("合并 stdout 与 stderr，达到上限时标记可能截断", async () => {
-    const { runner } = createFakeRunner(succeed("line-1\nline-2\n", "line-3\n"))
+  const readLogs = async (output: string, options: { tail: number }) => {
+    const { runner, calls } = createFakeRunner(succeed(output))
     const cli = createDockerCli({ run: runner, cache: noCache })
-    const logs = await cli.getContainerLogs("1a2b", { tail: 3 })
-    expect(logs).toMatchObject({
-      containerId: "1a2b",
-      lines: ["line-1", "line-2", "line-3"],
-      truncated: true,
-    })
+    return {
+      logs: await cli.getContainerLogs("1a2b", options),
+      args: calls[0]?.args,
+    }
+  }
+
+  it("行数正好等于 tail 时不算截断", async () => {
+    const { logs, args } = await readLogs("line-1\nline-2\n", { tail: 2 })
+    expect(logs.truncated).toBe(false)
+    expect(logs.lines).toEqual(["line-1", "line-2"])
+    // 多要一行才能区分「正好 tail 行」与「还有更多」
+    expect(args).toEqual(["logs", "--tail", "3", "1a2b"])
   })
 
-  it("未达到上限时不标记截断，并按 tail 构造参数", async () => {
+  it("上游超过 tail 行时标记截断，且只保留末 tail 行", async () => {
+    const { logs } = await readLogs("line-1\nline-2\nline-3\n", { tail: 2 })
+    expect(logs.truncated).toBe(true)
+    expect(logs.lines).toEqual(["line-2", "line-3"])
+  })
+
+  it("保留日志中间的空白行，行数如实反映", async () => {
+    const { logs } = await readLogs("start\n\nend\n", { tail: 10 })
+    expect(logs.lines).toEqual(["start", "", "end"])
+    expect(logs.truncated).toBe(false)
+  })
+
+  it("合并 stdout 与 stderr", async () => {
+    const { runner } = createFakeRunner(succeed("line-1\nline-2\n", "line-3\n"))
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const logs = await cli.getContainerLogs("1a2b", { tail: 10 })
+    expect(logs.lines).toEqual(["line-1", "line-2", "line-3"])
+  })
+
+  it("since 一并转成 docker 参数", async () => {
     const { runner, calls } = createFakeRunner(succeed("only\n"))
     const cli = createDockerCli({ run: runner, cache: noCache })
-    const logs = await cli.getContainerLogs("1a2b", { tail: 100, since: 1700 })
-    expect(logs.truncated).toBe(false)
+    await cli.getContainerLogs("1a2b", { tail: 100, since: 1700 })
     expect(calls[0]?.args).toEqual([
       "logs",
       "--tail",
-      "100",
+      "101",
       "--since",
       "1700",
       "1a2b",

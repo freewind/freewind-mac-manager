@@ -1,3 +1,4 @@
+import { cached } from "@server/common/collect"
 import type {
   DockerColimaStatus,
   DockerContainerLogsQuery,
@@ -8,7 +9,12 @@ import type {
   DockerOverview,
   DockerVolumesResponse,
 } from "@shared/api-contract"
-import { type DockerCli, DockerCommandError, dockerCli } from "./cli"
+import {
+  type DockerCache,
+  type DockerCli,
+  DockerCommandError,
+  dockerCli,
+} from "./cli"
 
 /**
  * service 只需要 cli 的这几个只读能力；测试可以只实现这些方法。
@@ -48,16 +54,28 @@ const unavailableColima = (
   }
 }
 
-export const createDockerService = (cli: DockerServiceCli = dockerCli) => {
+/** colima status 単次约 0.7s，给的 TTL 只为挡掉页面轮询带来的重复进程。 */
+const COLIMA_TTL = 5_000
+
+const COLIMA_CACHE_KEY = "docker:colima-status"
+
+export const createDockerService = (
+  cli: DockerServiceCli = dockerCli,
+  /** 测试可传不做缓存的替身，避免用例之间串数据。 */
+  cache: DockerCache = cached
+) => {
+  const readColimaStatus = (): Promise<DockerColimaStatus> =>
+    cache(COLIMA_CACHE_KEY, COLIMA_TTL, () => cli.getColimaStatus())
+
   /**
    * 首屏必须宽容：Colima 未运行或 docker 不可用时返回 available:false 与全 0 计数，
    * 不用错误打断整页；真出问题的原因由 colima 状态与前端提示呈现。
    */
   const getOverview = async (): Promise<DockerOverview> => {
     const checkedAt = Date.now()
-    const colima = await cli
-      .getColimaStatus()
-      .catch((error: unknown) => unavailableColima(error, checkedAt))
+    const colima = await readColimaStatus().catch((error: unknown) =>
+      unavailableColima(error, checkedAt)
+    )
     try {
       const [info, containers, images, volumes, networks, diskUsage] =
         await Promise.all([
@@ -135,8 +153,7 @@ export const createDockerService = (cli: DockerServiceCli = dockerCli) => {
       since: query.since,
     })
 
-  const getColimaStatus = (): Promise<DockerColimaStatus> =>
-    cli.getColimaStatus()
+  const getColimaStatus = (): Promise<DockerColimaStatus> => readColimaStatus()
 
   return {
     getOverview,
