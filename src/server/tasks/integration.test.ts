@@ -207,17 +207,24 @@ describe("task wiring through the real app", () => {
     },
   ])("exposes accepted and completed $kind actions", async (action) => {
     const requestId = `req_${action.kind}_audit`
-    const response = await fetch(`${baseUrl}${action.url}`, {
-      method: action.method,
-      headers: {
-        [TASK_REQUEST_ID_HEADER]: requestId,
-        "content-type": "application/json",
-      },
-      body: action.body ? JSON.stringify(action.body) : undefined,
-    })
+    const send = (identified: boolean) =>
+      fetch(`${baseUrl}${action.url}`, {
+        method: action.method,
+        headers: {
+          ...(identified ? { [TASK_REQUEST_ID_HEADER]: requestId } : {}),
+          "content-type": "application/json",
+        },
+        body: action.body ? JSON.stringify(action.body) : undefined,
+      })
+    expect((await send(false)).status).toBe(400)
+    expect(dispatched).toHaveLength(0)
+    const response = await send(true)
     expect(response.status).toBe(202)
     const accepted = await response.json()
     expect(accepted.kind).toBe(action.kind)
+    const replay = await send(true)
+    expect(replay.status).toBe(202)
+    expect((await replay.json()).taskId).toBe(accepted.taskId)
     expect(dispatched).toHaveLength(1)
 
     const active = await get(ApiPath.tasks)
@@ -253,6 +260,10 @@ describe("task wiring through the real app", () => {
     expect(history.body.total).toBe(1)
     expect(history.body.tasks).toHaveLength(1)
     expect(history.body.tasks[0].status).toBe("done")
+    const completedReplay = await send(true)
+    expect([200, 201]).toContain(completedReplay.status)
+    expect(await completedReplay.json()).toEqual(result)
+    expect(dispatched).toHaveLength(1)
   })
 
   it("keeps a fast unknown result queryable without replaying execution", async () => {
