@@ -8,16 +8,20 @@ import {
   DockerCommandError,
   type DockerCommandRunner,
   parseColimaStatus,
-  parseContainers,
-  parseDockerMounts,
-  parseDockerPorts,
+  parseContainerIds,
   parseDockerSize,
   parseDockerTime,
   parseImages,
   parseInfo,
+  parseInspectedContainers,
+  parseInspectMounts,
+  parseInspectPorts,
   parseJsonLines,
   parseNetworks,
+  parsePsSummaries,
+  parseRfc3339Time,
   parseVersion,
+  parseVolumeSizes,
 } from "./cli"
 
 /** 记录调用参数的受控替身：不真的执行任何命令。 */
@@ -45,6 +49,55 @@ const errorOf = async (task: Promise<unknown>): Promise<unknown> =>
     (error: unknown) => error
   )
 
+const CONTAINER_ID =
+  "3a2352da7b309beaaba360ac0799380b586ab098cc7ee70d90d92dfc4ca06f53"
+const SHORT_ID = "3a2352da7b30"
+const STARTED_AT = "2026-10-11T07:25:40.887230468Z"
+
+/** 真机 inspect 的形状：只保留我们解析用到的字段。 */
+const inspectFixture = JSON.stringify([
+  {
+    Id: CONTAINER_ID,
+    Created: "2026-10-11T07:25:40.57465826Z",
+    Path: "opendecider",
+    Args: ["serve"],
+    State: {
+      Status: "running",
+      StartedAt: STARTED_AT,
+      FinishedAt: "0001-01-01T00:00:00Z",
+    },
+    Name: "/opendecider",
+    Config: { Image: "opendecider:cpu", Cmd: ["opendecider", "serve"] },
+    Mounts: [
+      {
+        Type: "volume",
+        Name: "opendecider-models",
+        Source: "/var/lib/docker/volumes/opendecider-models/_data",
+        Destination: "/models",
+        RW: true,
+      },
+    ],
+    NetworkSettings: {
+      Ports: { "8000/tcp": [{ HostIp: "127.0.0.1", HostPort: "48000" }] },
+    },
+  },
+])
+
+const psFixture = JSON.stringify({
+  Command: '"opendecider serve"',
+  CreatedAt: "2026-10-11 15:25:40 +0800 CST",
+  HealthStatus: "healthy",
+  ID: SHORT_ID,
+  Image: "opendecider:cpu",
+  LocalVolumes: "1",
+  Mounts: "opendecider-mo…",
+  Names: "opendecider",
+  Networks: "bridge",
+  Ports: "127.0.0.1:48000->8000/tcp",
+  State: "running",
+  Status: "Up 34 minutes (healthy)",
+})
+
 describe("docker 输出解析", () => {
   it("按行解析 docker 的 json 输出，坏行跳过", () => {
     const text = '{"ID":"a"}\n\nnot json\n{"ID":"b"}\n["array"]\n'
@@ -60,17 +113,108 @@ describe("docker 输出解析", () => {
     `)
   })
 
-  it("解析端口映射并去掉 IPv6 重复项", () => {
-    const ports = parseDockerPorts(
-      "0.0.0.0:8080->80/tcp, :::8080->80/tcp, 9000/udp"
-    )
-    expect(ports).toMatchInlineSnapshot(`
+  it("ps -aq 只接受十六进制 id", () => {
+    expect(
+      parseContainerIds(`\n${SHORT_ID}\n${CONTAINER_ID}\nnot-an-id\n`)
+    ).toMatchInlineSnapshot(`
+        [
+          "3a2352da7b30",
+          "3a2352da7b309beaaba360ac0799380b586ab098cc7ee70d90d92dfc4ca06f53",
+        ]
+      `)
+  })
+
+  it("ps 的 json 只取 Status 文本与名称", () => {
+    expect(parsePsSummaries(`${psFixture}\n`)).toMatchInlineSnapshot(`
       [
         {
-          "containerPort": 80,
-          "hostIp": "0.0.0.0",
-          "hostPort": 8080,
+          "id": "3a2352da7b30",
+          "name": "opendecider",
+          "status": "Up 34 minutes (healthy)",
+        },
+      ]
+    `)
+  })
+
+  it("inspect 提供挂载、端口与启动时间", () => {
+    const [container] = parseInspectedContainers(inspectFixture)
+    expect(container).toMatchObject({
+      id: CONTAINER_ID,
+      name: "opendecider",
+      image: "opendecider:cpu",
+      command: "opendecider serve",
+      state: "running",
+      createdAt: Date.parse("2026-10-11T07:25:40.57465826Z"),
+      startedAt: Date.parse(STARTED_AT),
+    })
+    // 挂载路径必须完整，不能是 ps 那种被截断的省略号
+    expect(container?.mounts).toEqual([
+      {
+        type: "volume",
+        source: "/var/lib/docker/volumes/opendecider-models/_data",
+        destination: "/models",
+        readOnly: false,
+      },
+    ])
+    expect(container?.ports).toEqual([
+      {
+        hostIp: "127.0.0.1",
+        hostPort: 48000,
+        containerPort: 8000,
+        protocol: "tcp",
+      },
+    ])
+  })
+
+  it("inspect 的 Mounts 按 RW 判定只读，坏项跳过", () => {
+    expect(
+      parseInspectMounts([
+        { Type: "bind", Source: "/Users/me/x", Destination: "/app", RW: false },
+        { Type: "tmpfs", Source: "", Destination: "/tmp", RW: true },
+        { Type: "weird", Source: "/a", Destination: "/b", RW: true },
+        { Type: "volume", Source: "/v", Destination: "", RW: true },
+      ])
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "destination": "/app",
+          "readOnly": true,
+          "source": "/Users/me/x",
+          "type": "bind",
+        },
+        {
+          "destination": "/tmp",
+          "readOnly": false,
+          "source": "",
+          "type": "tmpfs",
+        },
+      ]
+    `)
+  })
+
+  it("inspect 端口只取已发布的绑定", () => {
+    expect(
+      parseInspectPorts({
+        "8000/tcp": [{ HostIp: "127.0.0.1", HostPort: "48000" }],
+        "5432/tcp": null,
+        "9000/udp": [
+          { HostIp: "0.0.0.0", HostPort: "9000" },
+          { HostIp: "", HostPort: "" },
+        ],
+      })
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "containerPort": 8000,
+          "hostIp": "127.0.0.1",
+          "hostPort": 48000,
           "protocol": "tcp",
+        },
+        {
+          "containerPort": 9000,
+          "hostIp": "0.0.0.0",
+          "hostPort": 9000,
+          "protocol": "udp",
         },
         {
           "containerPort": 9000,
@@ -80,68 +224,33 @@ describe("docker 输出解析", () => {
         },
       ]
     `)
+    expect(parseInspectPorts(null)).toEqual([])
   })
 
-  it("解析挂载字符串，坏项跳过", () => {
-    const mounts = parseDockerMounts("myvol:/data, /Users/me/x:/app, :/broken,")
-    expect(mounts).toMatchInlineSnapshot(`
-      [
-        {
-          "destination": "/data",
-          "readOnly": false,
-          "source": "myvol",
-          "type": "volume",
-        },
-        {
-          "destination": "/app",
-          "readOnly": false,
-          "source": "/Users/me/x",
-          "type": "bind",
-        },
-      ]
-    `)
-  })
-
-  it("把 ps -a 的一行映射成容器", () => {
-    const line = JSON.stringify({
-      Command: '"/docker-entrypoint.sh nginx"',
-      CreatedAt: "2024-05-01 10:00:00 +0800 CST",
-      ID: "1a2b3c4d5e6f",
-      Image: "nginx:latest",
-      Names: "web",
-      Ports: "0.0.0.0:8080->80/tcp",
-      Mounts: "myvol:/data",
-      State: "running",
-      Status: "Up 2 hours",
-      Networks: "bridge",
-    })
-    const [container] = parseContainers(`${line}\n`)
-    expect(container).toMatchObject({
-      id: "1a2b3c4d5e6f",
-      name: "web",
-      image: "nginx:latest",
-      state: "running",
-      status: "Up 2 hours",
-    })
-    // ps 不提供启动时间，startedAt 保持空
-    expect(container?.startedAt).toBeNull()
-    expect(container?.createdAt).toBe(Date.parse("2024-05-01T10:00:00+0800"))
-    expect(container?.ports).toEqual([
-      { hostIp: "0.0.0.0", hostPort: 8080, containerPort: 80, protocol: "tcp" },
-    ])
-    expect(container?.mounts).toEqual([
+  it("未启动容器的 StartedAt 零值映射为 null", () => {
+    const stopped = JSON.stringify([
       {
-        type: "volume",
-        source: "myvol",
-        destination: "/data",
-        readOnly: false,
+        Id: CONTAINER_ID,
+        Created: "2026-10-01T01:02:03Z",
+        State: { Status: "exited", StartedAt: "0001-01-01T00:00:00Z" },
+        Name: "/job",
+        Config: { Image: "alpine" },
+        Mounts: [],
       },
     ])
+    const [container] = parseInspectedContainers(stopped)
+    expect(container?.startedAt).toBeNull()
+    expect(container?.state).toBe("exited")
+    expect(container?.createdAt).toBe(Date.parse("2026-10-01T01:02:03Z"))
+    // 零值不能被当成时间戳
+    expect(parseRfc3339Time("0001-01-01T00:00:00Z")).toBeNull()
+    expect(parseRfc3339Time("")).toBeNull()
+    expect(parseRfc3339Time("garbage")).toBeNull()
   })
 
   it("未知 State 归为 exited，不产生契约外的取值", () => {
-    const [container] = parseContainers(
-      `${JSON.stringify({ ID: "a", State: "weird" })}\n`
+    const [container] = parseInspectedContainers(
+      JSON.stringify([{ Id: CONTAINER_ID, State: { Status: "weird" } }])
     )
     expect(container?.state).toBe("exited")
   })
@@ -240,7 +349,7 @@ describe("docker 输出解析", () => {
     expect(parseVersion("connrefused")).toBe("")
   })
 
-  it("解析大小与时间，无法识别时返回 null", () => {
+  it("解析大小与 docker 列表时间，无法识别时返回 null", () => {
     expect(parseDockerSize("187MB")).toBe(187_000_000)
     expect(parseDockerSize("1.5GiB")).toBe(1_610_612_736)
     expect(parseDockerSize("N/A")).toBeNull()
@@ -248,6 +357,48 @@ describe("docker 输出解析", () => {
       Date.parse("2024-01-01T12:00:00+0800")
     )
     expect(parseDockerTime("garbage")).toBeNull()
+  })
+
+  it("解析 system df -v 的卷大小表", () => {
+    const text = [
+      "Images space usage:",
+      "",
+      "REPOSITORY   TAG   IMAGE ID   CREATED   SIZE   SHARED SIZE   UNIQUE SIZE   CONTAINERS",
+      "opendecider  cpu   b4f5668b   45 minutes ago   1.75GB   189.3MB   1.56GB   1",
+      "",
+      "Containers space usage:",
+      "",
+      "CONTAINER ID   IMAGE   COMMAND   LOCAL VOLUMES   SIZE   CREATED   STATUS   NAMES",
+      '3a2352da7b30   opendecider:cpu   "opendecider serve"   1   12.3kB   34 minutes ago   Up 34 minutes   opendecider',
+      "",
+      "Local Volumes space usage:",
+      "",
+      "VOLUME NAME                     LINKS     SIZE",
+      "new-api_pg_data                 0         68.84MB",
+      "litellm_postgres_data           1         70.43MB",
+      "n/a-vol                         0         N/A",
+      "077f1b6c54fd208b4c391cc1e8       0         472B",
+      "",
+      "Build cache usage: 0B",
+      "",
+      "CACHE ID   CACHE TYPE   SIZE",
+    ].join("\n")
+    expect([...parseVolumeSizes(text)]).toMatchInlineSnapshot(`
+      [
+        [
+          "new-api_pg_data",
+          68840000,
+        ],
+        [
+          "litellm_postgres_data",
+          70430000,
+        ],
+        [
+          "077f1b6c54fd208b4c391cc1e8",
+          472,
+        ],
+      ]
+    `)
   })
 
   it("识别 colima 两种状态", () => {
@@ -266,8 +417,22 @@ describe("docker 输出解析", () => {
 })
 
 describe("命令调用方式", () => {
+  /** ps -aq / ps -a --format json / inspect 三件套的受控替身。 */
+  const psRunner = (
+    psJson = psFixture,
+    inspectJson = inspectFixture,
+    ids = `${SHORT_ID}\n`
+  ) =>
+    createFakeRunner(async (_command, args) => {
+      if (args[1] === "-aq") return { stdout: ids, stderr: "" }
+      if (args[0] === "ps") return { stdout: `${psJson}\n`, stderr: "" }
+      if (args[0] === "inspect") return { stdout: inspectJson, stderr: "" }
+      if (args[0] === "logs") return { stdout: "log line\n", stderr: "" }
+      throw new Error(`unexpected command: ${args.join(" ")}`)
+    })
+
   it("参数以数组传递，不经过 shell", async () => {
-    const { runner, calls } = createFakeRunner(succeed(""))
+    const { runner, calls } = psRunner()
     const cli = createDockerCli({ run: runner, cache: noCache })
     await cli.listContainers()
     await cli.getContainerLogs("1a2b", { tail: 50 })
@@ -276,9 +441,23 @@ describe("命令调用方式", () => {
         {
           "args": [
             "ps",
+            "-aq",
+          ],
+          "command": "docker",
+        },
+        {
+          "args": [
+            "ps",
             "-a",
             "--format",
             "json",
+          ],
+          "command": "docker",
+        },
+        {
+          "args": [
+            "inspect",
+            "3a2352da7b30",
           ],
           "command": "docker",
         },
@@ -293,6 +472,77 @@ describe("命令调用方式", () => {
         },
       ]
     `)
+  })
+
+  it("列表数据源不再读 ps 的 Mounts", async () => {
+    const { runner } = psRunner()
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const [container] = await cli.listContainers()
+    // ps 里是 "opendecider-mo…"，这里必须是 inspect 的完整路径
+    expect(container?.mounts[0]?.source).toBe(
+      "/var/lib/docker/volumes/opendecider-models/_data"
+    )
+    expect(container?.startedAt).toBe(Date.parse(STARTED_AT))
+  })
+
+  it("ps 与 inspect 按 id 前缀合并：名称与 Status 取 ps，结构取 inspect", async () => {
+    const { runner } = psRunner()
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const [container] = await cli.listContainers()
+    expect(container).toMatchObject({
+      id: CONTAINER_ID,
+      name: "opendecider",
+      status: "Up 34 minutes (healthy)",
+      state: "running",
+      image: "opendecider:cpu",
+      command: "opendecider serve",
+    })
+    expect(container?.ports).toEqual([
+      {
+        hostIp: "127.0.0.1",
+        hostPort: 48000,
+        containerPort: 8000,
+        protocol: "tcp",
+      },
+    ])
+  })
+
+  it("ps 没有对应行时名称回退到 inspect，Status 留空", async () => {
+    const { runner } = psRunner("", inspectFixture)
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const [container] = await cli.listContainers()
+    expect(container?.name).toBe("opendecider")
+    expect(container?.status).toBe("")
+  })
+
+  it("inspect 遇到已被删除的容器时逐个降级，不整批失败", async () => {
+    const otherShort = "9f0000000000"
+    const { runner, calls } = createFakeRunner(async (_command, args) => {
+      if (args[1] === "-aq") {
+        return { stdout: `${SHORT_ID}\n${otherShort}\n`, stderr: "" }
+      }
+      if (args[0] === "inspect") {
+        const ids = args.slice(1)
+        // 批量读取时其中一个已被删掉，docker 会让整条命令失败
+        if (ids.length > 1) {
+          return Promise.reject(
+            Object.assign(new Error("Command failed: docker inspect"), {
+              stderr: `Error: No such container: ${otherShort}`,
+            })
+          )
+        }
+        return {
+          stdout: ids[0] === otherShort ? "" : inspectFixture,
+          stderr: "",
+        }
+      }
+      return { stdout: `${psFixture}\n`, stderr: "" }
+    })
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const containers = await cli.listContainers()
+    // 已删除的那个跳过，剩下一个照常返回：1 次批量 + 2 次单个
+    expect(containers.map((item) => item.id)).toEqual([CONTAINER_ID])
+    expect(calls.filter((call) => call.args[0] === "inspect")).toHaveLength(3)
   })
 
   it("非法容器标识不发命令", async () => {
@@ -315,60 +565,26 @@ describe("命令调用方式", () => {
       store.set(key, value)
       return value
     }
-    const { runner, calls } = createFakeRunner(
-      succeed('{"ID":"a","State":"running"}\n')
-    )
+    const { runner, calls } = psRunner()
     const cli = createDockerCli({ run: runner, cache })
     await cli.listContainers()
     await cli.listContainers()
     expect(keys).toEqual(["docker:containers", "docker:containers"])
-    expect(calls).toHaveLength(1)
+    expect(calls).toHaveLength(3)
   })
 
-  it("卷多于一批时分批 inspect，不丢卷", async () => {
-    const names = Array.from({ length: 201 }, (_, index) => `vol-${index}`)
-    const listed = names
-      .map((name) => JSON.stringify({ Name: name }))
-      .join("\n")
-    const inspectCalls: string[][] = []
-    const psLine = JSON.stringify({ ID: "c1", Names: "web", State: "exited" })
-    const { runner } = createFakeRunner(async (_command, args) => {
-      if (args[0] === "ps") return { stdout: `${psLine}\n`, stderr: "" }
-      if (args[1] === "ls") return { stdout: `${listed}\n`, stderr: "" }
-      inspectCalls.push(args.slice(2))
-      return {
-        stdout: JSON.stringify(
-          args.slice(2).map((name) => ({ Name: name, Driver: "local" }))
-        ),
-        stderr: "",
-      }
-    })
-    const cli = createDockerCli({ run: runner, cache: noCache })
-    const volumes = await cli.listVolumes()
-    expect(volumes).toHaveLength(201)
-    expect(inspectCalls.map((batch) => batch.length)).toEqual([200, 1])
-    expect(volumes.at(-1)?.name).toBe("vol-200")
-  })
-
-  it("卷与网络按容器交叉统计，volume inspect 单独取挂载点", async () => {
-    const psLine = JSON.stringify({
-      ID: "c1",
-      Names: "web",
-      State: "running",
-      Mounts: "myvol:/data",
-      Networks: "bridge",
-    })
+  it("卷与网络按容器交叉统计，卷大小取 system df -v", async () => {
     const listed = JSON.stringify({
-      Name: "myvol",
+      Name: "opendecider-models",
       Driver: "local",
-      Size: "1.2MB",
+      Size: "N/A",
     })
     const inspected = JSON.stringify([
       {
-        Name: "myvol",
+        Name: "opendecider-models",
         Driver: "local",
-        Mountpoint: "/var/lib/docker/volumes/myvol/_data",
-        CreatedAt: "2024-05-01 10:00:00 +0800 CST",
+        Mountpoint: "/var/lib/docker/volumes/opendecider-models/_data",
+        CreatedAt: "2026-10-11T07:20:00Z",
       },
     ])
     const network = JSON.stringify({
@@ -378,26 +594,41 @@ describe("命令调用方式", () => {
       Scope: "local",
       Internal: "false",
     })
+    const diskUsage = [
+      "Local Volumes space usage:",
+      "",
+      "VOLUME NAME              LINKS     SIZE",
+      "opendecider-models       1         795.5MB",
+    ].join("\n")
+    const psJson = JSON.stringify({
+      ID: SHORT_ID,
+      Names: "opendecider",
+      Status: "Up 34 minutes (healthy)",
+      Networks: "bridge",
+    })
     const { runner, calls } = createFakeRunner(async (_command, args) => {
-      if (args[0] === "ps") return { stdout: `${psLine}\n`, stderr: "" }
+      if (args[1] === "-aq") return { stdout: `${SHORT_ID}\n`, stderr: "" }
+      if (args[0] === "ps") return { stdout: `${psJson}\n`, stderr: "" }
+      if (args[0] === "inspect") return { stdout: inspectFixture, stderr: "" }
       if (args[0] === "volume" && args[1] === "ls") {
         return { stdout: `${listed}\n`, stderr: "" }
       }
       if (args[0] === "volume" && args[1] === "inspect") {
         return { stdout: inspected, stderr: "" }
       }
+      if (args[0] === "system") return { stdout: diskUsage, stderr: "" }
       return { stdout: `${network}\n`, stderr: "" }
     })
     const cli = createDockerCli({ run: runner, cache: noCache })
     expect(await cli.listVolumes()).toMatchInlineSnapshot(`
       [
         {
-          "createdAt": 1714528800000,
+          "createdAt": 1791703200000,
           "driver": "local",
           "inUse": true,
-          "mountpoint": "/var/lib/docker/volumes/myvol/_data",
-          "name": "myvol",
-          "sizeBytes": 1200000,
+          "mountpoint": "/var/lib/docker/volumes/opendecider-models/_data",
+          "name": "opendecider-models",
+          "sizeBytes": 795500000,
         },
       ]
     `)
@@ -414,14 +645,62 @@ describe("命令调用方式", () => {
       ]
     `)
     expect(
-      calls.filter((call) => call.args[1] === "inspect")[0]?.args
+      calls.filter((call) => call.args[0] === "volume")[1]?.args
     ).toMatchInlineSnapshot(`
-      [
-        "volume",
-        "inspect",
-        "myvol",
-      ]
-    `)
+        [
+          "volume",
+          "inspect",
+          "opendecider-models",
+        ]
+      `)
+  })
+
+  it("system df -v 失败不影响卷列表", async () => {
+    const listed = JSON.stringify({ Name: "opendecider-models" })
+    const { runner } = createFakeRunner(async (_command, args) => {
+      if (args[1] === "-aq") return { stdout: `${SHORT_ID}\n`, stderr: "" }
+      if (args[0] === "ps") return { stdout: `${psFixture}\n`, stderr: "" }
+      if (args[0] === "inspect") return { stdout: inspectFixture, stderr: "" }
+      if (args[1] === "ls") return { stdout: `${listed}\n`, stderr: "" }
+      if (args[0] === "system") {
+        return Promise.reject(
+          Object.assign(new Error("Command failed: docker system df -v"), {
+            stderr: "Error response from daemon: broken",
+          })
+        )
+      }
+      return { stdout: "[]", stderr: "" }
+    })
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const [volume] = await cli.listVolumes()
+    expect(volume?.name).toBe("opendecider-models")
+    expect(volume?.sizeBytes).toBeNull()
+  })
+
+  it("卷多于一批时分批 inspect，不丢卷", async () => {
+    const names = Array.from({ length: 201 }, (_, index) => `vol-${index}`)
+    const listed = names
+      .map((name) => JSON.stringify({ Name: name }))
+      .join("\n")
+    const inspectCalls: string[][] = []
+    const { runner } = createFakeRunner(async (_command, args) => {
+      if (args[1] === "-aq") return { stdout: "", stderr: "" }
+      if (args[0] === "ps") return { stdout: "", stderr: "" }
+      if (args[0] === "system") return { stdout: "", stderr: "" }
+      if (args[1] === "ls") return { stdout: `${listed}\n`, stderr: "" }
+      inspectCalls.push(args.slice(2))
+      return {
+        stdout: JSON.stringify(
+          args.slice(2).map((name) => ({ Name: name, Driver: "local" }))
+        ),
+        stderr: "",
+      }
+    })
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const volumes = await cli.listVolumes()
+    expect(volumes).toHaveLength(201)
+    expect(inspectCalls.map((batch) => batch.length)).toEqual([200, 1])
+    expect(volumes.at(-1)?.name).toBe("vol-200")
   })
 })
 
@@ -429,9 +708,7 @@ describe("错误映射", () => {
   it("找不到 docker 命令时给出中文提示", async () => {
     const { runner, calls } = createFakeRunner(() =>
       Promise.reject(
-        Object.assign(new Error("spawn docker ENOENT"), {
-          code: "ENOENT",
-        })
+        Object.assign(new Error("spawn docker ENOENT"), { code: "ENOENT" })
       )
     )
     const cli = createDockerCli({ run: runner, cache: noCache })
@@ -442,21 +719,20 @@ describe("错误映射", () => {
     expect(error.message).toBe(
       "未找到 docker 命令，请确认 Docker 或 Colima 已安装。"
     )
-    // PATH 与常见安装目录都试过后才判定未安装
-    expect(calls.map((call) => call.command)).toEqual([
+    // PATH 与常见安装目录都试过后才判定未安装（ps -aq 与 ps -a 都会各跑一遍）
+    expect([...new Set(calls.map((call) => call.command))]).toEqual([
       "docker",
       "/opt/homebrew/bin/docker",
       "/usr/local/bin/docker",
       path.join(os.homedir(), ".docker", "bin", "docker"),
     ])
+    expect(calls).toHaveLength(8)
   })
 
   it("找不到 colima 命令时给出中文提示", async () => {
     const { runner } = createFakeRunner(() =>
       Promise.reject(
-        Object.assign(new Error("spawn colima ENOENT"), {
-          code: "ENOENT",
-        })
+        Object.assign(new Error("spawn colima ENOENT"), { code: "ENOENT" })
       )
     )
     const cli = createDockerCli({ run: runner, cache: noCache })

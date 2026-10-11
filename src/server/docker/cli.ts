@@ -257,66 +257,67 @@ export const parseDockerTime = (text: string): number | null => {
 const parseProtocol = (value: string): "tcp" | "udp" =>
   value.trim().toLowerCase() === "udp" ? "udp" : "tcp"
 
+/** Go 的零值时间：未启动过的容器 StartedAt 就是这个值，必须当作缺值。 */
+const ZERO_TIME = /^0001-01-01T00:00:00(\.\d+)?Z$/i
+
+/** 解析 inspect 的 RFC3339 时间（如 "2026-10-11T07:25:40.887230468Z"）。 */
+export const parseRfc3339Time = (text: string): number | null => {
+  const trimmed = text.trim()
+  if (trimmed.length === 0 || ZERO_TIME.test(trimmed)) return null
+  const parsed = Date.parse(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 /**
- * 解析 ps 的 Ports 字段，例如
- * "0.0.0.0:8080->80/tcp, :::8080->80/tcp, 9000/udp"。
- * 同一端口 IPv4/IPv6 各打一条，这里按「宿主端口+容器端口+协议」去重；
- * 只声明未发布的端口（"9000/udp"）保留，宿主端口为 null。
+ * 解析 inspect 的 NetworkSettings.Ports，形如
+ * `{"8000/tcp":[{"HostIp":"127.0.0.1","HostPort":"48000"}]}`。
+ * 值为 null 表示只声明未发布，不产生映射。
  */
-export const parseDockerPorts = (text: string): DockerPortMapping[] => {
+export const parseInspectPorts = (ports: unknown): DockerPortMapping[] => {
   const mappings: DockerPortMapping[] = []
-  const seen = new Set<string>()
-  for (const raw of text.split(",")) {
-    const part = raw.trim()
-    if (part.length === 0) continue
-    const slash = part.lastIndexOf("/")
-    const protocol = parseProtocol(slash >= 0 ? part.slice(slash + 1) : "tcp")
-    const body = slash >= 0 ? part.slice(0, slash) : part
-    const arrow = body.indexOf("->")
-    const hostText = arrow >= 0 ? body.slice(0, arrow) : ""
-    const containerText = arrow >= 0 ? body.slice(arrow + 2) : body
-    const containerPort = asNumber(containerText)
+  for (const [key, value] of Object.entries(asRecord(ports))) {
+    if (!Array.isArray(value)) continue
+    const slash = key.lastIndexOf("/")
+    const containerPort = asNumber(slash >= 0 ? key.slice(0, slash) : key)
     if (containerPort <= 0) continue
-    let hostIp = ""
-    let hostPort: number | null = null
-    if (arrow >= 0) {
-      const colon = hostText.lastIndexOf(":")
-      if (colon >= 0) {
-        hostIp = hostText.slice(0, colon).replace(/^\[|\]$/g, "")
-        const parsed = Number(hostText.slice(colon + 1))
-        hostPort = Number.isFinite(parsed) ? parsed : null
-      }
+    const protocol = parseProtocol(slash >= 0 ? key.slice(slash + 1) : "tcp")
+    for (const binding of value) {
+      const item = asRecord(binding)
+      const rawHostPort = asText(item.HostPort)
+      const hostPort = Number(rawHostPort)
+      mappings.push({
+        hostIp: asText(item.HostIp),
+        hostPort:
+          rawHostPort.length > 0 && Number.isFinite(hostPort) ? hostPort : null,
+        containerPort,
+        protocol,
+      })
     }
-    const key = `${hostPort ?? "none"}-${containerPort}-${protocol}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    mappings.push({ hostIp, hostPort, containerPort, protocol })
   }
   return mappings
 }
 
 /**
- * 解析 ps 的 Mounts 字段，例如 "myvol:/data, /Users/me/x:/app"。
- * ps 不给出是否只读（只有 inspect 才有），这里一律按可写处理。
+ * 解析 inspect 的 Mounts；RW 为 false 表示只读挂载。
+ * ps 的 Mounts 字段会被 docker 按列宽截断，所以一律以 inspect 为准。
  */
-export const parseDockerMounts = (text: string): DockerMount[] => {
-  const mounts: DockerMount[] = []
-  for (const raw of text.split(",")) {
-    const part = raw.trim()
-    if (part.length === 0) continue
-    const colon = part.indexOf(":")
-    if (colon <= 0) continue
-    const source = part.slice(0, colon).trim()
-    const destination = part.slice(colon + 1).trim()
-    if (source.length === 0 || destination.length === 0) continue
-    mounts.push({
-      type: source.startsWith("/") ? "bind" : "volume",
-      source,
+export const parseInspectMounts = (mounts: unknown): DockerMount[] => {
+  if (!Array.isArray(mounts)) return []
+  const result: DockerMount[] = []
+  for (const raw of mounts) {
+    const item = asRecord(raw)
+    const type = asText(item.Type)
+    if (type !== "bind" && type !== "volume" && type !== "tmpfs") continue
+    const destination = asText(item.Destination)
+    if (destination.length === 0) continue
+    result.push({
+      type,
+      source: asText(item.Source),
       destination,
-      readOnly: false,
+      readOnly: item.RW === false,
     })
   }
-  return mounts
+  return result
 }
 
 const parseContainerState = (value: string): DockerContainer["state"] => {
@@ -331,21 +332,102 @@ const splitList = (value: string): string[] =>
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
 
-/** 解析 ps -a 的 json 行；ps 不提供启动时间与只读标记，这两处留空。 */
-export const parseContainers = (text: string): DockerContainer[] =>
+/** ps 的输出只用来补 Status 文本与名称，结构化字段全部来自 inspect。 */
+export type PsContainerSummary = {
+  id: string
+  name: string
+  status: string
+}
+
+/** ps -a --format json：Status 是 "Up 33 minutes (healthy)" 这类可读文本。 */
+export const parsePsSummaries = (text: string): PsContainerSummary[] =>
   parseJsonLines(text).map((line) => {
     const item = asRecord(line)
     return {
       id: asText(item.ID),
       name: asText(item.Names),
-      image: asText(item.Image),
-      command: asText(item.Command),
-      state: parseContainerState(asText(item.State)),
       status: asText(item.Status),
-      createdAt: parseDockerTime(asText(item.CreatedAt)) ?? 0,
-      startedAt: null,
-      ports: parseDockerPorts(asText(item.Ports)),
-      mounts: parseDockerMounts(asText(item.Mounts)),
+    }
+  })
+
+const CONTAINER_ID_PATTERN = /^[0-9a-f]{12,64}$/i
+
+/** ps -aq 的 id 列表：只接受十六进制 id，异常行丢弃。 */
+export const parseContainerIds = (text: string): string[] =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => CONTAINER_ID_PATTERN.test(line))
+
+/** inspect 里我们真正要用的字段。 */
+export type InspectedContainer = {
+  id: string
+  name: string
+  image: string
+  command: string
+  state: DockerContainer["state"]
+  createdAt: number | null
+  startedAt: number | null
+  ports: DockerPortMapping[]
+  mounts: DockerMount[]
+}
+
+/** 解析 docker inspect 的 JSON 数组，取出结构化字段。 */
+export const parseInspectedContainers = (
+  text: string
+): InspectedContainer[] => {
+  const value = parseJsonValue(text)
+  if (!Array.isArray(value)) return []
+  return value.map((raw) => {
+    const item = asRecord(raw)
+    const state = asRecord(item.State)
+    const config = asRecord(item.Config)
+    const cmd = Array.isArray(config.Cmd) ? config.Cmd.map(asText) : []
+    const args = Array.isArray(item.Args) ? item.Args.map(asText) : []
+    const command = (cmd.length > 0 ? cmd : [asText(item.Path), ...args])
+      .filter((part) => part.length > 0)
+      .join(" ")
+    return {
+      id: asText(item.Id),
+      name: asText(item.Name).replace(/^\//, ""),
+      image: asText(config.Image),
+      command,
+      state: parseContainerState(asText(state.Status)),
+      createdAt: parseRfc3339Time(asText(item.Created)),
+      startedAt: parseRfc3339Time(asText(state.StartedAt)),
+      ports: parseInspectPorts(asRecord(item.NetworkSettings).Ports),
+      mounts: parseInspectMounts(item.Mounts),
+    }
+  })
+}
+
+/**
+ * 合并 inspect（结构化）与 ps（Status 文本、名称兜底）。
+ * ps 给的是短 id，inspect 给完整 id，所以按前缀匹配。
+ */
+export const mergeContainers = (
+  inspected: InspectedContainer[],
+  summaries: PsContainerSummary[]
+): DockerContainer[] =>
+  inspected.map((item) => {
+    const summary =
+      summaries.find(
+        (candidate) =>
+          candidate.id === item.id ||
+          item.id.startsWith(candidate.id) ||
+          candidate.id.startsWith(item.id)
+      ) ?? null
+    return {
+      id: item.id,
+      name: summary?.name || item.name,
+      image: item.image,
+      command: item.command,
+      state: item.state,
+      status: summary?.status ?? "",
+      createdAt: item.createdAt ?? 0,
+      startedAt: item.startedAt,
+      ports: item.ports,
+      mounts: item.mounts,
     }
   })
 
@@ -407,6 +489,41 @@ const parseVolumeInspections = (
   return map
 }
 
+/**
+ * 解析 `docker system df -v` 的 Local Volumes 段：
+ * volume ls 的 Size 是 "N/A"，真值只在这张表的 VOLUME NAME/SIZE 列里。
+ */
+export const parseVolumeSizes = (text: string): Map<string, number> => {
+  const sizes = new Map<string, number>()
+  let inVolumes = false
+  for (const raw of text.split("\n")) {
+    const line = raw.trimEnd()
+    const trimmed = line.trim()
+    if (/^VOLUME NAME\b/.test(trimmed)) {
+      inVolumes = true
+      continue
+    }
+    if (!inVolumes) continue
+    // 空行或下一个段落开头就是这段结束
+    if (trimmed.length === 0 || /^\S+ space usage:/.test(trimmed)) {
+      inVolumes = false
+      continue
+    }
+    if (/^Build cache/.test(trimmed)) {
+      inVolumes = false
+      continue
+    }
+    // 表格列之间是两个以上空格
+    const columns = trimmed.split(/\s{2,}/)
+    if (columns.length < 3) continue
+    const name = columns[0] ?? ""
+    const size = parseDockerSize(columns[columns.length - 1] ?? "")
+    if (name.length === 0 || size === null) continue
+    sizes.set(name, size)
+  }
+  return sizes
+}
+
 /** 卷名在 docker 里只能是 [A-Za-z0-9][A-Za-z0-9_.-]*，过滤掉异常值再拼参数。 */
 const isValidVolumeName = (name: string): boolean =>
   /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(name)
@@ -460,6 +577,12 @@ export const parseColimaStatus = (
 const COLIMA_STOPPED_PATTERN =
   /colima is not running|no instance found|not running/i
 
+/** 容器在取 id 与 inspect 之间被删掉时，docker 会报这个。 */
+const isMissingContainer = (error: unknown): boolean =>
+  error instanceof DockerCommandError &&
+  error.kind === "failed" &&
+  /no such (container|object)/i.test(error.detail)
+
 export type DockerCli = ReturnType<typeof createDockerCli>
 
 /**
@@ -504,6 +627,36 @@ export const createDockerCli = (
   const containers = (): Promise<CommandOutput> =>
     docker(["ps", "-a", "--format", "json"], TIMEOUT.list)
 
+  /**
+   * ps 的 Mounts 与 Command 会被 docker 按列宽截断，所以结构化数据全靠 inspect；
+   * ps 只贡献 Status 文本与名称。
+   */
+  const inspectContainers = async (
+    ids: string[]
+  ): Promise<InspectedContainer[]> => {
+    const inspect = async (batch: string[]): Promise<InspectedContainer[]> =>
+      parseInspectedContainers(
+        (await docker(["inspect", ...batch], TIMEOUT.list)).stdout
+      )
+    if (ids.length === 0) return []
+    try {
+      return await inspect(ids)
+    } catch (error) {
+      // 取列表与 inspect 之间容器可能已被删掉：只跳过那一个，其余照常读。
+      if (!isMissingContainer(error)) throw error
+      if (ids.length === 1) return []
+      const found: InspectedContainer[] = []
+      for (const id of ids) {
+        try {
+          found.push(...(await inspect([id])))
+        } catch (inner) {
+          if (!isMissingContainer(inner)) throw inner
+        }
+      }
+      return found
+    }
+  }
+
   /** 容器标识会被拼进参数，先挡住非法值，避免被当成 docker 的选项。 */
   const assertContainerId = (containerId: string): void => {
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(containerId)) {
@@ -515,9 +668,14 @@ export const createDockerCli = (
   }
 
   const listContainers = (): Promise<DockerContainer[]> =>
-    cache("docker:containers", TTL.containers, async () =>
-      parseContainers((await containers()).stdout)
-    )
+    cache("docker:containers", TTL.containers, async () => {
+      const [ids, listed] = await Promise.all([
+        docker(["ps", "-aq"], TIMEOUT.list),
+        containers(),
+      ])
+      const inspected = await inspectContainers(parseContainerIds(ids.stdout))
+      return mergeContainers(inspected, parsePsSummaries(listed.stdout))
+    })
 
   const listImages = (): Promise<DockerImage[]> =>
     cache("docker:images", TTL.images, async () =>
@@ -544,10 +702,10 @@ export const createDockerCli = (
 
   const listVolumes = (): Promise<DockerVolume[]> =>
     cache("docker:volumes", TTL.volumes, async () => {
-      const [listed, rawContainers] = await Promise.all([
-        docker(["volume", "ls", "--format", "json"], TIMEOUT.list),
-        containers(),
-      ])
+      const listed = await docker(
+        ["volume", "ls", "--format", "json"],
+        TIMEOUT.list
+      )
       const entries = parseJsonLines(listed.stdout).map(asRecord)
       const names = entries
         .map((item) => asText(item.Name))
@@ -568,11 +726,19 @@ export const createDockerCli = (
         }
       }
       const used = new Set<string>()
-      for (const container of parseContainers(rawContainers.stdout)) {
+      for (const container of await listContainers().catch(() => [])) {
         for (const mount of container.mounts) {
-          if (mount.type === "volume") used.add(mount.source)
+          if (mount.type !== "volume") continue
+          used.add(mount.source)
+          // inspect 给的是宿主机路径 .../volumes/<name>/_data，两种写法都认得
+          const trimmed = mount.source.replace(/\/_data$/, "")
+          used.add(trimmed.slice(trimmed.lastIndexOf("/") + 1))
         }
       }
+      // 卷大小只有 system df -v 有真值，读不到就保持 null，不影响列表本身。
+      const sizes = await docker(["system", "df", "-v"], TIMEOUT.list)
+        .then((result) => parseVolumeSizes(result.stdout))
+        .catch(() => new Map<string, number>())
       return names.map((name) => {
         const ls = entries.find((item) => asText(item.Name) === name) ?? {}
         const detail = inspected.get(name)
@@ -581,7 +747,8 @@ export const createDockerCli = (
           driver: detail?.driver || asText(ls.Driver) || "local",
           mountpoint: detail?.mountpoint ?? "",
           createdAt: detail?.createdAt ?? null,
-          sizeBytes: parseDockerSize(asText(ls.Size)),
+          sizeBytes:
+            parseDockerSize(asText(ls.Size)) ?? sizes.get(name) ?? null,
           inUse: used.has(name),
         }
       })
