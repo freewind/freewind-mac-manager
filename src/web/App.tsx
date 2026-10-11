@@ -7,6 +7,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@web/components/ui/sidebar"
+import { ClashVergePage } from "@web/features/clash-verge/ClashVergePage"
 import { DashboardPage } from "@web/features/dashboard/DashboardPage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
 import { FilesPage } from "@web/features/files/FilesPage"
@@ -29,6 +30,7 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "frp",
   "system-services",
   "pi",
+  "clash-verge",
 ]
 
 const featureFromUrl = (): FeatureKey => {
@@ -117,6 +119,7 @@ export const App = () => {
         {feature === "frp" ? <FrpPage /> : null}
         {feature === "system-services" ? <SystemServicesPage /> : null}
         {feature === "pi" ? <PiPage /> : null}
+        {feature === "clash-verge" ? <ClashVergePage /> : null}
       </SidebarInset>
     </SidebarProvider>
   )

@@ -1,5 +1,6 @@
 import { createExpressEndpoints } from "@ts-rest/express"
 import express from "express"
+import { clashVergeContract, clashVergeRouter } from "./clash-verge/handlers"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
 import {
   createDiskGrowthRouter,
@@ -42,6 +43,7 @@ export const createApp = (injected?: {
   // 任务运行时先建好：长任务端点（如磁盘扫描）需要提交任务。
   const taskRuntime = injected?.tasks ?? createTaskRuntime()
   createExpressEndpoints(healthContract, healthRouter, app, options)
+  createExpressEndpoints(clashVergeContract, clashVergeRouter, app, options)
   createExpressEndpoints(dashboardContract, dashboardRouter, app, options)
   createExpressEndpoints(
     diskGrowthContract,
