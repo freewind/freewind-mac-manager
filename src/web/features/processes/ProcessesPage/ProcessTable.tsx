@@ -132,8 +132,8 @@ export const ProcessTable = (props: ProcessTableProps) => {
               onClick={() => toggleSort("pid")}
               className="w-16"
             />
-            <TableHead className="w-20">用户</TableHead>
-            <TableHead className="w-20">状态</TableHead>
+            <TableHead className="hidden w-20 md:table-cell">用户</TableHead>
+            <TableHead className="hidden w-20 md:table-cell">状态</TableHead>
             <SortableHead
               label="CPU"
               active={sortKey === "cpu"}
@@ -153,15 +153,15 @@ export const ProcessTable = (props: ProcessTableProps) => {
               active={sortKey === "threads"}
               descending={descending}
               onClick={() => toggleSort("threads")}
-              className="w-14"
+              className="hidden w-14 md:table-cell"
             />
-            <TableHead className="w-32">端口</TableHead>
+            <TableHead className="hidden w-32 md:table-cell">端口</TableHead>
             <SortableHead
               label="运行时长"
               active={sortKey === "started"}
               descending={descending}
               onClick={() => toggleSort("started")}
-              className="w-24"
+              className="hidden w-24 md:table-cell"
             />
             <TableHead className="w-10" />
           </TableRow>
@@ -252,7 +252,7 @@ const ProcessRow = (props: ProcessRowProps) => {
       <TableCell>
         <span className="flex items-center gap-2">
           <ProcessAvatar name={item.name} />
-          <span className="min-w-0 truncate">{item.name}</span>
+          <span className="min-w-0 flex-1 truncate">{item.name}</span>
           {item.user !== currentUser ? (
             <Badge variant="outline" className="shrink-0">
               系统
@@ -264,14 +264,21 @@ const ProcessRow = (props: ProcessRowProps) => {
             </Badge>
           ) : null}
         </span>
+        <div className="flex items-center gap-3 pt-1 text-xs tabular-nums text-muted-foreground md:hidden">
+          <span>PID {item.pid}</span>
+          <span className={hot ? "text-destructive" : undefined}>
+            CPU {item.cpu.toFixed(1)}%
+          </span>
+          <span>内存 {formatBytes(item.memoryBytes)}</span>
+        </div>
       </TableCell>
-      <TableCell className="tabular-nums text-muted-foreground">
+      <TableCell className="hidden tabular-nums text-muted-foreground md:table-cell">
         {item.pid}
       </TableCell>
-      <TableCell className="truncate text-muted-foreground">
+      <TableCell className="hidden truncate text-muted-foreground md:table-cell">
         {item.user}
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden md:table-cell">
         <Badge variant={PROCESS_STATE_VARIANT[item.state]}>
           {PROCESS_STATE_LABEL[item.state]}
         </Badge>
@@ -297,10 +304,10 @@ const ProcessRow = (props: ProcessRowProps) => {
           <Progress value={toPercent(memoryRatio)} className="w-14" />
         </span>
       </TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground">
+      <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">
         {item.threads}
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden md:table-cell">
         {item.ports.length === 0 ? (
           <span className="text-muted-foreground">—</span>
         ) : (
@@ -313,7 +320,7 @@ const ProcessRow = (props: ProcessRowProps) => {
           </span>
         )}
       </TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground">
+      <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">
         {formatDuration(uptimeSeconds)}
       </TableCell>
       <TableCell onClick={(event) => event.stopPropagation()}>

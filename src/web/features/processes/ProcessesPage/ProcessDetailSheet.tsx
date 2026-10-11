@@ -68,7 +68,7 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
         {selected !== null ? (
           <>
             <SheetHeader className="gap-2 border-b p-5">
-              <div className="flex items-center gap-2.5">
+              <div className="flex min-w-0 items-center gap-2.5">
                 <ProcessAvatar
                   name={selected.name}
                   size="lg"
@@ -76,7 +76,7 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
                 />
                 <div className="flex min-w-0 flex-col gap-1">
                   <SheetTitle className="truncate">{selected.name}</SheetTitle>
-                  <SheetDescription className="flex items-center gap-1.5">
+                  <SheetDescription className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                     <span>PID {selected.pid}</span>
                     <span>·</span>
                     <span>{PROCESS_KIND_LABEL[selected.kind]}</span>
@@ -91,7 +91,7 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
                   {PROCESS_STATE_LABEL[selected.state]}
                 </Badge>
               </div>
-              <code className="mt-1 block rounded-md bg-muted/60 px-2 py-1.5 text-[0.6875rem] break-all text-muted-foreground">
+              <code className="mt-1 block max-h-40 overflow-y-auto rounded-md bg-muted/60 px-2 py-1.5 text-[0.6875rem] break-all text-muted-foreground">
                 {selected.command}
               </code>
             </SheetHeader>
@@ -215,7 +215,7 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
               </div>
             </ScrollArea>
 
-            <div className="flex items-center gap-2 border-t p-4">
+            <div className="flex flex-wrap items-start gap-2 border-t p-4">
               <span className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
                 <HugeiconsIcon
                   icon={ownedByCurrentUser ? InformationCircleIcon : LockIcon}
@@ -228,7 +228,7 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
               <Button
                 variant="destructive"
                 size="sm"
-                className="ml-auto"
+                className="min-h-11 ml-auto"
                 onClick={() => onRequestTerminate([selected], true)}
               >
                 强制结束
