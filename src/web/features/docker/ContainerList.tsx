@@ -339,7 +339,7 @@ const ContainerCards = (props: {
       <Item
         key={container.id}
         variant="outline"
-        className="min-w-0 flex-col items-stretch gap-2"
+        className="min-w-0 overflow-hidden flex-col items-stretch gap-2"
       >
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 items-center gap-2">
