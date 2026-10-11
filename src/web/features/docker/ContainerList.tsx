@@ -1,4 +1,4 @@
-import { Delete02Icon, File01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, Delete02Icon, File01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { DockerContainer } from "@shared/api-contract"
 import { ActionButton } from "@web/components/ActionButton"
@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import { ContainerLogsSheet } from "@web/features/docker/ContainerLogsSheet"
+import { CreateContainerDialog } from "@web/features/docker/CreateContainerDialog"
 import {
   type ContainerAction,
   containerActionBusyLabels,
@@ -46,9 +47,11 @@ import {
   formatContainerPorts,
   formatContainerStartedAt,
 } from "@web/features/docker/labels"
+import { useDockerImagesQuery } from "@web/features/docker/queries"
 import {
   type ContainerActionInput,
   useDockerContainers,
+  useDockerCreateContainer,
 } from "@web/features/docker/useDocker"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
@@ -67,8 +70,13 @@ const quickActionsFor = (container: DockerContainer): ContainerAction[] =>
 
 export const ContainerList = () => {
   const model = useDockerContainers()
+  const imagesQuery = useDockerImagesQuery()
   const isDesktop = useIsDesktop()
   const [logsFor, setLogsFor] = useState<DockerContainer | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const create = useDockerCreateContainer({
+    onSubmitted: () => setCreateOpen(false),
+  })
   const submission = useDialogSubmit(
     () => model.cancelDanger(),
     model.action.busy
@@ -117,6 +125,18 @@ export const ContainerList = () => {
         <p className="text-xs text-muted-foreground">
           共 {model.containers.length} 个；动作完成后列表会重新读取真实状态
         </p>
+        <Button
+          variant="outline"
+          className="ml-auto min-h-11 shrink-0 px-3"
+          onClick={() => {
+            create.clearFailure()
+            setCreateOpen(true)
+          }}
+          disabled={model.action.busy || create.action.busy}
+        >
+          <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+          新建容器
+        </Button>
       </div>
 
       {model.error ? (
@@ -158,6 +178,23 @@ export const ContainerList = () => {
       <ContainerLogsSheet
         container={logsFor}
         onClose={() => setLogsFor(null)}
+      />
+
+      <CreateContainerDialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          if (open) setCreateOpen(true)
+          else {
+            create.clearFailure()
+            setCreateOpen(false)
+          }
+        }}
+        images={imagesQuery.data?.images ?? []}
+        busy={create.action.busy}
+        failure={create.failure}
+        onSubmit={(body) => {
+          void create.action.run(body)
+        }}
       />
 
       <AlertDialog

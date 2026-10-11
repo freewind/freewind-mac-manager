@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
-import { cached } from "@server/common/collect"
+import { cached, invalidateCached } from "@server/common/collect"
 import {
   DOCKER_CONTAINER_STATES,
   type DockerColimaStatus,
@@ -32,6 +32,9 @@ const TIMEOUT = {
   colimaStart: 300_000,
   colimaStop: 120_000,
 } as const
+
+/** Docker 域只读缓存的公共前缀：写操作成功后按该前缀整体失效。 */
+const DOCKER_CACHE_PREFIX = "docker:"
 
 /** 只读列表的短 TTL：页面几秒刷新一次，缓存只为避免重复压机器。 */
 const TTL = {
@@ -852,10 +855,22 @@ export const createPullProgressTracker = () => {
 }
 
 export const createDockerCli = (
-  options: { run?: DockerCommandRunner; cache?: DockerCache } = {}
+  options: {
+    run?: DockerCommandRunner
+    cache?: DockerCache
+    /** 写操作后失效只读缓存；默认用 common/collect 的失效能力 */
+    invalidate?: (prefix?: string) => void
+  } = {}
 ) => {
   const run = options.run ?? execCommand
   const cache = options.cache ?? cached
+  const invalidate = options.invalidate ?? invalidateCached
+
+  /**
+   * 写操作改了真实状态：列表缓存立刻失效，页面不必等 TTL 过期。
+   * Docker 的只读缓存键都以 "docker:" 开头，一次清干净。
+   */
+  const afterWrite = (): void => invalidate(DOCKER_CACHE_PREFIX)
 
   /** 依次尝试 PATH 与常见安装目录；只有全部 ENOENT 才判定未安装。 */
   const runCommand = async (
@@ -1071,6 +1086,7 @@ export const createDockerCli = (
   const startContainer = async (containerId: string): Promise<void> => {
     assertContainerId(containerId)
     await docker(["start", containerId], TIMEOUT.write)
+    afterWrite()
   }
 
   const stopContainer = async (
@@ -1086,12 +1102,14 @@ export const createDockerCli = (
         : ["stop", containerId],
       TIMEOUT.write
     )
+    afterWrite()
   }
 
   /** 立即杀死容器（SIGKILL）：只在前端用更重的确认文案后才调用。 */
   const killContainer = async (containerId: string): Promise<void> => {
     assertContainerId(containerId)
     await docker(["kill", containerId], TIMEOUT.write)
+    afterWrite()
   }
 
   /**
@@ -1138,6 +1156,7 @@ export const createDockerCli = (
         : ["restart", containerId],
       TIMEOUT.write
     )
+    afterWrite()
   }
 
   const removeContainer = async (
@@ -1149,6 +1168,7 @@ export const createDockerCli = (
       ["rm", ...(options.force === true ? ["-f"] : []), containerId],
       TIMEOUT.write
     )
+    afterWrite()
   }
 
   /** 新建并启动容器，返回新容器 id（docker run --detach 的最后一行）。 */
@@ -1156,6 +1176,7 @@ export const createDockerCli = (
     config: DockerContainerCreateBody
   ): Promise<string> => {
     const { stdout } = await docker(containerCreateArgs(config), TIMEOUT.write)
+    afterWrite()
     return stdout.trim().split("\n").at(-1) ?? ""
   }
 
@@ -1175,6 +1196,7 @@ export const createDockerCli = (
         TIMEOUT.pull,
         splitter ? (chunk) => splitter.push(chunk) : undefined
       )
+      afterWrite()
     } finally {
       splitter?.flush()
     }
@@ -1207,11 +1229,13 @@ export const createDockerCli = (
       ["image", "rm", ...(options.force === true ? ["-f"] : []), imageId],
       TIMEOUT.write
     )
+    afterWrite()
   }
 
   const removeVolume = async (name: string): Promise<void> => {
     assertVolumeName(name)
     await docker(["volume", "rm", name], TIMEOUT.write)
+    afterWrite()
   }
 
   /** 取网络的真实名字；网络不存在返回空串，交给删除命令自己报错。 */
@@ -1241,6 +1265,7 @@ export const createDockerCli = (
       throw new DockerCommandError("conflict", "这是 Docker 内置网络，不能删除")
     }
     await docker(["network", "rm", networkId], TIMEOUT.write)
+    afterWrite()
   }
 
   /** 卷是否还存在（删除后核实用），不经列表缓存。 */
@@ -1336,6 +1361,7 @@ export const createDockerCli = (
 
   const startColima = async (): Promise<string> => {
     const result = await colima(["start"], TIMEOUT.colimaStart)
+    afterWrite()
     return (
       firstMeaningfulLine(`${result.stdout}\n${result.stderr}`) ??
       "colima 已启动"
@@ -1344,6 +1370,7 @@ export const createDockerCli = (
 
   const stopColima = async (): Promise<string> => {
     const result = await colima(["stop"], TIMEOUT.colimaStop)
+    afterWrite()
     return (
       firstMeaningfulLine(`${result.stdout}\n${result.stderr}`) ??
       "colima 已停止"

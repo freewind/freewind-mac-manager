@@ -1469,3 +1469,52 @@ describe("Colima 命令与状态冲突", () => {
     expect(calls.at(-1)?.args).toEqual(["network", "rm", "9f0c8d0a1b2c"])
   })
 })
+
+describe("写操作失效只读缓存", () => {
+  it("写操作成功后按 docker: 前缀失效缓存", async () => {
+    const { runner } = createFakeRunner(succeed("new-id\n"))
+    const invalidated: (string | undefined)[] = []
+    const cli = createDockerCli({
+      run: runner,
+      cache: noCache,
+      invalidate: (prefix) => invalidated.push(prefix),
+    })
+    await cli.stopContainer("abc")
+    await cli.pullImage("alpine:3.20")
+    await cli.removeVolume("myvol")
+    await cli.createContainer({ image: "alpine:3.20" })
+    expect(invalidated).toEqual(["docker:", "docker:", "docker:", "docker:"])
+  })
+
+  it("只读查询不失效缓存", async () => {
+    const { runner } = createFakeRunner(succeed(""))
+    const invalidated: (string | undefined)[] = []
+    const cli = createDockerCli({
+      run: runner,
+      cache: noCache,
+      invalidate: (prefix) => invalidated.push(prefix),
+    })
+    await cli.listContainers()
+    await cli.getInfo()
+    await cli.getColimaStatus()
+    expect(invalidated).toEqual([])
+  })
+
+  it("写操作失败时不失效缓存（命令没生效就不该清）", async () => {
+    const { runner } = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: docker stop"), {
+          stderr: "Error response from daemon: No such container: gone",
+        })
+      )
+    )
+    const invalidated: (string | undefined)[] = []
+    const cli = createDockerCli({
+      run: runner,
+      cache: noCache,
+      invalidate: (prefix) => invalidated.push(prefix),
+    })
+    await cli.stopContainer("gone").catch(() => undefined)
+    expect(invalidated).toEqual([])
+  })
+})

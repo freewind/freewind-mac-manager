@@ -51,6 +51,21 @@ export const cached = async <T>(
   return value
 }
 
+/**
+ * 失效缓存项：写操作改了真实状态后立刻生效，不必让用户等 TTL 过期。
+ * 传 prefix 只删该前缀的键（例如 Docker 域写操作用 "docker:"），
+ * 不传则清空整个缓存。
+ */
+export const invalidateCached = (prefix?: string): void => {
+  if (prefix === undefined) {
+    cache.clear()
+    return
+  }
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) cache.delete(key)
+  }
+}
+
 const collectSystem = async (): Promise<SystemInfo> => {
   const [swVers, model, chip, who] = await Promise.all([
     runCommand("/usr/bin/sw_vers", []),

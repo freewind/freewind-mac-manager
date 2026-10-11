@@ -1,3 +1,4 @@
+import { invalidateCached } from "@server/common/collect"
 import {
   type PublicErrorStatus,
   PublicOperationError,
@@ -143,6 +144,14 @@ const containerActionPayload = (
  * 容器动作经统一运行器提交：请求标识由契约 headers 强制校验，
  * 同容器同一时刻只做一个动作；载荷只含标识与枚举，不接受命令或参数。
  */
+/**
+ * 写操作会改真实状态，而只读列表带 TTL 缓存。
+ * 执行器跑在任务子进程里，它的缓存失效影响不到本进程，所以父进程在提交写请求前
+ * 主动清掉 Docker 域的只读缓存：紧接着的读会重新执行 docker 命令，
+ * 而不是命中写之前的旧值。（子进程侧 cli 也会失效，两边都做。）
+ */
+const invalidateDockerReads = (): void => invalidateCached("docker:")
+
 /** 动作类完成结果都是 ActionResponse；新建容器额外带资源标识。 */
 const actionResponseOf = (result: unknown): ActionResponse => {
   const parsed = ActionResponseSchema.safeParse(result)
@@ -263,6 +272,7 @@ export const createDockerRouter = (
     // 容器不存在在提交前就查实，避免把 404 的任务交给运行时当失败处理。
     actOnDockerContainer: async ({ headers, body }) => {
       try {
+        invalidateDockerReads()
         if ((await service.findContainer(body.containerId)) === null) {
           return {
             status: 404 as const,
@@ -281,6 +291,7 @@ export const createDockerRouter = (
 
     createDockerContainer: async ({ headers, body }) => {
       try {
+        invalidateDockerReads()
         // 本地没有这个镜像就直接拒绝：docker run 会偷偷联网拉取，用户没同意过
         if (!(await service.imageExists(body.image))) {
           return {
@@ -324,6 +335,7 @@ export const createDockerRouter = (
 
     pullDockerImage: async ({ headers, body }) => {
       try {
+        invalidateDockerReads()
         return await submitDockerAction(runtime, {
           payload: { action: "imagePull", image: body.image },
           target: dockerImageTaskTarget(body.image),
@@ -338,6 +350,7 @@ export const createDockerRouter = (
 
     removeDockerImage: async ({ headers, body }) => {
       try {
+        invalidateDockerReads()
         // 默认不带 -f：被容器引用时由 docker 拒绝，再映射成 409
         return await submitDockerAction(runtime, {
           payload: {
@@ -357,6 +370,7 @@ export const createDockerRouter = (
 
     removeDockerVolume: async ({ headers, body }) => {
       try {
+        invalidateDockerReads()
         // 被容器使用的卷由 docker 拒绝，再映射成 409
         return await submitDockerAction(runtime, {
           payload: { action: "volumeRemove", name: body.name },
@@ -372,6 +386,7 @@ export const createDockerRouter = (
 
     removeDockerNetwork: async ({ headers, body }) => {
       try {
+        invalidateDockerReads()
         // 内置网络与仍有容器接入的网络都会在执行器里被拒绝（409）
         return await submitDockerAction(runtime, {
           payload: { action: "networkRemove", networkId: body.networkId },
@@ -387,6 +402,7 @@ export const createDockerRouter = (
 
     actOnDockerColima: async ({ headers, body }) => {
       try {
+        invalidateDockerReads()
         // 状态冲突在执行前就判掉：运行中再 start、未运行就 stop 都是白跑
         const status = await service.getColimaStatus()
         if (body.action === "start" && status.running) {
@@ -423,6 +439,7 @@ export const createDockerRouter = (
 
     removeDockerContainer: async ({ headers, body }) => {
       try {
+        invalidateDockerReads()
         const container = await service.findContainer(body.containerId)
         if (container === null) {
           return {

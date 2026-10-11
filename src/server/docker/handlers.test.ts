@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs"
 import type { Server } from "node:http"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { cached } from "@server/common/collect"
 import { publicSystemError } from "@server/common/public-error"
 import { TaskStore } from "@server/common/tasks/store"
 import {
@@ -1322,5 +1323,32 @@ describe("Colima 动作端点", () => {
     )
     expect(status).toBe(202)
     expect(body).toMatchObject({ kind: "docker_colima_action" })
+  })
+})
+
+describe("写请求清掉只读缓存", () => {
+  it("提交写操作前清掉 docker 前缀的缓存", async () => {
+    let loads = 0
+    const load = async (): Promise<number> => {
+      loads += 1
+      return loads
+    }
+    expect(await cached("docker:probe", 60_000, load)).toBe(1)
+    // 未命中前缀的键不该被清
+    expect(await cached("disk:probe", 60_000, load)).toBe(2)
+
+    const baseUrl = await startServer(createFakeCli())
+    const { status } = await send(
+      baseUrl,
+      "/api/docker/images/pull",
+      "POST",
+      { image: "alpine:3.20" },
+      "req-docker-cache-probe-01"
+    )
+    expect(status).toBe(200)
+
+    // docker 前缀被清（重新读一次真值），其它域不受影响
+    expect(await cached("docker:probe", 60_000, load)).toBe(3)
+    expect(await cached("disk:probe", 60_000, load)).toBe(2)
   })
 })

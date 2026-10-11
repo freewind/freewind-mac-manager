@@ -18,6 +18,8 @@ const { api, toastMock } = vi.hoisted(() => ({
   api: {
     fetchDockerContainers: vi.fn(),
     fetchDockerContainerLogs: vi.fn(),
+    fetchDockerImages: vi.fn(),
+    createDockerContainer: vi.fn(),
     actOnDockerContainer: vi.fn(),
     removeDockerContainer: vi.fn(),
   },
@@ -29,6 +31,8 @@ vi.mock(import("@shared/client-api"), async (importOriginal) => ({
   ...(await importOriginal()),
   fetchDockerContainers: api.fetchDockerContainers,
   fetchDockerContainerLogs: api.fetchDockerContainerLogs,
+  fetchDockerImages: api.fetchDockerImages,
+  createDockerContainer: api.createDockerContainer,
   actOnDockerContainer: api.actOnDockerContainer,
   removeDockerContainer: api.removeDockerContainer,
 }))
@@ -85,6 +89,7 @@ const renderList = () => {
 beforeEach(() => {
   setDesktop(false)
   api.fetchDockerContainers.mockResolvedValue(containersResponse([container()]))
+  api.fetchDockerImages.mockResolvedValue({ images: [] })
   api.fetchDockerContainerLogs.mockResolvedValue({
     containerId: container().id,
     lines: ["ready", "listening on 80"],
@@ -265,5 +270,71 @@ describe("容器列表", () => {
     await waitFor(() =>
       expect(toastMock.success).toHaveBeenCalledWith("已启动 web")
     )
+  })
+})
+
+describe("新建容器入口", () => {
+  it("打开表单并在成功后提示一次、关闭对话框", async () => {
+    api.createDockerContainer.mockResolvedValue({
+      kind: "completed",
+      status: 201,
+      body: {
+        containerId: "new-id",
+        name: "smoke-new",
+        message: "已创建并启动 smoke-new",
+      },
+    })
+    renderList()
+    const open = await screen.findByRole("button", { name: "新建容器" })
+    open.click()
+    const dialog = await screen.findByRole("dialog")
+    within(dialog).getByLabelText("镜像（必填）").setAttribute("value", "")
+    const input = within(dialog).getByLabelText("镜像（必填）")
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set
+    setter?.call(input, "alpine:3.20")
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+    within(dialog).getByRole("button", { name: "创建并启动" }).click()
+
+    await waitFor(() =>
+      expect(api.createDockerContainer).toHaveBeenCalledTimes(1)
+    )
+    expect(api.createDockerContainer.mock.calls[0]?.[1]).toEqual({
+      image: "alpine:3.20",
+      restartPolicy: "no",
+    })
+    await waitFor(() =>
+      expect(toastMock.success).toHaveBeenCalledWith("已创建并启动 smoke-new")
+    )
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+
+  it("409 的中文文案留在对话框里，且不提示成功", async () => {
+    api.createDockerContainer.mockRejectedValue(
+      new ApiRequestError(
+        "请求失败（HTTP 409）：本地没有该镜像，请先在镜像页拉取",
+        409
+      )
+    )
+    renderList()
+    const open = await screen.findByRole("button", { name: "新建容器" })
+    open.click()
+    const dialog = await screen.findByRole("dialog")
+    const input = within(dialog).getByLabelText("镜像（必填）")
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set
+    setter?.call(input, "missing:latest")
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+    within(dialog).getByRole("button", { name: "创建并启动" }).click()
+
+    expect(
+      await within(dialog).findByText(/本地没有该镜像，请先在镜像页拉取/)
+    ).toBeTruthy()
+    expect(toastMock.success).not.toHaveBeenCalled()
+    expect(screen.getByRole("dialog")).toBeTruthy()
   })
 })

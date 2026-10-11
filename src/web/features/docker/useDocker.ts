@@ -2,12 +2,15 @@ import {
   type ActionResponse,
   type DockerColimaStatus,
   type DockerContainer,
+  type DockerContainerCreateBody,
+  type DockerContainerCreated,
   type DockerImage,
   type DockerOverview,
   TASK_KINDS,
 } from "@shared/api-contract"
 import {
   actOnDockerContainer,
+  createDockerContainer,
   pullDockerImage,
   removeDockerContainer,
   removeDockerImage,
@@ -167,6 +170,50 @@ export const useDockerImages = () => {
     refreshImages: (): void => {
       void queryClient.invalidateQueries({ queryKey: dockerKeys.images })
     },
+  }
+}
+
+/**
+ * 新建容器的编排：成功（201）后刷新列表与概览并提示一次；
+ * 受理（202）只关闭表单，进度由任务中心呈现；失败文案（如 409）留在表单里持续展示。
+ */
+export const useDockerCreateContainer = (
+  options: { onSubmitted?: () => void } = {}
+) => {
+  const refresh = useDockerCacheRefresh()
+  const [failure, setFailure] = useState<string | null>(null)
+
+  const action = useTaskAction<
+    DockerContainerCreated,
+    DockerContainerCreateBody
+  >({
+    kind: TASK_KINDS.dockerAction,
+    target: (body) => dockerContainerTaskTarget(body.name ?? body.image),
+    run: async (requestId, body) => {
+      setFailure(null)
+      try {
+        return await createDockerContainer(requestId, body)
+      } catch (error) {
+        // 本地没有镜像、名称被占用这类 409 要留在表单里，不能只提示一下就消失
+        setFailure(describeError(error))
+        throw error
+      }
+    },
+    onCompleted: (result) => {
+      refresh()
+      toast.success(result.message)
+      options.onSubmitted?.()
+    },
+    onAccepted: () => {
+      refresh()
+      options.onSubmitted?.()
+    },
+  })
+
+  return {
+    action,
+    failure,
+    clearFailure: (): void => setFailure(null),
   }
 }
 
