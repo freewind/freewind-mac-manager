@@ -57,11 +57,13 @@ const TYPE_FILTERS: { key: "all" | FrpProxyType; label: string }[] = [
 ]
 
 const InfoField = (props: { label: string; children: React.ReactNode }) => (
-  <Field orientation="horizontal" className="gap-2">
-    <FieldLabel className="w-28 shrink-0 text-muted-foreground">
+  <Field orientation="horizontal" className="gap-2 min-w-0">
+    <FieldLabel className="w-24 shrink-0 text-muted-foreground lg:w-28">
       {props.label}
     </FieldLabel>
-    <FieldContent className="text-xs break-all">{props.children}</FieldContent>
+    <FieldContent className="text-xs min-w-0 overflow-x-auto whitespace-nowrap">
+      {props.children}
+    </FieldContent>
   </Field>
 )
 
@@ -104,7 +106,7 @@ export const FrpPage = () => {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex flex-col gap-3 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <HugeiconsIcon icon={Link01Icon} className="size-4" />
@@ -216,7 +218,7 @@ export const FrpPage = () => {
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto">
         <div className="flex flex-col gap-4 p-4">
           {model.error ? (
             <Alert variant="destructive">
@@ -283,6 +285,9 @@ export const FrpPage = () => {
               <CardDescription>
                 每条隧道把本机端口映射到公网远程端口
               </CardDescription>
+              <p className="text-xs text-muted-foreground md:hidden">
+                手机上可左右滑动查看远程端口与操作
+              </p>
             </CardHeader>
             <Separator />
             <ProxyTable
