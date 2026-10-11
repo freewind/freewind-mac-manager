@@ -16,6 +16,7 @@ import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
 import { DockerPage } from "@web/features/docker/DockerPage"
 import { FilesPage } from "@web/features/files/FilesPage"
 import { FrpPage } from "@web/features/frp/FrpPage"
+import { HardwarePage } from "@web/features/hardware/HardwarePage"
 import { PiPage } from "@web/features/pi/PiPage"
 import { PortsPage } from "@web/features/ports/PortsPage"
 import { ProcessesPage } from "@web/features/processes/ProcessesPage"
@@ -42,6 +43,7 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "pi",
   "clash-verge",
   "docker",
+  "hardware",
 ]
 
 const featureFromUrl = (): FeatureKey => {
@@ -185,6 +187,7 @@ export const App = () => {
         {feature === "pi" ? <PiPage /> : null}
         {feature === "clash-verge" ? <ClashVergePage /> : null}
         {feature === "docker" ? <DockerPage /> : null}
+        {feature === "hardware" ? <HardwarePage /> : null}
       </SidebarInset>
     </SidebarProvider>
   )

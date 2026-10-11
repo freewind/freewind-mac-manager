@@ -2,6 +2,7 @@ import {
   Activity01Icon,
   AnalyticsUpIcon,
   ArrowRight01Icon,
+  ChipIcon,
   CircleGaugeIcon,
   ContainerIcon,
   CpuIcon,
@@ -48,6 +49,7 @@ export type FeatureKey =
   | "pi"
   | "clash-verge"
   | "docker"
+  | "hardware"
 
 type FeatureItem = {
   key: FeatureKey
@@ -65,6 +67,7 @@ const FEATURES: FeatureItem[] = [
   { key: "ports", label: "端口管理", icon: EthernetPortIcon },
   { key: "docker", label: "Docker", icon: ContainerIcon },
   { key: "pi", label: "Pi Agent", icon: Robot01Icon },
+  { key: "hardware", label: "硬件", icon: ChipIcon },
 ]
 
 /** 可折叠「服务」组下的子项。 */
