@@ -49,6 +49,7 @@ import {
 } from "@web/features/tasks/pending-requests"
 import { useState } from "react"
 import { toast } from "sonner"
+import { GroupsTab } from "./GroupsTab"
 import { LabTab } from "./LabTab"
 import { piKeys, usePiBenchmarks, usePiModels } from "./queries"
 import { SettingsTab } from "./SettingsTab"
@@ -101,7 +102,7 @@ export const PiPage = () => {
   const queryClient = useQueryClient()
   const query = usePiModels()
   const [activeTab, setActiveTab] = useState<
-    "models" | "settings" | "probe" | "chat"
+    "models" | "groups" | "settings" | "probe" | "chat"
   >(() =>
     new URL(window.location.href).searchParams.get("piRun") ? "chat" : "models"
   )
@@ -306,6 +307,13 @@ export const PiPage = () => {
           </Button>
           <Button
             size="sm"
+            variant={activeTab === "groups" ? "default" : "ghost"}
+            onClick={() => setActiveTab("groups")}
+          >
+            分组
+          </Button>
+          <Button
+            size="sm"
             variant={activeTab === "settings" ? "default" : "ghost"}
             onClick={() => setActiveTab("settings")}
           >
@@ -344,7 +352,9 @@ export const PiPage = () => {
           </div>
         ) : null}
       </header>
-      {activeTab === "settings" ? (
+      {activeTab === "groups" ? (
+        <GroupsTab />
+      ) : activeTab === "settings" ? (
         <SettingsTab />
       ) : activeTab === "probe" || activeTab === "chat" ? (
         <LabTab
