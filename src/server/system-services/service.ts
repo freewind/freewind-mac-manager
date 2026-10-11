@@ -1,14 +1,16 @@
 import { existsSync } from "node:fs"
 import path from "node:path"
 import { moveToTrash, revealInFinder } from "@server/common/file-actions"
-import { PublicOperationError } from "@server/common/public-error"
+import {
+  PublicOperationError,
+  publicSystemError,
+} from "@server/common/public-error"
 import type {
   ServiceDomain,
   ServiceState,
   ServicesResponse,
   SystemService,
 } from "@shared/api-contract"
-import { describeError } from "@shared/format"
 import {
   bootoutPlist,
   bootstrapPlist,
@@ -103,7 +105,7 @@ export const listSystemServices = async (): Promise<ServicesResponse> => {
       } catch (error) {
         skipped.push({
           path: filePath,
-          reason: describeError(error),
+          reason: publicSystemError(error).body.message,
         })
       }
     }

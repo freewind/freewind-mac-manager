@@ -1,9 +1,9 @@
+import { publicSystemError } from "@server/common/public-error"
 import { toTaskHttpResponse } from "@server/common/tasks/response"
 import type { TaskRuntime } from "@server/tasks/runtime"
 import type { contract } from "@shared/api-contract"
 import { TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
 import { DiskSnapshotDeleteResultSchema } from "@shared/api-contract/schemas/tasks"
-import { describeError } from "@shared/format"
 import type { ServerInferRequest } from "@ts-rest/core"
 import { DISCARD_KIND } from "../task"
 
@@ -46,6 +46,6 @@ export const createDeleteScansHandler =
       })
       return toTaskHttpResponse(outcome, 200)
     } catch (error) {
-      return { status: 500 as const, body: { message: describeError(error) } }
+      return publicSystemError(error)
     }
   }

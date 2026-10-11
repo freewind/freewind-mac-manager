@@ -1,8 +1,8 @@
+import { publicSystemError } from "@server/common/public-error"
 import { toTaskHttpResponse } from "@server/common/tasks/response"
 import type { TaskRuntime } from "@server/tasks/runtime"
 import type { contract } from "@shared/api-contract"
 import { TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
-import { describeError } from "@shared/format"
 import type { ServerInferRequest } from "@ts-rest/core"
 import { submitScanTask } from "../service"
 
@@ -27,6 +27,6 @@ export const createStartScanHandler =
       return toTaskHttpResponse(outcome, 201)
     } catch (error) {
       // 完成结果不符合契约等未预期错误必须回 JSON，不能漏成 HTML 错误页。
-      return { status: 500 as const, body: { message: describeError(error) } }
+      return publicSystemError(error)
     }
   }

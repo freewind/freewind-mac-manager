@@ -1,3 +1,4 @@
+import { publicSystemError } from "@server/common/public-error"
 import { toTaskHttpResponse } from "@server/common/tasks/response"
 import type { TaskRuntime } from "@server/tasks/runtime"
 import {
@@ -6,7 +7,6 @@ import {
   TASK_REQUEST_ID_HEADER,
 } from "@shared/api-contract"
 import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
-import { describeError } from "@shared/format"
 import { fileMutationLockTarget } from "@shared/task-targets"
 import type { ServerInferRequest } from "@ts-rest/core"
 import { entryTaskTarget, TRASH_KIND } from "../task"
@@ -39,6 +39,6 @@ export const createTrashEntryHandler =
       })
       return toTaskHttpResponse(outcome, 200)
     } catch (error) {
-      return { status: 400 as const, body: { message: describeError(error) } }
+      return publicSystemError(error)
     }
   }

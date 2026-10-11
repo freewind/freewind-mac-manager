@@ -1,6 +1,6 @@
+import { publicSystemError } from "@server/common/public-error"
 import { contract, type TaskRecord } from "@shared/api-contract"
 import { TaskRecordSchema } from "@shared/api-contract/schemas/tasks"
-import { describeError } from "@shared/format"
 import { initServer } from "@ts-rest/express"
 import type {
   TaskStatus,
@@ -105,7 +105,7 @@ export const createTasksRouter = (store: TaskStore) =>
           },
         }
       } catch (error) {
-        return { status: 500 as const, body: { message: describeError(error) } }
+        return { status: 500 as const, body: publicSystemError(error).body }
       }
     },
 
@@ -122,7 +122,7 @@ export const createTasksRouter = (store: TaskStore) =>
         }
         return { status: 200 as const, body: record }
       } catch (error) {
-        return { status: 500 as const, body: { message: describeError(error) } }
+        return { status: 500 as const, body: publicSystemError(error).body }
       }
     },
   })
