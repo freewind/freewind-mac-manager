@@ -426,6 +426,27 @@ describe("task runner", () => {
     }
   })
 
+  it("persists failure semantics for another runner replaying after restart", async () => {
+    const request = {
+      kind: "file_copy",
+      target: "/tmp/a",
+      payload: {},
+      requestId: "req_persisted_error_audit",
+      toCompletedResponse,
+    }
+    const submission = harness.runner.submit(request)
+    await waitFor(() => harness.calls.length === 1)
+    harness.calls[0].reject(new TaskHostError("failed", "没有操作权限", 403))
+    expect(await submission).toMatchObject({ kind: "failed", httpStatus: 403 })
+    const second = new TaskRunner({ store: harness.store, host: harness.host })
+    expect(await second.submit(request)).toMatchObject({
+      kind: "failed",
+      httpStatus: 403,
+    })
+    expect(harness.calls).toHaveLength(1)
+    second.shutdown()
+  })
+
   it("marks long-running work unknown when the service shuts down", async () => {
     const { runner, calls, store } = harness
     const result = await runner.submit({

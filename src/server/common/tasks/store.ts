@@ -13,6 +13,7 @@ export type TaskStoredRow = {
   target: string
   lockTarget: string
   ownerPid: number | null
+  errorStatus: number | null
   status: TaskStatus
   /** 进度 JSON；未上报过为 null。 */
   progress: string | null
@@ -31,6 +32,7 @@ export type TaskFinish = {
   message: string | null
   error: string | null
   finishedAt: number
+  errorStatus?: number
 }
 
 export type TaskListFilter = {
@@ -66,6 +68,7 @@ const toRow = (raw: Record<string, unknown>): TaskStoredRow => ({
       ? String(raw.target)
       : String(raw.lock_target),
   ownerPid: raw.owner_pid == null ? null : Number(raw.owner_pid),
+  errorStatus: raw.error_status == null ? null : Number(raw.error_status),
   status: raw.status as TaskStatus,
   progress: raw.progress === null ? null : String(raw.progress),
   message: raw.message === null ? null : String(raw.message),
@@ -153,6 +156,9 @@ export class TaskStore {
            SET status = 'unknown', error = '服务更新期间文件操作结果未知', finished_at = updated_at
            WHERE status = 'running' AND target LIKE 'files:%'`
         )
+      }
+      if (!columns.some((column) => column.name === "error_status")) {
+        this.db.exec("ALTER TABLE task_record ADD COLUMN error_status INTEGER")
       }
       if (!columns.some((column) => column.name === "owner_pid")) {
         this.db.exec("ALTER TABLE task_record ADD COLUMN owner_pid INTEGER")
@@ -276,7 +282,7 @@ export class TaskStore {
     const result = this.db
       .prepare(
         `UPDATE task_record
-         SET status = ?, result = ?, message = ?, error = ?, finished_at = ?, updated_at = ?
+         SET status = ?, result = ?, message = ?, error = ?, finished_at = ?, updated_at = ?, error_status = ?
          WHERE id = ? AND status = 'running'`
       )
       .run(
@@ -286,6 +292,7 @@ export class TaskStore {
         finish.error,
         finish.finishedAt,
         finish.finishedAt,
+        finish.errorStatus ?? null,
         id
       )
     return Number(result.changes ?? 0) > 0

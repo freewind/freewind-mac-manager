@@ -16,7 +16,7 @@ export type TaskHttpResponse<TBody, TStatus extends 200 | 201> =
       status: 409
       body: { message: string; executionStatus: "not_started" | "unknown" }
     }
-  | { status: 500; body: { message: string } }
+  | { status: 400 | 403 | 404 | 500; body: { message: string } }
 
 export const toTaskHttpResponse = <TBody, TStatus extends 200 | 201>(
   outcome: TaskSubmitResult<TBody>,
@@ -40,6 +40,14 @@ export const toTaskHttpResponse = <TBody, TStatus extends 200 | 201>(
         body: { message: outcome.message, executionStatus: "unknown" },
       }
     case "failed":
-      return { status: 500, body: { message: outcome.message } }
+      return {
+        status:
+          outcome.httpStatus === 400 ||
+          outcome.httpStatus === 403 ||
+          outcome.httpStatus === 404
+            ? outcome.httpStatus
+            : 500,
+        body: { message: outcome.message },
+      }
   }
 }

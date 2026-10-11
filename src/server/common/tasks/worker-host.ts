@@ -36,7 +36,8 @@ const KILL_GRACE_MS = 2000
 export class TaskHostError extends Error {
   constructor(
     readonly status: "failed" | "unknown",
-    message: string
+    message: string,
+    readonly httpStatus: 400 | 403 | 404 | 409 | 500 = 500
   ) {
     super(message)
     this.name = "TaskHostError"
@@ -127,6 +128,7 @@ export const createProcessHost = (options: {
 
       let outcome: TaskOutcome | null = null
       let declaredFailure: string | null = null
+      let failureStatus: 400 | 403 | 404 | 409 | 500 = 500
       let protocolFailure: string | null = null
       let processFailure: TaskHostError | null = null
       let stderr = ""
@@ -173,6 +175,7 @@ export const createProcessHost = (options: {
           }
         } else {
           declaredFailure = message.error
+          failureStatus = message.httpStatus ?? 500
         }
       }
 
@@ -192,7 +195,7 @@ export const createProcessHost = (options: {
           return
         }
         if (declaredFailure !== null && outcome === null) {
-          reject(new TaskHostError("failed", declaredFailure))
+          reject(new TaskHostError("failed", declaredFailure, failureStatus))
           return
         }
         if (outcome && code === 0 && signalName === null) {

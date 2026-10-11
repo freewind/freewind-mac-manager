@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs"
 import path from "node:path"
 import { moveToTrash, revealInFinder } from "@server/common/file-actions"
+import { PublicOperationError } from "@server/common/public-error"
 import type {
   ServiceDomain,
   ServiceState,
@@ -22,7 +23,11 @@ import { readPlistJson, readPlistText, toPlistFields } from "./plist"
 import { directoryOf, listPlistFiles, SERVICE_DIRECTORIES } from "./scanner"
 
 /** 需要 root 才能改动的服务，操作时据此回 403。 */
-export class RootRequiredError extends Error {}
+export class RootRequiredError extends PublicOperationError {
+  constructor(message: string) {
+    super(403, message)
+  }
+}
 
 export type ServiceTarget = {
   label: string

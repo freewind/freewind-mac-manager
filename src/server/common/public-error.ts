@@ -1,9 +1,21 @@
 export type PublicErrorStatus = 400 | 403 | 404 | 409 | 500
 
+export class PublicOperationError extends Error {
+  constructor(
+    readonly status: PublicErrorStatus,
+    message: string
+  ) {
+    super(message)
+    this.name = "PublicOperationError"
+  }
+}
+
 /** 未识别系统异常不回传命令输出、内部路径或堆栈。 */
 export const publicSystemError = (
   error: unknown
 ): { status: PublicErrorStatus; body: { message: string } } => {
+  if (error instanceof PublicOperationError)
+    return { status: error.status, body: { message: error.message } }
   const code =
     typeof error === "object" && error !== null && "code" in error
       ? error.code

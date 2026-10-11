@@ -32,6 +32,15 @@ export const WorkerResultMessageSchema = z.object({
 export const WorkerFailedMessageSchema = z.object({
   type: z.literal("failed"),
   error: z.string(),
+  httpStatus: z
+    .union([
+      z.literal(400),
+      z.literal(403),
+      z.literal(404),
+      z.literal(409),
+      z.literal(500),
+    ])
+    .optional(),
 })
 
 export const WorkerMessageSchema = z.discriminatedUnion("type", [

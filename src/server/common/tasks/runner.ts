@@ -37,7 +37,7 @@ export type TaskSubmitResult<TBody = unknown> =
   /** 目标或请求标识冲突：尚未开始，客户端不应自动重试。 */
   | { kind: "conflict"; message: string }
   /** 动作确实执行了但失败：这是一次真实失败，不是排队冲突。 */
-  | { kind: "failed"; message: string }
+  | { kind: "failed"; message: string; httpStatus?: number }
   /** 结果无法确认（服务中断、响应丢失）：既不能说成功，也不能直接重做。 */
   | { kind: "unknown"; message: string }
 
@@ -188,6 +188,7 @@ export class TaskRunner {
       return {
         kind: "failed",
         message: final.error ?? "操作失败",
+        httpStatus: final.errorStatus ?? 500,
       }
     }
     return this.completedResponse(final, request)
@@ -236,6 +237,7 @@ export class TaskRunner {
       return {
         kind: "failed",
         message: row.error ?? "该请求此前执行失败，未重复执行",
+        httpStatus: row.errorStatus ?? 500,
       }
     }
     return this.completedResponse(row, request)
@@ -319,6 +321,7 @@ export class TaskRunner {
         result: null,
         message: null,
         error: describeError(error),
+        errorStatus: error instanceof TaskHostError ? error.httpStatus : 500,
       })
     } finally {
       this.running.delete(taskId)
@@ -343,6 +346,7 @@ export class TaskRunner {
       result: unknown
       message: string | null
       error: string | null
+      errorStatus?: number
     }
   ): void {
     this.store.finish(taskId, { ...finish, finishedAt: nowSeconds() })

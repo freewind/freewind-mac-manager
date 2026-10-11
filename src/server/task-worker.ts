@@ -57,7 +57,12 @@ const main = async (): Promise<void> => {
       status: outcome.status ?? "done",
     })
   } catch (error) {
-    write({ type: "failed", error: publicSystemError(error).body.message })
+    const failure = publicSystemError(error)
+    write({
+      type: "failed",
+      error: failure.body.message,
+      httpStatus: failure.status,
+    })
     process.exitCode = 1
   }
 }
