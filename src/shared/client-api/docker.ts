@@ -1,5 +1,6 @@
 import type {
   ActionResponse,
+  DockerColimaActionBody,
   DockerContainerActionBody,
   DockerContainerCreateBody,
   DockerContainerCreated,
@@ -94,6 +95,18 @@ export const removeDockerNetwork = async (
 ): Promise<Execution<ActionResponse>> =>
   runExecution<ActionResponse>(() =>
     apiClient.removeDockerNetwork({
+      body,
+      headers: taskRequestHeaders(requestId),
+    })
+  )
+
+/** Colima 动作：运行中再 start、未运行就 stop 会返回 409。 */
+export const actOnDockerColima = async (
+  requestId: string,
+  body: DockerColimaActionBody
+): Promise<Execution<ActionResponse>> =>
+  runExecution<ActionResponse>(() =>
+    apiClient.actOnDockerColima({
       body,
       headers: taskRequestHeaders(requestId),
     })

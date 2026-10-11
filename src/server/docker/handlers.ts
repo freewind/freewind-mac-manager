@@ -5,6 +5,10 @@ import {
 } from "@server/common/public-error"
 import { toTaskHttpResponse } from "@server/common/tasks/response"
 import {
+  COLIMA_ACTION_KIND,
+  type ColimaActionPayload,
+} from "@server/docker/colima-task"
+import {
   DOCKER_ACTION_KIND,
   type DockerActionPayload,
 } from "@server/docker/task"
@@ -19,6 +23,7 @@ import {
 import { ActionResponseSchema } from "@shared/api-contract/schemas/common"
 import { DockerContainerCreatedSchema } from "@shared/api-contract/schemas/docker"
 import {
+  dockerColimaTaskTarget,
   dockerContainerTaskTarget,
   dockerImageTaskTarget,
   dockerNetworkTaskTarget,
@@ -46,6 +51,7 @@ export const dockerContract = {
   removeDockerImage: contract.removeDockerImage,
   removeDockerVolume: contract.removeDockerVolume,
   removeDockerNetwork: contract.removeDockerNetwork,
+  actOnDockerColima: contract.actOnDockerColima,
 }
 
 /** 只读端点没有「创建」与「状态冲突」语义，409 一律收敛成 500。 */
@@ -150,7 +156,9 @@ const actionResponseOf = (result: unknown): ActionResponse => {
 const submitDockerAction = async <TBody>(
   runtime: TaskRuntime,
   options: {
-    payload: DockerActionPayload
+    payload: DockerActionPayload | ColimaActionPayload
+    /** 任务种类：默认容器/镜像/卷/网络的 docker_action */
+    kind?: string
     /** 冲突锁：按操作对象，同对象互斥、不同对象可并行 */
     target: string
     requestId: string
@@ -159,7 +167,7 @@ const submitDockerAction = async <TBody>(
   }
 ) => {
   const outcome = await runtime.runner.submit<TBody>({
-    kind: DOCKER_ACTION_KIND,
+    kind: options.kind ?? DOCKER_ACTION_KIND,
     target: options.target,
     payload: options.payload,
     requestId: options.requestId,
@@ -368,6 +376,42 @@ export const createDockerRouter = (
         return await submitDockerAction(runtime, {
           payload: { action: "networkRemove", networkId: body.networkId },
           target: dockerNetworkTaskTarget(body.networkId),
+          requestId: headers[TASK_REQUEST_ID_HEADER],
+          completedStatus: 200,
+          parseCompleted: actionResponseOf,
+        })
+      } catch (error) {
+        return failWrite(error)
+      }
+    },
+
+    actOnDockerColima: async ({ headers, body }) => {
+      try {
+        // 状态冲突在执行前就判掉：运行中再 start、未运行就 stop 都是白跑
+        const status = await service.getColimaStatus()
+        if (body.action === "start" && status.running) {
+          return {
+            status: 409 as const,
+            body: {
+              message: "Colima 已在运行",
+              executionStatus: "not_started" as const,
+            },
+          }
+        }
+        if (body.action !== "start" && !status.running) {
+          return {
+            status: 409 as const,
+            body: {
+              message: "Colima 未在运行",
+              executionStatus: "not_started" as const,
+            },
+          }
+        }
+        return await submitDockerAction(runtime, {
+          kind: COLIMA_ACTION_KIND,
+          payload: { action: body.action },
+          // 整台虚拟机是同一个作用域：任何 Colima 动作都互相排斥
+          target: dockerColimaTaskTarget(),
           requestId: headers[TASK_REQUEST_ID_HEADER],
           completedStatus: 200,
           parseCompleted: actionResponseOf,

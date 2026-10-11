@@ -958,7 +958,8 @@ describe("写命令参数", () => {
       (await runWith((cli) => cli.removeVolume("myvol"))).calls[0]?.args
     ).toEqual(["volume", "rm", "myvol"])
     expect(
-      (await runWith((cli) => cli.removeNetwork("net1"))).calls[0]?.args
+      // 先按名字查一次（拦内置网络），再删除
+      (await runWith((cli) => cli.removeNetwork("net1"))).calls.at(-1)?.args
     ).toEqual(["network", "rm", "net1"])
   })
 
@@ -1289,7 +1290,7 @@ describe("内置网络与删除后核实", () => {
     const { runner, calls } = createFakeRunner(succeed(""))
     const cli = createDockerCli({ run: runner, cache: noCache })
     await cli.removeNetwork("litellm_default")
-    expect(calls[0]?.args).toEqual(["network", "rm", "litellm_default"])
+    expect(calls.at(-1)?.args).toEqual(["network", "rm", "litellm_default"])
   })
 
   it("按名/按 id 询问卷与网络是否存在，不存在返回 false", async () => {
@@ -1389,5 +1390,82 @@ describe("内置网络与删除后核实", () => {
     const cli = createDockerCli({ run: runner, cache: noCache })
     await expect(cli.volumeExists("myvol")).rejects.toThrow("Docker 服务未运行")
     await expect(cli.networkExists("net1")).rejects.toThrow("Docker 服务未运行")
+  })
+})
+
+describe("Colima 命令与状态冲突", () => {
+  it("start/stop 的 argv 与超时（stop 120s、start 300s）", async () => {
+    const { runner, calls, timeouts } = createFakeRunner(
+      succeed("INFO[0001] colima started\n")
+    )
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    await cli.startColima()
+    await cli.stopColima()
+    expect(calls.map((call) => call.args)).toEqual([["start"], ["stop"]])
+    expect(timeouts).toEqual([300_000, 120_000])
+  })
+
+  it.each([
+    ["FATA[0000] colima is already running", "Colima 已在运行"],
+    ["FATA[0000] colima is not running", "Colima 未在运行"],
+  ])("把 colima 的状态冲突映射成 conflict：%s", async (stderr, message) => {
+    const { runner } = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: colima start"), { stderr })
+      )
+    )
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const error = await cli.startColima().catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(DockerCommandError)
+    expect((error as DockerCommandError).kind).toBe("conflict")
+    expect((error as DockerCommandError).message).toBe(message)
+  })
+
+  it("colima 未运行时 status 仍按状态返回（conflict 也算未运行）", async () => {
+    const { runner } = createFakeRunner(() =>
+      Promise.reject(
+        Object.assign(new Error("Command failed: colima status"), {
+          stderr: "FATA[0000] colima is not running",
+        })
+      )
+    )
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    expect(await cli.getColimaStatus()).toMatchObject({
+      installed: true,
+      running: false,
+      status: "colima 未运行",
+    })
+  })
+
+  it("按 12 位 id 删除内置网络时先取真实名字，拒绝且不发删除命令", async () => {
+    const { runner, calls } = createFakeRunner(async (_command, args) => {
+      if (args[1] === "inspect") return { stdout: "bridge\n", stderr: "" }
+      return { stdout: "", stderr: "" }
+    })
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    const error = await cli
+      .removeNetwork("9f0c8d0a1b2c")
+      .catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(DockerCommandError)
+    expect((error as DockerCommandError).kind).toBe("conflict")
+    expect((error as DockerCommandError).message).toBe(
+      "这是 Docker 内置网络，不能删除"
+    )
+    // 只查了名字，没有发 network rm
+    expect(calls.map((call) => call.args)).toEqual([
+      ["network", "inspect", "--format", "{{.Name}}", "9f0c8d0a1b2c"],
+    ])
+  })
+
+  it("按 id 删除普通网络照常执行", async () => {
+    const { runner, calls } = createFakeRunner(async (_command, args) => {
+      if (args[1] === "inspect") {
+        return { stdout: "mac-manager-smoke-net\n", stderr: "" }
+      }
+      return { stdout: "", stderr: "" }
+    })
+    const cli = createDockerCli({ run: runner, cache: noCache })
+    await cli.removeNetwork("9f0c8d0a1b2c")
+    expect(calls.at(-1)?.args).toEqual(["network", "rm", "9f0c8d0a1b2c"])
   })
 })

@@ -51,6 +51,8 @@ export const TASK_KINDS = {
   serviceAction: "service_action",
   // 容器/镜像/卷/网络的写操作共用一种 kind；Colima 动作（任务 9）另定
   dockerAction: "docker_action",
+  // Colima 虚拟机动作：与容器/镜像/卷/网络的 docker_action 分开，作用域也不同
+  dockerColimaAction: "docker_colima_action",
   diskEntryReveal: "disk_entry_reveal",
   diskEntryTrash: "disk_entry_trash",
   trafficSnapshotSave: "traffic_snapshot_save",
@@ -181,6 +183,13 @@ export const DiskEntryTrashTaskSchema = z.object({
   result: ActionResponseSchema.nullable(),
 })
 
+/** Colima 动作同样只返回可读消息。 */
+export const DockerColimaActionTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.dockerColimaAction),
+  result: ActionResponseSchema.nullable(),
+})
+
 /** 每种任务的结果结构由 discriminated union 固定，禁止用任意 JSON 承载结果。 */
 export const TaskRecordSchema = z.discriminatedUnion("kind", [
   DiskScanTaskSchema,
@@ -194,6 +203,7 @@ export const TaskRecordSchema = z.discriminatedUnion("kind", [
   FrpConfigSaveTaskSchema,
   ServiceActionTaskSchema,
   DockerActionTaskSchema,
+  DockerColimaActionTaskSchema,
   DiskEntryRevealTaskSchema,
   DiskEntryTrashTaskSchema,
   TrafficSnapshotSaveTaskSchema,

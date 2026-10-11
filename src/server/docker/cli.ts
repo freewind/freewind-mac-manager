@@ -191,6 +191,13 @@ export const toCommandError = (
       detail
     )
   }
+  // colima 的「已在运行 / 未在运行」是状态冲突，不是故障
+  if (/colima is already running/i.test(detail)) {
+    return new DockerCommandError("conflict", "Colima 已在运行", detail)
+  }
+  if (/colima is not running|no instance found/i.test(detail)) {
+    return new DockerCommandError("conflict", "Colima 未在运行", detail)
+  }
   // 文案取自真机实测：镜像被引用、卷被使用、网络有活跃端点、内置网络
   if (
     /image is being used by|must be forced|conflict: unable to delete/i.test(
@@ -1207,10 +1214,30 @@ export const createDockerCli = (
     await docker(["volume", "rm", name], TIMEOUT.write)
   }
 
+  /** 取网络的真实名字；网络不存在返回空串，交给删除命令自己报错。 */
+  const networkNameOf = async (networkId: string): Promise<string> => {
+    try {
+      const { stdout } = await docker(
+        ["network", "inspect", "--format", "{{.Name}}", networkId],
+        TIMEOUT.quick
+      )
+      return stdout.trim()
+    } catch (error) {
+      if (missingResource(error, /no such network|network .* not found/i)) {
+        return ""
+      }
+      throw error
+    }
+  }
+
   const removeNetwork = async (networkId: string): Promise<void> => {
     assertNetworkId(networkId)
-    // 内置网络先拒绝：删了会破坏容器网络，也不能白跑一条注定失败的 docker 命令
-    if (isBuiltinNetwork(networkId)) {
+    // 内置网络先拒绝：删了会破坏容器网络，也不能白跑一条注定失败的 docker 命令。
+    // 前端可能传 12 位 id，所以字面量不是内置名字时要先查出真实名字再判定。
+    const name = isBuiltinNetwork(networkId)
+      ? networkId
+      : await networkNameOf(networkId)
+    if (isBuiltinNetwork(name)) {
       throw new DockerCommandError("conflict", "这是 Docker 内置网络，不能删除")
     }
     await docker(["network", "rm", networkId], TIMEOUT.write)
@@ -1263,12 +1290,10 @@ export const createDockerCli = (
         throw error
       }
       // colima status 在「未运行时」以非 0 退出，这是状态而不是故障。
-      if (
-        error.kind !== "failed" ||
-        !COLIMA_STOPPED_PATTERN.test(error.detail)
-      ) {
-        throw error
-      }
+      const stopped =
+        (error.kind === "failed" || error.kind === "conflict") &&
+        COLIMA_STOPPED_PATTERN.test(error.detail)
+      if (!stopped) throw error
       return {
         installed: true,
         running: false,

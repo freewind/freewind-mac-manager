@@ -11,6 +11,10 @@ import {
   ScanPayloadSchema,
   TRASH_KIND,
 } from "@server/disk-growth/task"
+import {
+  COLIMA_ACTION_KIND,
+  runColimaActionTask,
+} from "@server/docker/colima-task"
 import { DOCKER_ACTION_KIND, runDockerActionTask } from "@server/docker/task"
 import {
   FILE_COPY_KIND,
@@ -164,6 +168,17 @@ export const taskExecutors: TaskExecutor[] = [
     run: async (payload, context) => {
       // 载荷在这里再校验一次：非法载荷不会发出任何 docker 命令。
       const outcome = await runDockerActionTask({
+        payload,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: COLIMA_ACTION_KIND,
+    run: async (payload, context) => {
+      // Colima 动作会停掉整台虚拟机，载荷在这里再校验一次
+      const outcome = await runColimaActionTask({
         payload,
         report: context.report,
       })

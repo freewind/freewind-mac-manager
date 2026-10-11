@@ -32,6 +32,11 @@ import { createExpressEndpoints } from "@ts-rest/express"
 import express from "express"
 import { afterEach, describe, expect, it } from "vitest"
 import { type DockerCache, DockerCommandError } from "./cli"
+import {
+  COLIMA_ACTION_KIND,
+  type ColimaActionCli,
+  runColimaActionTask,
+} from "./colima-task"
 import { createDockerRouter, dockerContract } from "./handlers"
 import { createDockerService, type DockerServiceCli } from "./service"
 import { type DockerActionCli, runDockerActionTask } from "./task"
@@ -139,8 +144,8 @@ const diskUsageFixture = new Map<string, number>([
   ["Local Volumes", 865_200_000],
 ])
 
-/** 读能力 + 写能力：任务执行器与 service 共用同一个受控替身。 */
-type TestCli = DockerServiceCli & DockerActionCli
+/** 读能力 + 写能力 + Colima 能力：任务执行器与 service 共用同一个受控替身。 */
+type TestCli = DockerServiceCli & DockerActionCli & ColimaActionCli
 
 const noop = async (): Promise<void> => undefined
 
@@ -149,8 +154,13 @@ const createFakeCli = (overrides: Partial<TestCli> = {}): TestCli => {
   let imagePresent = true
   let volumePresent = true
   let networkPresent = true
+  let colimaRunningFlag = true
   return {
-    getColimaStatus: async () => colimaRunning,
+    getColimaStatus: async () => ({
+      ...colimaRunning,
+      running: colimaRunningFlag,
+      status: colimaRunningFlag ? "colima 运行中" : "colima 未运行",
+    }),
     getInfo: async () => ({
       serverVersion: "29.5.2",
       containersTotal: 3,
@@ -187,6 +197,14 @@ const createFakeCli = (overrides: Partial<TestCli> = {}): TestCli => {
       networkPresent = false
     },
     networkExists: async () => networkPresent,
+    startColima: async () => {
+      colimaRunningFlag = true
+      return "colima started"
+    },
+    stopColima: async () => {
+      colimaRunningFlag = false
+      return "colima stopped"
+    },
     ...overrides,
   }
 }
@@ -219,11 +237,18 @@ const startServer = async (
       await new Promise<never>(() => undefined)
     }
     try {
-      const outcome = await runDockerActionTask({
-        payload: job.payload,
-        report: context.onProgress,
-        cli,
-      })
+      const outcome =
+        job.kind === COLIMA_ACTION_KIND
+          ? await runColimaActionTask({
+              payload: job.payload,
+              report: context.onProgress,
+              cli,
+            })
+          : await runDockerActionTask({
+              payload: job.payload,
+              report: context.onProgress,
+              cli,
+            })
       return {
         result: outcome.result,
         message: outcome.message,
@@ -1175,5 +1200,127 @@ describe("卷与网络删除端点", () => {
         })
       ).status
     ).toBe(400)
+  })
+})
+
+describe("Colima 动作端点", () => {
+  it("未运行时 start 返回 200 与核实后的结果", async () => {
+    // 有状态：start 之后状态查询要真的变成运行中，否则核实会失败
+    let running = false
+    const cli = createFakeCli({
+      getColimaStatus: async () => ({
+        ...colimaRunning,
+        running,
+        status: running ? "colima 运行中" : "colima 未运行",
+      }),
+      startColima: async () => {
+        running = true
+        return "colima started"
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/colima/action",
+      "POST",
+      { action: "start" },
+      "req-colima-start-0001"
+    )
+    expect(status).toBe(200)
+    expect(body).toEqual({ message: "Colima 已启动" })
+  })
+
+  it("Colima 已在运行时 start 返回 409，不发命令", async () => {
+    const started: string[] = []
+    const cli = createFakeCli({
+      startColima: async () => {
+        started.push("startColima")
+        return "colima started"
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/colima/action",
+      "POST",
+      { action: "start" },
+      "req-colima-409-a"
+    )
+    expect(status).toBe(409)
+    expect(body).toEqual({
+      message: "Colima 已在运行",
+      executionStatus: "not_started",
+    })
+    expect(started).toEqual([])
+  })
+
+  it("Colima 未运行时 stop 返回 409", async () => {
+    const cli = createFakeCli({
+      getColimaStatus: async () => ({
+        ...colimaRunning,
+        running: false,
+        status: "colima 未运行",
+      }),
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/colima/action",
+      "POST",
+      { action: "stop" },
+      "req-colima-409-b"
+    )
+    expect(status).toBe(409)
+    expect(body).toEqual({
+      message: "Colima 未在运行",
+      executionStatus: "not_started",
+    })
+  })
+
+  it("载荷非法返回 400", async () => {
+    const baseUrl = await startServer(createFakeCli())
+    const { status } = await send(
+      baseUrl,
+      "/api/docker/colima/action",
+      "POST",
+      { action: "stop-all" }
+    )
+    expect(status).toBe(400)
+  })
+
+  it("colima 状态读不到时返回 500 与可读中文消息", async () => {
+    const cli = createFakeCli({
+      getColimaStatus: async () => {
+        throw new DockerCommandError(
+          "daemon_unavailable",
+          "Docker 服务未运行，请先启动 Docker 或执行 colima start。"
+        )
+      },
+    })
+    const baseUrl = await startServer(cli)
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/colima/action",
+      "POST",
+      { action: "stop" }
+    )
+    expect(status).toBe(500)
+    expect(body).toEqual({ message: "Docker 未运行，请先启动 Colima" })
+  })
+
+  it("未完成时返回 202 受理回执", async () => {
+    const baseUrl = await startServer(createFakeCli(), {
+      hold: true,
+      thresholdMs: 20,
+    })
+    const { status, body } = await send(
+      baseUrl,
+      "/api/docker/colima/action",
+      "POST",
+      { action: "stop" },
+      "req-colima-202-0001"
+    )
+    expect(status).toBe(202)
+    expect(body).toMatchObject({ kind: "docker_colima_action" })
   })
 })
