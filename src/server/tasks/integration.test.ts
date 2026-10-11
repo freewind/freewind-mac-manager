@@ -55,12 +55,14 @@ let dispatched: {
   reject: (error: unknown) => void
 }[]
 let failImmediately = false
+let completeImmediately = false
 
 beforeEach(async () => {
   dir = mkdtempSync(path.join(tmpdir(), "mac-manager-integration-"))
   store = new TaskStore(path.join(dir, "tasks.sqlite3"))
   dispatched = []
   failImmediately = false
+  completeImmediately = false
   runtime = createTaskRuntime({
     store,
     recoverInterrupted: false,
@@ -70,6 +72,12 @@ beforeEach(async () => {
       execute: (job) =>
         new Promise<TaskOutcome>((resolve, reject) => {
           dispatched.push({ taskId: job.taskId, resolve, reject })
+          if (completeImmediately)
+            resolve({
+              result: { message: "已创建" },
+              message: "已创建",
+              status: "done",
+            })
           if (failImmediately) {
             reject(new TaskHostError("unknown", "执行进程退出，结果未知"))
           }
@@ -347,6 +355,22 @@ describe("task wiring through the real app", () => {
     expect(await conflict.json()).toMatchObject({
       executionStatus: "not_started",
     })
+    expect(dispatched).toHaveLength(1)
+  })
+
+  it("returns a quick completed action without an accepted receipt", async () => {
+    completeImmediately = true
+    const submission = fetch(`${baseUrl}${ApiPath.filesEntries}`, {
+      method: "POST",
+      headers: {
+        [TASK_REQUEST_ID_HEADER]: "req_fast_completed_audit",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ parentPath: "/tmp", name: "audit.txt" }),
+    })
+    const response = await submission
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ message: "已创建" })
     expect(dispatched).toHaveLength(1)
   })
 
