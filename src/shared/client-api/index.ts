@@ -21,6 +21,7 @@ export {
   unwrap,
 } from "./client"
 export * from "./dashboard"
+export * from "./database"
 export * from "./disk-growth"
 export * from "./docker"
 export * from "./execution"

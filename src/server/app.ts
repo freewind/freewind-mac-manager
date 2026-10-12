@@ -10,6 +10,12 @@ import { caddyContract, createCaddyRouter } from "./caddy/handlers"
 import { clashVergeContract, clashVergeRouter } from "./clash-verge/handlers"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
 import {
+  createDatabaseRouter,
+  createDatabaseService,
+  type DatabaseService,
+  databaseContract,
+} from "./database/handlers"
+import {
   createDiskGrowthRouter,
   diskGrowthContract,
 } from "./disk-growth/handlers"
@@ -46,6 +52,11 @@ export const createApp = (injected?: {
    * 让集成测试不必碰真实 docker（动作条目由测试自己用同一替身执行）。
    */
   dockerCli?: DockerServiceCli
+  /**
+   * 仅测试使用：替换 database 域的服务（真实实现是查询/写入子进程）。
+   * 不注入时也不会在启动阶段碰真实业务库：子进程只在请求到来时才启动。
+   */
+  database?: DatabaseService
 }): express.Express => {
   const app = express()
   // 文件管理的删除接口用数组 query，ts-rest client 发的是 paths[0]=… ，
@@ -126,6 +137,14 @@ export const createApp = (injected?: {
   createExpressEndpoints(
     tasksContract,
     createTasksRouter(taskRuntime.store),
+    app,
+    options
+  )
+
+  // 通用数据管理同样在鉴权之后：库里的内容不允许未登录读取或修改。
+  createExpressEndpoints(
+    databaseContract,
+    createDatabaseRouter(injected?.database ?? createDatabaseService()),
     app,
     options
   )
