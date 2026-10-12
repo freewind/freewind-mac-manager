@@ -7,6 +7,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { ProcessEntry } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
+import { PageHeader } from "@web/components/PageHeader"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -110,7 +111,7 @@ export const ProcessesPage = () => {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex flex-col gap-3 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-sm font-medium">进程管理</h1>
+          <PageHeader title="进程管理" loading={model.isLoading} />
           <span className="hidden text-[0.6875rem] text-muted-foreground lg:inline">
             {model.overview === null
               ? "正在采样"

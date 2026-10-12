@@ -21,6 +21,7 @@ import type {
 } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
+import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
   AlertDialog,
@@ -257,7 +258,7 @@ export const SystemServicesPage = () => {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-col gap-2 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-sm font-medium">系统服务</h1>
+          <PageHeader title="系统服务" loading={model.isLoading} />
           <Badge variant="outline">共 {model.stats.total}</Badge>
           <Badge variant="ghost">运行 {model.stats.running}</Badge>
           <Badge variant="ghost">已停止 {model.stats.stopped}</Badge>

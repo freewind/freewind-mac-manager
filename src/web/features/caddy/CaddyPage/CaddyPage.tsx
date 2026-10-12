@@ -1,6 +1,7 @@
 import { Add01Icon, RefreshIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { CaddyRule, CaddyRuleInput } from "@shared/api-contract"
+import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import { Skeleton } from "@web/components/ui/skeleton"
@@ -42,6 +43,7 @@ export const CaddyPage = () => {
   if (model.isLoading) {
     return (
       <div className="flex flex-col gap-2 p-4">
+        <PageHeader title="Caddy 网关" titleClassName="text-base" loading />
         <p className="text-sm text-muted-foreground">正在读取 Caddy 状态…</p>
         <Skeleton className="h-28 w-full" />
         <Skeleton className="h-28 w-full" />
@@ -79,7 +81,11 @@ export const CaddyPage = () => {
   return (
     <div className="flex min-w-0 flex-col gap-4 p-4">
       <header className="flex flex-wrap items-center gap-2">
-        <h1 className="text-base font-medium">Caddy 网关</h1>
+        <PageHeader
+          title="Caddy 网关"
+          titleClassName="text-base"
+          loading={model.isLoading}
+        />
         <p className="text-xs text-muted-foreground">
           管理受管区域里的转发规则；改动先存数据库，应用后才写进 Caddyfile
         </p>

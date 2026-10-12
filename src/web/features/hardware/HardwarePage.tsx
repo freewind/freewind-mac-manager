@@ -6,6 +6,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { HardwareOverview } from "@shared/api-contract"
+import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -478,7 +479,7 @@ export const HardwarePage = () => {
     <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex flex-wrap items-center gap-2 px-4 py-3">
         <HugeiconsIcon icon={ChipIcon} className="size-4" />
-        <h1 className="text-sm font-medium">硬件</h1>
+        <PageHeader title="硬件" loading={model.isPending} />
         <Badge variant="outline">含敏感信息</Badge>
         <div className="ml-auto flex flex-wrap gap-2">
           <Button

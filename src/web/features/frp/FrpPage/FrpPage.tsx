@@ -14,6 +14,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import type { FrpProxy, FrpProxyType } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
+import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
   AlertDialog,
@@ -110,7 +111,7 @@ export const FrpPage = () => {
       <header className="flex flex-col gap-3 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <HugeiconsIcon icon={Link01Icon} className="size-4" />
-          <h1 className="text-sm font-medium">FRP 内网穿透</h1>
+          <PageHeader title="FRP 内网穿透" loading={model.isLoading} />
           {server ? (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               {server.serverAddr}:{server.serverPort}

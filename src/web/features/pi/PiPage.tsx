@@ -17,6 +17,7 @@ import {
   updatePiProvider,
 } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { PageHeader } from "@web/components/PageHeader"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
@@ -293,7 +294,7 @@ export const PiPage = () => {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
         <HugeiconsIcon icon={Robot01Icon} className="size-4" />
-        <h1 className="text-sm font-medium">Pi 模型管理</h1>
+        <PageHeader title="Pi 模型管理" loading={query.isLoading} />
         <span className="text-xs text-muted-foreground">
           密钥仅写入、不回显；模型参数由 Pi 上游格式校验
         </span>

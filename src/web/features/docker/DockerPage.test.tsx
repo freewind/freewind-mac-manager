@@ -121,6 +121,7 @@ describe("DockerPage 概览", () => {
     fetchDockerOverview.mockReturnValue(new Promise<DockerOverview>(() => {}))
     renderPage()
     expect(screen.getByText("正在读取 Docker 概览…")).toBeTruthy()
+    expect(screen.getByRole("status", { name: "Docker 加载中" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "刷新" })).toBeTruthy()
   })
 

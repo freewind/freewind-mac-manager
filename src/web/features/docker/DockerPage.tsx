@@ -10,6 +10,7 @@ import type {
 } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { useQuery } from "@tanstack/react-query"
+import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import {
@@ -98,7 +99,7 @@ export const DockerPage = () => {
         <div className="flex min-w-0 items-center gap-2">
           <HugeiconsIcon icon={ContainerIcon} className="size-4 shrink-0" />
           <div className="min-w-0">
-            <h1 className="text-sm font-medium">Docker</h1>
+            <PageHeader title="Docker" loading={model.isLoading} />
             <p className="truncate text-xs text-muted-foreground">
               {model.sampledAt
                 ? `数据时间 ${model.sampledAt}`

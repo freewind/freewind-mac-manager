@@ -6,6 +6,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import { formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
+import { PageHeader } from "@web/components/PageHeader"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -68,7 +69,7 @@ export const PortsPage = () => {
       <header className="flex flex-col gap-3 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <HugeiconsIcon icon={EthernetPortIcon} className="size-4" />
-          <h1 className="text-sm font-medium">端口管理</h1>
+          <PageHeader title="端口管理" loading={model.isLoading} />
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <div className="relative">

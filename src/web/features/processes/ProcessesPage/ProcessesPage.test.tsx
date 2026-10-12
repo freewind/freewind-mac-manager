@@ -107,6 +107,15 @@ afterEach(() => {
   })
 })
 
+describe("进程页的标题区", () => {
+  it("首屏读取期间在标题旁显示加载指示", async () => {
+    fetchProcessList.mockReturnValue(new Promise(() => {}))
+    renderPage()
+
+    expect(screen.getByRole("status", { name: "进程管理 加载中" })).toBeTruthy()
+  })
+})
+
 describe("进程页的 AI 入口", () => {
   it("AI 按钮带上有限进程摘要且不含命令行，点击只预填不发送", async () => {
     renderPage()

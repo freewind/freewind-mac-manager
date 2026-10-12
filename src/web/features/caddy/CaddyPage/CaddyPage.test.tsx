@@ -279,6 +279,9 @@ describe("Caddy 页面状态", () => {
     api.fetchCaddyRules.mockImplementationOnce(() => new Promise(() => {}))
     renderPage()
     expect(screen.getByText("正在读取 Caddy 状态…")).toBeTruthy()
+    expect(
+      screen.getByRole("status", { name: "Caddy 网关 加载中" })
+    ).toBeTruthy()
     cleanup()
 
     api.fetchCaddyRules.mockRejectedValueOnce(new Error("无法读取配置文件"))
