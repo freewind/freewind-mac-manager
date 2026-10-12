@@ -7,7 +7,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 /**
  * 认证是无状态的：只核对密码，不保存 session。这里用真实 Express 应用 + 真实 HTTP
  * 请求来验证中间件、登录端点与限流行为，不 mock express 内部实现。
+ *
+ * 每条用例都 vi.resetModules 后重建真实 HTTP 服务：单跑整文件约 0.6 秒，
+ * 但并行全量下 CPU 争抢会把个别用例偶发推过默认 5 秒（任务 27 全量实测
+ * 一次）。整体放宽到 15 秒，只给足争抢时的执行时间，断言一条不改。
  */
+vi.setConfig({ testTimeout: 15_000 })
 
 type TestServer = { baseUrl: string; close: () => Promise<void> }
 

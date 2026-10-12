@@ -39,6 +39,16 @@ vi.mock("node:child_process", () => ({
 import { createTaskRuntime, type TaskRuntime } from "./runtime"
 
 /**
+ * 本文件验证的是「真实 HTTP → 任务持久化 → 执行器 → 状态回读」整链路：
+ * 每条用例都起 createApp 并落一次任务库，无法用克隆构造替代。
+ * 受控执行器本身不做真实 IO，单跑整文件约 2 秒；但并行全量下 CPU 与
+ * 临时盘 IO 争抢会把个别用例推过默认 5 秒（任务 23 六轮实测：
+ * file_create 与 traffic_snapshot_merge 各偶发一次）。
+ * 这里整体放宽到 20 秒：只给足争抢时的执行时间，断言一条不改。
+ */
+vi.setConfig({ testTimeout: 20_000 })
+
+/**
  * 通过真实的 createApp 走一遍 HTTP：验证各域挂载与路径前缀没错位
  * （这类接线错误只有真正把应用搭起来才看得出来）。
  * 只触碰任务表，且用临时库与受控执行器，不写任何真实记录。
@@ -115,6 +125,9 @@ beforeEach(async () => {
 
 afterEach(async () => {
   runtime.runner.shutdown()
+  // keep-alive 空闲连接会让 close 等待，并可能在并行下把请求打到已关闭
+  // 的套接字上（实测偶发 SocketError: other side closed）；显式清掉。
+  server.closeAllConnections?.()
   await new Promise((resolve) => server.close(resolve))
   store.close()
   rmSync(dir, { recursive: true, force: true })
@@ -136,6 +149,8 @@ const authHeaders = (
   extra: Record<string, string> = {}
 ): Record<string, string> => ({
   authorization: `Bearer ${TEST_PASSWORD}`,
+  // 测试服务每用例新建并关闭：不用 keep-alive，避免连接池串到已关闭的套接字。
+  connection: "close",
   ...extra,
 })
 

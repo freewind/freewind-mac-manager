@@ -62,6 +62,9 @@ describe("备份任务", () => {
     expect(databaseBackupTaskTarget()).toBe(databaseBackupTaskTarget())
   })
 
+  // 真跑一次原生备份执行器（任务载荷 → 备份 → 进度上报），无法用克隆
+  // 构造替代；并行全量下 CPU 与临时盘争抢会把它偶发推过默认 5 秒
+  //（任务 23 六轮与本轮实测各一次），单跑约 0.1-4 秒。断言不变，只放宽上限。
   it("执行器按载荷走默认来源，返回新建备份并上报进度", async () => {
     const { outcome, events } = await run({})
     const created = await outcome
@@ -74,7 +77,7 @@ describe("备份任务", () => {
       true
     )
     expect(events.at(-1)?.stage).toBe("完成")
-  })
+  }, 30_000)
 
   it("非法载荷直接拒绝，不打开源库也不写备份目录", async () => {
     await expect(

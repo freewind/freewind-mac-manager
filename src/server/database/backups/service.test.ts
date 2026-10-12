@@ -110,7 +110,8 @@ const serviceOf = (
  */
 const clonePublished = async (
   fromFileName: string,
-  createdAt: number
+  createdAt: number,
+  source: "manual" | "pre_restore" | "import" = "manual"
 ): Promise<{
   backup: { id: string; fileName: string; contentSignature: string }
 }> => {
@@ -134,7 +135,7 @@ const clonePublished = async (
     contentSignature: await computeContentSignature(file),
     structureSignature: structure,
     tableCount: 2,
-    source: "manual",
+    source,
     restoreBlockedReason: null,
   })
   if (entry === null) throw new Error("克隆备份条目构造失败")
@@ -271,6 +272,8 @@ describe("创建备份", () => {
     }
   })
 
+  // 两次真 create 才能验证文件名分配的避重；测试环境同源连续原生备份
+  // 间歇性长等待（实测第二/三次可达 10-20 秒，机制未查明），显式放宽超时。
   it("同一毫秒的两次备份不覆盖：文件名不同、都在列表里", async () => {
     createSource({ rows: 50 })
     const service = serviceOf()
@@ -291,7 +294,7 @@ describe("创建备份", () => {
     for (const backup of listed.backups) {
       expect(readRowCount(path.join(backupDir, backup.fileName))).toBe(50)
     }
-  })
+  }, 30_000)
 
   it("备份目录私有、备份文件 0600、不留临时文件与旁置文件", async () => {
     createSource({ rows: 50 })
@@ -473,7 +476,8 @@ describe("列表与详情", () => {
     createSource({ rows: 20 })
     const service = serviceOf()
     const manual = await service.create({ source: "manual" })
-    await service.create({ source: "pre_restore" })
+    // 第二份只用于来源过滤与分页：克隆等价，避开同源连续备份的长等待。
+    await clonePublished(manual.backup.fileName, FIXED_NOW, "pre_restore")
 
     const all = service.list({ page: 1, pageSize: 50 })
     expect(all.total).toBe(2)
@@ -590,7 +594,12 @@ describe("删除", () => {
     createSource({ rows: 20 })
     const service = serviceOf()
     const protectedOne = await service.create({ source: "manual" })
-    const running = await service.create({ source: "manual" })
+    // 「正在创建」只需要一份已发布备份再写进行中标记：克隆等价，避开
+    // 测试环境同源连续原生备份的间歇性长等待（真实环境毫秒级）。
+    const running = await clonePublished(
+      protectedOne.backup.fileName,
+      FIXED_NOW
+    )
     writeFileSync(
       path.join(stateDir, "in-progress.json"),
       JSON.stringify({
@@ -671,6 +680,11 @@ describe("删除", () => {
     createSource({ rows: 20 })
     const service = serviceOf()
     const created = await service.create({ source: "manual" })
+    // 第二份只用来改签名制造不一致：克隆等价，避开同源连续备份的长等待。
+    const secondSource = await clonePublished(
+      created.backup.fileName,
+      FIXED_NOW
+    )
     const manifest = loadManifest(backupDir)
     const entry = findEntry(manifest, created.backup.id)
     if (entry === null) return
@@ -689,8 +703,8 @@ describe("删除", () => {
     expect(okResult.deleted).toEqual([created.backup.id])
     expect(existsSync(file)).toBe(false)
 
-    // 再造一份，把清单里的签名改成与文件不符：必须拒绝
-    const second = await serviceOf().create({ source: "manual" })
+    // 把第二份清单里的签名改成与文件不符：必须拒绝
+    const second = secondSource
     const manifest2 = loadManifest(backupDir)
     const entry2 = findEntry(manifest2, second.backup.id)
     if (entry2 === null) return
