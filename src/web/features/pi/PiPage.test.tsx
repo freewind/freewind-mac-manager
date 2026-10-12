@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { PiPage } from "./PiPage"
@@ -138,10 +139,20 @@ describe("Pi model manager page", () => {
     renderPage()
     await screen.findByText("test")
     expect(startBenchmark).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole("combobox", { name: /测速 Provider/ }))
-    fireEvent.click(await screen.findByRole("option", { name: "test" }))
-    fireEvent.click(screen.getByRole("combobox", { name: "测速模型" }))
-    fireEvent.click(await screen.findByRole("option", { name: /model-one/ }))
+    const providerInput = screen.getByRole("combobox", {
+      name: /测速 Provider/,
+    })
+    fireEvent.focus(providerInput)
+    fireEvent.keyDown(providerInput, { key: "ArrowDown" })
+    fireEvent.click(
+      await within(document.body).findByRole("option", { name: "test" })
+    )
+    const modelInput = screen.getByRole("combobox", { name: "测速模型" })
+    fireEvent.focus(modelInput)
+    fireEvent.keyDown(modelInput, { key: "ArrowDown" })
+    fireEvent.click(
+      await within(document.body).findByRole("option", { name: /model-one/ })
+    )
     fireEvent.click(screen.getByRole("button", { name: "开始一次测速" }))
     await waitFor(() => expect(startBenchmark).toHaveBeenCalledTimes(1))
     expect(startBenchmark.mock.calls[0][0]).toMatchObject({
