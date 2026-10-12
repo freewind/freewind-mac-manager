@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, renameSync } from "node:fs"
 import path from "node:path"
 import { backup, DatabaseSync } from "node:sqlite"
+import type { Readable } from "node:stream"
 import { closeDatabase, openDatabase } from "@server/database/connection"
 import { DATABASE_FILE } from "@server/env"
 import type {
@@ -52,6 +53,11 @@ import {
   tempFilePathFor,
   writeFileAtomic,
 } from "./files"
+import { receiveBackupUpload } from "./transfer"
+import {
+  type BackupValidationResult,
+  defaultBackupValidationRunner,
+} from "./validation"
 
 /**
  * 备份服务：创建原生备份、列出与读取备份、批量删除、以及目录与清单的保守核实。
@@ -93,6 +99,20 @@ export type DatabaseBackupService = {
   create: (options: {
     source: DatabaseBackupSource
     report?: (progress: TaskProgress) => void
+  }) => Promise<DatabaseBackupCreated>
+  /**
+   * 上传导入：流式接收 → 校验（不改当前库）→ 原生备份规范化 →
+   * 以 import 来源、服务端 UTC 时间戳文件名原子发布。
+   */
+  importUpload: (options: {
+    /** 请求体字节流。 */
+    source: Readable
+    fileCount?: number
+    declaredLength?: number | null
+    originalFileName?: string | null
+    report?: (progress: TaskProgress) => void
+    /** 测试可注入的校验实现；默认走有界 worker 子进程。 */
+    validate?: (file: string) => Promise<BackupValidationResult>
   }) => Promise<DatabaseBackupCreated>
   remove: (options: {
     items: DatabaseBackupDeleteItem[]
@@ -296,6 +316,7 @@ export const createDatabaseBackupService = (
       tableCount: content.tableCount,
       // 清单里没有记录、来源无法追溯：按导入处理，不假装成手工创建。
       source: "import",
+      restoreBlockedReason: content.restoreBlockedReason,
     })
   }
 
@@ -444,6 +465,61 @@ export const createDatabaseBackupService = (
     }
   }
 
+  /**
+   * 把已校验的临时文件发布成清单条目：先登记 pending，再原子 rename，
+   * 最后确认为 published。创建与导入共用这一段，避免两处发布语义漂移。
+   * 清单确认失败不报错：文件已落地，由下次核实接管。
+   */
+  const publishEntry = async (options: {
+    entry: BackupManifestEntry
+    temp: string
+    target: string
+    report: (progress: TaskProgress, force?: boolean) => void
+    progress: {
+      done: number
+      total: number
+      bytesDone: number
+      bytesTotal: number
+    }
+  }): Promise<BackupManifestEntry> => {
+    saveManifest(backupDir, upsertEntry(loadManifest(backupDir), options.entry))
+    options.report(
+      {
+        stage: "发布备份",
+        done: options.progress.done,
+        total: options.progress.total,
+        bytesDone: options.progress.bytesDone,
+        bytesTotal: options.progress.bytesTotal,
+        currentTarget: options.entry.fileName,
+      },
+      true
+    )
+    chmodSync(options.temp, BACKUP_FILE_MODE)
+    renameSync(options.temp, options.target)
+    const identity = currentFileIdentity(options.target)
+    if (identity === null) {
+      throw new DatabaseBackupError(
+        "backup_invalid",
+        "备份文件发布后读不到，请重新核实"
+      )
+    }
+    const published: BackupManifestEntry = {
+      ...options.entry,
+      status: "published",
+      sizeBytes: identity.size,
+      identity,
+    }
+    try {
+      saveManifest(backupDir, upsertEntry(loadManifest(backupDir), published))
+    } catch (error) {
+      // 文件已经落地且校验通过，清单没写上由下次核实接管，不因此报失败。
+      console.warn(
+        `[mac-manager] 备份已发布但清单更新失败，将在下次核实时接管：${describeError(error)}`
+      )
+    }
+    return published
+  }
+
   const create = async (options2: {
     source: DatabaseBackupSource
     report?: (progress: TaskProgress) => void
@@ -586,54 +662,33 @@ export const createDatabaseBackupService = (
         // 全表计数在 GB 级库上是整表扫描，这里不假填 0，如实给 null。
         rowCount: null,
         originalFileName: null,
+        // 恢复兼容性按真实结构检查，不硬编码：本机库缺必要表时同样如实报告。
+        restoreBlockedReason: content.restoreBlockedReason,
         // 先登记再发布：万一进程在两步之间被杀掉，核实流程能接管这个文件。
         status: "pending",
         identity: null,
       }
-      saveManifest(backupDir, upsertEntry(manifest, entry))
 
-      progress.report(
-        {
-          stage: "发布备份",
+      const published = await publishEntry({
+        entry,
+        temp,
+        target,
+        report: progress.report,
+        progress: {
           done: sourceSize.pageCount,
           total: sourceSize.pageCount,
           bytesDone: sizeBytes,
           bytesTotal: sizeBytes,
-          currentTarget: fileName,
         },
-        true
-      )
-      chmodSync(temp, BACKUP_FILE_MODE)
-      renameSync(temp, target)
-      const identity = currentFileIdentity(target)
-      if (identity === null) {
-        throw new DatabaseBackupError(
-          "backup_invalid",
-          "备份文件发布后读不到，请重新核实"
-        )
-      }
-      const published: BackupManifestEntry = {
-        ...entry,
-        status: "published",
-        sizeBytes: identity.size,
-        identity,
-      }
-      try {
-        saveManifest(backupDir, upsertEntry(loadManifest(backupDir), published))
-      } catch (error) {
-        // 文件已经落地且校验通过，清单没写上由下次核实接管，不因此报失败。
-        console.warn(
-          `[mac-manager] 备份已发布但清单更新失败，将在下次核实时接管：${describeError(error)}`
-        )
-      }
+      })
 
       progress.report(
         {
           stage: "完成",
           done: 1,
           total: 1,
-          bytesDone: identity.size,
-          bytesTotal: identity.size,
+          bytesDone: published.sizeBytes,
+          bytesTotal: published.sizeBytes,
           currentTarget: fileName,
         },
         true
@@ -647,6 +702,296 @@ export const createDatabaseBackupService = (
       if (temp !== null) removeFileIfExists(temp)
       throw toCreateError(error)
     } finally {
+      if (id !== null) clearMarker(stateDir, id)
+    }
+  }
+
+  /** 导入失败按语义归类；已带错误码的原样返回，临时文件由调用处清理。 */
+  const toImportError = (error: unknown): DatabaseBackupError => {
+    if (error instanceof DatabaseBackupError) return error
+    const code =
+      error instanceof Error && "code" in error ? String(error.code) : ""
+    if (code === "ENOSPC") {
+      return new DatabaseBackupError(
+        "too_large",
+        "导入时磁盘空间不足，已清理临时文件"
+      )
+    }
+    if (code === "EACCES" || code === "EPERM") {
+      return new DatabaseBackupError(
+        "backup_invalid",
+        "没有权限写入备份目录，已中止导入"
+      )
+    }
+    return new DatabaseBackupError(
+      "backup_invalid",
+      `导入失败：${describeError(error)}`
+    )
+  }
+
+  /**
+   * 上传导入。只读取上传文件，绝不写当前应用数据库：
+   * 流式接收 → 有界 worker 校验 → 原生备份规范化到新的备份临时文件 →
+   * 完整性与恢复兼容性检查 → 以 import 来源、服务端 UTC 时间戳文件名
+   * 原子发布。任何失败都清理上传与规范化临时文件，不发布半成品。
+   */
+  const importUpload = async (options2: {
+    source: Readable
+    fileCount?: number
+    declaredLength?: number | null
+    originalFileName?: string | null
+    report?: (progress: TaskProgress) => void
+    validate?: (file: string) => Promise<BackupValidationResult>
+  }): Promise<DatabaseBackupCreated> => {
+    ensurePrivateDirectory(backupDir)
+    ensurePrivateDirectory(stateDir)
+    // 与创建同一套前置核实：先清掉遗留临时文件，避免占空间与误判占用。
+    await reconcile()
+    const marker = readMarker(stateDir)
+    if (marker !== null && processIsAlive(marker.pid)) {
+      throw new DatabaseBackupError(
+        "backup_invalid",
+        "已有备份任务正在进行，请等它结束"
+      )
+    }
+
+    const progress = createProgressReporter(options2.report)
+    progress.report(
+      {
+        stage: "准备导入",
+        done: 0,
+        total: null,
+        bytesDone: null,
+        bytesTotal: null,
+        currentTarget: null,
+      },
+      true
+    )
+
+    let uploadTemp: string | null = null
+    let normalizedTemp: string | null = null
+    let id: string | null = null
+    try {
+      // 1) 流式接收：字节上限、数量、空间与超时都在传输层把守。
+      const received = await receiveBackupUpload({
+        source: options2.source,
+        fileCount: options2.fileCount,
+        declaredLength: options2.declaredLength,
+        originalFileName: options2.originalFileName,
+        backupDir,
+        report: options2.report,
+        freeBytes,
+      })
+      uploadTemp = received.tempFile
+
+      // 2) 校验：默认走有界 worker 子进程（只读、不执行上传库里的 SQL）。
+      progress.report(
+        {
+          stage: "校验上传文件",
+          done: 1,
+          total: 1,
+          bytesDone: 0,
+          bytesTotal: received.sizeBytes,
+          currentTarget: received.originalFileName,
+        },
+        true
+      )
+      const validate =
+        options2.validate ?? defaultBackupValidationRunner().validate
+      const validation = await validate(uploadTemp)
+      if (!validation.ok) {
+        throw new DatabaseBackupError(
+          "unsupported_format",
+          validation.reason ?? "上传文件校验未通过"
+        )
+      }
+
+      // 3) 规范化副本的空间预检：上传原件还在盘上，两份同时在场。
+      const required = requiredBytesFor(received.sizeBytes)
+      const available = freeBytes(backupDir)
+      if (available < required) {
+        throw new DatabaseBackupError(
+          "too_large",
+          `导入空间不足：需要约 ${formatBytes(required)}，备份目录可用 ${formatBytes(available)}`
+        )
+      }
+
+      // 4) 分配服务端文件名：UTC 时间戳 + 短 ID，不采信原文件名与 MIME。
+      const createdAt = now()
+      const allocated = allocateBackupFileName({
+        dir: backupDir,
+        createdAt,
+        takenIds: new Set(
+          loadManifest(backupDir).entries.map((item) => item.id)
+        ),
+        createId,
+      })
+      id = allocated.id
+      const fileName = allocated.fileName
+      const target = backupFilePathOf(backupDir, fileName)
+      normalizedTemp = tempFilePathFor(backupDir, fileName)
+      writeMarker(stateDir, {
+        backupId: id,
+        fileName,
+        startedAt: createdAt,
+        pid: process.pid,
+      })
+
+      // 5) 原生备份规范化：只读打开上传原件，写到新的备份临时文件。
+      const sourceSize = readSourceSize(uploadTemp)
+      progress.report(
+        {
+          stage: "规范化上传文件",
+          done: 0,
+          total: sourceSize.pageCount,
+          bytesDone: 0,
+          bytesTotal: sourceSize.bytes,
+          currentTarget: fileName,
+        },
+        true
+      )
+      const sourceDatabase = openDatabase({
+        file: uploadTemp,
+        mode: "readonly",
+      })
+      try {
+        const totalPages = await backup(sourceDatabase, normalizedTemp, {
+          rate: pageBatch,
+          progress: ({ totalPages: total, remainingPages }) => {
+            const pages = Number(total)
+            // 上传原件只读且已发布前不可变：进度单调，不会回退。
+            const done = Math.max(0, pages - Number(remainingPages))
+            options2.report?.({
+              stage: "规范化上传文件",
+              done,
+              total: pages,
+              bytesDone: done * sourceSize.pageSize,
+              bytesTotal: pages * sourceSize.pageSize,
+              currentTarget: fileName,
+            })
+          },
+        })
+        const copiedPages = Number(totalPages)
+        progress.report(
+          {
+            stage: "规范化上传文件",
+            done: copiedPages,
+            total: copiedPages,
+            bytesDone: copiedPages * sourceSize.pageSize,
+            bytesTotal: copiedPages * sourceSize.pageSize,
+            currentTarget: fileName,
+          },
+          true
+        )
+      } finally {
+        closeDatabase(sourceDatabase)
+      }
+      makeSelfContained(normalizedTemp)
+
+      // 6) 完整性与恢复兼容性分开结论：有效但缺应用结构仍可入列表。
+      progress.report(
+        {
+          stage: "校验备份完整性",
+          done: 1,
+          total: 1,
+          bytesDone: 0,
+          bytesTotal: sourceSize.bytes,
+          currentTarget: fileName,
+        },
+        true
+      )
+      const content = inspectBackupContent(normalizedTemp)
+      if (!content.integrity.ok) {
+        throw new DatabaseBackupError(
+          "backup_invalid",
+          `导入文件完整性校验未通过：${content.integrity.reason}`
+        )
+      }
+      if (content.structureSignature === null) {
+        throw new DatabaseBackupError(
+          "backup_invalid",
+          "导入文件完整性校验未通过：读不到结构签名"
+        )
+      }
+
+      // 7) 内容签名：流式 sha256，GB 级文件不进内存。
+      const sizeBytes = backupFileSize(normalizedTemp) ?? 0
+      progress.report(
+        {
+          stage: "计算内容签名",
+          done: 1,
+          total: 1,
+          bytesDone: 0,
+          bytesTotal: sizeBytes,
+          currentTarget: fileName,
+        },
+        true
+      )
+      const contentSignature = await computeContentSignature(normalizedTemp, {
+        onBytes: (bytes) => {
+          progress.report({
+            stage: "计算内容签名",
+            done: 1,
+            total: 1,
+            bytesDone: bytes,
+            bytesTotal: sizeBytes,
+            currentTarget: fileName,
+          })
+        },
+      })
+
+      // 8) 原子发布：先登记 pending，rename 后确认 published。
+      const entry: BackupManifestEntry = {
+        id: allocated.id,
+        fileName,
+        createdAt,
+        sizeBytes,
+        source: "import",
+        contentSignature,
+        structureSignature: content.structureSignature,
+        tableCount: content.tableCount,
+        // 全表计数是整表扫描，GB 级不划算：如实给 null，不假填 0。
+        rowCount: null,
+        originalFileName: received.originalFileName,
+        restoreBlockedReason: content.restoreBlockedReason,
+        status: "pending",
+        identity: null,
+      }
+      const published = await publishEntry({
+        entry,
+        temp: normalizedTemp,
+        target,
+        report: progress.report,
+        progress: {
+          done: 1,
+          total: 1,
+          bytesDone: sizeBytes,
+          bytesTotal: sizeBytes,
+        },
+      })
+      normalizedTemp = null
+
+      progress.report(
+        {
+          stage: "完成",
+          done: 1,
+          total: 1,
+          bytesDone: published.sizeBytes,
+          bytesTotal: published.sizeBytes,
+          currentTarget: fileName,
+        },
+        true
+      )
+      return {
+        backup: toDatabaseBackup(backupDir, published),
+        message: `已导入备份 ${fileName}`,
+      }
+    } catch (error) {
+      if (normalizedTemp !== null) removeFileIfExists(normalizedTemp)
+      throw toImportError(error)
+    } finally {
+      // 上传原件已规范化进副本：无论成败都清掉，只留已发布的备份。
+      if (uploadTemp !== null) removeFileIfExists(uploadTemp)
       if (id !== null) clearMarker(stateDir, id)
     }
   }
@@ -751,7 +1096,7 @@ export const createDatabaseBackupService = (
     return { deleted, failed }
   }
 
-  return { list, get, create, remove, reconcile }
+  return { list, get, create, importUpload, remove, reconcile }
 }
 
 /**

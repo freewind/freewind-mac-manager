@@ -13,6 +13,7 @@ import {
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
+import { Readable } from "node:stream"
 import {
   DATABASE_BACKUP_FILENAME_PATTERN,
   type TaskProgress,
@@ -29,6 +30,7 @@ import {
 } from "./catalog"
 import { DatabaseBackupError, isTemporaryFileName } from "./files"
 import { createDatabaseBackupService } from "./service"
+import type { BackupValidationResult } from "./validation"
 
 /**
  * 备份服务的用例：只使用临时库与临时目录。
@@ -666,5 +668,160 @@ describe("删除", () => {
     expect(bad.deleted).toHaveLength(0)
     expect(bad.failed[0]?.message).toMatch(/不一致/)
     expect(existsSync(path.join(backupDir, entry2.fileName))).toBe(true)
+  })
+})
+
+describe("上传导入", () => {
+  /** 造一个可导入的上传库字节（非 WAL；默认含应用必要表）。 */
+  const uploadBytes = (options: { withAppTables?: boolean } = {}): Buffer => {
+    const file = path.join(root, "upload-source.sqlite3")
+    rmSync(file, { force: true })
+    const database = new DatabaseSync(file)
+    if (options.withAppTables !== false) {
+      database.exec(`
+        CREATE TABLE traffic_samples (id INTEGER PRIMARY KEY, ts INTEGER NOT NULL);
+        CREATE TABLE traffic_snapshots (id TEXT PRIMARY KEY, saved_at INTEGER NOT NULL);
+        CREATE TABLE traffic_snapshot_entries (snapshot_id TEXT NOT NULL);
+      `)
+    }
+    database.exec("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
+    database.exec("INSERT INTO items (name) VALUES ('apple')")
+    database.close()
+    return readFileSync(file)
+  }
+
+  const okValidation = (
+    overrides: Partial<BackupValidationResult> = {}
+  ): BackupValidationResult => ({
+    ok: true,
+    reason: null,
+    sizeBytes: 4096,
+    tableCount: 4,
+    structureSignature: "a".repeat(64),
+    restoreBlockedReason: null,
+    ...overrides,
+  })
+
+  it("成功导入：以 import 来源与服务端文件名发布，上传原件被清理", async () => {
+    const bytes = uploadBytes()
+    // 不注入校验：走真实 worker 子进程，端到端验证导入链路。
+    const created = await serviceOf().importUpload({
+      source: Readable.from([bytes]),
+      declaredLength: bytes.length,
+      originalFileName: "../../snap.sqlite3",
+    })
+    expect(created.backup.source).toBe("import")
+    expect(created.backup.fileName).toMatch(DATABASE_BACKUP_FILENAME_PATTERN)
+    expect(created.backup.originalFileName).toBe("snap.sqlite3")
+    expect(created.backup.restoreBlockedReason).toBeNull()
+    expect(created.backup.integrity.ok).toBe(true)
+    expect(created.backup.sizeBytes).toBeGreaterThan(0)
+    expect(backupFiles()).toHaveLength(1)
+    // 上传原件与规范化临时文件都不留；也没有 WAL 旁置文件。
+    expect(temporaryFiles()).toHaveLength(0)
+    const names = readdirSync(backupDir)
+    expect(names.some((name) => name.endsWith("-wal"))).toBe(false)
+    expect(names.some((name) => name.endsWith("-shm"))).toBe(false)
+    expect(loadManifest(backupDir).entries[0].status).toBe("published")
+    // 规范化产物可独立打开。
+    const restored = new DatabaseSync(
+      path.join(backupDir, created.backup.fileName),
+      {
+        readOnly: true,
+      }
+    )
+    const rows = restored.prepare("SELECT count(*) AS total FROM items").get()
+    restored.close()
+    expect(Number(rows?.total)).toBe(1)
+  }, 30_000)
+
+  it("同一毫秒再次导入：文件名不同、两份都在列表里", async () => {
+    const bytes = uploadBytes()
+    const service = serviceOf()
+    const first = await service.importUpload({
+      source: Readable.from([bytes]),
+      validate: async () => okValidation(),
+    })
+    const second = await service.importUpload({
+      source: Readable.from([bytes]),
+      validate: async () => okValidation(),
+    })
+    expect(first.backup.fileName).not.toBe(second.backup.fileName)
+    expect(service.list({ page: 1, pageSize: 10 }).total).toBe(2)
+  })
+
+  it("无效上传：报不支持的格式，列表为空、无任何残留", async () => {
+    const error = await serviceOf()
+      .importUpload({
+        source: Readable.from([Buffer.from("not a database at all")]),
+        validate: async () => ({
+          ok: false,
+          reason: "文件头不是 SQLite 格式，可能是压缩包或其他文件",
+          sizeBytes: 21,
+          tableCount: null,
+          structureSignature: null,
+          restoreBlockedReason: null,
+        }),
+      })
+      .catch((failure: unknown) => failure)
+    expect(error).toBeInstanceOf(DatabaseBackupError)
+    expect((error as DatabaseBackupError).code).toBe("unsupported_format")
+    expect(backupFiles()).toHaveLength(0)
+    expect(temporaryFiles()).toHaveLength(0)
+    expect(serviceOf().list({ page: 1, pageSize: 10 }).total).toBe(0)
+  })
+
+  it("有效但缺应用必要表：入列表并标记不可恢复原因", async () => {
+    const bytes = uploadBytes({ withAppTables: false })
+    const created = await serviceOf().importUpload({
+      source: Readable.from([bytes]),
+      validate: async () => okValidation(),
+    })
+    expect(created.backup.restoreBlockedReason).toContain("缺少应用必要表")
+    expect(created.backup.restoreBlockedReason).toContain("traffic_samples")
+    // 不可恢复但不隔离：仍可列出与读取详情。
+    const detail = serviceOf().get(created.backup.id)
+    expect(detail?.id).toBe(created.backup.id)
+  })
+
+  it("导入只碰上传文件，不改当前应用数据库", async () => {
+    createSource({ rows: 50 })
+    const before = readFileSync(sourceFile)
+    const bytes = uploadBytes()
+    await serviceOf().importUpload({
+      source: Readable.from([bytes]),
+      validate: async () => okValidation(),
+    })
+    const after = readFileSync(sourceFile)
+    expect(after.equals(before)).toBe(true)
+  })
+
+  it("空间不足：导入被拒，不留下任何东西", async () => {
+    const bytes = uploadBytes()
+    await expect(
+      serviceOf({ freeBytes: () => 1024 }).importUpload({
+        source: Readable.from([bytes]),
+        declaredLength: bytes.length,
+      })
+    ).rejects.toThrow(/空间不足/)
+    expect(backupFiles()).toHaveLength(0)
+    expect(temporaryFiles()).toHaveLength(0)
+  })
+
+  it("已有备份任务进行中：拒绝导入", async () => {
+    mkdirSync(stateDir, { recursive: true })
+    writeFileSync(
+      path.join(stateDir, "in-progress.json"),
+      JSON.stringify({
+        backupId: "busy01",
+        fileName: "snapshots-20261012T093405123Z-busy01.sqlite3",
+        startedAt: Date.now(),
+        pid: process.pid,
+      })
+    )
+    await expect(
+      serviceOf().importUpload({ source: Readable.from([uploadBytes()]) })
+    ).rejects.toThrow(/正在进行/)
+    expect(backupFiles()).toHaveLength(0)
   })
 })

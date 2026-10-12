@@ -109,6 +109,12 @@ export const DatabaseBackupSchema = z.object({
   rowCount: z.number().int().min(0).nullable(),
   /** 上传导入时的原始文件名：只用于展示，绝不是路径来源。 */
   originalFileName: z.string().max(255).nullable(),
+  /**
+   * 恢复阻塞原因：null 表示具备恢复到本应用所需的结构；
+   * 非空是具体原因（例如缺少应用必要表），此时仍可在列表中查看与删除，
+   * 但不允许用于替换应用数据库。与文件完整性（integrity）分开判断。
+   */
+  restoreBlockedReason: z.string().max(500).nullable(),
 })
 
 export const DatabaseBackupsQuerySchema = z.object({

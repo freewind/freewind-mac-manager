@@ -6,7 +6,7 @@
   "packageManager": "pnpm@12.4.1",
   "scripts": {
     "dev": "pnpm generate:openapi && APP_PORT=51509 vite --open",
-    "build": "pnpm generate:openapi && pnpm typecheck && vite build && tsx scripts/generate-shell.ts && vite build --ssr src/server/main.ts --outDir dist-ssr/server && VITE_KEEP_OUT_DIR=1 vite build --ssr src/server/task-worker.ts --outDir dist-ssr/server && VITE_KEEP_OUT_DIR=1 vite build --ssr src/server/database/query-worker.ts --outDir dist-ssr/server && VITE_KEEP_OUT_DIR=1 vite build --ssr src/server/database/mutation-worker.ts --outDir dist-ssr/server",
+    "build": "pnpm generate:openapi && pnpm typecheck && vite build && tsx scripts/generate-shell.ts && vite build --ssr src/server/main.ts --outDir dist-ssr/server && VITE_KEEP_OUT_DIR=1 vite build --ssr src/server/task-worker.ts --outDir dist-ssr/server && VITE_KEEP_OUT_DIR=1 vite build --ssr src/server/database/query-worker.ts --outDir dist-ssr/server && VITE_KEEP_OUT_DIR=1 vite build --ssr src/server/database/mutation-worker.ts --outDir dist-ssr/server && VITE_KEEP_OUT_DIR=1 vite build --ssr src/server/database/backups/validation-worker.ts --outDir dist-ssr/server",
     "start": "APP_PORT=51510 NODE_ENV=production node dist-ssr/server/main.js",
     "deploy:prod": "pnpm build && launchctl kickstart -k gui/$(id -u)/com.freewind.mac-manager",
     "typecheck": "tsc --noEmit",

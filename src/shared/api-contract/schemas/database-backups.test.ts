@@ -37,6 +37,7 @@ const backup = {
   tableCount: 3,
   rowCount: 42,
   originalFileName: null,
+  restoreBlockedReason: null,
 }
 
 const plan = {
@@ -159,6 +160,25 @@ describe("备份条目", () => {
         rowCount: null,
       }).success
     ).toBe(true)
+  })
+
+  it("恢复兼容性与完整性分开：有效但缺应用结构的库给出阻塞原因", () => {
+    expect(
+      DatabaseBackupSchema.safeParse({
+        ...backup,
+        restoreBlockedReason: "缺少应用必要表：traffic_samples",
+      }).success
+    ).toBe(true)
+    expect(
+      DatabaseBackupSchema.safeParse({ ...backup, restoreBlockedReason: 123 })
+        .success
+    ).toBe(false)
+    expect(
+      DatabaseBackupSchema.safeParse({
+        ...backup,
+        restoreBlockedReason: "x".repeat(501),
+      }).success
+    ).toBe(false)
   })
 })
 

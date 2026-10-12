@@ -55,6 +55,8 @@ export type BackupManifestEntry = {
   tableCount: number | null
   rowCount: number | null
   originalFileName: string | null
+  /** 恢复阻塞原因：null 表示具备应用必要结构、可用于恢复；旧清单条目按可恢复处理。 */
+  restoreBlockedReason: string | null
   status: BackupEntryStatus
   /** 发布时记录的文件身份；之后据此判断文件是否被改动。 */
   identity: BackupFileIdentity | null
@@ -127,6 +129,11 @@ const readEntry = (value: unknown): BackupManifestEntry | null => {
     rowCount: typeof rowCount === "number" ? rowCount : null,
     originalFileName:
       typeof originalFileName === "string" ? originalFileName : null,
+    // 旧清单没有这个字段：按可恢复处理；需要严格结论时由校验入口重新判定。
+    restoreBlockedReason:
+      typeof value.restoreBlockedReason === "string"
+        ? value.restoreBlockedReason
+        : null,
     status,
     identity: readIdentity(identity),
   }
@@ -227,6 +234,7 @@ export const toDatabaseBackup = (
     tableCount: entry.tableCount,
     rowCount: entry.rowCount,
     originalFileName: entry.originalFileName,
+    restoreBlockedReason: entry.restoreBlockedReason,
   }
 }
 
@@ -281,10 +289,27 @@ export const computeContentSignature = async (
   return hash.digest("hex")
 }
 
+/**
+ * 应用必要结构：本安装版本启动时由 initializeTraffic 无条件创建的流量表。
+ * 缺少这些表的 SQLite 库不是本应用的数据库：可以纳入备份列表，但不允许用于恢复。
+ * 其他域的表按需创建、缺了会在启动时重建，因此不算必要结构。
+ */
+export const APP_REQUIRED_TABLES = [
+  "traffic_samples",
+  "traffic_snapshots",
+  "traffic_snapshot_entries",
+] as const
+
+/** 缺失的应用必要表（空数组表示具备恢复所需结构）。 */
+export const findMissingAppTables = (names: readonly string[]): string[] =>
+  APP_REQUIRED_TABLES.filter((table) => !names.includes(table))
+
 export type BackupContentInspection = {
   integrity: DatabaseBackupIntegrity
   structureSignature: string | null
   tableCount: number | null
+  /** 恢复阻塞原因：具备应用必要结构时为 null。 */
+  restoreBlockedReason: string | null
 }
 
 /**
@@ -297,7 +322,10 @@ export const inspectBackupContent = (file: string): BackupContentInspection => {
   let database: DatabaseSync | null = null
   try {
     database = new Database(file, { readOnly: true })
-    const rows = database.prepare("PRAGMA integrity_check").all()
+    // 用 pragma 表值函数加 LIMIT：坏库可能有大量违规行，不能整表拉进内存。
+    const rows = database
+      .prepare("SELECT * FROM pragma_integrity_check() LIMIT 1")
+      .all()
     const first = rows[0]
     const verdict =
       first === undefined ? "" : String(first.integrity_check ?? "")
@@ -306,17 +334,24 @@ export const inspectBackupContent = (file: string): BackupContentInspection => {
         integrity: { ok: false, reason: "完整性校验未通过" },
         structureSignature: null,
         tableCount: null,
+        restoreBlockedReason: null,
       }
     }
-    const tables = database
+    const tableNames = database
       .prepare(
-        "SELECT count(*) AS total FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
       )
-      .get()
+      .all()
+      .map((row) => String(row.name))
+    const missing = findMissingAppTables(tableNames)
     return {
       integrity: { ok: true },
       structureSignature: computeStructureSignature(database),
-      tableCount: tables === undefined ? null : Number(tables.total),
+      tableCount: tableNames.length,
+      restoreBlockedReason:
+        missing.length === 0
+          ? null
+          : `缺少应用必要表：${missing.join("、")}，不是可恢复到本应用的数据库`,
     }
   } catch (error) {
     return {
@@ -326,6 +361,7 @@ export const inspectBackupContent = (file: string): BackupContentInspection => {
       },
       structureSignature: null,
       tableCount: null,
+      restoreBlockedReason: null,
     }
   } finally {
     if (database !== null) {
@@ -388,6 +424,7 @@ export const entryFromFileName = (options: {
   structureSignature: string
   tableCount: number | null
   source: DatabaseBackupSource
+  restoreBlockedReason?: string | null
 }): BackupManifestEntry | null => {
   const parsed = parseBackupFileName(options.name)
   if (!parsed) return null
@@ -403,6 +440,7 @@ export const entryFromFileName = (options: {
     // 全表计数在 GB 级库上是整表扫描，这里不假填 0，如实给 null。
     rowCount: null,
     originalFileName: null,
+    restoreBlockedReason: options.restoreBlockedReason ?? null,
     status: "published",
     identity: options.identity,
   }

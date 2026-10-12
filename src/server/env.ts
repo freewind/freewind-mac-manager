@@ -129,6 +129,14 @@ const MUTATION_WORKER_DIST = path.join(
   PROJECT_ROOT,
   "dist-ssr/server/mutation-worker.js"
 )
+const BACKUP_VALIDATION_WORKER_SOURCE = path.join(
+  PROJECT_ROOT,
+  "src/server/database/backups/validation-worker.ts"
+)
+const BACKUP_VALIDATION_WORKER_DIST = path.join(
+  PROJECT_ROOT,
+  "dist-ssr/server/validation-worker.js"
+)
 
 /**
  * 后台任务子进程的启动方式。
@@ -195,5 +203,26 @@ export const mutationWorkerCommand = (): {
     : {
         command: process.execPath,
         args: ["--import", "tsx", MUTATION_WORKER_SOURCE],
+        cwd: PROJECT_ROOT,
+      }
+
+/**
+ * 备份校验子进程的启动方式，与查询、写子进程同一套判断：
+ * 开发直接跑源码（不依赖构建产物），生产跑 dist-ssr 里的产物。
+ */
+export const databaseBackupValidationWorkerCommand = (): {
+  command: string
+  args: string[]
+  cwd: string
+} =>
+  IS_PRODUCTION
+    ? {
+        command: process.execPath,
+        args: [BACKUP_VALIDATION_WORKER_DIST],
+        cwd: PROJECT_ROOT,
+      }
+    : {
+        command: process.execPath,
+        args: ["--import", "tsx", BACKUP_VALIDATION_WORKER_SOURCE],
         cwd: PROJECT_ROOT,
       }
