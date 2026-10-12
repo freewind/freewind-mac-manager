@@ -1,5 +1,7 @@
 allowBuilds:
-  '@scarf/scarf': set this to true or false
+  '@google/genai': false
+  '@scarf/scarf': false
+  protobufjs: false
 minimumReleaseAgeExclude:
   - '@base-ui/react@1.9.0'
   - '@base-ui/utils@0.5.0'
