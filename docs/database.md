@@ -160,9 +160,9 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 | 命令 | 结果 |
 | --- | --- |
 | `pnpm test` | 数据库域 17 个测试文件 / 230 条用例全部通过；全量 124 个文件通过、1 个失败（他人未提交的 `PiPage.test.tsx`） |
-| `pnpm typecheck` | 我的文件 0 错误；全项目仅 `src/web/features/pi/PiPage.test.tsx` 有 2 个错误（他人未提交改动） |
+| `pnpm typecheck` | 通过，无错误 |
 | `pnpm lint` | 我的 40 个文件 0 问题；全项目 0 error、9 条既有 `noDocumentCookie` 警告 |
-| `pnpm build` | 全部构建步骤通过：前端 + `main` / `task-worker` / `query-worker` / `mutation-worker` 四个 SSR 产物齐全（`pnpm build` 的 typecheck 环节当前被他人未提交的 `PiPage.test.tsx` 挡住，故按同样命令逐步执行） |
+| `pnpm build` | 通过：前端 + `main` / `task-worker` / `query-worker` / `mutation-worker` 四个 SSR 产物齐全 |
 | `pnpm generate:openapi` | 已重新生成 `generated/openapi.yaml`；`generated/` 在 `.gitignore` 里，没有需要提交的生成物 |
 
 ## 人工验收步骤（未执行）
@@ -193,5 +193,5 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 - **批量删除只针对当前页勾选的记录**，不会跨页累积。
 - 浏览器与真机适配（320px、44px 触控、PWA 安装、弱网）尚未验收，见
   [手机与弱网验收矩阵](./mobile-verification.md)。
-- 全项目 `pnpm typecheck` 与 `pnpm test` 目前仍有他人未提交改动造成的失败（`PiPage.test.tsx`
-  及其类型错误），与本域无关；本域自己的 17 个测试文件与 40 个 lint 目标全部干净。
+- 全量 `pnpm test` 目前仍有 1 个失败在他人未提交的 `PiPage.test.tsx`（与本域无关）；
+  本域自己的 17 个测试文件、40 个 lint 目标与全项目 typecheck / build 都是干净的。
