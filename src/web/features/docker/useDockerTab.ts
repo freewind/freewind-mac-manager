@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react"
 
-/** Docker 页的分区：默认容器，其余三个分区按资源类型划分。 */
+/** Docker 页的分区：概览是 Colima 与资源计数汇总，其余四个按资源类型划分。 */
 export const DOCKER_TABS = [
+  { key: "overview", label: "概览" },
   { key: "containers", label: "容器" },
   { key: "images", label: "镜像" },
   { key: "volumes", label: "卷" },
@@ -10,6 +11,7 @@ export const DOCKER_TABS = [
 
 export type DockerTab = (typeof DOCKER_TABS)[number]["key"]
 
+/** 默认停在容器：最常用的操作直接可见，概览在标签里随时可切。 */
 export const DEFAULT_DOCKER_TAB: DockerTab = "containers"
 
 const TAB_KEYS: readonly string[] = DOCKER_TABS.map((item) => item.key)

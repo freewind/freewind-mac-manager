@@ -21,6 +21,11 @@ import {
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@web/components/ui/collapsible"
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
@@ -52,6 +57,9 @@ type RuleListProps = {
   busy: boolean
   /** 非空表示写操作目前不可用，文案说明原因（离线或读取失败）。 */
   disabledReason: string | null
+  /** 搜索词由页面持有：切到别的分区卸载列表时筛选不会丢。 */
+  search: string
+  onSearchChange: (value: string) => void
   onEdit: (rule: CaddyRule) => void
   onSetEnabled: (rule: CaddyRule, enabled: boolean) => Promise<boolean>
   onDelete: (rule: CaddyRule) => Promise<boolean>
@@ -133,7 +141,6 @@ const StripeNote = (props: { rule: CaddyRule }) =>
  */
 export const RuleList = (props: RuleListProps) => {
   const isDesktop = useIsDesktop()
-  const [search, setSearch] = useState("")
   const [pendingDelete, setPendingDelete] = useState<CaddyRule | null>(null)
   const [pendingDisable, setPendingDisable] = useState<CaddyRule | null>(null)
   const deleting = useDialogSubmit(() => setPendingDelete(null), props.busy)
@@ -143,7 +150,7 @@ export const RuleList = (props: RuleListProps) => {
   useHistoryOverlay(pendingDelete !== null, () => setPendingDelete(null))
   useHistoryOverlay(pendingDisable !== null, () => setPendingDisable(null))
 
-  const keyword = search.trim().toLowerCase()
+  const keyword = props.search.trim().toLowerCase()
   const visible =
     keyword === ""
       ? props.rules
@@ -194,8 +201,8 @@ export const RuleList = (props: RuleListProps) => {
             className="min-h-11"
             placeholder="按名称、域名或上游搜索"
             autoComplete="off"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            value={props.search}
+            onChange={(event) => props.onSearchChange(event.target.value)}
           />
           <HugeiconsIcon
             icon={Search01Icon}
@@ -219,7 +226,7 @@ export const RuleList = (props: RuleListProps) => {
         </Empty>
       ) : visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          没有匹配「{search.trim()}」的规则。
+          没有匹配「{props.search.trim()}」的规则。
         </p>
       ) : isDesktop ? (
         <div className="overflow-x-auto">
@@ -431,72 +438,104 @@ type ExternalRulesSectionProps = {
  * 页面必须把这件事说清楚，而不是给一个点不动的按钮。
  */
 export const ExternalRulesSection = (props: ExternalRulesSectionProps) => {
+  // 默认收起：外部规则是例外情况，不该占着分区首屏。
+  const [open, setOpen] = useState(false)
+
   if (props.externalRules.length === 0 && props.unsupportedLines === 0) {
     return null
   }
 
+  const summary = [
+    props.unsupportedLines > 0 ? `${props.unsupportedLines} 行无法识别` : null,
+    props.externalRules.length > 0
+      ? `${props.externalRules.length} 条尚未接管`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
   return (
-    <section className="flex min-w-0 flex-col gap-2">
-      {props.unsupportedLines > 0 ? (
-        <Alert variant="destructive">
-          <AlertTitle>
-            配置文件里有 {props.unsupportedLines} 行无法识别
-          </AlertTitle>
-          <AlertDescription>
-            <p>
-              这些行不在受管区域里，应用变更可能覆盖手工配置，因此现在不能应用。
-            </p>
-            <div className="mt-2 max-w-full overflow-x-auto rounded-md border bg-muted/40">
-              <ul className="w-max min-w-full p-2 font-mono text-xs">
-                {props.unsupportedSamples.map((sample) => (
-                  <li key={sample} className="whitespace-pre">
-                    {sample}
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <section className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-medium">外部规则</h2>
+          <p className="text-xs text-muted-foreground">{summary}</p>
+          <CollapsibleTrigger
+            render={
+              <Button
+                variant="outline"
+                className="ml-auto min-h-11 shrink-0 px-3"
+              >
+                {open ? "收起外部规则" : "展开外部规则"}
+              </Button>
+            }
+          />
+        </div>
+        <CollapsibleContent className="flex min-w-0 flex-col gap-2">
+          {props.unsupportedLines > 0 ? (
+            <Alert variant="destructive">
+              <AlertTitle>
+                配置文件里有 {props.unsupportedLines} 行无法识别
+              </AlertTitle>
+              <AlertDescription>
+                <p>
+                  这些行不在受管区域里，应用变更可能覆盖手工配置，因此现在不能应用。
+                </p>
+                <div className="mt-2 max-w-full overflow-x-auto rounded-md border bg-muted/40">
+                  <ul className="w-max min-w-full p-2 font-mono text-xs">
+                    {props.unsupportedSamples.map((sample) => (
+                      <li key={sample} className="whitespace-pre">
+                        {sample}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          {props.externalRules.length > 0 ? (
+            <div className="flex flex-col gap-2 rounded-lg border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-medium">
+                  Caddyfile 里尚未接管的规则（{props.externalRules.length} 条）
+                </h3>
+                <ActionButton
+                  variant="outline"
+                  className="ml-auto min-h-11 px-3"
+                  busy={props.busy}
+                  busyLabel="导入中"
+                  disabled={props.disabledReason !== null}
+                  onClick={() => void props.onImport()}
+                >
+                  导入现有规则
+                </ActionButton>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                导入只把它们记进数据库，不修改文件；导入后仍要应用变更才会接管受管区域。
+              </p>
+              <ul className="flex flex-col gap-1">
+                {props.externalRules.map((rule) => (
+                  <li
+                    key={rule.id}
+                    className="flex min-w-0 flex-col gap-0.5 border-t pt-1 text-xs first:border-t-0 first:pt-0"
+                  >
+                    <span className="truncate">
+                      第 {rule.line} 行：{matchConditionOf(rule)}
+                      {rule.matchKind === "path" && rule.stripPrefix
+                        ? "（剥离前缀）"
+                        : ""}
+                    </span>
+                    <span className="truncate font-mono">
+                      → {rule.upstream}
+                    </span>
                   </li>
                 ))}
               </ul>
             </div>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {props.externalRules.length > 0 ? (
-        <div className="flex flex-col gap-2 rounded-lg border p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-medium">
-              Caddyfile 里尚未接管的规则（{props.externalRules.length} 条）
-            </h3>
-            <ActionButton
-              variant="outline"
-              className="ml-auto min-h-11 px-3"
-              busy={props.busy}
-              busyLabel="导入中"
-              disabled={props.disabledReason !== null}
-              onClick={() => void props.onImport()}
-            >
-              导入现有规则
-            </ActionButton>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            导入只把它们记进数据库，不修改文件；导入后仍要应用变更才会接管受管区域。
-          </p>
-          <ul className="flex flex-col gap-1">
-            {props.externalRules.map((rule) => (
-              <li
-                key={rule.id}
-                className="flex min-w-0 flex-col gap-0.5 border-t pt-1 text-xs first:border-t-0 first:pt-0"
-              >
-                <span className="truncate">
-                  第 {rule.line} 行：{matchConditionOf(rule)}
-                  {rule.matchKind === "path" && rule.stripPrefix
-                    ? "（剥离前缀）"
-                    : ""}
-                </span>
-                <span className="truncate font-mono">→ {rule.upstream}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </section>
+          ) : null}
+        </CollapsibleContent>
+      </section>
+    </Collapsible>
   )
 }

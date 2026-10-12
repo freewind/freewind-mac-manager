@@ -100,6 +100,11 @@ const renderPage = () => {
   )
 }
 
+/** 概览与各资源列表都在标签里：先切到目标标签，再断言该分区的内容。 */
+const openTab = (label: string): void => {
+  fireEvent.click(screen.getByRole("button", { name: label }))
+}
+
 afterEach(() => {
   cleanup()
   useAiAssistantLocalStore.setState({
@@ -120,14 +125,16 @@ describe("DockerPage 概览", () => {
   it("加载中显示可读状态，不留空白", async () => {
     fetchDockerOverview.mockReturnValue(new Promise<DockerOverview>(() => {}))
     renderPage()
+    openTab("概览")
     expect(screen.getByText("正在读取 Docker 概览…")).toBeTruthy()
     expect(screen.getByRole("status", { name: "Docker 加载中" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "刷新" })).toBeTruthy()
   })
 
-  it("渲染 Colima 状态与容器/镜像/卷/网络的真实计数", async () => {
+  it("概览标签里渲染 Colima 状态与容器/镜像/卷/网络的真实计数", async () => {
     fetchDockerOverview.mockResolvedValue(overview)
     renderPage()
+    openTab("概览")
     // Colima
     expect(await screen.findByText("运行中")).toBeTruthy()
     expect(screen.getByText("runtime docker · 架构 x86_64")).toBeTruthy()
@@ -156,6 +163,7 @@ describe("DockerPage 概览", () => {
       networks: { total: 0 },
     })
     renderPage()
+    openTab("概览")
     expect(await screen.findByText("暂无容器")).toBeTruthy()
     expect(screen.getByText("暂无镜像")).toBeTruthy()
     expect(screen.getByText("暂无卷")).toBeTruthy()
@@ -173,6 +181,7 @@ describe("DockerPage 概览", () => {
     // 错误留在页面上，不是一闪而过的提示
     expect(screen.getByRole("alert")).toBe(alert)
 
+    openTab("概览")
     fetchDockerOverview.mockResolvedValue(overview)
     screen.getByRole("button", { name: "刷新" }).click()
     expect(await screen.findByText("共 4 个容器")).toBeTruthy()
@@ -197,6 +206,7 @@ describe("DockerPage 概览", () => {
       networks: { total: 0 },
     })
     renderPage()
+    openTab("概览")
     expect(await screen.findByText("Docker 当前不可用")).toBeTruthy()
     expect(screen.getByText("未安装")).toBeTruthy()
     expect(screen.getByText("未安装 colima，Docker 能力不可用")).toBeTruthy()
@@ -205,6 +215,16 @@ describe("DockerPage 概览", () => {
 })
 
 describe("DockerPage 分区导航", () => {
+  it("概览是标签之一，默认停在容器分区且不再先经过概览", async () => {
+    renderPage()
+    for (const label of ["概览", "容器", "镜像", "卷", "网络"]) {
+      expect(screen.getByRole("button", { name: label })).toBeTruthy()
+    }
+    // 默认分区直接就是容器列表，概览计数不在首屏占位
+    expect(await screen.findByRole("heading", { name: "容器" })).toBeTruthy()
+    expect(screen.queryByText("共 4 个容器")).toBeNull()
+  })
+
   it("默认停在容器分区，切换镜像分区会写进 URL", async () => {
     renderPage()
     expect(await screen.findByRole("heading", { name: "容器" })).toBeTruthy()
@@ -266,6 +286,9 @@ describe("DockerPage 分区导航", () => {
       skipped: [],
     })
     renderPage()
+    // 容器列表先渲染一次，缓存里才有条目可读
+    await screen.findByRole("heading", { name: "容器" })
+    openTab("概览")
     expect(await screen.findByText("共 4 个容器")).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "AI 助手" }))

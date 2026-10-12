@@ -171,6 +171,11 @@ const renderPage = () => {
   )
 }
 
+/** 主体按标签分区：先等标签出现，再切到目标分区断言内容。 */
+const openTab = async (label: string): Promise<void> => {
+  fireEvent.click(await screen.findByRole("button", { name: label }))
+}
+
 const inputValue = (element: HTMLElement): string =>
   element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
     ? element.value
@@ -232,6 +237,22 @@ const applyTask = (status: "done" | "failed" | "unknown"): TaskRecord => ({
   updatedAt: 2000,
 })
 
+describe("Caddy 主体分区", () => {
+  it("三个分区标签齐全，应用按钮只在变更预览分区里", async () => {
+    renderPage()
+    for (const label of ["规则", "变更预览", "版本历史"]) {
+      expect(await screen.findByRole("button", { name: label })).toBeTruthy()
+    }
+    // 默认在规则分区：应用按钮不在 DOM 里，规则列表直接可见
+    expect(await screen.findByText("模型服务")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "应用变更" })).toBeNull()
+
+    await openTab("变更预览")
+    expect(screen.getByRole("button", { name: "应用变更" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "新增规则" })).toBeNull()
+  })
+})
+
 describe("Caddy 任务完成后的数据失效", () => {
   it("应用完成后重新读取规则与历史版本", async () => {
     api.fetchCaddyRules.mockResolvedValue(
@@ -242,6 +263,7 @@ describe("Caddy 任务完成后的数据失效", () => {
       })
     )
     renderPage()
+    await openTab("变更预览")
     await screen.findByRole("button", { name: "应用变更" })
     const rulesBefore = api.fetchCaddyRules.mock.calls.length
     const versionsBefore = api.fetchCaddyVersions.mock.calls.length
@@ -298,6 +320,7 @@ describe("Caddy 页面状态", () => {
 
   it("现状把进程、管理接口、受管区域分开表达，并给出读数时间", async () => {
     renderPage()
+    await openTab("变更预览")
     expect(await screen.findByText("运行中")).toBeTruthy()
     expect(screen.getByText("v2.11.4")).toBeTruthy()
     expect(screen.getByText("可达")).toBeTruthy()
@@ -310,6 +333,7 @@ describe("Caddy 页面状态", () => {
       rulesResponse({ managedRegionDrifted: true })
     )
     renderPage()
+    await openTab("变更预览")
     expect(await screen.findByText("受管区域被手工改动过")).toBeTruthy()
   })
 
@@ -332,6 +356,7 @@ describe("Caddy 页面状态", () => {
       })
     )
     renderPage()
+    await openTab("变更预览")
     expect(await screen.findByText("现在不能应用变更")).toBeTruthy()
     expect(
       screen.getByText(/现在不能应用：配置文件里还有尚未接管的规则/)
@@ -361,6 +386,7 @@ describe("Caddy 页面状态", () => {
     )
     renderPage()
     expect(await screen.findByText(/2 行无法识别/)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "展开外部规则" }))
     expect(screen.getByText("第 6 行：encode gzip")).toBeTruthy()
     expect(screen.getByText(/第 12 行：old.returncat.com/)).toBeTruthy()
     expect(screen.getByText("→ 127.0.0.1:15009")).toBeTruthy()
@@ -546,6 +572,7 @@ describe("Caddy 应用与恢复", () => {
       })
     )
     renderPage()
+    await openTab("变更预览")
     expect(await screen.findByText(/共 2 处变化：新增 2 条/)).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "应用变更" }))
     const dialog = await screen.findByRole("alertdialog")
@@ -567,7 +594,7 @@ describe("Caddy 应用与恢复", () => {
 
   it("没有未应用变更时应用按钮禁用并说明", async () => {
     renderPage()
-    await screen.findByText("模型服务")
+    await openTab("变更预览")
     expect(
       screen.getByRole("button", { name: "应用变更" }).hasAttribute("disabled")
     ).toBe(true)
@@ -576,6 +603,7 @@ describe("Caddy 应用与恢复", () => {
 
   it("恢复历史版本：确认文案写明时间与条数", async () => {
     renderPage()
+    await openTab("版本历史")
     const time = formatTimestamp(1_699_500_000)
     expect(await screen.findByText(time)).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "恢复此版本" }))
@@ -596,6 +624,7 @@ describe("Caddy 应用与恢复", () => {
   it("没有历史版本时给出空状态", async () => {
     api.fetchCaddyVersions.mockResolvedValue({ versions: [] })
     renderPage()
+    await openTab("版本历史")
     expect(await screen.findByText("还没有应用历史")).toBeTruthy()
   })
 })
@@ -626,21 +655,33 @@ describe("Caddy 页面离线与可达性", () => {
     )
     renderPage()
     expect(await screen.findByText("当前处于离线状态")).toBeTruthy()
-    const disabledNames = [
+    // 规则分区：含外部规则里的导入入口
+    fireEvent.click(await screen.findByRole("button", { name: "展开外部规则" }))
+    const ruleDisabledNames = [
       "新增规则",
       "编辑规则「模型服务」",
       "停用规则「模型服务」",
       "删除规则「模型服务」",
       "导入现有规则",
-      "应用变更",
-      "恢复此版本",
     ]
-    for (const name of disabledNames) {
+    for (const name of ruleDisabledNames) {
       expect(
         screen.getByRole("button", { name }).hasAttribute("disabled"),
         `${name} 应当被禁用`
       ).toBe(true)
     }
+
+    // 变更预览与版本历史各自一个分区，都要单独看
+    await openTab("变更预览")
+    expect(
+      screen.getByRole("button", { name: "应用变更" }).hasAttribute("disabled")
+    ).toBe(true)
+    await openTab("版本历史")
+    expect(
+      screen
+        .getByRole("button", { name: "恢复此版本" })
+        .hasAttribute("disabled")
+    ).toBe(true)
   })
 
   it("关键交互元素都有可访问名称", async () => {
@@ -656,6 +697,9 @@ describe("Caddy 页面离线与可达性", () => {
     expect(
       screen.getByRole("button", { name: "停用规则「模型服务」" })
     ).toBeTruthy()
+    await openTab("变更预览")
+    expect(screen.getByRole("button", { name: "应用变更" })).toBeTruthy()
+    await openTab("版本历史")
     expect(screen.getByRole("button", { name: "恢复此版本" })).toBeTruthy()
   })
 
@@ -683,5 +727,20 @@ describe("Caddy 页面离线与可达性", () => {
 
     changeInput(screen.getByRole("textbox", { name: "搜索规则" }), "没有这个")
     expect(await screen.findByText(/没有匹配「没有这个」的规则/)).toBeTruthy()
+  })
+
+  it("切到别的标签再回来，规则搜索词还在", async () => {
+    renderPage()
+    await screen.findByText("模型服务")
+    changeInput(screen.getByRole("textbox", { name: "搜索规则" }), "54740")
+    expect(inputValue(screen.getByRole("textbox", { name: "搜索规则" }))).toBe(
+      "54740"
+    )
+
+    await openTab("变更预览")
+    await openTab("规则")
+    expect(inputValue(screen.getByRole("textbox", { name: "搜索规则" }))).toBe(
+      "54740"
+    )
   })
 })

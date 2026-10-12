@@ -93,37 +93,49 @@ export const DockerPage = () => {
     ],
   })
 
+  /** 顶部只放一句话的可用状态；详细计数在「概览」标签里。 */
+  const availability = model.isLoading
+    ? "正在读取 Docker 概览"
+    : overview === null
+      ? "没有读到 Docker 概览数据"
+      : [
+          overview.available ? "Docker 可用" : "Docker 不可用",
+          `Colima ${overview.colima.running ? "运行中" : "未运行"}`,
+          model.sampledAt ? `数据时间 ${model.sampledAt}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+
   return (
-    <div className="flex min-w-0 flex-col gap-3 p-3">
-      <header className="flex flex-wrap items-center gap-2">
-        <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <header className="flex flex-col gap-2 border-b px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
           <HugeiconsIcon icon={ContainerIcon} className="size-4 shrink-0" />
           <div className="min-w-0">
             <PageHeader title="Docker" loading={model.isLoading} />
             <p className="truncate text-xs text-muted-foreground">
-              {model.sampledAt
-                ? `数据时间 ${model.sampledAt}`
-                : "正在读取 Docker 概览"}
+              {availability}
             </p>
           </div>
+          {/* 手机上也够大的触控目标，图标与文字都在按钮里 */}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <AiAssistantButton context={assistantContext} />
+            <Button
+              variant="outline"
+              className="min-h-11 shrink-0 px-3"
+              onClick={model.refresh}
+              disabled={model.isRefreshing}
+            >
+              <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+              刷新
+            </Button>
+          </div>
         </div>
-        {/* 手机上也够大的触控目标，图标与文字都在按钮里 */}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <AiAssistantButton context={assistantContext} />
-          <Button
-            variant="outline"
-            className="min-h-11 shrink-0 px-3"
-            onClick={model.refresh}
-            disabled={model.isRefreshing}
-          >
-            <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
-            刷新
-          </Button>
-        </div>
+        <DockerTabNav tab={tab} selectTab={selectTab} />
       </header>
 
       {model.error ? (
-        <Alert variant="destructive" role="alert">
+        <Alert variant="destructive" role="alert" className="mx-4 mt-3">
           <HugeiconsIcon icon={Alert02Icon} aria-hidden="true" />
           <AlertTitle>读取 Docker 概览失败</AlertTitle>
           <AlertDescription>
@@ -132,20 +144,31 @@ export const DockerPage = () => {
         </Alert>
       ) : null}
 
-      {model.isLoading ? (
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
-            正在读取 Docker 概览…
-          </p>
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-28 w-full" />
-        </div>
-      ) : overview ? (
-        <DockerOverviewCards overview={overview} />
-      ) : null}
-
-      <DockerSections tab={tab} selectTab={selectTab} />
+      {/* 每个标签只有一个主体滚动区，滚动不再把整页内容往下推 */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-3 md:p-4">
+        {tab === "overview" ? (
+          model.isLoading ? (
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
+                正在读取 Docker 概览…
+              </p>
+              <Skeleton className="h-28 w-full" />
+              <Skeleton className="h-28 w-full" />
+              <Skeleton className="h-28 w-full" />
+            </div>
+          ) : overview ? (
+            <DockerOverviewCards overview={overview} />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              没有读到 Docker 概览数据，请点「刷新」重试。
+            </p>
+          )
+        ) : null}
+        {tab === "containers" ? <ContainerList /> : null}
+        {tab === "images" ? <ImageList /> : null}
+        {tab === "volumes" ? <VolumeList /> : null}
+        {tab === "networks" ? <NetworkList /> : null}
+      </div>
     </div>
   )
 }
@@ -230,38 +253,31 @@ const StatCard = (props: {
 )
 
 /**
- * 分区导航与分区内容。
+ * 分区导航。
  * 分区状态放 URL（?tab=images），刷新、分享与浏览器返回都能恢复；
  * 手机与桌面共用同一套分区，只由各列表自己决定卡片还是表格。
  */
-const DockerSections = (props: {
+const DockerTabNav = (props: {
   tab: DockerTab
   selectTab: (tab: DockerTab) => void
 }) => (
-  <div className="flex min-w-0 flex-col gap-3">
-    <ToggleGroup
-      variant="outline"
-      className="flex-wrap"
-      value={[props.tab]}
-      onValueChange={(values) => {
-        const next = values[0]
-        if (next) props.selectTab(next as DockerTab)
-      }}
-    >
-      {DOCKER_TABS.map((item) => (
-        <ToggleGroupItem
-          key={item.key}
-          value={item.key}
-          className="min-h-11 px-3"
-        >
-          {item.label}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-
-    {props.tab === "containers" ? <ContainerList /> : null}
-    {props.tab === "images" ? <ImageList /> : null}
-    {props.tab === "volumes" ? <VolumeList /> : null}
-    {props.tab === "networks" ? <NetworkList /> : null}
-  </div>
+  <ToggleGroup
+    variant="outline"
+    className="flex-wrap"
+    value={[props.tab]}
+    onValueChange={(values) => {
+      const next = values[0]
+      if (next) props.selectTab(next as DockerTab)
+    }}
+  >
+    {DOCKER_TABS.map((item) => (
+      <ToggleGroupItem
+        key={item.key}
+        value={item.key}
+        className="min-h-11 px-3"
+      >
+        {item.label}
+      </ToggleGroupItem>
+    ))}
+  </ToggleGroup>
 )
