@@ -90,9 +90,9 @@ const renderCard = () => {
   )
 }
 
-const pickFrom = async (label: string, option: string): Promise<void> => {
+const pickModel = async (option: string): Promise<void> => {
   const user = userEvent.setup()
-  await user.click(screen.getByRole("combobox", { name: label }))
+  await user.click(screen.getByRole("combobox", { name: "助手模型" }))
   await user.click(await screen.findByRole("option", { name: option }))
 }
 
@@ -116,12 +116,9 @@ describe("AI 助手设置卡片", () => {
       "value",
       "自定义提示词"
     )
-    expect(
-      screen.getByRole("combobox", { name: "助手 Provider" })
-    ).toHaveProperty("textContent", "alpha")
     expect(screen.getByRole("combobox", { name: "助手模型" })).toHaveProperty(
-      "textContent",
-      "m1"
+      "value",
+      "alpha/m1"
     )
     // 读取的是 Pi 已配置目录，不做网络发现：不点刷新就不重新读取。
     expect(api.fetchPiModels).toHaveBeenCalledTimes(1)
@@ -133,17 +130,14 @@ describe("AI 助手设置卡片", () => {
     renderCard()
     await screen.findByLabelText("助手系统提示词")
 
-    await pickFrom("助手 Provider", "beta")
+    await pickModel("beta/b1")
 
-    // m1 不属于 beta：模型被清空，保存按钮不可用。
     expect(screen.getByRole("combobox", { name: "助手模型" })).toHaveProperty(
-      "textContent",
-      "选择模型"
+      "value",
+      "beta/b1"
     )
     const save = screen.getByRole("button", { name: "保存设置" })
-    expect((save as HTMLButtonElement).disabled).toBe(true)
-
-    await pickFrom("助手模型", "b1")
+    expect((save as HTMLButtonElement).disabled).toBe(false)
     expect(
       (screen.getByRole("button", { name: "保存设置" }) as HTMLButtonElement)
         .disabled
@@ -163,16 +157,21 @@ describe("AI 助手设置卡片", () => {
       "默认提示词"
     )
     // 恢复默认提示词只改提示词，不碰模型。
-    expect(
-      screen.getByRole("combobox", { name: "助手 Provider" })
-    ).toHaveProperty("textContent", "alpha")
+    expect(screen.getByRole("combobox", { name: "助手模型" })).toHaveProperty(
+      "value",
+      "alpha/m1"
+    )
   })
 
   it("保存时提交 signature 与完整设置", async () => {
     renderCard()
     await screen.findByLabelText("助手系统提示词")
 
-    await pickFrom("助手 Thinking 档位", "high")
+    await pickModel("alpha/m1")
+    await userEvent.click(
+      screen.getByRole("combobox", { name: "助手 Thinking 档位" })
+    )
+    await userEvent.click(await screen.findByRole("option", { name: "high" }))
     fireEvent.click(screen.getByRole("button", { name: "保存设置" }))
 
     await waitFor(() =>

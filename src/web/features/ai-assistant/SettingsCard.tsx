@@ -14,6 +14,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
 import { Label } from "@web/components/ui/label"
 import {
   Select,
@@ -58,6 +65,12 @@ type Draft = {
   modelId: string
   thinkingLevel: ThinkingOption
   systemPrompt: string
+}
+
+type ModelOption = {
+  providerId: string
+  modelId: string
+  label: string
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -131,16 +144,24 @@ export const SettingsCard = () => {
   })
 
   const providers = models.data?.providers ?? []
-  const selectedProvider = providers.find(
-    (entry) => entry.id === form.providerId
+  const modelOptions: ModelOption[] = providers.flatMap((entry) =>
+    entry.provider.models.map((model) => ({
+      providerId: entry.id,
+      modelId: model.id,
+      label: `${entry.id}/${model.name ?? model.id}`,
+    }))
   )
-  const providerModels = selectedProvider?.provider.models ?? []
+  const selectedOption = modelOptions.find(
+    (opt) => opt.providerId === form.providerId && opt.modelId === form.modelId
+  )
   const promptLength = form.systemPrompt.length
   // 模型目录是唯一可信来源：读失败、还在读，或所选 Provider/模型不在目录里，
   // 都不能保存——否则会把已删掉的模型写进设置里。
   const directoryReady = models.data !== undefined && !models.isError
   const providerKnown = providers.some((entry) => entry.id === form.providerId)
-  const modelKnown = providerModels.some((model) => model.id === form.modelId)
+  const modelKnown = modelOptions.some(
+    (opt) => opt.providerId === form.providerId && opt.modelId === form.modelId
+  )
   const selectionValid = directoryReady && providerKnown && modelKnown
   const selectionInvalid =
     directoryReady && providers.length > 0 && !selectionValid
@@ -263,61 +284,41 @@ export const SettingsCard = () => {
 
             <div className="grid gap-3 md:grid-cols-2">
               <Label className="grid gap-1 text-xs">
-                Provider
-                <Select
-                  value={form.providerId}
-                  onValueChange={(value) => {
-                    const providerId = value ?? ""
-                    // 换 Provider 后原模型可能不属于它：清空，避免保存出无效组合。
-                    const nextModels =
-                      providers.find((entry) => entry.id === providerId)
-                        ?.provider.models ?? []
-                    const keepsModel = nextModels.some(
-                      (model) => model.id === form.modelId
-                    )
-                    update({
-                      providerId,
-                      modelId: keepsModel ? form.modelId : "",
-                    })
-                  }}
-                >
-                  <SelectTrigger
-                    aria-label="助手 Provider"
-                    className="min-h-11"
-                  >
-                    <SelectValue placeholder="选择 Provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {providers.map((entry) => (
-                      <SelectItem key={entry.id} value={entry.id}>
-                        {entry.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Label>
-
-              <Label className="grid gap-1 text-xs">
                 模型
-                <Select
-                  value={form.modelId}
-                  onValueChange={(value) => update({ modelId: value ?? "" })}
+                <Combobox
+                  value={selectedOption ?? null}
+                  onValueChange={(opt) => {
+                    if (opt) {
+                      update({
+                        providerId: opt.providerId,
+                        modelId: opt.modelId,
+                      })
+                    }
+                  }}
+                  items={modelOptions}
+                  itemToStringLabel={(opt) => opt?.label ?? ""}
+                  isItemEqualToValue={(a, b) =>
+                    a.providerId === b.providerId && a.modelId === b.modelId
+                  }
                 >
-                  <SelectTrigger aria-label="助手模型" className="min-h-11">
-                    <SelectValue
-                      placeholder={
-                        form.providerId ? "选择模型" : "先选择 Provider"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {providerModels.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.name ?? model.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <ComboboxInput
+                    aria-label="助手模型"
+                    className="min-h-11"
+                    placeholder="搜索 Provider 或模型…"
+                  />
+                  <ComboboxContent>
+                    <ComboboxList>
+                      {modelOptions.map((opt) => (
+                        <ComboboxItem
+                          key={`${opt.providerId}/${opt.modelId}`}
+                          value={opt}
+                        >
+                          {opt.label}
+                        </ComboboxItem>
+                      ))}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Label>
 
               <Label className="grid gap-1 text-xs md:col-span-2">
