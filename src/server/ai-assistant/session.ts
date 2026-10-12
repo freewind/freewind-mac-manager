@@ -47,12 +47,35 @@ export const endSessionRun = (sessionId: string): void => {
 export const isSessionRunning = (sessionId: string): boolean =>
   inFlight.has(sessionId)
 
+/**
+ * 空闲回收只针对真的闲着的会话：正在执行的会话即使久未访问也不能回收，
+ * 否则会把还在跑的执行连根拔掉（用户切后台、断线都不得中断执行）。
+ */
 const cleanupIdleSessions = (now: number): void => {
   for (const [id, entry] of sessions) {
     if (now - entry.lastUsedAt <= AI_ASSISTANT_SESSION_IDLE_MS) continue
+    if (inFlight.has(id)) continue
     sessions.delete(id)
     entry.controller.abort()
     entry.session.dispose()
+  }
+}
+
+/**
+ * 会话被丢弃时的通知口。
+ *
+ * 丢弃会话（含服务关闭时的清理）与「取消执行」是两件事：执行的生命周期归
+ * runner，它收到通知后只能把正在跑的执行按「结果未知」收尾，绝不能因为
+ * 清理内存会话就把它写成成功。用监听而不是直接依赖 runner，避免两者循环 import。
+ */
+const disposeListeners = new Set<(sessionId: string) => void>()
+
+export const onSessionDisposed = (
+  listener: (sessionId: string) => void
+): (() => void) => {
+  disposeListeners.add(listener)
+  return () => {
+    disposeListeners.delete(listener)
   }
 }
 
@@ -139,8 +162,10 @@ export const getSession = (sessionId: string): AgentSession => {
 export const disposeSession = (sessionId: string): void => {
   inFlight.delete(sessionId)
   const entry = sessions.get(sessionId)
-  if (!entry) return
-  sessions.delete(sessionId)
-  entry.controller.abort()
-  entry.session.dispose()
+  if (entry) {
+    sessions.delete(sessionId)
+    entry.controller.abort()
+    entry.session.dispose()
+  }
+  for (const listener of disposeListeners) listener(sessionId)
 }

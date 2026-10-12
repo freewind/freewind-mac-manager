@@ -1,8 +1,9 @@
-import type {
-  AgentSession,
-  AgentSessionEvent,
-} from "@earendil-works/pi-coding-agent"
-import { finishSessionRun, startSessionRun } from "./store"
+import type { AgentSession } from "@earendil-works/pi-coding-agent"
+import {
+  type ExecutionEvent,
+  startExecution,
+  subscribeExecution,
+} from "./runner"
 
 /** 只依赖会话中确实要用到的能力，便于用受控替身驱动测试。 */
 export type StreamableSession = Pick<
@@ -19,143 +20,80 @@ export type SseResponse = {
   on: (event: "close", listener: () => void) => unknown
 }
 
-/** 历史保存失败时给用户看的说明；具体错误只进脱敏日志。 */
-const HISTORY_FAILED_DONE = "回答已完成，但会话历史保存失败"
-const HISTORY_FAILED_UNKNOWN = "结果未知，且会话历史保存失败"
+/**
+ * SSE 是纯订阅/转发层。
+ *
+ * 执行的生命周期归 runner，跟任何 response 对象无关：连接断开只解除订阅、
+ * 停止向该连接写数据，绝不中止 Agent 及其工具子进程。
+ * 帧名与负载沿用既有线上格式：delta / tool / message_end / error / done。
+ */
+const writeEvent = (response: SseResponse, event: ExecutionEvent): void => {
+  response.write(
+    `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`
+  )
+}
 
 /**
- * 把一次助手指令的执行过程桥接成 SSE。
+ * 订阅一个已经存在的执行，把事件转发成 SSE，直到执行结束或连接断开。
  *
- * 事件：`delta`（text / thinking 增量）、`tool`（工具调用起止）、
- * `message_end`（单条消息收尾）、`error`、`done`（终态）。
+ * 订阅前不写 SSE 头：执行不存在时（404）调用方还能回一条普通 JSON 错误。
+ * 断线路径只调用退订函数，不触碰执行。
+ */
+export const streamExecutionEvents = async (
+  executionId: string,
+  response: SseResponse
+): Promise<void> => {
+  response.setHeader("Content-Type", "text/event-stream")
+  response.setHeader("Cache-Control", "no-cache")
+  response.setHeader("Connection", "keep-alive")
+
+  let settled = false
+  let unsubscribe = (): void => {}
+  await new Promise<void>((resolve) => {
+    const finish = (): void => {
+      if (settled) return
+      settled = true
+      resolve()
+    }
+    response.on("close", () => {
+      // 断线只退订：执行继续跑，重新连上还能看到同一执行。
+      unsubscribe()
+      finish()
+    })
+    unsubscribe = subscribeExecution(executionId, {
+      onEvent: (event) => writeEvent(response, event),
+      onEnd: () => {
+        response.end()
+        finish()
+      },
+    })
+    // 订阅期间可能已经结束（重放里就带 done），那就不要再发头。
+    if (!settled) response.flushHeaders()
+  })
+  unsubscribe()
+}
+
+/**
+ * 提交一次执行并立刻订阅它的 SSE。
  *
- * 状态迁移：进入前写 running 并记录用户输入 → 正常结束 done /
- * 出错或连接中断 unknown。中断按“结果未知”处理：中止上游请求，不重发、
- * 不宣告成功；已经拿到的部分回答一并落到历史里。
+ * 保留既有入口与签名（前四个参数不变）：会话标识响应头由调用方设置，
+ * 执行标识在这里回传，供客户端在断线后按标识重新订阅。
+ * 同一请求标识重复提交会复用同一执行，不会产生第二次副作用。
  */
 export const streamSession = async (
   session: StreamableSession,
   sessionId: string,
   prompt: string,
-  response: SseResponse
+  response: SseResponse,
+  options?: { requestId?: string | null }
 ): Promise<void> => {
-  // 先落用户输入与 running：写不进去就不要开始跑（例如历史已被清空），
-  // 这时还没写 SSE 头，调用方仍能回一条普通 JSON 错误。
-  startSessionRun(sessionId, { role: "user", text: prompt })
-
-  response.setHeader("Content-Type", "text/event-stream")
-  response.setHeader("Cache-Control", "no-cache")
-  response.setHeader("Connection", "keep-alive")
-  response.flushHeaders()
-
-  const send = (event: string, data: unknown): void => {
-    response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-  }
-
-  /** 已经拿到的部分回答；会话被回收时取不到就是 null。 */
-  const partialAnswer = (): string | null => {
-    try {
-      return session.getLastAssistantText() ?? null
-    } catch {
-      return null
-    }
-  }
-
-  /**
-   * 写终态。历史写不进去不能假装一切正常：记一条脱敏日志，
-   * 并把「历史保存失败」明确告诉用户（不记录任何提示词内容）。
-   */
-  const recordFinish = (
-    status: "done" | "unknown",
-    answer: string | null
-  ): string | null => {
-    try {
-      finishSessionRun(sessionId, status, answer)
-      return null
-    } catch (error) {
-      console.error(
-        `[mac-manager] AI 助手历史保存失败（会话 ${sessionId}，终态 ${status}）：${
-          error instanceof Error ? error.message : "未知错误"
-        }`
-      )
-      return status === "done" ? HISTORY_FAILED_DONE : HISTORY_FAILED_UNKNOWN
-    }
-  }
-
-  let disconnected = false
-  let finished = false
-  const onClose = (): void => {
-    if (finished || disconnected) return
-    disconnected = true
-    session.abort()
-  }
-  response.on("close", onClose)
-
-  const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
-    if (event.type === "message_update") {
-      const update = event.assistantMessageEvent
-      if (update.type === "text_delta") {
-        send("delta", { type: "text", delta: update.delta })
-      } else if (update.type === "thinking_delta") {
-        send("delta", { type: "thinking", delta: update.delta })
-      }
-      return
-    }
-    if (event.type === "tool_execution_start") {
-      send("tool", {
-        id: event.toolCallId,
-        name: event.toolName,
-        status: "running",
-        input: event.args,
-      })
-      return
-    }
-    if (event.type === "tool_execution_end") {
-      send("tool", {
-        id: event.toolCallId,
-        name: event.toolName,
-        status: event.isError ? "error" : "done",
-        output: event.result,
-      })
-      return
-    }
-    if (event.type === "message_end") {
-      send("message_end", { role: event.message.role })
-    }
+  const started = startExecution({
+    session,
+    sessionId,
+    prompt,
+    requestId: options?.requestId ?? null,
   })
-
-  try {
-    await session.prompt(prompt)
-    const answer = partialAnswer()
-    if (disconnected) {
-      const note = recordFinish("unknown", answer)
-      send("done", {
-        status: "unknown",
-        sessionId,
-        message: note ?? "连接中断，结果未知",
-      })
-      return
-    }
-    const note = recordFinish("done", answer)
-    send("done", {
-      status: "done",
-      sessionId,
-      ...(note ? { message: note } : {}),
-    })
-  } catch (error) {
-    send("error", {
-      message:
-        error instanceof Error ? error.message : "助手执行失败，请重新读取确认",
-    })
-    const note = recordFinish("unknown", partialAnswer())
-    send("done", {
-      status: "unknown",
-      sessionId,
-      message: note ?? "执行未完成，结果未知",
-    })
-  } finally {
-    finished = true
-    unsubscribe()
-    response.end()
-  }
+  // 必须在写 SSE 头之前给出：客户端据此在断线后重新订阅同一执行。
+  response.setHeader("x-ai-assistant-execution-id", started.execution.id)
+  await streamExecutionEvents(started.execution.id, response)
 }

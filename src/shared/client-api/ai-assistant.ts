@@ -1,4 +1,5 @@
 import type {
+  AiAssistantExecutionResponse,
   AiAssistantSessionList,
   AiAssistantSettingsInput,
   AiAssistantSettingsResponse,
@@ -24,3 +25,19 @@ export const listAiAssistantSessions =
 
 export const clearAiAssistantSession = async (sessionId: string) =>
   unwrap(await apiClient.clearAiAssistantSession({ params: { sessionId } }))
+
+/** 查一次执行的状态与所属会话历史：断线后据此确认是否已经跑完。 */
+export const fetchAiAssistantExecution = async (
+  executionId: string
+): Promise<AiAssistantExecutionResponse> =>
+  unwrap<AiAssistantExecutionResponse>(
+    await apiClient.getAiAssistantExecution({ params: { executionId } })
+  )
+
+/** 显式停止一次执行：这是取消的唯一入口，断线不会取消。 */
+export const stopAiAssistantExecution = async (
+  executionId: string
+): Promise<AiAssistantExecutionResponse> =>
+  unwrap<AiAssistantExecutionResponse>(
+    await apiClient.stopAiAssistantExecution({ params: { executionId } })
+  )

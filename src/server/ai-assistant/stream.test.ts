@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
+import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { SseResponse, StreamableSession } from "./stream"
 
@@ -14,56 +15,53 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   delete process.env.MAC_MANAGER_DB_FILE
   rmSync(directory, { recursive: true, force: true })
 })
 
-/** 测试替身只需要 SSE 用到的这几项能力。 */
-type FakeSession = {
-  listeners: Array<(event: unknown) => void>
-  prompt: (text: string) => Promise<void>
-  aborted: boolean
-  answer: string | undefined
-}
-
-const makeSession = (
-  run: (emit: (event: unknown) => void) => Promise<void>
-): FakeSession => {
-  const fake: FakeSession = {
-    listeners: [],
-    prompt: async (text: string) => {
-      void text
-      await run((event) => {
-        for (const listener of fake.listeners) listener(event)
-      })
-    },
+/** 测试替身只需要会话里确实要用到的这几项能力。 */
+const makeFake = () => {
+  const listeners: Array<(event: AgentSessionEvent) => void> = []
+  const state = {
     aborted: false,
-    answer: undefined,
+    answer: undefined as string | undefined,
+    run: async (_text: string): Promise<void> => {},
   }
-  return fake
-}
-
-const asSession = (fake: FakeSession): StreamableSession =>
-  ({
-    subscribe: (listener: (event: unknown) => void) => {
-      fake.listeners.push(listener)
+  const session = {
+    subscribe: (listener: (event: AgentSessionEvent) => void) => {
+      listeners.push(listener)
       return () => {
-        fake.listeners = []
+        const index = listeners.indexOf(listener)
+        if (index >= 0) listeners.splice(index, 1)
       }
     },
-    prompt: (text: string) => fake.prompt(text),
+    prompt: (text: string) => state.run(text),
     abort: () => {
-      fake.aborted = true
+      state.aborted = true
     },
-    getLastAssistantText: () => fake.answer,
-  }) as unknown as StreamableSession
+    getLastAssistantText: () => state.answer,
+  } as unknown as StreamableSession
+  const emit = (event: unknown): void => {
+    for (const listener of [...listeners]) listener(event as AgentSessionEvent)
+  }
+  return { session, state, emit }
+}
+
+const delta = (kind: "text" | "thinking", value: string) => ({
+  type: "message_update",
+  assistantMessageEvent: { type: `${kind}_delta`, delta: value },
+})
 
 const makeResponse = () => {
   const chunks: string[] = []
+  const headers: Record<string, string> = {}
   const closeListeners: Array<() => void> = []
   let ended = false
   const response = {
-    setHeader: () => undefined,
+    setHeader: (name: string, value: string) => {
+      headers[name] = value
+    },
     flushHeaders: () => undefined,
     write: (chunk: string) => {
       chunks.push(chunk)
@@ -79,6 +77,7 @@ const makeResponse = () => {
   return {
     response: response as unknown as SseResponse,
     text: () => chunks.join(""),
+    headers,
     isEnded: () => ended,
     emitClose: () => {
       for (const listener of closeListeners) listener()
@@ -86,38 +85,42 @@ const makeResponse = () => {
   }
 }
 
-const delta = (kind: "text" | "thinking", value: string) => ({
-  type: "message_update",
-  assistantMessageEvent: { type: `${kind}_delta`, delta: value },
-})
+const waitFor = async (condition: () => boolean): Promise<void> => {
+  for (let index = 0; index < 200; index += 1) {
+    if (condition()) return
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+  throw new Error("等待执行进入终态超时")
+}
 
 describe("streamSession SSE 桥接", () => {
   it("转发增量与工具事件，正常收尾为 done", async () => {
     const { streamSession } = await import("./stream")
     const store = await import("./store")
     store.saveSession({ id: "s1", settingsSnapshot: { providerId: "p" } })
-    const fake = makeSession(async (emit) => {
-      emit(delta("text", "你"))
-      emit(delta("thinking", "想"))
-      emit({
+    const fake = makeFake()
+    fake.state.run = async () => {
+      fake.emit(delta("text", "你"))
+      fake.emit(delta("thinking", "想"))
+      fake.emit({
         type: "tool_execution_start",
         toolCallId: "t1",
         toolName: "read",
         args: { path: "a" },
       })
-      emit({
+      fake.emit({
         type: "tool_execution_end",
         toolCallId: "t1",
         toolName: "read",
         result: "ok",
         isError: false,
       })
-      emit({ type: "message_end", message: { role: "assistant" } })
-    })
-    fake.answer = "答案"
+      fake.state.answer = "答案"
+      fake.emit({ type: "message_end", message: { role: "assistant" } })
+    }
     const recorder = makeResponse()
 
-    await streamSession(asSession(fake), "s1", "你好", recorder.response)
+    await streamSession(fake.session, "s1", "你好", recorder.response)
 
     const text = recorder.text()
     expect(text).toContain('event: delta\ndata: {"type":"text","delta":"你"}')
@@ -140,93 +143,138 @@ describe("streamSession SSE 桥接", () => {
     ])
   })
 
-  it("连接中断时中止上游并标为结果未知", async () => {
+  it("response 触发 close 时不调用 abort，执行继续跑到终态", async () => {
     const { streamSession } = await import("./stream")
+    const runner = await import("./runner")
     const store = await import("./store")
     store.saveSession({ id: "s2", settingsSnapshot: {} })
-    let resolvePrompt: () => void = () => {}
-    const fake = makeSession(
-      () =>
-        new Promise<void>((resolve) => {
-          resolvePrompt = resolve
-        })
-    )
-    const session = asSession(fake)
+    const fake = makeFake()
+    let release: () => void = () => {}
+    fake.state.run = () =>
+      new Promise<void>((resolve) => {
+        release = resolve
+      })
+
     const recorder = makeResponse()
+    const streaming = streamSession(
+      fake.session,
+      "s2",
+      "你好",
+      recorder.response
+    )
+    const executionId = recorder.headers["x-ai-assistant-execution-id"]
+    expect(executionId).toBeTruthy()
 
-    const running = streamSession(session, "s2", "你好", recorder.response)
+    // 连接断开：只退订，不中止执行
     recorder.emitClose()
-    resolvePrompt()
-    await running
+    await streaming
+    expect(fake.state.aborted).toBe(false)
+    expect(runner.getExecution(executionId).status).toBe("running")
 
-    const text = recorder.text()
-    expect(fake.aborted).toBe(true)
-    expect(text).toContain('"status":"unknown"')
-    expect(text).toContain("连接中断，结果未知")
-    expect(recorder.isEnded()).toBe(true)
-    // 断连也要落库：不能留下 running / done 这种骗人的终态，已知输入要保留。
-    const stored = store.readSession("s2")
-    expect(stored.status).toBe("unknown")
-    expect(stored.messages).toEqual([{ role: "user", text: "你好" }])
+    fake.state.answer = "答案"
+    release()
+    await waitFor(() => runner.getExecution(executionId).status !== "running")
+    expect(runner.getExecution(executionId).status).toBe("done")
+    expect(store.readSession("s2").status).toBe("done")
+  })
+
+  it("断开后按执行标识重新订阅，拿到事件与最终结果", async () => {
+    const { streamExecutionEvents, streamSession } = await import("./stream")
+    const runner = await import("./runner")
+    const store = await import("./store")
+    store.saveSession({ id: "s3", settingsSnapshot: {} })
+    const fake = makeFake()
+    let release: () => void = () => {}
+    fake.state.run = async () => {
+      fake.emit(delta("text", "半"))
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      fake.state.answer = "答案"
+    }
+
+    const first = makeResponse()
+    const streaming = streamSession(fake.session, "s3", "你好", first.response)
+    const executionId = first.headers["x-ai-assistant-execution-id"]
+    first.emitClose()
+    await streaming
+
+    // 执行还在跑，此时重新订阅：先补齐已有事件，再跟上增量
+    const live = makeResponse()
+    const liveStreaming = streamExecutionEvents(executionId, live.response)
+    expect(live.text()).toContain('"delta":"半"')
+
+    release()
+    await liveStreaming
+    expect(live.text()).toContain(
+      'event: done\ndata: {"status":"done","sessionId":"s3"}'
+    )
+    expect(live.isEnded()).toBe(true)
+
+    // 已经结束的执行再订阅：重放全部事件并立刻收尾
+    const replay = makeResponse()
+    await streamExecutionEvents(executionId, replay.response)
+    expect(replay.text()).toContain('"delta":"半"')
+    expect(replay.text()).toContain('"status":"done"')
+    expect(replay.isEnded()).toBe(true)
+    expect(runner.getExecution(executionId).status).toBe("done")
   })
 
   it("prompt 抛错时回 error 与 unknown 终态", async () => {
     const { streamSession } = await import("./stream")
     const store = await import("./store")
-    store.saveSession({ id: "s3", settingsSnapshot: {} })
-    const fake = makeSession(async () => {
+    store.saveSession({ id: "s4", settingsSnapshot: {} })
+    const fake = makeFake()
+    fake.state.run = async () => {
       throw new Error("上游失败")
-    })
+    }
     const recorder = makeResponse()
 
-    await streamSession(asSession(fake), "s3", "你好", recorder.response)
+    await streamSession(fake.session, "s4", "你好", recorder.response)
 
     const text = recorder.text()
     expect(text).toContain('event: error\ndata: {"message":"上游失败"}')
     expect(text).toContain('"status":"unknown"')
-    expect(store.readSession("s3").status).toBe("unknown")
+    expect(store.readSession("s4").status).toBe("unknown")
   })
 
   it("prompt 开始前就写了 running 与用户输入，正常结束后转 done", async () => {
     const { streamSession } = await import("./stream")
     const store = await import("./store")
-    store.saveSession({ id: "s4", settingsSnapshot: {} })
+    store.saveSession({ id: "s5", settingsSnapshot: {} })
     let statusDuringPrompt = ""
     let messagesDuringPrompt: unknown[] = []
-    const fake = makeSession(async () => {
-      const snapshot = store.readSession("s4")
+    const fake = makeFake()
+    fake.state.run = async () => {
+      const snapshot = store.readSession("s5")
       statusDuringPrompt = snapshot.status
       messagesDuringPrompt = snapshot.messages
-    })
-    fake.answer = "答"
+    }
+    fake.state.answer = "答"
     const recorder = makeResponse()
 
-    await streamSession(
-      asSession(fake),
-      "s4",
-      "只在中间查一次",
-      recorder.response
-    )
+    await streamSession(fake.session, "s5", "只在中间查一次", recorder.response)
 
     expect(statusDuringPrompt).toBe("running")
     expect(messagesDuringPrompt).toEqual([
       { role: "user", text: "只在中间查一次" },
     ])
-    expect(store.readSession("s4").status).toBe("done")
+    expect(store.readSession("s5").status).toBe("done")
   })
 
   it("出错时保留已经拿到的部分回答，终态仍是 unknown", async () => {
     const { streamSession } = await import("./stream")
     const store = await import("./store")
-    store.saveSession({ id: "s5", settingsSnapshot: {} })
-    const fake = makeSession(async () => {
+    store.saveSession({ id: "s6", settingsSnapshot: {} })
+    const fake = makeFake()
+    fake.state.run = async () => {
       throw new Error("上游失败")
-    })
-    fake.answer = "半句"
+    }
+    fake.state.answer = "半句"
 
-    await streamSession(asSession(fake), "s5", "你好", makeResponse().response)
+    await streamSession(fake.session, "s6", "你好", makeResponse().response)
 
-    const stored = store.readSession("s5")
+    const stored = store.readSession("s6")
     expect(stored.status).toBe("unknown")
     expect(stored.messages).toEqual([
       { role: "user", text: "你好" },
@@ -237,18 +285,19 @@ describe("streamSession SSE 桥接", () => {
   it("历史写不进去时不假装完整成功：明确告知并记脱敏日志", async () => {
     const { streamSession } = await import("./stream")
     const store = await import("./store")
-    store.saveSession({ id: "s6", settingsSnapshot: {} })
-    const fake = makeSession(async () => {
+    store.saveSession({ id: "s7", settingsSnapshot: {} })
+    const fake = makeFake()
+    fake.state.run = async () => {
       // 模拟运行期间历史被别的写入方清掉（绕过 clearSession 的执行中保护）。
       const raw = new DatabaseSync(process.env.MAC_MANAGER_DB_FILE ?? "")
-      raw.prepare("DELETE FROM ai_assistant_session WHERE id=?").run("s6")
+      raw.prepare("DELETE FROM ai_assistant_session WHERE id=?").run("s7")
       raw.close()
-    })
-    fake.answer = "答案"
+    }
+    fake.state.answer = "答案"
     const recorder = makeResponse()
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
 
-    await streamSession(asSession(fake), "s6", "你好", recorder.response)
+    await streamSession(fake.session, "s7", "你好", recorder.response)
 
     expect(recorder.text()).toContain("回答已完成，但会话历史保存失败")
     expect(errorSpy).toHaveBeenCalledTimes(1)
@@ -260,15 +309,17 @@ describe("streamSession SSE 桥接", () => {
   it("历史不存在时连跑都不跑，错误交给调用方回普通 JSON", async () => {
     const { streamSession } = await import("./stream")
     const recorder = makeResponse()
-    const fake = makeSession(async () => {
+    const fake = makeFake()
+    fake.state.run = async () => {
       throw new Error("不该跑到这里")
-    })
+    }
 
     await expect(
-      streamSession(asSession(fake), "missing", "你好", recorder.response)
+      streamSession(fake.session, "missing", "你好", recorder.response)
     ).rejects.toThrow("会话不存在")
     // 还没写过 SSE 头，调用方仍能回 JSON 错误。
     expect(recorder.isEnded()).toBe(false)
     expect(recorder.text()).toBe("")
+    expect(recorder.headers["x-ai-assistant-execution-id"]).toBeUndefined()
   })
 })

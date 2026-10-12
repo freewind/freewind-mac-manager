@@ -1,6 +1,7 @@
 import {
   type AiAssistantStreamEvent,
   ApiRequestError,
+  stopAiAssistantExecution,
   streamAiAssistantMessage,
 } from "@shared/client-api"
 import type { ChatStatus, UIMessage } from "ai"
@@ -192,6 +193,8 @@ export const useStreamChat = (options: {
 }) => {
   const [state, setState] = useState<ChatState>(EMPTY_STATE)
   const controllerRef = useRef<AbortController | null>(null)
+  /** 服务端执行标识：停止与断线后重新订阅都靠它，不靠 HTTP 连接。 */
+  const executionIdRef = useRef<string | null>(null)
   const sessionIdRef = useRef<string | null>(options.sessionId)
   const onSessionIdRef = useRef(options.onSessionId)
   onSessionIdRef.current = options.onSessionId
@@ -201,8 +204,17 @@ export const useStreamChat = (options: {
     onSessionIdRef.current(sessionId)
   }, [])
 
+  /**
+   * 停止：断线只解除订阅，停止必须显式告诉服务端。
+   * 先解除本地订阅，再请求服务端取消这次执行。
+   */
   const stop = useCallback(() => {
+    const executionId = executionIdRef.current
     controllerRef.current?.abort()
+    if (!executionId) return
+    void stopAiAssistantExecution(executionId).catch(() => {
+      // 停止请求失败不改变本地已中止的事实；结果以重新读取为准。
+    })
   }, [])
 
   /**
@@ -211,6 +223,7 @@ export const useStreamChat = (options: {
    */
   const reset = useCallback((): boolean => {
     if (controllerRef.current) return false
+    executionIdRef.current = null
     persistSessionId(null)
     setState(EMPTY_STATE)
     return true
@@ -281,6 +294,7 @@ export const useStreamChat = (options: {
       }))
       const controller = new AbortController()
       controllerRef.current = controller
+      executionIdRef.current = null
       let sawDone = false
       const onEvent = (event: AiAssistantStreamEvent): void => {
         if (event.type === "done") sawDone = true
@@ -292,6 +306,9 @@ export const useStreamChat = (options: {
           prompt: text,
           signal: controller.signal,
           onSessionId: persistSessionId,
+          onExecutionId: (executionId) => {
+            executionIdRef.current = executionId
+          },
           onEvent,
         })
         if (!sawDone) {

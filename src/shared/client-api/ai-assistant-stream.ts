@@ -39,6 +39,8 @@ export type StreamAiAssistantMessageOptions = {
   prompt: string
   signal: AbortSignal
   onSessionId?: (sessionId: string) => void
+  /** 执行标识由服务端响应头回传，客户端据此在断线后重新订阅同一执行。 */
+  onExecutionId?: (executionId: string) => void
   onEvent: (event: AiAssistantStreamEvent) => void
 }
 
@@ -47,6 +49,13 @@ export const aiAssistantMessagePath = (sessionId: string | null): string =>
   ApiPath.aiAssistantMessage.replace(
     ":sessionId",
     encodeURIComponent(sessionId && sessionId.length > 0 ? sessionId : "new")
+  )
+
+/** 执行事件订阅路径：只带执行标识，不带指令。 */
+export const aiAssistantExecutionEventsPath = (executionId: string): string =>
+  ApiPath.aiAssistantExecutionEvents.replace(
+    ":executionId",
+    encodeURIComponent(executionId)
   )
 
 /**
@@ -236,6 +245,70 @@ export const streamAiAssistantMessage = async (
   }
   const sessionId = response.headers.get("x-ai-assistant-session-id")
   if (sessionId) options.onSessionId?.(sessionId)
+  const executionId = response.headers.get("x-ai-assistant-execution-id")
+  if (executionId) options.onExecutionId?.(executionId)
+  await readSseStream(response.body, options.signal, (event) => {
+    const parsed = toStreamEvent(event)
+    if (parsed) options.onEvent(parsed)
+  })
+}
+
+export type SubscribeAiAssistantExecutionOptions = {
+  executionId: string
+  signal: AbortSignal
+  onEvent: (event: AiAssistantStreamEvent) => void
+}
+
+/**
+ * 按执行标识重新订阅一个已经提交的执行。
+ *
+ * 只订阅、不重发原指令：执行归服务端，断线后重新连上看到的是同一执行的
+ * 进度与结果。不自动重试，也不因为读不到流就宣告成功；执行是否完成
+ * 只能由服务端的 done 帧或状态查询确认。
+ */
+export const subscribeAiAssistantExecution = async (
+  options: SubscribeAiAssistantExecutionOptions
+): Promise<void> => {
+  let response: Response
+  try {
+    response = await fetch(
+      aiAssistantExecutionEventsPath(options.executionId),
+      {
+        method: "GET",
+        headers: {
+          ...buildAuthorizationHeader(),
+          Accept: "text/event-stream",
+        },
+        signal: options.signal,
+      }
+    )
+  } catch (error) {
+    if (options.signal.aborted) throw error
+    throw new ApiRequestError(
+      "网络请求失败，结果未知，请重新读取确认",
+      null,
+      undefined,
+      error,
+      true
+    )
+  }
+  if (response.status === 401) dispatchUnauthorized()
+  if (!response.ok) {
+    unwrap({ status: response.status, body: await readJsonBody(response) })
+    throw new ApiRequestError(
+      `请求失败（HTTP ${response.status}）`,
+      response.status
+    )
+  }
+  if (!response.body) {
+    throw new ApiRequestError(
+      "响应没有可读内容，结果未知，请重新读取确认",
+      response.status,
+      undefined,
+      undefined,
+      true
+    )
+  }
   await readSseStream(response.body, options.signal, (event) => {
     const parsed = toStreamEvent(event)
     if (parsed) options.onEvent(parsed)

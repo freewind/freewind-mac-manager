@@ -157,6 +157,9 @@ import type { HardwareOverviewSchema } from "./schemas/hardware"
 export type HardwareOverview = z.infer<typeof HardwareOverviewSchema>
 
 import type {
+  AiAssistantExecutionResponseSchema,
+  AiAssistantExecutionSchema,
+  AiAssistantHistoryMessageSchema,
   AiAssistantSessionListSchema,
   AiAssistantSessionSchema,
   AiAssistantSettingsMutationSchema,
@@ -221,6 +224,13 @@ export type AiAssistantSettingsDocument = z.infer<
   typeof AiAssistantSettingsSchema
 >
 export type AiAssistantSessionSummary = z.infer<typeof AiAssistantSessionSchema>
+export type AiAssistantExecution = z.infer<typeof AiAssistantExecutionSchema>
+export type AiAssistantExecutionResponse = z.infer<
+  typeof AiAssistantExecutionResponseSchema
+>
+export type AiAssistantHistoryMessage = z.infer<
+  typeof AiAssistantHistoryMessageSchema
+>
 
 export type ProcessEntry = z.infer<typeof ProcessEntrySchema>
 export type ProcessState = z.infer<typeof ProcessStateSchema>

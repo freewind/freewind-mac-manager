@@ -65,6 +65,53 @@ describe("会话状态迁移", () => {
     expect(() => store.startSessionRun("nope", {})).toThrow("会话不存在")
     expect(() => store.finishSessionRun("nope", "done")).toThrow("会话不存在")
   })
+
+  it("请求标识随 running 一起落盘，可按标识查回", async () => {
+    const store = await import("./store")
+    store.saveSession({ id: "r1", settingsSnapshot: {} })
+    store.startSessionRun("r1", { role: "user", text: "问" }, "req-1")
+
+    expect(store.readSession("r1").requestId).toBe("req-1")
+    expect(store.findSessionByRequestId("req-1")?.id).toBe("r1")
+    expect(store.findSessionByRequestId("req-missing")).toBeNull()
+  })
+
+  it("终态只写一次，后到的收尾不覆盖已确认的结果", async () => {
+    const store = await import("./store")
+    store.saveSession({ id: "r2", settingsSnapshot: {} })
+    store.startSessionRun("r2", { role: "user", text: "问" })
+    store.finishSessionRun("r2", "done", "答")
+
+    // 例如断连与显式停止同时发生：第二次收尾必须是空操作。
+    const again = store.finishSessionRun("r2", "unknown", null)
+    expect(again.status).toBe("done")
+    expect(again.messages).toEqual([
+      { role: "user", text: "问" },
+      { role: "assistant", text: "答" },
+    ])
+  })
+
+  it("执行中持续落盘回答，只替换末尾那条助手消息", async () => {
+    const store = await import("./store")
+    store.saveSession({ id: "r3", settingsSnapshot: {} })
+    store.startSessionRun("r3", { role: "user", text: "问" })
+
+    store.saveSessionAnswer("r3", "半句")
+    store.saveSessionAnswer("r3", "半句继续")
+    expect(store.readSession("r3").messages).toEqual([
+      { role: "user", text: "问" },
+      { role: "assistant", text: "半句继续" },
+    ])
+    // 中间落盘不改状态，执行仍在进行
+    expect(store.readSession("r3").status).toBe("running")
+
+    // 收尾时不会再多追加一条助手消息
+    store.finishSessionRun("r3", "done", "半句继续")
+    expect(store.readSession("r3").messages).toEqual([
+      { role: "user", text: "问" },
+      { role: "assistant", text: "半句继续" },
+    ])
+  })
 })
 
 describe("服务重启后的孤立运行记录", () => {

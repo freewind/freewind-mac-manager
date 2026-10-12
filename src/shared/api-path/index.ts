@@ -65,6 +65,13 @@ export const ApiPath = {
   aiAssistantSessions: `${API_BASE}/ai-assistant/sessions`,
   aiAssistantSession: `${API_BASE}/ai-assistant/sessions/:sessionId`,
   aiAssistantMessage: `${API_BASE}/ai-assistant/sessions/:sessionId/message`,
+  aiAssistantExecution: `${API_BASE}/ai-assistant/executions/:executionId`,
+  aiAssistantExecutionStop: `${API_BASE}/ai-assistant/executions/:executionId/stop`,
+  /**
+   * 执行事件订阅（SSE）。传输例外：事件不是真相来源，只是进度通知，
+   * 重连后按同一个 executionId 重新订阅即可，不会重发原指令。
+   */
+  aiAssistantExecutionEvents: `${API_BASE}/ai-assistant/executions/:executionId/events`,
   dockerOverview: `${API_BASE}/docker/overview`,
   dockerContainers: `${API_BASE}/docker/containers`,
   dockerContainersAction: `${API_BASE}/docker/containers/action`,
