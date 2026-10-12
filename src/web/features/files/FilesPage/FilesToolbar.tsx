@@ -13,9 +13,9 @@ import { Toggle } from "@web/components/ui/toggle"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import type { EntryAction } from "@web/features/files/actions"
 import {
-  SEARCH_MAX_DEPTH,
   SEARCH_MAX_FILE_BYTES,
   SEARCH_RESULT_LIMIT,
+  SEARCH_SUBTREE_DEPTH,
 } from "@web/features/files/queries"
 import type { FilesModel } from "@web/features/files/useFiles"
 import { Fragment } from "react"
@@ -115,6 +115,19 @@ export const FilesToolbar = ({
         }}
       />
       <ToggleGroup
+        value={[model.search.scope]}
+        onValueChange={(values) => {
+          const next = values[0]
+          if (next) model.setSearchScope(next as "current" | "subtree")
+        }}
+        variant="outline"
+        className="min-h-11"
+        aria-label="搜索范围"
+      >
+        <ToggleGroupItem value="current">仅当前目录</ToggleGroupItem>
+        <ToggleGroupItem value="subtree">含子目录</ToggleGroupItem>
+      </ToggleGroup>
+      <ToggleGroup
         value={[model.search.mode]}
         onValueChange={(values) => {
           const next = values[0]
@@ -154,8 +167,10 @@ export const FilesToolbar = ({
         搜索
       </Button>
       <p className="w-full text-xs text-muted-foreground">
-        在当前目录内最多下探 {SEARCH_MAX_DEPTH} 层、返回 {SEARCH_RESULT_LIMIT}{" "}
-        条；搜内容时单文件不超过{" "}
+        {model.search.scope === "current"
+          ? `范围：仅当前目录（不下探子目录）· 最多 ${SEARCH_RESULT_LIMIT} 条`
+          : `范围：含子目录（最深 ${SEARCH_SUBTREE_DEPTH} 层）· 最多 ${SEARCH_RESULT_LIMIT} 条`}
+        ；搜内容时单文件不超过{" "}
         {Math.round(SEARCH_MAX_FILE_BYTES / (1024 * 1024))} MB，不建索引。
       </p>
     </div>

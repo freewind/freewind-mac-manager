@@ -28,7 +28,8 @@ export const filesKeys = {
  * 搜索边界：与服务端 schema 的上限一致，并原样告诉用户，
  * 不让人以为扫了整个磁盘。
  */
-export const SEARCH_MAX_DEPTH = 3
+export const SEARCH_CURRENT_DEPTH = 1
+export const SEARCH_SUBTREE_DEPTH = 3
 export const SEARCH_RESULT_LIMIT = 200
 export const SEARCH_MAX_FILE_BYTES = 2 * 1024 * 1024
 
@@ -38,6 +39,8 @@ export type FileSearchRequest = {
   mode: "substring" | "wildcard" | "exact"
   caseSensitive: boolean
   searchContent: boolean
+  /** 由范围选项派生：仅当前目录传 1，含子目录传递归上限。 */
+  maxDepth: number
 }
 
 /**
@@ -51,7 +54,7 @@ export const useFileSearchQuery = (input: FileSearchRequest | null) =>
       if (input === null) throw new Error("没有搜索条件")
       return searchFilesApi({
         ...input,
-        maxDepth: SEARCH_MAX_DEPTH,
+        maxDepth: input.maxDepth,
         limit: SEARCH_RESULT_LIMIT,
       })
     },

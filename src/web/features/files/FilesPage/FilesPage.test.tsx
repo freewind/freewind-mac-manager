@@ -84,9 +84,11 @@ const createFilesModel = (overrides: Partial<FilesModel> = {}): FilesModel => ({
     mode: "substring",
     caseSensitive: false,
     searchContent: true,
+    scope: "current",
     active: false,
   },
   setSearchQuery: () => undefined,
+  setSearchScope: () => undefined,
   setSearchMode: () => undefined,
   setSearchCaseSensitive: () => undefined,
   setSearchContent: () => undefined,
@@ -258,6 +260,7 @@ describe("目录内搜索", () => {
         mode: "substring",
         caseSensitive: false,
         searchContent: true,
+        scope: "subtree",
         active: true,
       },
       searchResult: {
@@ -297,6 +300,35 @@ describe("目录内搜索", () => {
     expect(screen.getByText("内容")).toBeTruthy()
     expect(screen.getByText("文件名")).toBeTruthy()
     expect(screen.getByText(/第 7 行：needle in sub/)).toBeTruthy()
+    // 深层结果显示相对搜索根的路径，能看出来自哪个子目录
+    expect(screen.getByText("sub/gamma.txt")).toBeTruthy()
+    // 当前层结果的相对路径就是文件名，与按钮同名，用 getAll 断言其在
+    expect(screen.getAllByText("needle.txt").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole("button", { name: "退出搜索" })).toBeTruthy()
+  })
+
+  it("仅当前目录没有结果时提示可以切到含子目录", () => {
+    modelOverrides = {
+      search: {
+        query: "needle",
+        mode: "substring",
+        caseSensitive: false,
+        searchContent: true,
+        scope: "current",
+        active: true,
+      },
+      searchResult: {
+        root: "/Users/demo",
+        query: "needle",
+        matches: [],
+        scannedFiles: 3,
+        truncated: false,
+      },
+    }
+    render(<FilesPage />)
+
+    expect(
+      screen.getByText(/当前目录没有匹配的文件；子目录里可能有/)
+    ).toBeTruthy()
   })
 })

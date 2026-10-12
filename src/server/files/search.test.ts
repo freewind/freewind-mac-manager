@@ -169,6 +169,42 @@ describe("目录内搜索", () => {
     expect(result.matches.every((item) => item.source === "name")).toBe(true)
   })
 
+  it("范围：仅当前目录不返回子目录文件，含子目录才递归", async () => {
+    const currentOnly = await search({ query: "gamma", maxDepth: 1 })
+    const subtree = await search({ query: "gamma", maxDepth: 3 })
+
+    expect(currentOnly.matches).toHaveLength(0)
+    expect(subtree.matches.map((item) => item.path)).toEqual([
+      path.join(root, "sub", "gamma.txt"),
+    ])
+    // 当前层的文件在两种范围下都能找到
+    expect((await search({ query: "beta", maxDepth: 1 })).matches).toHaveLength(
+      1
+    )
+  })
+
+  it("内容搜索同样遵守范围：仅当前目录不会命中子目录文件的内容", async () => {
+    // gamma.txt 的内容里有 sub，alpha.txt 没有；只有递归到子目录才该命中
+    const currentOnly = await search({
+      query: "sub",
+      searchContent: true,
+      maxDepth: 1,
+    })
+    const subtree = await search({
+      query: "sub",
+      searchContent: true,
+      maxDepth: 3,
+    })
+
+    expect(currentOnly.matches).toHaveLength(0)
+    expect(subtree.matches.map((item) => item.path)).toContain(
+      path.join(root, "sub", "gamma.txt")
+    )
+    expect(subtree.matches.every((item) => item.source === "content")).toBe(
+      true
+    )
+  })
+
   it("不是目录的根路径被拒绝", async () => {
     await expect(
       search({ root: path.join(root, "alpha.txt") })

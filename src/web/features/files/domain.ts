@@ -58,6 +58,16 @@ export const dirnameOf = (path: string): string => {
 export const withName = (path: string, name: string): string =>
   `${dirnameOf(path)}${dirnameOf(path) === SEPARATOR ? "" : SEPARATOR}${name}`
 
+/**
+ * 搜索结果相对搜索根的路径：只留子目录与文件名，
+ * 深层结果一眼能看出它在哪个子目录里。
+ */
+export const relativeToRoot = (root: string, target: string): string => {
+  if (root === "") return target
+  const prefix = root.endsWith(SEPARATOR) ? root : `${root}${SEPARATOR}`
+  return target.startsWith(prefix) ? target.slice(prefix.length) : target
+}
+
 /** 目录恒在前，其次按所选列排序。 */
 export const sortEntries = (
   entries: FileEntry[],

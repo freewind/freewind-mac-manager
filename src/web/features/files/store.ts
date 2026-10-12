@@ -34,6 +34,7 @@ type FilesLocalState = {
   setSearchMode: (mode: FilesSearchState["mode"]) => void
   setSearchCaseSensitive: (value: boolean) => void
   setSearchContent: (value: boolean) => void
+  setSearchScope: (scope: FilesSearchState["scope"]) => void
   /** 提交搜索：只有非空查询才进入请求态（避免空串扫整个目录）。 */
   submitSearch: () => void
   clearSearch: () => void
@@ -45,6 +46,11 @@ export type FilesSearchState = {
   caseSensitive: boolean
   /** 关掉时只比文件名，开启才会读文件内容。 */
   searchContent: boolean
+  /**
+   * 搜索范围：仅当前目录（只走一层）或含子目录（递归到上限）。
+   * 内容搜索与文件名搜索共用同一范围。
+   */
+  scope: "current" | "subtree"
   active: boolean
 }
 
@@ -130,6 +136,8 @@ export const useFilesLocalStore = create<FilesLocalState>((set) => ({
     mode: "substring",
     caseSensitive: false,
     searchContent: true,
+    // 默认只看当前目录：子树递归是更重的操作，由用户显式选
+    scope: "current",
     active: false,
   },
 
@@ -144,6 +152,9 @@ export const useFilesLocalStore = create<FilesLocalState>((set) => ({
 
   setSearchContent: (searchContent) =>
     set((state) => ({ search: { ...state.search, searchContent } })),
+
+  setSearchScope: (scope) =>
+    set((state) => ({ search: { ...state.search, scope } })),
 
   submitSearch: () =>
     set((state) => ({

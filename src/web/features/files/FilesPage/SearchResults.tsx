@@ -1,5 +1,6 @@
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
+import { relativeToRoot } from "@web/features/files/domain"
 import type { FilesModel } from "@web/features/files/useFiles"
 
 /**
@@ -15,7 +16,8 @@ export const SearchResults = ({ model }: { model: FilesModel }) => {
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>
           搜索「{model.search.query}」（
-          {model.search.searchContent ? "文件名与内容" : "仅文件名"}）
+          {model.search.searchContent ? "文件名与内容" : "仅文件名"} ·{" "}
+          {model.search.scope === "current" ? "仅当前目录" : "含子目录"}）
         </span>
         {model.searchLoading ? <span>搜索中…</span> : null}
         {result ? (
@@ -47,7 +49,11 @@ export const SearchResults = ({ model }: { model: FilesModel }) => {
       ) : null}
 
       {result && result.matches.length === 0 && !model.searchLoading ? (
-        <p className="text-xs text-muted-foreground">没有匹配的文件。</p>
+        <p className="text-xs text-muted-foreground">
+          {model.search.scope === "current"
+            ? "当前目录没有匹配的文件；子目录里可能有，切到「含子目录」再试。"
+            : "这个目录及其子目录都没有匹配的文件。"}
+        </p>
       ) : null}
 
       {result && result.matches.length > 0 ? (
@@ -71,7 +77,7 @@ export const SearchResults = ({ model }: { model: FilesModel }) => {
                 {match.name}
               </Button>
               <span className="min-w-0 truncate text-muted-foreground">
-                {match.path}
+                {relativeToRoot(result.root, match.path)}
               </span>
               {match.snippet ? (
                 <span className="w-full min-w-0 break-all font-mono text-[0.6875rem] text-muted-foreground">

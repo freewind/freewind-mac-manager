@@ -25,6 +25,8 @@ import {
 import {
   type FileSearchRequest,
   filesKeys,
+  SEARCH_CURRENT_DEPTH,
+  SEARCH_SUBTREE_DEPTH,
   useDirectoryQuery,
   useFileSearchQuery,
 } from "@web/features/files/queries"
@@ -259,6 +261,11 @@ export const useFiles = () => {
             mode: local.search.mode,
             caseSensitive: local.search.caseSensitive,
             searchContent: local.search.searchContent,
+            // 范围选项直接决定契约里的 maxDepth：仅当前目录只走一层
+            maxDepth:
+              local.search.scope === "current"
+                ? SEARCH_CURRENT_DEPTH
+                : SEARCH_SUBTREE_DEPTH,
           }
         : null,
     [local.search, resolvedPath]
@@ -295,6 +302,7 @@ export const useFiles = () => {
     setSearchMode: local.setSearchMode,
     setSearchCaseSensitive: local.setSearchCaseSensitive,
     setSearchContent: local.setSearchContent,
+    setSearchScope: local.setSearchScope,
     submitSearch: local.submitSearch,
     clearSearch: local.clearSearch,
     searchResult: searchQuery.data ?? null,
