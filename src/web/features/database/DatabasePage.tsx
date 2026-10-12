@@ -1,5 +1,3 @@
-import { Add01Icon, RefreshIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type {
   DatabaseRecord,
   DatabaseTable,
@@ -46,6 +44,7 @@ import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { useEditProtection } from "@web/hooks/use-edit-protection"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { Plus, RefreshCw } from "lucide-react"
 import { useMemo, useState } from "react"
 import { DeleteRecordsDialog, type DeleteTarget } from "./DeleteRecordsDialog"
 import {
@@ -459,7 +458,7 @@ export const DatabasePage = () => {
                 onClick={refreshAll}
                 disabled={model.tablesPending}
               >
-                <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+                <RefreshCw aria-hidden="true" />
                 刷新
               </Button>
               <Button
@@ -469,7 +468,7 @@ export const DatabasePage = () => {
                   tableDetail === null || insertHint !== null || !model.online
                 }
               >
-                <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+                <Plus aria-hidden="true" />
                 新增记录
               </Button>
               <span className="text-sm text-muted-foreground">
