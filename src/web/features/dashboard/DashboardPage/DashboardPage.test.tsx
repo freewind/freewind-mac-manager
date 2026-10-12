@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type {
-  MachineOverview,
+  DashboardOverview,
   PortInfo,
   ProcessInfo,
 } from "@shared/api-contract"
@@ -25,8 +25,9 @@ import { DashboardPage } from "./DashboardPage"
 const PROCESS_COUNT = 6
 const PORT_COUNT = 67
 
-const overview: MachineOverview = {
+const overview: DashboardOverview = {
   sampledAt: 1_700_000_000_000,
+  refreshIntervalSeconds: 3,
   system: {
     hostname: "freewind-mbp",
     model: "MacBook Pro",
@@ -87,14 +88,17 @@ const ports: PortInfo[] = Array.from({ length: PORT_COUNT }, (_, index) => ({
   address: index === 0 ? "*" : `127.0.0.1:${30_000 + index}`,
 }))
 
-const renderPage = () => {
+const renderPage = (overviewOverride: Partial<DashboardOverview> = {}) => {
   const client = new QueryClient({
     defaultOptions: {
       queries: { enabled: false, retry: false },
       mutations: { retry: false },
     },
   })
-  client.setQueryData(dashboardKeys.overview, overview)
+  client.setQueryData(dashboardKeys.overview, {
+    ...overview,
+    ...overviewOverride,
+  })
   client.setQueryData(dashboardKeys.processes, { processes })
   client.setQueryData(dashboardKeys.ports, { ports })
   render(<DashboardPage />, {
@@ -134,6 +138,12 @@ describe("概览页", () => {
     for (const item of processes) {
       expect(screen.getByText(item.name)).toBeTruthy()
     }
+  })
+
+  it("自动刷新的秒数取后端返回值，不写死", () => {
+    renderPage({ refreshIntervalSeconds: 7 })
+
+    expect(screen.getByText(/每 7 秒自动刷新/)).toBeTruthy()
   })
 
   it("端口卡在手机上给出左右滑动查看的提示", () => {

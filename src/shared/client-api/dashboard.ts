@@ -1,12 +1,12 @@
 import type {
-  MachineOverview,
+  DashboardOverview,
   PortsResponse,
   ProcessesResponse,
 } from "@shared/api-contract"
 import { apiClient, unwrap } from "./client"
 
-export const fetchMachineOverview = async (): Promise<MachineOverview> =>
-  unwrap<MachineOverview>(await apiClient.dashboardOverview())
+export const fetchMachineOverview = async (): Promise<DashboardOverview> =>
+  unwrap<DashboardOverview>(await apiClient.dashboardOverview())
 
 export const fetchTopProcesses = async (
   limit: number

@@ -17,12 +17,26 @@ export const dashboardKeys = {
   ports: ["dashboard", "ports"] as const,
 }
 
+/** 响应还没拿到时的兜底刷新秒数；正常轮询一律以响应里的 refreshIntervalSeconds 为准。 */
+export const FALLBACK_OVERVIEW_REFRESH_SECONDS = 3
+
+/**
+ * 概览的轮询间隔（毫秒）：服务端改成多少秒，页面就跟随多少，不在前端写死。
+ */
+export const overviewPollMs = (
+  refreshIntervalSeconds: number | undefined
+): number =>
+  (refreshIntervalSeconds ?? FALLBACK_OVERVIEW_REFRESH_SECONDS) * 1000
+
 export const useMachineOverview = () => {
   const paused = useDashboardLocalStore((state) => state.paused)
   return useQuery({
     queryKey: dashboardKeys.overview,
     queryFn: fetchMachineOverview,
-    refetchInterval: paused ? false : 3000,
+    // 间隔不写死：跟随响应里的刷新秒数；还没拿到数据时先按兜底间隔取一次。
+    refetchInterval: paused
+      ? false
+      : (query) => overviewPollMs(query.state.data?.refreshIntervalSeconds),
   })
 }
 

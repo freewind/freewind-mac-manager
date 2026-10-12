@@ -125,7 +125,7 @@ export const DashboardPage = () => {
               {model.paused
                 ? "已暂停自动刷新"
                 : overview
-                  ? `更新于 ${formatClock(overview.sampledAt)} · 每 3 秒自动刷新`
+                  ? `更新于 ${formatClock(overview.sampledAt)} · 每 ${overview.refreshIntervalSeconds} 秒自动刷新`
                   : "正在读取状态"}
             </span>
             <AiAssistantButton context={assistantContext} />

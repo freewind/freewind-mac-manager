@@ -1,7 +1,7 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
 import { ApiErrorSchema } from "../schemas/common"
 import {
-  MachineOverviewSchema,
+  DashboardOverviewSchema,
   PortsResponseSchema,
   ProcessesQuerySchema,
   ProcessesResponseSchema,
@@ -17,7 +17,7 @@ export const dashboardRoutes = {
     method: "GET",
     path: toContractPath(ApiPath.dashboardOverview),
     responses: {
-      200: MachineOverviewSchema,
+      200: DashboardOverviewSchema,
       ...errorResponses,
     },
   },
