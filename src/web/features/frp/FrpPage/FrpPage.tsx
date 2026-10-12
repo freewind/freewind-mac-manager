@@ -40,6 +40,11 @@ import { Field, FieldContent, FieldLabel } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
 import { Separator } from "@web/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { useFrp } from "@web/features/frp/useFrp"
 import { useEditProtection } from "@web/hooks/use-edit-protection"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
@@ -55,6 +60,15 @@ const TYPE_FILTERS: { key: "all" | FrpProxyType; label: string }[] = [
   { key: "http", label: "HTTP" },
   { key: "https", label: "HTTPS" },
 ]
+
+/**
+ * 启动命令由服务端从 launchd plist 读出的可执行文件与 -c 配置路径还原，
+ * 前端不补编造别处没有的参数；plist 里是否还有其它参数由后端决定。
+ */
+const launchCommandOf = (server: {
+  binaryPath: string
+  configPath: string
+}): string => `${server.binaryPath} -c ${server.configPath}`
 
 const InfoField = (props: { label: string; children: React.ReactNode }) => (
   <Field orientation="horizontal" className="gap-2 min-w-0">
@@ -83,6 +97,7 @@ export const FrpPage = () => {
   })
 
   const server = model.server
+  const launchCommand = server ? launchCommandOf(server) : ""
 
   const openCreate = () => {
     if (model.saving) return
@@ -100,6 +115,16 @@ export const FrpPage = () => {
     try {
       await navigator.clipboard.writeText(model.toml)
       toast.success("已复制 frpc 配置内容")
+    } catch {
+      toast.error("复制失败：浏览器拒绝了剪贴板访问")
+    }
+  }
+
+  /** 启动命令是服务级的（所有隧道共用一份 frpc 配置），复制入口只有这一处。 */
+  const copyLaunchCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(launchCommand)
+      toast.success("已复制 frpc 启动命令")
     } catch {
       toast.error("复制失败：浏览器拒绝了剪贴板访问")
     }
@@ -264,6 +289,32 @@ export const FrpPage = () => {
                 </InfoField>
                 <InfoField label="frpc 路径">
                   <span className="font-mono">{server.binaryPath}</span>
+                </InfoField>
+                <InfoField label="启动命令">
+                  <span className="flex min-w-0 items-center gap-1">
+                    {/* 完整命令一眼可读：格子内截断，悬停看全文；复制按钮不在触发范围里。 */}
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="min-w-0 truncate font-mono">
+                            {launchCommand}
+                          </span>
+                        }
+                      />
+                      <TooltipContent className="max-w-lg break-all">
+                        {launchCommand}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Button
+                      aria-label="复制 frpc 启动命令"
+                      className="shrink-0"
+                      onClick={() => void copyLaunchCommand()}
+                      size="icon-xs"
+                      variant="ghost"
+                    >
+                      <HugeiconsIcon icon={Copy01Icon} />
+                    </Button>
+                  </span>
                 </InfoField>
                 <InfoField label="launchd">
                   <span className="font-mono">{server.launchdLabel}</span>

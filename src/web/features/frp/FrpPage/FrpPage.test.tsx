@@ -4,6 +4,7 @@ import type { FrpConfig } from "@shared/api-contract"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { TooltipProvider } from "@web/components/ui/tooltip"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { frpKeys } from "../queries"
@@ -66,8 +67,11 @@ const renderPage = () => {
   })
   client.setQueryData(frpKeys.config, config)
   render(<FrpPage />, {
+    // 与 main.tsx 一致挂上 Provider：否则 Tooltip 走默认延时，悬停断言会变成计时竞态。
     wrapper: ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <TooltipProvider>{children}</TooltipProvider>
+      </QueryClientProvider>
     ),
   })
 }
@@ -158,6 +162,57 @@ describe("FRP 页", () => {
         .getByText("127.0.0.1:8080")
         .closest('[data-slot="tooltip-trigger"]')
     ).toBeNull()
+  })
+
+  it("启动命令是完整可执行文件加 -c 配置路径，不是只有 -c 片段", () => {
+    renderPage()
+
+    // 只是参数片段会让人看不出真正启动了什么
+    const command = `${BINARY_PATH} -c ${CONFIG_PATH}`
+    expect(screen.getByText("启动命令")).toBeTruthy()
+    expect(screen.getByText(command)).toBeTruthy()
+    expect(screen.queryByText(`-c ${CONFIG_PATH}`)).toBeNull()
+    // 隧道列表本身没有命令列，命令只属于服务级的一份配置
+    expect(screen.queryByRole("columnheader", { name: "命令" })).toBeNull()
+  })
+
+  it("悬停启动命令能看到全文，复制按钮不在 Tooltip 触发范围里", async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const command = `${BINARY_PATH} -c ${CONFIG_PATH}`
+    const cell = screen.getByText(command)
+    expect(cell.closest('[data-slot="tooltip-trigger"]')).not.toBeNull()
+
+    await user.hover(cell)
+    expect(await screen.findAllByText(command)).toHaveLength(2)
+
+    expect(
+      screen
+        .getByRole("button", { name: "复制 frpc 启动命令" })
+        .closest('[data-slot="tooltip-trigger"]')
+    ).toBeNull()
+  })
+
+  it("复制启动命令写入完整命令，列宽规范未受影响", async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    })
+    renderPage()
+
+    await user.click(screen.getByRole("button", { name: "复制 frpc 启动命令" }))
+    await vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(`${BINARY_PATH} -c ${CONFIG_PATH}`)
+    })
+    expect(toastMock.success).toHaveBeenCalledWith("已复制 frpc 启动命令")
+
+    // 任务 30 的列宽约束与任务 41 的 sticky 操作列都不动
+    const actionHead = screen.getByRole("columnheader", { name: "操作" })
+    expect(actionHead.className).toContain("w-[1%]")
+    expect(actionHead.className).toContain("whitespace-nowrap")
   })
 
   it("配置预览的滚动只在预览区内部，复制按钮留在预览之外", () => {
