@@ -31,6 +31,8 @@ const api = vi.hoisted(() => ({
   createDatabaseRecord: vi.fn(),
   updateDatabaseRecord: vi.fn(),
   deleteDatabaseRecords: vi.fn(),
+  fetchDatabaseBackups: vi.fn(),
+  fetchDatabaseRestoreState: vi.fn(),
 }))
 
 vi.mock("@shared/client-api", async (original) => ({
@@ -217,6 +219,19 @@ beforeEach(() => {
   )
   api.fetchDatabaseRecords.mockResolvedValue(recordsBody(1))
   api.fetchDatabaseRecord.mockResolvedValue({ table: "items", record })
+  api.fetchDatabaseBackups.mockResolvedValue({
+    backups: [],
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    directory: "/tmp/backups",
+    totalBytes: 0,
+  })
+  api.fetchDatabaseRestoreState.mockResolvedValue({
+    plan: null,
+    currentSignature: null,
+    verified: false,
+  })
 })
 
 afterEach(() => {
@@ -815,7 +830,7 @@ describe("DatabasePage 主从工作区", () => {
 })
 
 describe("DatabasePage 视图标签栏", () => {
-  it("标签栏在页面上，切换写入 URL 参数，未实现的视图给空态而不崩", async () => {
+  it("标签栏在页面上，切换写入 URL 参数，备份视图整体替换主体内容", async () => {
     setUrl("?dbTable=items")
     const user = userEvent.setup()
     renderPage()
@@ -828,7 +843,7 @@ describe("DatabasePage 视图标签栏", () => {
         "backups"
       )
     )
-    expect(screen.getByText("备份管理还没实现")).toBeTruthy()
+    expect(await screen.findByText("还没有备份")).toBeTruthy()
     // 数据视图的内容被整体替换掉，不是塞进某一栏
     expect(screen.queryByText("apple")).toBeNull()
 
@@ -843,6 +858,6 @@ describe("DatabasePage 视图标签栏", () => {
     setUrl("?tab=containers&dbTable=items")
     renderPage()
     await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
-    expect(screen.queryByText("备份管理还没实现")).toBeNull()
+    expect(screen.queryByText("还没有备份")).toBeNull()
   })
 })

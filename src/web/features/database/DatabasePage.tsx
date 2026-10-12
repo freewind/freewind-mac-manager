@@ -46,6 +46,7 @@ import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { Plus, RefreshCw } from "lucide-react"
 import { useMemo, useState } from "react"
+import { BackupsPanel } from "./backups/BackupsPanel"
 import { DeleteRecordsDialog, type DeleteTarget } from "./DeleteRecordsDialog"
 import {
   emptyRecordForm,
@@ -367,16 +368,8 @@ export const DatabasePage = () => {
       </header>
 
       {tab === "backups" ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>备份管理还没实现</EmptyTitle>
-              <EmptyDescription>
-                这个视图留给备份管理；现在可以先在「数据」里浏览与编辑表。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        </div>
+        // 备份视图自己拥有主体滚动区，不与「数据」的主从布局共用容器
+        <BackupsPanel />
       ) : (
         <>
           {/* 固定区：风险提示与表级状态在任何滚动位置都看得见，不折叠隐藏 */}
