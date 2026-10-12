@@ -1,5 +1,3 @@
-import { Delete02Icon, EthernetPortIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { DockerNetwork } from "@shared/api-contract"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -37,6 +35,7 @@ import {
 import { useDockerNetworks } from "@web/features/docker/useDocker"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { Network, Trash2 } from "lucide-react"
 
 export const BUILTIN_NETWORK_HINT = "Docker 内置网络，不能删除"
 
@@ -82,7 +81,7 @@ export const NetworkList = () => {
         <Empty className="py-6">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={EthernetPortIcon} />
+              <Network />
             </EmptyMedia>
             <EmptyTitle>没有网络</EmptyTitle>
             <EmptyDescription>
@@ -170,7 +169,7 @@ const RemoveNetworkButton = (props: {
     disabled={props.busy || props.network.builtin}
     onClick={() => props.onRemove(props.network)}
   >
-    <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+    <Trash2 aria-hidden="true" />
   </Button>
 )
 

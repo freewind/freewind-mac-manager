@@ -1,5 +1,3 @@
-import { Add01Icon, Delete02Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type {
   DockerContainerCreateBody,
   DockerImage,
@@ -38,6 +36,7 @@ import {
   emptyCreateForm,
   RESTART_POLICY_LABELS,
 } from "@web/features/docker/create-form"
+import { Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 type CreateContainerDialogProps = {
@@ -178,7 +177,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
                       })
                     }
                   >
-                    <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+                    <Trash2 aria-hidden="true" />
                   </Button>
                 </div>
               ))}
@@ -193,7 +192,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
                 })
               }
             >
-              <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+              <Plus aria-hidden="true" />
               添加端口映射
             </Button>
             {errorOf("ports") ? (
@@ -251,7 +250,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
                       })
                     }
                   >
-                    <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+                    <Trash2 aria-hidden="true" />
                   </Button>
                 </div>
               ))}
@@ -266,7 +265,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
                 })
               }
             >
-              <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+              <Plus aria-hidden="true" />
               添加卷挂载
             </Button>
             {errorOf("volumes") ? (
@@ -316,7 +315,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
                       })
                     }
                   >
-                    <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+                    <Trash2 aria-hidden="true" />
                   </Button>
                 </div>
               ))}
@@ -329,7 +328,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
                 patch({ env: [...form.env, { name: "", value: "" }] })
               }
             >
-              <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+              <Plus aria-hidden="true" />
               添加环境变量
             </Button>
             {errorOf("env") ? <FieldError>{errorOf("env")}</FieldError> : null}

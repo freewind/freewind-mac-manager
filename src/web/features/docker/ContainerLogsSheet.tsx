@@ -1,5 +1,3 @@
-import { RefreshIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { DockerContainer } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -22,6 +20,7 @@ import {
   useDockerContainerLogsQuery,
 } from "@web/features/docker/queries"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { RefreshCw } from "lucide-react"
 
 type ContainerLogsSheetProps = {
   container: DockerContainer | null
@@ -73,7 +72,7 @@ export const ContainerLogsSheet = (props: ContainerLogsSheetProps) => {
               onClick={() => void logs.refetch()}
               disabled={logs.isFetching}
             >
-              <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+              <RefreshCw aria-hidden="true" />
               {logs.isFetching ? "正在重新读取…" : "重新读取"}
             </Button>
             <p className="text-xs text-muted-foreground">

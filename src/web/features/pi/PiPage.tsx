@@ -1,12 +1,4 @@
 import {
-  Add01Icon,
-  Delete02Icon,
-  Edit01Icon,
-  RefreshIcon,
-  Robot01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
-import {
   ApiRequestError,
   addPiProvider,
   deletePiBenchmarks,
@@ -57,6 +49,7 @@ import {
   rememberPendingRequest,
 } from "@web/features/tasks/pending-requests"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { Bot, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { GroupsTab } from "./GroupsTab"
@@ -313,7 +306,7 @@ export const PiPage = () => {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <HugeiconsIcon icon={Robot01Icon} className="size-4" />
+        <Bot className="size-4" />
         <PageHeader title="Pi 模型管理" loading={query.isLoading} />
         <span className="text-xs text-muted-foreground">
           密钥仅写入、不回显；模型参数由 Pi 上游格式校验
@@ -363,11 +356,11 @@ export const PiPage = () => {
               onClick={() => void query.refetch()}
               disabled={query.isFetching}
             >
-              <HugeiconsIcon icon={RefreshIcon} />
+              <RefreshCw />
               刷新
             </Button>
             <Button size="sm" onClick={() => startEdit()}>
-              <HugeiconsIcon icon={Add01Icon} />
+              <Plus />
               添加 Provider
             </Button>
           </div>
@@ -624,7 +617,7 @@ export const PiPage = () => {
                       variant="outline"
                       onClick={() => startEdit(entry)}
                     >
-                      <HugeiconsIcon icon={Edit01Icon} />
+                      <Pencil />
                       编辑
                     </Button>
                     <Button
@@ -632,7 +625,7 @@ export const PiPage = () => {
                       variant="destructive"
                       onClick={() => setDeleteTarget(entry)}
                     >
-                      <HugeiconsIcon icon={Delete02Icon} />
+                      <Trash2 />
                       删除
                     </Button>
                   </div>

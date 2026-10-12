@@ -1,5 +1,3 @@
-import { DatabaseIcon, Delete02Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { DockerVolume } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -38,6 +36,7 @@ import {
 import { useDockerVolumes } from "@web/features/docker/useDocker"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { Database, Trash2 } from "lucide-react"
 
 const sizeTextOf = (volume: DockerVolume): string =>
   volume.sizeBytes === null ? "未知" : formatBytes(volume.sizeBytes)
@@ -84,7 +83,7 @@ export const VolumeList = () => {
         <Empty className="py-6">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={DatabaseIcon} />
+              <Database />
             </EmptyMedia>
             <EmptyTitle>没有卷</EmptyTitle>
             <EmptyDescription>
@@ -170,7 +169,7 @@ const RemoveVolumeButton = (props: {
       disabled={props.busy || inUse}
       onClick={() => props.onRemove(props.volume)}
     >
-      <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+      <Trash2 aria-hidden="true" />
     </Button>
   )
 }

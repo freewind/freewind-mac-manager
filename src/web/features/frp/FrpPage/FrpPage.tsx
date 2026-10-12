@@ -1,16 +1,3 @@
-import {
-  Add01Icon,
-  CloudSavingDone01Icon,
-  Copy01Icon,
-  Link01Icon,
-  PlayIcon,
-  Radar01Icon,
-  RefreshIcon,
-  Search01Icon,
-  StopIcon,
-  TrashIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { FrpProxy, FrpProxyType } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -60,6 +47,18 @@ import { useFrp } from "@web/features/frp/useFrp"
 import { useEditProtection } from "@web/hooks/use-edit-protection"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import {
+  CloudCheck,
+  Copy,
+  Link,
+  Play,
+  Plus,
+  Radar,
+  RefreshCw,
+  Search,
+  Square,
+  Trash2,
+} from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { ProxyFormDialog } from "./ProxyFormDialog"
@@ -153,7 +152,7 @@ export const FrpPage = () => {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex flex-col gap-3 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <HugeiconsIcon icon={Link01Icon} className="size-4" />
+          <Link className="size-4" />
           <PageHeader title="FRP 内网穿透" loading={model.isLoading} />
           {server ? (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -174,7 +173,7 @@ export const FrpPage = () => {
               disabled={model.saving}
               onClick={openCreate}
             >
-              <HugeiconsIcon icon={Add01Icon} />
+              <Plus />
               新增隧道
             </Button>
             <ActionButton
@@ -185,7 +184,7 @@ export const FrpPage = () => {
               busyLabel="探测中…"
               onClick={() => void model.probeAll()}
             >
-              <HugeiconsIcon icon={Radar01Icon} />
+              <Radar />
               探测全部
             </ActionButton>
             <ActionButton
@@ -197,7 +196,7 @@ export const FrpPage = () => {
               onClick={model.refresh}
               disabled={model.saving}
             >
-              <HugeiconsIcon icon={RefreshIcon} />
+              <RefreshCw />
               重新读取
             </ActionButton>
           </div>
@@ -205,10 +204,7 @@ export const FrpPage = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative w-full md:w-80">
-            <HugeiconsIcon
-              icon={Search01Icon}
-              className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
+            <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={model.search}
               onChange={(event) => model.setSearch(event.target.value)}
@@ -296,9 +292,7 @@ export const FrpPage = () => {
                         server.state === "running" ? "secondary" : "destructive"
                       }
                     >
-                      <HugeiconsIcon
-                        icon={server.state === "running" ? PlayIcon : StopIcon}
-                      />
+                      {server.state === "running" ? <Play /> : <Square />}
                       {server.state === "running" ? "运行中" : "已停止"}
                     </Badge>
                     {/* 启动命令常驻折叠首行：收起后也能一眼看到并复制 */}
@@ -322,7 +316,7 @@ export const FrpPage = () => {
                         size="icon-xs"
                         variant="ghost"
                       >
-                        <HugeiconsIcon icon={Copy01Icon} />
+                        <Copy />
                       </Button>
                     </span>
                     <CollapsibleTrigger
@@ -403,7 +397,7 @@ export const FrpPage = () => {
                 </CardDescription>
                 <CardAction className="flex items-center gap-1.5">
                   <Button variant="outline" size="xs" onClick={copyToml}>
-                    <HugeiconsIcon icon={Copy01Icon} />
+                    <Copy />
                     复制
                   </Button>
                   <CollapsibleTrigger
@@ -458,7 +452,7 @@ export const FrpPage = () => {
           disabled={!model.dirty || formOpen || pendingDelete !== null}
           onClick={model.save}
         >
-          <HugeiconsIcon icon={CloudSavingDone01Icon} />
+          <CloudCheck />
           保存
         </ActionButton>
       </div>
@@ -520,7 +514,7 @@ export const FrpPage = () => {
                 setPendingDelete(null)
               }}
             >
-              <HugeiconsIcon icon={TrashIcon} />
+              <Trash2 />
               删除
             </AlertDialogAction>
           </AlertDialogFooter>

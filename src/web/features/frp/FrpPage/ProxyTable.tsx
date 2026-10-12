@@ -1,11 +1,3 @@
-import {
-  Loading03Icon,
-  MoreHorizontalIcon,
-  PencilEdit01Icon,
-  Radar01Icon,
-  TrashIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { FrpProxy } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
@@ -39,6 +31,13 @@ import {
 } from "@web/components/ui/tooltip"
 import type { FrpPageModel } from "@web/features/frp/useFrp"
 import { cn } from "@web/lib/utils"
+import {
+  LoaderCircle,
+  MoreHorizontal,
+  Pencil,
+  Radar,
+  Trash2,
+} from "lucide-react"
 
 type ProxyTableProps = {
   model: FrpPageModel
@@ -55,7 +54,7 @@ export const ProxyTable = (props: ProxyTableProps) => {
       <Empty className="border-0">
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <HugeiconsIcon icon={Radar01Icon} />
+            <Radar />
           </EmptyMedia>
           <EmptyTitle>没有匹配的隧道</EmptyTitle>
           <EmptyDescription>
@@ -109,10 +108,7 @@ export const ProxyTable = (props: ProxyTableProps) => {
               <TableCell>
                 {checking ? (
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <HugeiconsIcon
-                      icon={Loading03Icon}
-                      className="size-3.5 animate-spin"
-                    />
+                    <LoaderCircle className="size-3.5 animate-spin" />
                     探测中
                   </span>
                 ) : probe ? (
@@ -161,7 +157,7 @@ export const ProxyTable = (props: ProxyTableProps) => {
                         size="icon-sm"
                         aria-label={`${proxy.name} 的操作`}
                       >
-                        <HugeiconsIcon icon={MoreHorizontalIcon} />
+                        <MoreHorizontal />
                       </Button>
                     }
                   />
@@ -170,14 +166,14 @@ export const ProxyTable = (props: ProxyTableProps) => {
                       disabled={model.saving}
                       onClick={() => onEdit(proxy)}
                     >
-                      <HugeiconsIcon icon={PencilEdit01Icon} />
+                      <Pencil />
                       编辑
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       disabled={model.probing}
                       onClick={() => void model.probe(proxy)}
                     >
-                      <HugeiconsIcon icon={Radar01Icon} />
+                      <Radar />
                       探测连通
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -186,7 +182,7 @@ export const ProxyTable = (props: ProxyTableProps) => {
                       disabled={model.saving}
                       onClick={() => onDelete(proxy)}
                     >
-                      <HugeiconsIcon icon={TrashIcon} />
+                      <Trash2 />
                       删除
                     </DropdownMenuItem>
                   </DropdownMenuContent>

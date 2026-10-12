@@ -1,5 +1,3 @@
-import { Add01Icon, Delete02Icon, File01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { DockerContainer } from "@shared/api-contract"
 import { ActionButton } from "@web/components/ActionButton"
 import {
@@ -60,6 +58,7 @@ import {
 } from "@web/features/docker/useDocker"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { File, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 /**
@@ -139,7 +138,7 @@ export const ContainerList = () => {
           }}
           disabled={model.action.busy || create.action.busy}
         >
-          <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+          <Plus aria-hidden="true" />
           新建容器
         </Button>
       </div>
@@ -154,7 +153,7 @@ export const ContainerList = () => {
         <Empty className="py-6">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={File01Icon} />
+              <File />
             </EmptyMedia>
             <EmptyTitle>没有容器</EmptyTitle>
             <EmptyDescription>
@@ -300,7 +299,7 @@ const ContainerActions = (props: {
       disabled={props.busy}
       onClick={() => props.onLogs(props.container)}
     >
-      <HugeiconsIcon icon={File01Icon} aria-hidden="true" />
+      <File aria-hidden="true" />
     </Button>
     <Button
       variant="ghost"
@@ -310,7 +309,7 @@ const ContainerActions = (props: {
       disabled={props.busy}
       onClick={() => props.onDanger(props.container, "remove")}
     >
-      <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+      <Trash2 aria-hidden="true" />
     </Button>
   </div>
 )

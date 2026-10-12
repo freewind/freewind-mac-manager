@@ -1,5 +1,3 @@
-import { Add01Icon, RefreshIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { CaddyRule, CaddyRuleInput } from "@shared/api-contract"
 import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -12,6 +10,7 @@ import {
   type CaddyTab,
   useCaddyTab,
 } from "@web/features/caddy/useCaddyTab"
+import { Plus, RefreshCw } from "lucide-react"
 import { useState } from "react"
 import { changeSummaryOf } from "../format"
 import { ApplyPanel } from "./ApplyPanel"
@@ -76,7 +75,7 @@ export const CaddyPage = () => {
           className="mt-3 min-h-11 px-3"
           onClick={() => void model.refresh()}
         >
-          <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+          <RefreshCw aria-hidden="true" />
           重新读取
         </Button>
       </div>
@@ -118,7 +117,7 @@ export const CaddyPage = () => {
             disabled={model.isFetching}
             onClick={() => void model.refresh()}
           >
-            <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+            <RefreshCw aria-hidden="true" />
             重新读取
           </Button>
         </div>
@@ -164,7 +163,7 @@ export const CaddyPage = () => {
                 disabled={ruleBusy || writeDisabledReason !== null}
                 onClick={openCreate}
               >
-                <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+                <Plus aria-hidden="true" />
                 新增规则
               </Button>
             </div>

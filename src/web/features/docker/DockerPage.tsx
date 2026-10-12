@@ -1,9 +1,3 @@
-import {
-  Alert02Icon,
-  ContainerIcon,
-  RefreshIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type {
   DockerContainersResponse,
   DockerOverview,
@@ -36,6 +30,7 @@ import {
   useDockerTab,
 } from "@web/features/docker/useDockerTab"
 import { VolumeList } from "@web/features/docker/VolumeList"
+import { AlertTriangle, Container, RefreshCw } from "lucide-react"
 
 /** 概览一屏：Colima 状态与容器/镜像/卷/网络的真实计数。 */
 export const DockerPage = () => {
@@ -110,7 +105,7 @@ export const DockerPage = () => {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex flex-col gap-2 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <HugeiconsIcon icon={ContainerIcon} className="size-4 shrink-0" />
+          <Container className="size-4 shrink-0" />
           <div className="min-w-0">
             <PageHeader title="Docker" loading={model.isLoading} />
             <p className="truncate text-xs text-muted-foreground">
@@ -126,7 +121,7 @@ export const DockerPage = () => {
               onClick={model.refresh}
               disabled={model.isRefreshing}
             >
-              <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+              <RefreshCw aria-hidden="true" />
               刷新
             </Button>
           </div>
@@ -136,7 +131,7 @@ export const DockerPage = () => {
 
       {model.error ? (
         <Alert variant="destructive" role="alert" className="mx-4 mt-3">
-          <HugeiconsIcon icon={Alert02Icon} aria-hidden="true" />
+          <AlertTriangle aria-hidden="true" />
           <AlertTitle>读取 Docker 概览失败</AlertTitle>
           <AlertDescription>
             {model.error}。页面保留的是上一次读取到的数据，请重试。
@@ -177,7 +172,7 @@ const DockerOverviewCards = ({ overview }: { overview: DockerOverview }) => (
   <div className="flex min-w-0 flex-col gap-3">
     {overview.available ? null : (
       <Alert role="status">
-        <HugeiconsIcon icon={Alert02Icon} aria-hidden="true" />
+        <AlertTriangle aria-hidden="true" />
         <AlertTitle>Docker 当前不可用</AlertTitle>
         <AlertDescription>
           多数情况下是 Colima 没启动；启动后各项计数会自动恢复。

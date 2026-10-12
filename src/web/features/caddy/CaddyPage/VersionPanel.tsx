@@ -1,5 +1,3 @@
-import { HistoryIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { CaddyVersionSummary } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -29,6 +27,7 @@ import {
 } from "@web/components/ui/empty"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { History } from "lucide-react"
 import { useState } from "react"
 import { CADDY_APPLY_STATUS_LABELS, caddyApplyStatusVariant } from "../format"
 
@@ -78,7 +77,7 @@ export const VersionPanel = (props: VersionPanelProps) => {
           <Empty className="py-6">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <HugeiconsIcon icon={HistoryIcon} />
+                <History />
               </EmptyMedia>
               <EmptyTitle>还没有应用历史</EmptyTitle>
               <EmptyDescription>

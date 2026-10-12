@@ -1,12 +1,4 @@
 import {
-  Add01Icon,
-  CancelCircleIcon,
-  Delete02Icon,
-  Edit01Icon,
-  RefreshIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
-import {
   addPiModelGroup,
   deletePiModelGroup,
   replacePiModelGroup,
@@ -55,6 +47,7 @@ import {
 } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
+import { CircleX, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { piKeys, usePiModelGroups, usePiModels } from "./queries"
@@ -247,11 +240,11 @@ export const GroupsTab = () => {
           onClick={() => void groups.refetch()}
           disabled={groups.isFetching}
         >
-          <HugeiconsIcon icon={RefreshIcon} />
+          <RefreshCw />
           刷新
         </Button>
         <Button size="sm" onClick={() => startEdit()}>
-          <HugeiconsIcon icon={Add01Icon} />
+          <Plus />
           添加分组
         </Button>
       </div>
@@ -298,7 +291,7 @@ export const GroupsTab = () => {
                     aria-label={`编辑分组 ${entry.group.name}`}
                     onClick={() => startEdit(entry)}
                   >
-                    <HugeiconsIcon icon={Edit01Icon} />
+                    <Pencil />
                   </Button>
                   <Button
                     variant="ghost"
@@ -306,7 +299,7 @@ export const GroupsTab = () => {
                     aria-label={`删除分组 ${entry.group.name}`}
                     onClick={() => setDeleteTarget(entry)}
                   >
-                    <HugeiconsIcon icon={Delete02Icon} />
+                    <Trash2 />
                   </Button>
                 </div>
               </div>
@@ -504,7 +497,7 @@ export const GroupsTab = () => {
                           })
                         }
                       >
-                        <HugeiconsIcon icon={CancelCircleIcon} />
+                        <CircleX />
                       </Button>
                     </div>
                   ))}
@@ -521,7 +514,7 @@ export const GroupsTab = () => {
                     })
                   }
                 >
-                  <HugeiconsIcon icon={Add01Icon} />
+                  <Plus />
                   添加成员
                 </Button>
               </Field>

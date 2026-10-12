@@ -1,5 +1,3 @@
-import { Delete02Icon, Download01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { DockerImage } from "@shared/api-contract"
 import { formatBytes, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -54,6 +52,7 @@ import {
 import { useDockerImages } from "@web/features/docker/useDocker"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { Download, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 /** 与后端契约一致的镜像引用白名单；首字符必须是字母数字。 */
@@ -98,7 +97,7 @@ export const ImageList = () => {
           onClick={model.openPull}
           disabled={model.action.busy}
         >
-          <HugeiconsIcon icon={Download01Icon} aria-hidden="true" />
+          <Download aria-hidden="true" />
           拉取镜像
         </Button>
       </div>
@@ -126,7 +125,7 @@ export const ImageList = () => {
         <Empty className="py-6">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={Download01Icon} />
+              <Download />
             </EmptyMedia>
             <EmptyTitle>没有镜像</EmptyTitle>
             <EmptyDescription>
@@ -331,7 +330,7 @@ const ImageCards = (props: {
             disabled={props.busy}
             onClick={() => props.onRemove(image)}
           >
-            <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+            <Trash2 aria-hidden="true" />
           </Button>
         </div>
       </li>
@@ -396,7 +395,7 @@ const ImageTable = (props: {
                   disabled={props.busy}
                   onClick={() => props.onRemove(image)}
                 >
-                  <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+                  <Trash2 aria-hidden="true" />
                 </Button>
               </div>
             </TableCell>

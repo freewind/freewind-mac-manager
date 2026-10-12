@@ -1,11 +1,3 @@
-import {
-  Delete02Icon,
-  Edit02Icon,
-  PauseIcon,
-  PlayIcon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { CaddyExternalRule, CaddyRule } from "@shared/api-contract"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -49,6 +41,7 @@ import {
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { Pause, Pencil, Play, Search, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { matchConditionOf, matchKindLabel } from "../format"
 
@@ -86,7 +79,7 @@ const RuleActions = (props: {
         disabled={disabled}
         onClick={() => props.onEdit(props.rule)}
       >
-        <HugeiconsIcon icon={Edit02Icon} aria-hidden="true" />
+        <Pencil aria-hidden="true" />
       </Button>
       <Button
         variant="outline"
@@ -101,10 +94,11 @@ const RuleActions = (props: {
         disabled={disabled}
         onClick={() => props.onToggle(props.rule)}
       >
-        <HugeiconsIcon
-          icon={props.rule.enabled ? PauseIcon : PlayIcon}
-          aria-hidden="true"
-        />
+        {props.rule.enabled ? (
+          <Pause aria-hidden="true" />
+        ) : (
+          <Play aria-hidden="true" />
+        )}
       </Button>
       <Button
         variant="outline"
@@ -115,7 +109,7 @@ const RuleActions = (props: {
         disabled={disabled}
         onClick={() => props.onDelete(props.rule)}
       >
-        <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+        <Trash2 aria-hidden="true" />
       </Button>
     </div>
   )
@@ -204,8 +198,7 @@ export const RuleList = (props: RuleListProps) => {
             value={props.search}
             onChange={(event) => props.onSearchChange(event.target.value)}
           />
-          <HugeiconsIcon
-            icon={Search01Icon}
+          <Search
             className="size-4 shrink-0 text-muted-foreground"
             aria-hidden="true"
           />
@@ -216,7 +209,7 @@ export const RuleList = (props: RuleListProps) => {
         <Empty className="py-6">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={Edit02Icon} />
+              <Pencil />
             </EmptyMedia>
             <EmptyTitle>还没有受管规则</EmptyTitle>
             <EmptyDescription>
