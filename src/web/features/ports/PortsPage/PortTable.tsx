@@ -138,7 +138,7 @@ export const PortTable = (props: PortTableProps) => {
             <TableHead className="w-[1%] whitespace-nowrap">状态</TableHead>
             <TableHead className="w-[1%] whitespace-nowrap">暴露</TableHead>
             <TableHead className="w-full">命令</TableHead>
-            <TableHead className="w-[1%]" />
+            <TableHead className="w-[1%] whitespace-nowrap" />
           </TableRow>
         </TableHeader>
         <TableBody>

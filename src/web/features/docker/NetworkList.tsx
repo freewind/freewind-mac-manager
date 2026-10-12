@@ -217,11 +217,13 @@ const NetworkTable = (props: {
       <TableHeader>
         <TableRow>
           <TableHead>名称</TableHead>
-          <TableHead>驱动</TableHead>
-          <TableHead>scope</TableHead>
-          <TableHead>接入容器</TableHead>
-          <TableHead>说明</TableHead>
-          <TableHead className="text-right">操作</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">驱动</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">scope</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">接入容器</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">说明</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap text-right">
+            操作
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -255,7 +257,7 @@ const NetworkTable = (props: {
                   ? "仍有容器接入"
                   : "—"}
             </TableCell>
-            <TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
               <div className="flex justify-end">
                 <RemoveNetworkButton
                   network={network}

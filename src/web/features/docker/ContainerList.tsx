@@ -386,10 +386,12 @@ const ContainerTable = (props: {
         <TableRow>
           <TableHead>名称</TableHead>
           <TableHead>镜像</TableHead>
-          <TableHead>状态</TableHead>
-          <TableHead>端口</TableHead>
-          <TableHead>启动时间</TableHead>
-          <TableHead className="text-right">操作</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">状态</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">端口</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">启动时间</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap text-right">
+            操作
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -428,8 +430,9 @@ const ContainerTable = (props: {
             <TableCell className="w-[1%] whitespace-nowrap text-xs text-muted-foreground">
               {formatContainerStartedAt(container)}
             </TableCell>
-            <TableCell>
-              <div className="flex justify-end">
+            <TableCell className="w-[1%] whitespace-nowrap">
+              {/* 操作按钮不换行：列宽按整排按钮计算，避免被挤成一列。 */}
+              <div className="flex min-w-max justify-end">
                 <ContainerActions
                   container={container}
                   busy={props.busy}

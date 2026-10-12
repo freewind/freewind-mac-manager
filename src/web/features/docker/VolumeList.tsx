@@ -216,11 +216,13 @@ const VolumeTable = (props: {
       <TableHeader>
         <TableRow>
           <TableHead>名称</TableHead>
-          <TableHead>驱动</TableHead>
-          <TableHead>大小</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">驱动</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">大小</TableHead>
           <TableHead>挂载点</TableHead>
-          <TableHead>被容器使用</TableHead>
-          <TableHead className="text-right">操作</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">被容器使用</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap text-right">
+            操作
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -259,7 +261,7 @@ const VolumeTable = (props: {
             <TableCell className="w-[1%] whitespace-nowrap">
               {volume.inUse ? "使用中（不能删除）" : "—"}
             </TableCell>
-            <TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
               <div className="flex justify-end">
                 <RemoveVolumeButton
                   volume={volume}

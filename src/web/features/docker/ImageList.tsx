@@ -350,11 +350,13 @@ const ImageTable = (props: {
       <TableHeader>
         <TableRow>
           <TableHead>仓库</TableHead>
-          <TableHead>标签</TableHead>
-          <TableHead>大小</TableHead>
-          <TableHead>创建时间</TableHead>
-          <TableHead>被容器引用</TableHead>
-          <TableHead className="text-right">操作</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">标签</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">大小</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">创建时间</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">被容器引用</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap text-right">
+            操作
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -384,7 +386,7 @@ const ImageTable = (props: {
             <TableCell className="w-[1%] whitespace-nowrap">
               {image.containers > 0 ? `${image.containers} 个容器` : "—"}
             </TableCell>
-            <TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
               <div className="flex justify-end">
                 <Button
                   variant="ghost"

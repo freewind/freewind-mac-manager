@@ -229,9 +229,9 @@ export const RuleList = (props: RuleListProps) => {
                 <TableHead>名称</TableHead>
                 <TableHead>匹配</TableHead>
                 <TableHead>上游</TableHead>
-                <TableHead>前缀</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>操作</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">前缀</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">状态</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -288,14 +288,17 @@ export const RuleList = (props: RuleListProps) => {
                     </Badge>
                   </TableCell>
                   <TableCell className="w-[1%] whitespace-nowrap">
-                    <RuleActions
-                      rule={rule}
-                      busy={props.busy}
-                      disabledReason={props.disabledReason}
-                      onEdit={props.onEdit}
-                      onToggle={toggle}
-                      onDelete={setPendingDelete}
-                    />
+                    {/* 操作按钮不换行：列宽按整排按钮计算，避免被挤成一列。 */}
+                    <div className="min-w-max">
+                      <RuleActions
+                        rule={rule}
+                        busy={props.busy}
+                        disabledReason={props.disabledReason}
+                        onEdit={props.onEdit}
+                        onToggle={toggle}
+                        onDelete={setPendingDelete}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

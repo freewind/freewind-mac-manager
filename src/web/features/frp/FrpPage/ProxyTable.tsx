@@ -66,11 +66,13 @@ export const ProxyTable = (props: ProxyTableProps) => {
       <TableHeader>
         <TableRow>
           <TableHead>隧道名</TableHead>
-          <TableHead>类型</TableHead>
-          <TableHead>本地目标</TableHead>
-          <TableHead>远程端口</TableHead>
-          <TableHead>连通性</TableHead>
-          <TableHead className="w-10 text-right">操作</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">类型</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">本地目标</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">远程端口</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap">连通性</TableHead>
+          <TableHead className="w-[1%] whitespace-nowrap text-right">
+            操作
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -132,7 +134,7 @@ export const ProxyTable = (props: ProxyTableProps) => {
                 )}
               </TableCell>
               <TableCell
-                className="text-right"
+                className="w-[1%] whitespace-nowrap text-right"
                 onClick={(event) => event.stopPropagation()}
               >
                 <DropdownMenu>
