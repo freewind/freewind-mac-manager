@@ -307,6 +307,29 @@ describe("目录内搜索", () => {
     expect(screen.getByRole("button", { name: "退出搜索" })).toBeTruthy()
   })
 
+  it("工具栏常驻显示当前范围与上限，切范围后文案跟着变", () => {
+    render(<FilesPage />)
+    expect(
+      screen.getByText(/范围：仅当前目录（不下探子目录）· 最多 200 条/)
+    ).toBeTruthy()
+
+    cleanup()
+    modelOverrides = {
+      search: {
+        query: "",
+        mode: "substring",
+        caseSensitive: false,
+        searchContent: true,
+        scope: "subtree",
+        active: false,
+      },
+    }
+    render(<FilesPage />)
+    expect(
+      screen.getByText(/范围：含子目录（最深 3 层）· 最多 200 条/)
+    ).toBeTruthy()
+  })
+
   it("仅当前目录没有结果时提示可以切到含子目录", () => {
     modelOverrides = {
       search: {
