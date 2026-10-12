@@ -107,6 +107,7 @@ export const ClashVergePage = () => {
             total={model.connections?.total ?? 0}
             truncated={model.connections?.truncated ?? false}
             sampledAt={model.connections?.sampledAt}
+            limit={model.connections?.limit}
           />
         ) : null}
       </div>

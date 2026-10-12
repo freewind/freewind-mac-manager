@@ -233,6 +233,8 @@ export const getClashVergeConnections =
         availability: availability("available"),
         total: result.connections.length,
         truncated: result.connections.length > connectionLimit,
+        // 上限单一来源：前端文案直接读这里，不再写死第二处。
+        limit: connectionLimit,
         connections: mapped.slice(0, connectionLimit),
       })
     } catch (error) {

@@ -70,6 +70,8 @@ export const ClashVergeConnectionsResponseSchema = z.object({
   availability: ClashVergeAvailabilitySchema,
   total: z.number().int().nonnegative(),
   truncated: z.boolean(),
+  /** 本次响应的条数上限：前后端文案的单一来源，旧后端可能不带，前端回退默认值。 */
+  limit: z.number().int().positive().optional(),
   connections: z.array(ClashVergeConnectionSchema).max(200),
 })
 

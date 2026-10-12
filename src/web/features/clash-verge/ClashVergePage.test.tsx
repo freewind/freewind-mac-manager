@@ -66,6 +66,7 @@ const connections: ClashVergeConnectionsResponse = {
   availability,
   total: 1,
   truncated: false,
+  limit: 200,
   connections: [
     {
       id: "connection-1",
@@ -187,6 +188,35 @@ describe("ClashVergePage", () => {
     expect(await screen.findByText(/代理链/)).toBeTruthy()
     expect(screen.getByText(/开始时间/)).toBeTruthy()
     expect(screen.getByText(/来源：127\.0\.0\.1/)).toBeTruthy()
+  })
+
+  it("上限文案取后端 limit，不再写死 200", async () => {
+    fetchers.status.mockResolvedValue(status)
+    fetchers.proxies.mockResolvedValue(proxies)
+    fetchers.connections.mockResolvedValue({
+      ...connections,
+      total: 60,
+      truncated: true,
+      limit: 50,
+    })
+    fetchers.mergeFile.mockResolvedValue(mergeFile)
+    renderPage()
+    await openTab("活动连接")
+    expect(await screen.findByText(/仅显示前 50 条/)).toBeTruthy()
+    expect(screen.queryByText(/仅显示前 200 条/)).toBeNull()
+  })
+
+  it("后端未返回 limit 时回退默认 200，不改写行为", async () => {
+    fetchers.status.mockResolvedValue(status)
+    fetchers.proxies.mockResolvedValue(proxies)
+    fetchers.connections.mockResolvedValue({
+      ...connections,
+      limit: undefined,
+    })
+    fetchers.mergeFile.mockResolvedValue(mergeFile)
+    renderPage()
+    await openTab("活动连接")
+    expect(await screen.findByText(/最多读取 200 条/)).toBeTruthy()
   })
 
   it("过期与不可用提示常驻顶部，并如实展示 404/429 的不同文案", async () => {

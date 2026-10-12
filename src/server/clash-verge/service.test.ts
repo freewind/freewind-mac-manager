@@ -130,5 +130,7 @@ describe("Clash Verge read service", () => {
     expect(result.total).toBe(205)
     expect(result.truncated).toBe(true)
     expect(result.connections).toHaveLength(200)
+    // 上限单一来源：响应携带后端 limit，前端文案不再写死 200。
+    expect(result.limit).toBe(200)
   })
 })
