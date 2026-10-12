@@ -4,20 +4,22 @@ import type { SystemService } from "@shared/api-contract"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { TooltipProvider } from "@web/components/ui/tooltip"
 import { clearPendingRequests } from "@web/features/tasks/pending-requests"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { systemServiceKeys } from "../queries"
 import { SystemServicesPage } from "./SystemServicesPage"
 
-const { stopService } = vi.hoisted(() => ({ stopService: vi.fn() }))
+const { stopService, toastMock } = vi.hoisted(() => ({
+  stopService: vi.fn(),
+  toastMock: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+}))
 vi.mock("@shared/client-api", async (original) => ({
   ...(await original<typeof import("@shared/client-api")>()),
   stopSystemService: stopService,
 }))
-vi.mock("sonner", () => ({
-  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
-}))
+vi.mock("sonner", () => ({ toast: toastMock }))
 vi.mock("@web/hooks/use-history-overlay", () => ({
   useHistoryOverlay: () => {},
 }))
@@ -75,8 +77,11 @@ const renderPage = () => {
     skipped: [],
   })
   render(<SystemServicesPage />, {
+    // 与 main.tsx 一致挂上 Provider：否则 Tooltip 走默认延时，悬停断言会变成计时竞态。
     wrapper: ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <TooltipProvider>{children}</TooltipProvider>
+      </QueryClientProvider>
     ),
   })
 }
@@ -84,6 +89,8 @@ const renderPage = () => {
 beforeEach(() => {
   clearPendingRequests()
   stopService.mockReset()
+  toastMock.success.mockClear()
+  toastMock.error.mockClear()
 })
 
 afterEach(() => {
@@ -127,6 +134,61 @@ describe("系统服务页", () => {
     await user.click(within(dialog).getByRole("button", { name: "取消" }))
     expect(screen.queryByRole("alertdialog")).toBeNull()
     expect(stopService).not.toHaveBeenCalled()
+  })
+
+  it("启动命令含可执行文件与全部参数，不是只剩参数片段", async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(
+      screen.getByRole("button", { name: /ai\.openclaw\.gateway/ })
+    )
+
+    // 只有参数时看不出真正启动了什么（用户反馈的 -c … 就是这个片段）
+    expect(screen.getByText(ARGS.join(" "))).toBeTruthy()
+    expect(screen.getByText("启动命令")).toBeTruthy()
+    expect(
+      screen.getByText(`${service.program} ${ARGS.join(" ")}`)
+    ).toBeTruthy()
+  })
+
+  it("悬停启动命令能看到完整命令", async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(
+      screen.getByRole("button", { name: /ai\.openclaw\.gateway/ })
+    )
+
+    const command = `${service.program} ${ARGS.join(" ")}`
+    const cell = screen.getByText(command)
+    expect(cell.closest('[data-slot="tooltip-trigger"]')).not.toBeNull()
+
+    await user.hover(cell)
+    expect(await screen.findAllByText(command)).toHaveLength(2)
+  })
+
+  it("下拉里的「复制启动命令」写进剪贴板的是完整命令", async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    })
+    renderPage()
+    await user.click(
+      screen.getByRole("button", { name: /ai\.openclaw\.gateway/ })
+    )
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }))
+    await user.click(
+      await screen.findByRole("menuitem", { name: "复制启动命令" })
+    )
+
+    await vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        `${service.program} ${ARGS.join(" ")}`
+      )
+    })
+    expect(toastMock.success).toHaveBeenCalledWith("已复制启动命令")
   })
 
   it("需 root 的服务启停入口为禁用态，且标明原因、点击不触发动作", async () => {

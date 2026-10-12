@@ -79,6 +79,11 @@ import {
 import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import type { ServiceAction } from "@web/features/system-services/actions"
 import { domainLabels, stateLabels } from "@web/features/system-services/labels"
 import type {
@@ -213,6 +218,15 @@ const summaryOf = (service: SystemService): string => {
   return "未运行"
 }
 
+/**
+ * 启动命令由 plist 元数据里的程序路径与参数拼出，两者都来自已有接口；
+ * 前端不补编造别处没有的参数，契约没暴露的参数也不会出现。
+ */
+const launchCommandOf = (service: {
+  program: string
+  args: string[]
+}): string => [service.program, ...service.args].filter(Boolean).join(" ")
+
 const MetadataField = (props: { label: string; children: React.ReactNode }) => (
   <Field orientation="horizontal" className="gap-2 min-w-0">
     <FieldLabel className="w-24 shrink-0 text-muted-foreground lg:w-36">
@@ -229,6 +243,7 @@ export const SystemServicesPage = () => {
   const submission = useDialogSubmit(model.cancelPending, model.isPending)
   useHistoryOverlay(model.pending !== null, model.cancelPending)
   const service = model.selected
+  const launchCommand = service === null ? "" : launchCommandOf(service)
   const pending: PendingAction | null = model.pending
 
   const actionButton = (action: ServiceAction, icon: typeof PlayIcon) => {
@@ -487,6 +502,13 @@ export const SystemServicesPage = () => {
                           复制 plist 内容
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                          disabled={launchCommand === ""}
+                          onClick={() => model.copy(launchCommand, "启动命令")}
+                        >
+                          <HugeiconsIcon icon={Copy01Icon} />
+                          复制启动命令
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                           disabled={model.isPending}
                           onClick={() => model.reveal(service)}
                         >
@@ -517,6 +539,27 @@ export const SystemServicesPage = () => {
                       <span className="font-mono">
                         {service.args.length > 0 ? service.args.join(" ") : "—"}
                       </span>
+                    </MetadataField>
+                    <MetadataField label="启动命令">
+                      {launchCommand === "" ? (
+                        "—"
+                      ) : (
+                        <span className="flex min-w-0 items-center gap-1">
+                          {/* 参数里没有可执行文件，这里补全成一条完整命令：格子内截断，悬停看全文。 */}
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <span className="min-w-0 truncate font-mono">
+                                  {launchCommand}
+                                </span>
+                              }
+                            />
+                            <TooltipContent className="max-w-lg break-all">
+                              {launchCommand}
+                            </TooltipContent>
+                          </Tooltip>
+                        </span>
+                      )}
                     </MetadataField>
                     <MetadataField label="工作目录">
                       <span className="font-mono">
