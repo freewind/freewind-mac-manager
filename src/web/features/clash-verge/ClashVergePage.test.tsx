@@ -15,14 +15,22 @@ const { fetchers } = vi.hoisted(() => ({
     status: vi.fn(),
     proxies: vi.fn(),
     connections: vi.fn(),
+    mergeFile: vi.fn(),
+    saveMergeFile: vi.fn(),
   },
 }))
 
-vi.mock("@shared/client-api", () => ({
-  fetchClashVergeStatus: fetchers.status,
-  fetchClashVergeProxies: fetchers.proxies,
-  fetchClashVergeConnections: fetchers.connections,
-}))
+vi.mock("@shared/client-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@shared/client-api")>()
+  return {
+    ...actual,
+    fetchClashVergeStatus: fetchers.status,
+    fetchClashVergeProxies: fetchers.proxies,
+    fetchClashVergeConnections: fetchers.connections,
+    fetchClashVergeMergeFile: fetchers.mergeFile,
+    saveClashVergeMergeFile: fetchers.saveMergeFile,
+  }
+})
 
 const availability = { state: "available", message: null } as const
 const status: ClashVergeStatus = {
@@ -90,6 +98,8 @@ afterEach(() => {
   fetchers.status.mockReset()
   fetchers.proxies.mockReset()
   fetchers.connections.mockReset()
+  fetchers.mergeFile.mockReset()
+  fetchers.saveMergeFile.mockReset()
 })
 
 describe("ClashVergePage", () => {
@@ -97,6 +107,12 @@ describe("ClashVergePage", () => {
     fetchers.status.mockResolvedValue(status)
     fetchers.proxies.mockResolvedValue(proxies)
     fetchers.connections.mockResolvedValue(connections)
+    fetchers.mergeFile.mockResolvedValue({
+      path: "/tmp/profiles/Merge.yaml",
+      content: "prepend-rules:\n  - MATCH,DIRECT\n",
+      size: 40,
+      modified: 1_700_000_000,
+    })
     renderPage()
     expect(await screen.findByText("1.2.3")).toBeTruthy()
     expect(screen.getByText("Node A · 当前")).toBeTruthy()
@@ -127,6 +143,13 @@ describe("ClashVergePage", () => {
       availability: { state: "not_configured", message: null },
       total: 0,
       connections: [],
+    })
+    // Merge 面板独立于内核状态：未配置控制接口时仍如实读取文件。
+    fetchers.mergeFile.mockResolvedValue({
+      path: "/tmp/profiles/Merge.yaml",
+      content: "",
+      size: 0,
+      modified: 1_700_000_000,
     })
     renderPage()
     expect(await screen.findByText("尚未配置本机只读控制接口")).toBeTruthy()

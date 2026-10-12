@@ -2,6 +2,7 @@ import { RefreshIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
 import { ConnectionsList } from "./ConnectionsList"
+import { MergeFilePanel } from "./MergeFilePanel"
 import { ProxyGroups } from "./ProxyGroups"
 import { StatusCards } from "./StatusCards"
 import { useClashVerge } from "./useClashVerge"
@@ -64,6 +65,7 @@ export const ClashVergePage = () => {
             proxies={model.proxies?.proxies ?? []}
             sampledAt={model.proxies?.sampledAt}
           />
+          <MergeFilePanel />
           <ConnectionsList
             connections={model.connections?.connections ?? []}
             total={model.connections?.total ?? 0}
