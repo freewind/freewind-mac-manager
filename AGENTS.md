@@ -155,6 +155,14 @@ src/
 - 业务组件和公共布局不是禁写范围，但不能重新实现已有基础控件来规避限制。
 - 图标按钮有可访问名称，输入有标签；优先原生语义，触控和键盘均可完成操作。
 
+### 7.1 优先使用官方组件与 Agent Elements
+
+- **优先使用 Shadcn `base-mira` 官方组件**：已有能力直接组合，不重复造轮子；缺组件用 `pnpm dlx shadcn add` 添加官方实现。
+- **Agent 相关界面优先使用 Agent Elements**：聊天外壳、工具卡片、计划展示、审批交互、澄清提问、流式终端输出等场景，使用 `21st-dev/agent-elements` 的组件，不手写实现。
+- **Agent Elements 是纯展示层**：只负责 UI，消息与流式状态由 TanStack Query 或 `useChat` 管理；组件通过 `toolRenderers` 按工具名映射到对应卡片。
+- **安装方式**：通过 shadcn 兼容 registry 复制源码到 `web/components/agent-elements/`，例如 `npx shadcn@latest add https://agent-elements.21st.dev/r/agent-chat.json`。
+- **与 shadcn 源码禁改规则一致**：Agent Elements 组件源码同样禁止手制、复制改造或内部补丁；允许公开 `className` 与业务层组合。
+
 ## 八、手机默认、桌面增强与 PWA
 
 ### 8.1 响应式集中管理
