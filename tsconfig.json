@@ -19,7 +19,8 @@
     "paths": {
       "@web/*": ["./src/web/*"],
       "@server/*": ["./src/server/*"],
-      "@shared/*": ["./src/shared/*"]
+      "@shared/*": ["./src/shared/*"],
+      "next/dynamic": ["./src/web/lib/next-dynamic.tsx"]
     }
   },
   "include": [

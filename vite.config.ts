@@ -15,6 +15,8 @@ export default defineConfig(({ command }) => ({
       "@web": `${root}src/web`,
       "@server": `${root}src/server`,
       "@shared": `${root}src/shared`,
+      // 官方 agent-elements 里用到 next/dynamic；本项目是 Vite，用本地等价实现替掉。
+      "next/dynamic": `${root}src/web/lib/next-dynamic.tsx`,
     },
   },
   // 端口来自 APP_PORT 且 strict：被占用时直接启动失败，不自动换端口。

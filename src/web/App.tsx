@@ -9,6 +9,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@web/components/ui/sidebar"
+import { AiAssistantButton } from "@web/features/ai-assistant/AiAssistantButton"
+import { AiAssistantDialog } from "@web/features/ai-assistant/AiAssistantDialog"
 import { LoginPage } from "@web/features/auth/LoginPage"
 import { CaddyPage } from "@web/features/caddy/CaddyPage"
 import { ClashVergePage } from "@web/features/clash-verge/ClashVergePage"
@@ -169,6 +171,7 @@ export const App = () => {
             </Button>
           ) : null}
           <div className="ml-auto flex items-center gap-2">
+            <AiAssistantButton />
             <TaskCenter authenticated={authStatus.authenticated} />
             <Button
               size="sm"
@@ -194,6 +197,7 @@ export const App = () => {
         {feature === "docker" ? <DockerPage /> : null}
         {feature === "hardware" ? <HardwarePage /> : null}
       </SidebarInset>
+      <AiAssistantDialog onOpenModelSettings={() => selectFeature("pi")} />
     </SidebarProvider>
   )
 }
