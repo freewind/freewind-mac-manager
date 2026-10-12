@@ -191,6 +191,41 @@ describe("备份列表", () => {
   })
 })
 
+describe("备份表选中反馈", () => {
+  const fileName = "snapshots-1791700000000-aaa111.sqlite3"
+
+  it("勾选后整行带官方 TableRow 匹配的选中属性，与复选框状态一致", async () => {
+    const user = userEvent.setup()
+    mount()
+    await screen.findByText(fileName)
+
+    // 未选中时不带标记，避免官方样式误命中
+    expect(rowOf(fileName).hasAttribute("data-state")).toBe(false)
+
+    await user.click(screen.getByRole("checkbox", { name: `选中 ${fileName}` }))
+
+    // 官方 TableRow 的样式是 data-[state=selected]:bg-muted，属性名必须对上
+    expect(rowOf(fileName).getAttribute("data-state")).toBe("selected")
+    expect(
+      screen
+        .getByRole("checkbox", { name: `选中 ${fileName}` })
+        .getAttribute("aria-checked")
+    ).toBe("true")
+  })
+
+  it("表头吸顶：thead 带 sticky top-0，与本项目其它表格一致", async () => {
+    mount()
+    await screen.findByText(fileName)
+
+    const thead = screen
+      .getByRole("columnheader", { name: "文件名" })
+      .closest("thead")
+    expect(thead?.className).toContain("sticky")
+    expect(thead?.className).toContain("top-0")
+    expect(thead?.className).toContain("bg-background")
+  })
+})
+
 describe("备份表列宽", () => {
   it("选择列与短标记列有宽度基准，文件名与创建时间没有", async () => {
     mount()

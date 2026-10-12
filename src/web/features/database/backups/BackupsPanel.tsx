@@ -85,7 +85,7 @@ const BackupRow = (props: {
   const otherDownloading = downloadingId !== null && !downloading
 
   return (
-    <TableRow className="group" data-selected={selected ? "true" : undefined}>
+    <TableRow className="group" data-state={selected ? "selected" : undefined}>
       <TableCell className="align-top">
         <Checkbox
           aria-label={`选中 ${backup.fileName}`}
@@ -370,7 +370,7 @@ export const BackupsPanel = () => {
           </Empty>
         ) : (
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
                 {/* 选择与短标记列给宽度基准；文件名、创建时间内容不固定，不给 nowrap */}
                 <TableHead className="w-[1%] whitespace-nowrap">
