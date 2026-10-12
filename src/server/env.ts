@@ -96,6 +96,14 @@ const TASK_WORKER_DIST = path.join(
   PROJECT_ROOT,
   "dist-ssr/server/task-worker.js"
 )
+const DATABASE_QUERY_WORKER_SOURCE = path.join(
+  PROJECT_ROOT,
+  "src/server/database/query-worker.ts"
+)
+const DATABASE_QUERY_WORKER_DIST = path.join(
+  PROJECT_ROOT,
+  "dist-ssr/server/query-worker.js"
+)
 
 /**
  * 后台任务子进程的启动方式。
@@ -120,5 +128,26 @@ export const taskWorkerCommand = (): {
     : {
         command: process.execPath,
         args: ["--import", "tsx", TASK_WORKER_SOURCE],
+        cwd: PROJECT_ROOT,
+      }
+
+/**
+ * 数据库查询子进程的启动方式，与任务子进程同一套判断：
+ * 开发直接跑源码（不依赖构建产物），生产跑 dist-ssr 里的产物。
+ */
+export const databaseQueryWorkerCommand = (): {
+  command: string
+  args: string[]
+  cwd: string
+} =>
+  IS_PRODUCTION
+    ? {
+        command: process.execPath,
+        args: [DATABASE_QUERY_WORKER_DIST],
+        cwd: PROJECT_ROOT,
+      }
+    : {
+        command: process.execPath,
+        args: ["--import", "tsx", DATABASE_QUERY_WORKER_SOURCE],
         cwd: PROJECT_ROOT,
       }

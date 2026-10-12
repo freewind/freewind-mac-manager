@@ -5,11 +5,11 @@ import { z } from "zod"
  * 结构描述，新增普通业务表无需再补一套管理代码。
  */
 
-/** 单个文本值上限：够展示用，同时防止整表内容把内存拉爆。 */
-export const DATABASE_TEXT_MAX_LENGTH = 1024 * 1024
+/** 单个文本值上限，按 UTF-8 字节数算：单值不超过 64KiB，超出要明确拒绝。 */
+export const DATABASE_TEXT_MAX_LENGTH = 64 * 1024
 /** 首期 BLOB 只读，且按字节上限整体编码返回，不做流式。 */
 export const DATABASE_BLOB_MAX_BYTES = 64 * 1024
-export const DATABASE_PAGE_SIZE_MAX = 200
+export const DATABASE_PAGE_SIZE_MAX = 100
 export const DATABASE_FILTER_MAX = 8
 export const DATABASE_SORT_MAX = 4
 /** 一次批量删除的上限：超过就分批，避免单个请求长时间占用写锁。 */
@@ -20,12 +20,15 @@ export const DATABASE_IDENTIFIER_MAX_LENGTH = 128
 
 const BLOB_BASE64_MAX_LENGTH = Math.ceil(DATABASE_BLOB_MAX_BYTES / 3) * 4
 
-/** 表名与列名只接受常规 SQL 标识符；服务端仍必须再引用一次，不能直接拼接。 */
+/**
+ * 表名与列名：SQLite 允许任意字符，所以这里只挡空值、控制字符与超长，
+ * 让带空格、引号、非 ASCII 的真实表列名也能表达。服务端仍必须按标识符引用。
+ */
 export const DatabaseIdentifierSchema = z
   .string()
   .min(1)
   .max(DATABASE_IDENTIFIER_MAX_LENGTH)
-  .regex(/^[A-Za-z_][A-Za-z0-9_$]*$/, "只接受常规 SQL 标识符")
+  .refine((value) => !/\p{Cc}/u.test(value), "标识符不能包含控制字符")
 
 /**
  * SQLite 的值按存储类带标签传递。integer 用十进制字符串：JS number 存不下
@@ -35,7 +38,13 @@ const sqliteNullValue = z.object({ type: z.literal("null") })
 
 const sqliteTextValue = z.object({
   type: z.literal("text"),
-  value: z.string().max(DATABASE_TEXT_MAX_LENGTH),
+  value: z
+    .string()
+    .refine(
+      (value) =>
+        new TextEncoder().encode(value).length <= DATABASE_TEXT_MAX_LENGTH,
+      `文本超过 ${DATABASE_TEXT_MAX_LENGTH / 1024}KiB`
+    ),
 })
 
 const sqliteIntegerValue = z.object({
@@ -115,10 +124,14 @@ export const DatabaseColumnAffinitySchema = z.enum(DATABASE_COLUMN_AFFINITIES)
 export const DATABASE_OPERATION_DISABLED_REASONS = [
   /** 视图没有可直接写入的存储。 */
   "view",
-  /** 没有主键，无法安全定位单条记录，改动只能整表进行，禁止。 */
-  "no_primary_key",
+  /** 虚拟表（如 fts5）没有普通存储，不支持通用写入。 */
+  "virtual_table",
+  /** 虚拟表的影子表是实现细节，不直接对外写入。 */
+  "shadow_table",
   /** SQLite 内部表，不对外暴露写操作。 */
   "system_table",
+  /** 没有显式可靠的非空唯一主键，无法安全定位单条记录。 */
+  "no_primary_key",
 ] as const
 export const DatabaseOperationDisabledReasonSchema = z.enum(
   DATABASE_OPERATION_DISABLED_REASONS
@@ -162,7 +175,10 @@ export const DatabaseCapabilitySchema = z.discriminatedUnion("allowed", [
   }),
 ])
 
-/** 列的写入能力：生成列与隐藏列不可写，首期 BLOB 列也不可写。 */
+/**
+ * 列的写入能力只表示这一列自身是否可写（生成列、隐藏列、BLOB）；
+ * 整张表是否可写由表级 capabilities 决定，例如视图的列也标可写但表不可写。
+ */
 export const DatabaseColumnWriteSchema = z.discriminatedUnion("allowed", [
   z.object({ allowed: z.literal(true) }),
   z.object({
@@ -211,7 +227,7 @@ export const DatabaseConstraintsSchema = z.object({
   primaryKey: z.array(DatabaseIdentifierSchema).max(16),
   unique: z.array(DatabaseUniqueConstraintSchema).max(32),
   foreignKeys: z.array(DatabaseForeignKeySchema).max(32),
-  /** CHECK 表达式原文，只用于展示，不解析。 */
+  /** CHECK 表达式原文；本期不解析 DDL，因此恒为空数组（DDL 变化已计入结构签名）。 */
   checks: z.array(z.string().min(1).max(512)).max(32),
 })
 
@@ -241,6 +257,8 @@ export const DatabaseTableSchema = DatabaseTableSummarySchema.extend({
   signature: DatabaseSchemaSignatureSchema,
   /** WITHOUT ROWID 表只能靠主键定位。 */
   withoutRowId: z.boolean(),
+  /** 触发器名称：有触发器的表写入会产生额外副作用，页面需要据此提示。 */
+  triggers: z.array(DatabaseIdentifierSchema).max(64),
 })
 
 export const DatabaseTablesResponseSchema = z.object({
@@ -253,8 +271,13 @@ export const DatabaseRecordKeyPartSchema = z.object({
   value: SqliteValueSchema,
 })
 
-/** 记录定位：完整主键，顺序与表的主键列一致；单列主键也走数组。 */
+/** 读取结果里的主键：没有可靠主键的表为空数组，此时记录只能读、不能定位。 */
 export const DatabaseRecordKeySchema = z
+  .array(DatabaseRecordKeyPartSchema)
+  .max(16)
+
+/** 定位一条记录用的主键：必须完整非空，写操作与单条读取都用它。 */
+export const DatabaseRecordLocatorKeySchema = z
   .array(DatabaseRecordKeyPartSchema)
   .min(1)
   .max(16)
@@ -326,7 +349,7 @@ export const DatabaseRecordsQuerySchema = z.object({
 })
 
 export const DatabaseRecordQuerySchema = z.object({
-  key: DatabaseRecordKeySchema,
+  key: DatabaseRecordLocatorKeySchema,
 })
 
 export const DatabaseRecordsResponseSchema = z.object({
@@ -359,7 +382,7 @@ export const DatabaseInsertBodySchema = z
  */
 export const DatabaseUpdateBodySchema = z
   .object({
-    key: DatabaseRecordKeySchema,
+    key: DatabaseRecordLocatorKeySchema,
     expectedSignature: DatabaseRecordSignatureSchema,
     values: z.record(DatabaseIdentifierSchema, SqliteWritableValueSchema),
   })
@@ -373,7 +396,7 @@ export const DatabaseUpdateBodySchema = z
   })
 
 export const DatabaseDeleteItemSchema = z.object({
-  key: DatabaseRecordKeySchema,
+  key: DatabaseRecordLocatorKeySchema,
   expectedSignature: DatabaseRecordSignatureSchema,
 })
 
@@ -383,7 +406,7 @@ export const DatabaseDeleteBodySchema = z.object({
 })
 
 export const DatabaseDeleteFailureSchema = z.object({
-  key: DatabaseRecordKeySchema,
+  key: DatabaseRecordLocatorKeySchema,
   message: z.string().min(1),
 })
 
@@ -392,8 +415,8 @@ export const DatabaseDeleteFailureSchema = z.object({
  * failed 是其他错误；不能只回一个总数冒充全部成功。
  */
 export const DatabaseDeleteResultSchema = z.object({
-  deleted: z.array(DatabaseRecordKeySchema),
-  conflicts: z.array(DatabaseRecordKeySchema),
+  deleted: z.array(DatabaseRecordLocatorKeySchema),
+  conflicts: z.array(DatabaseRecordLocatorKeySchema),
   failed: z.array(DatabaseDeleteFailureSchema),
 })
 

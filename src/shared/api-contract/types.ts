@@ -380,6 +380,7 @@ import type {
   DatabaseOperationDisabledReasonSchema,
   DatabaseOperationSchema,
   DatabaseRecordKeySchema,
+  DatabaseRecordLocatorKeySchema,
   DatabaseRecordQuerySchema,
   DatabaseRecordResponseSchema,
   DatabaseRecordSchema,
@@ -417,6 +418,9 @@ export type DatabaseTablesResponse = z.infer<
   typeof DatabaseTablesResponseSchema
 >
 export type DatabaseRecordKey = z.infer<typeof DatabaseRecordKeySchema>
+export type DatabaseRecordLocatorKey = z.infer<
+  typeof DatabaseRecordLocatorKeySchema
+>
 export type DatabaseRecord = z.infer<typeof DatabaseRecordSchema>
 export type DatabaseRecordResponse = z.infer<
   typeof DatabaseRecordResponseSchema

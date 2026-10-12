@@ -14,6 +14,7 @@ import {
   DatabaseFilterSchema,
   DatabaseInsertBodySchema,
   DatabaseRecordKeySchema,
+  DatabaseRecordLocatorKeySchema,
   DatabaseRecordsQuerySchema,
   DatabaseRecordsResponseSchema,
   DatabaseSortSchema,
@@ -53,18 +54,25 @@ const tableSummary = {
 }
 
 describe("database identifier schema", () => {
-  it("accepts regular SQL identifiers and rejects the rest", () => {
-    for (const name of ["caddy_rules", "_private", "t1", "a$b"]) {
+  it("accepts any real SQLite name and only rejects empty, control or oversized ones", () => {
+    for (const name of [
+      "caddy_rules",
+      "_private",
+      "1abc",
+      "has space",
+      "drop;table",
+      'quote"d',
+      "café",
+      "😀",
+    ]) {
       expect(
         DatabaseColumnSchema.safeParse({ ...writableColumn, name }).success
       ).toBe(true)
     }
     for (const name of [
       "",
-      "1abc",
-      "has space",
-      "drop;table",
-      'quote"d',
+      "bad\u0000name",
+      "bad\nname",
       "a".repeat(DATABASE_IDENTIFIER_MAX_LENGTH + 1),
     ]) {
       expect(
@@ -245,34 +253,23 @@ describe("database capability schema", () => {
     ).toBe(false)
   })
 
+  const tableDetail = {
+    columns: [writableColumn],
+    constraints: { primaryKey: [], unique: [], foreignKeys: [], checks: [] },
+    signature: "schema-1",
+    withoutRowId: false,
+    triggers: [],
+  }
+
   it("requires every table to report all four operations", () => {
     expect(
-      DatabaseTableSchema.safeParse({
-        ...tableSummary,
-        columns: [writableColumn],
-        constraints: {
-          primaryKey: [],
-          unique: [],
-          foreignKeys: [],
-          checks: [],
-        },
-        signature: "schema-1",
-        withoutRowId: false,
-      }).success
+      DatabaseTableSchema.safeParse({ ...tableSummary, ...tableDetail }).success
     ).toBe(true)
     expect(
       DatabaseTableSchema.safeParse({
         ...tableSummary,
+        ...tableDetail,
         capabilities: capabilities.slice(0, 3),
-        columns: [writableColumn],
-        constraints: {
-          primaryKey: [],
-          unique: [],
-          foreignKeys: [],
-          checks: [],
-        },
-        signature: "schema-1",
-        withoutRowId: false,
       }).success
     ).toBe(false)
   })
@@ -281,45 +278,53 @@ describe("database capability schema", () => {
     expect(
       DatabaseTableSchema.safeParse({
         ...tableSummary,
+        ...tableDetail,
         rowCount: null,
-        columns: [writableColumn],
-        constraints: {
-          primaryKey: [],
-          unique: [],
-          foreignKeys: [],
-          checks: [],
-        },
-        signature: "schema-1",
-        withoutRowId: false,
       }).success
     ).toBe(true)
     expect(
       DatabaseTableSchema.safeParse({
         ...tableSummary,
+        ...tableDetail,
         rowCount: -1,
-        columns: [writableColumn],
-        constraints: {
-          primaryKey: [],
-          unique: [],
-          foreignKeys: [],
-          checks: [],
-        },
-        signature: "schema-1",
-        withoutRowId: false,
+      }).success
+    ).toBe(false)
+  })
+
+  it("reports trigger names so the page can warn about write side effects", () => {
+    const parsed = DatabaseTableSchema.safeParse({
+      ...tableSummary,
+      ...tableDetail,
+      triggers: ["trg_a", "trg_b"],
+    })
+    expect(parsed.success && parsed.data.triggers).toEqual(["trg_a", "trg_b"])
+    expect(
+      DatabaseTableSchema.safeParse({
+        ...tableSummary,
+        ...tableDetail,
+        triggers: [1],
       }).success
     ).toBe(false)
   })
 })
 
 describe("database record key schema", () => {
-  it("supports composite primary keys and rejects empty or oversized keys", () => {
+  it("supports composite primary keys and rejects empty locators", () => {
     expect(
       DatabaseRecordKeySchema.safeParse([
         { column: "snapshot_id", value: integerValue("7") },
         { column: "path", value: { type: "text", value: "/tmp/a" } },
       ]).success
     ).toBe(true)
-    expect(DatabaseRecordKeySchema.safeParse([]).success).toBe(false)
+    // 没有可靠主键的表读出来的记录，主键就是空数组
+    expect(DatabaseRecordKeySchema.safeParse([]).success).toBe(true)
+    // 定位用的主键不能为空，否则会退化成整表操作
+    expect(DatabaseRecordLocatorKeySchema.safeParse([]).success).toBe(false)
+    expect(
+      DatabaseRecordLocatorKeySchema.safeParse([
+        { column: "id", value: integerValue("1") },
+      ]).success
+    ).toBe(true)
     expect(
       DatabaseRecordKeySchema.safeParse(
         Array.from({ length: 17 }, (_, index) => ({
