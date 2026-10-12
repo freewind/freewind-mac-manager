@@ -15,6 +15,11 @@ import {
 } from "./collaboration/handlers"
 import { CollaborationStore } from "./collaboration/store"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
+import {
+  createDatabaseBackupsRouter,
+  databaseBackupContract,
+  registerDatabaseBackupTransferEndpoints,
+} from "./database/backups/handlers"
 import { reconcileDatabaseBackupsAtStartup } from "./database/backups/service"
 import {
   createDatabaseRouter,
@@ -99,6 +104,14 @@ export const createApp = (injected?: {
     options
   )
   registerUploadEndpoint(app)
+  // 备份管理：JSON 端点走契约；上传下载是传输例外，独立挂载。
+  createExpressEndpoints(
+    databaseBackupContract,
+    createDatabaseBackupsRouter(taskRuntime),
+    app,
+    options
+  )
+  registerDatabaseBackupTransferEndpoints(app)
   // Docker 容器动作走统一任务运行时；只读端点不需要。
   createExpressEndpoints(
     dockerContract,

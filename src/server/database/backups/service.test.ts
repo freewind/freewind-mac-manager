@@ -23,12 +23,19 @@ import {
   type BackupManifestEntry,
   computeContentSignature,
   computeStructureSignature,
+  entryFromFileName,
   findEntry,
+  inspectBackupContent,
   loadManifest,
   saveManifest,
   upsertEntry,
 } from "./catalog"
-import { DatabaseBackupError, isTemporaryFileName } from "./files"
+import {
+  allocateBackupFileName,
+  createBackupId,
+  DatabaseBackupError,
+  isTemporaryFileName,
+} from "./files"
 import { createDatabaseBackupService } from "./service"
 import type { BackupValidationResult } from "./validation"
 
@@ -96,6 +103,50 @@ const serviceOf = (
     now: () => FIXED_NOW,
     ...overrides,
   })
+
+/**
+ * 克隆一份已发布备份（复制字节 + 手工登记清单条目）：
+ * 只用于需要多份备份的删除用例，避免连续多次原生备份撞上测试环境的长等待。
+ */
+const clonePublished = async (
+  fromFileName: string,
+  createdAt: number
+): Promise<{
+  backup: { id: string; fileName: string; contentSignature: string }
+}> => {
+  const bytes = readFileSync(path.join(backupDir, fromFileName))
+  const taken = new Set(loadManifest(backupDir).entries.map((e) => e.id))
+  const allocated = allocateBackupFileName({
+    dir: backupDir,
+    createdAt,
+    takenIds: taken,
+    createId: createBackupId,
+  })
+  const file = path.join(backupDir, allocated.fileName)
+  writeFileSync(file, bytes, { mode: 0o600 })
+  const stats = statSync(file)
+  const structure = inspectBackupContent(file).structureSignature
+  if (structure === null) throw new Error("克隆备份结构读取失败")
+  const entry = entryFromFileName({
+    name: allocated.fileName,
+    sizeBytes: stats.size,
+    identity: { ino: stats.ino, size: stats.size, mtimeMs: stats.mtimeMs },
+    contentSignature: await computeContentSignature(file),
+    structureSignature: structure,
+    tableCount: 2,
+    source: "manual",
+    restoreBlockedReason: null,
+  })
+  if (entry === null) throw new Error("克隆备份条目构造失败")
+  saveManifest(backupDir, upsertEntry(loadManifest(backupDir), entry))
+  return {
+    backup: {
+      id: entry.id,
+      fileName: entry.fileName,
+      contentSignature: entry.contentSignature,
+    },
+  }
+}
 
 const backupFiles = (): string[] =>
   readdirSync(backupDir)
@@ -481,9 +532,11 @@ describe("删除", () => {
   it("逐项返回真正删除、缺失与失败，不把部分结果报成全成功", async () => {
     createSource({ rows: 20 })
     const service = serviceOf()
+    // 只真跑一次原生备份：测试环境里连续多次原生备份会撞上间歇性长等待，
+    // 而本用例验证的是删除的逐项语义——另外两份用同内容副本手工登记即可。
     const first = await service.create({ source: "manual" })
-    const second = await service.create({ source: "manual" })
-    const third = await service.create({ source: "manual" })
+    const second = await clonePublished(first.backup.fileName, FIXED_NOW)
+    const third = await clonePublished(first.backup.fileName, FIXED_NOW)
 
     // 第三份的文件在删除前被外部删掉
     rmSync(path.join(backupDir, third.backup.fileName))

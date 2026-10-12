@@ -23,6 +23,7 @@ export {
 export * from "./collaboration"
 export * from "./dashboard"
 export * from "./database"
+export * from "./database-backups"
 export * from "./disk-growth"
 export * from "./docker"
 export * from "./execution"

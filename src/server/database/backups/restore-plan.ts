@@ -470,6 +470,18 @@ export const submitRestorePlan = (
         : "已有恢复计划在等待执行，请先取消或等它完成"
     )
   }
+  if (
+    existing !== null &&
+    input.requestId !== undefined &&
+    input.requestId !== null &&
+    existing.requestId === input.requestId
+  ) {
+    // 同一请求的计划已经走完：重发不能把它变成一份新计划（状态冲突）。
+    throw new DatabaseBackupError(
+      "restore_plan_pending",
+      `该请求的恢复计划已${existing.status}，不能重复提交`
+    )
+  }
 
   // 先拿到合法文件名再落 planning：带文件名入状态机，后续读取不会出现
   // 无法满足契约的空文件名计划。
@@ -547,7 +559,7 @@ export const cancelRestorePlan = (
   }
   if (plan.status !== "pending") {
     throw new DatabaseBackupError(
-      "backup_invalid",
+      "restore_not_cancellable",
       plan.status === "applying"
         ? "恢复正在执行，不能取消"
         : `计划状态为 ${plan.status}，仅等待执行的计划可以取消`
@@ -581,6 +593,21 @@ export const referencedBackupIds = (
     return new Set()
   }
   return new Set([plan.backupId])
+}
+
+/**
+ * applied 回执里持久化的最终库签名（恢复完成时对新主库流式算出的 sha256）。
+ * 恢复状态接口用它核对 verified：计划已应用且当前库签名与当时一致，
+ * 才能宣称当前库确实是这份备份。
+ */
+export const appliedSignatureOf = (plan: RestorePlanRecord): string | null => {
+  for (let index = plan.receipts.length - 1; index >= 0; index--) {
+    const item = plan.receipts[index]
+    if (item.phase !== "completed") continue
+    const matched = /finalSignature=([0-9a-f]{64})/.exec(item.detail)
+    if (matched !== null) return matched[1]
+  }
+  return null
 }
 
 /** 计划对内状态映射为契约状态：planning/pending 都是「等待重启生效」。 */

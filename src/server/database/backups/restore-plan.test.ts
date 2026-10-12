@@ -224,6 +224,27 @@ describe("提交恢复计划", () => {
     expect(imported.backup.restoreBlockedReason).toContain("缺少应用必要表")
   })
 
+  it("同一请求的计划已终态：重复提交按状态冲突拒绝", async () => {
+    const created = await makeBackup()
+    const input = {
+      backupId: created.backup.id,
+      expectedSignature: created.backup.contentSignature,
+      requestId: "req-plan-finish-01",
+    }
+    const plan = submitRestorePlan(input, context())
+    cancelRestorePlan(context())
+    // 同一请求重发：计划已 cancelled，不能被变成一份新计划。
+    try {
+      submitRestorePlan(input, context())
+      expect.unreachable("已终态的计划不应允许重复提交")
+    } catch (error) {
+      expect(error).toBeInstanceOf(DatabaseBackupError)
+      expect((error as DatabaseBackupError).code).toBe("restore_plan_pending")
+    }
+    expect(readRestorePlan(context()).plan?.status).toBe("cancelled")
+    expect(plan.status).toBe("pending")
+  })
+
   it("取消：仅 pending 可取消，无计划与已取消都拒绝", async () => {
     expect(() => cancelRestorePlan(context())).toThrow(/没有待取消/)
     const created = await makeBackup()
@@ -237,7 +258,17 @@ describe("提交恢复计划", () => {
     const cancelled = cancelRestorePlan(context())
     expect(cancelled.status).toBe("cancelled")
     expect(cancelled.message).toContain("取消")
-    expect(() => cancelRestorePlan(context())).toThrow(/仅等待执行/)
+    // 已终态不可取消：错误码是 restore_not_cancellable（HTTP 409）。
+    try {
+      cancelRestorePlan(context())
+      expect.unreachable("已取消的计划不应允许再次取消")
+    } catch (error) {
+      expect(error).toBeInstanceOf(DatabaseBackupError)
+      expect((error as DatabaseBackupError).code).toBe(
+        "restore_not_cancellable"
+      )
+      expect((error as DatabaseBackupError).message).toMatch(/仅等待执行/)
+    }
     expect(hasPendingRestoreWork(context())).toBe(false)
   })
 })

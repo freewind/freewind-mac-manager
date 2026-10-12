@@ -70,6 +70,12 @@ export const databaseBackupRoutes = {
       201: DatabaseBackupCreatedSchema,
       202: TaskAcceptedSchema,
       ...errorResponses,
+      // 任务提交的冲突与失败走公共结构（executionStatus 区分未开始/失败/
+      // 结果未知），不套备份业务错误码：这里拒绝的是任务受理，不是备份文件。
+      400: ApiErrorSchema,
+      403: ApiErrorSchema,
+      404: ApiErrorSchema,
+      409: ApiErrorSchema,
     },
   },
   // 删除旧备份：逐条结果，不做整批回滚（备份是彼此独立的文件）。

@@ -637,7 +637,7 @@ export const runPendingRestore = async (
     const contentSignature = await computeContentSignature(paths.databaseFile)
     const applied = transitionRestorePlan("applied", {
       phase: "completed",
-      message: `恢复已完成并核实：当前库与 ${plan.backupFileName} 一致${safetyBackupId !== null ? `，原库已备份为安全备份 ${safetyBackupId}` : ""}`,
+      message: `恢复已完成并核实（finalSignature=${contentSignature}）：当前库与 ${plan.backupFileName} 一致${safetyBackupId !== null ? `，原库已备份为安全备份 ${safetyBackupId}` : ""}`,
       context,
     })
     // 只报告数据层结果；整体成功由入口在启动迁移通过后宣布。
