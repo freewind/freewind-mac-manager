@@ -86,6 +86,25 @@ export const ApiPath = {
   databaseRecords: `${API_BASE}/database/tables/:table/records`,
   databaseRecord: `${API_BASE}/database/tables/:table/record`,
   databaseRecordDelete: `${API_BASE}/database/tables/:table/records/delete`,
+  databaseBackups: `${API_BASE}/database/backups`,
+  databaseBackup: `${API_BASE}/database/backups/:backupId`,
+  databaseBackupsDelete: `${API_BASE}/database/backups/delete`,
+  databaseBackupRestore: `${API_BASE}/database/backups/restore`,
+  /**
+   * 文件传输例外（不进 JSON 契约）：
+   * - 上传导入：multipart/form-data，单个文件不超过
+   *   `DATABASE_BACKUP_UPLOAD_MAX_BYTES`（256MiB），超出回 413；
+   *   只接受 `.sqlite3` 且头部是 SQLite 格式的文件，否则 400；
+   *   仍需访问密码（浏览器原生表单无法自设 Authorization，走 cookie）；
+   *   上传时的原始文件名只用于展示，不能作为路径来源。
+   */
+  databaseBackupUpload: `${API_BASE}/database/backups/upload`,
+  /**
+   * 下载：返回 application/octet-stream 与 Content-Disposition，
+   * 文件名取自服务端记录（不是客户端输入）；未登录 401，
+   * 备份不存在 404，完整性不通过 409。
+   */
+  databaseBackupDownload: `${API_BASE}/database/backups/:backupId/download`,
   collaborationTopics: `${API_BASE}/collaboration/topics`,
   collaborationTopic: `${API_BASE}/collaboration/topics/:topicId`,
   collaborationThreads: `${API_BASE}/collaboration/topics/:topicId/threads`,

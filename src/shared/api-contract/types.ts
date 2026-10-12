@@ -471,3 +471,59 @@ export type {
   CollaborationUpdateThread,
   CollaborationUpdateTopic,
 } from "./schemas/collaboration"
+
+import type {
+  DatabaseBackupCreatedSchema,
+  DatabaseBackupDeleteBodySchema,
+  DatabaseBackupDeleteItemSchema,
+  DatabaseBackupDeleteResultSchema,
+  DatabaseBackupErrorCodeSchema,
+  DatabaseBackupErrorSchema,
+  DatabaseBackupIdPathParamsSchema,
+  DatabaseBackupSchema,
+  DatabaseBackupSourceSchema,
+  DatabaseBackupsQuerySchema,
+  DatabaseBackupsResponseSchema,
+  DatabaseRestorePlanBodySchema,
+  DatabaseRestorePlanSchema,
+  DatabaseRestoreStateSchema,
+  DatabaseRestoreStatusSchema,
+} from "./schemas/database-backups"
+
+/** database 备份域的类型全部从 schema 派生，不另建 DTO。 */
+export type DatabaseBackup = z.infer<typeof DatabaseBackupSchema>
+export type DatabaseBackupSource = z.infer<typeof DatabaseBackupSourceSchema>
+export type DatabaseBackupsQuery = z.infer<typeof DatabaseBackupsQuerySchema>
+/** 请求侧入参：带默认值的字段在这里是可选的。 */
+export type DatabaseBackupsQueryInput = z.input<
+  typeof DatabaseBackupsQuerySchema
+>
+export type DatabaseBackupsResponse = z.infer<
+  typeof DatabaseBackupsResponseSchema
+>
+export type DatabaseBackupCreated = z.infer<typeof DatabaseBackupCreatedSchema>
+export type DatabaseBackupDeleteItem = z.infer<
+  typeof DatabaseBackupDeleteItemSchema
+>
+export type DatabaseBackupDeleteBody = z.infer<
+  typeof DatabaseBackupDeleteBodySchema
+>
+export type DatabaseBackupDeleteResult = z.infer<
+  typeof DatabaseBackupDeleteResultSchema
+>
+export type DatabaseBackupErrorCode = z.infer<
+  typeof DatabaseBackupErrorCodeSchema
+>
+export type DatabaseBackupError = z.infer<typeof DatabaseBackupErrorSchema>
+export type DatabaseRestoreStatus = z.infer<typeof DatabaseRestoreStatusSchema>
+export type DatabaseRestorePlan = z.infer<typeof DatabaseRestorePlanSchema>
+export type DatabaseRestorePlanBody = z.infer<
+  typeof DatabaseRestorePlanBodySchema
+>
+export type DatabaseRestorePlanBodyInput = z.input<
+  typeof DatabaseRestorePlanBodySchema
+>
+export type DatabaseRestoreState = z.infer<typeof DatabaseRestoreStateSchema>
+export type DatabaseBackupIdPathParams = z.infer<
+  typeof DatabaseBackupIdPathParamsSchema
+>
