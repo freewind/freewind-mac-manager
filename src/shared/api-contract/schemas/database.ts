@@ -13,7 +13,7 @@ export const DATABASE_PAGE_SIZE_MAX = 100
 export const DATABASE_FILTER_MAX = 8
 export const DATABASE_SORT_MAX = 4
 /** 一次批量删除的上限：超过就分批，避免单个请求长时间占用写锁。 */
-export const DATABASE_DELETE_MAX = 200
+export const DATABASE_DELETE_MAX = 100
 /** 单表列数上限，同时约束一次写入的列数，避免超宽表拼出超长语句。 */
 export const DATABASE_COLUMN_MAX = 512
 export const DATABASE_IDENTIFIER_MAX_LENGTH = 128
@@ -222,6 +222,20 @@ export const DatabaseForeignKeySchema = z.object({
   onUpdate: z.string().min(1).max(32),
 })
 
+/**
+ * 反向引用：别的表用外键指向本表。删除或改主键会连带影响它们，
+ * 写确认必须能据此提示额外业务影响。
+ */
+export const DatabaseIncomingForeignKeySchema = z.object({
+  table: DatabaseIdentifierSchema,
+  /** 引用方的列。 */
+  columns: z.array(DatabaseIdentifierSchema).min(1).max(16),
+  /** 本表被引用的列。 */
+  referencedColumns: z.array(DatabaseIdentifierSchema).min(1).max(16),
+  onDelete: z.string().min(1).max(32),
+  onUpdate: z.string().min(1).max(32),
+})
+
 export const DatabaseConstraintsSchema = z.object({
   /** 主键列名，按位置排序；空数组表示没有主键。 */
   primaryKey: z.array(DatabaseIdentifierSchema).max(16),
@@ -259,6 +273,8 @@ export const DatabaseTableSchema = DatabaseTableSummarySchema.extend({
   withoutRowId: z.boolean(),
   /** 触发器名称：有触发器的表写入会产生额外副作用，页面需要据此提示。 */
   triggers: z.array(DatabaseIdentifierSchema).max(64),
+  /** 指向本表的外键：删除或改主键会连带影响这些表。 */
+  referencedBy: z.array(DatabaseIncomingForeignKeySchema).max(64),
 })
 
 export const DatabaseTablesResponseSchema = z.object({

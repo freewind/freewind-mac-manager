@@ -45,6 +45,10 @@ CREATE TABLE child_implicit (
   id INTEGER PRIMARY KEY,
   ref INTEGER REFERENCES parent_implicit
 );
+CREATE TABLE cascader (
+  id INTEGER PRIMARY KEY,
+  plain_id INTEGER REFERENCES plain(id) ON DELETE CASCADE
+);
 CREATE TRIGGER trg_plain AFTER INSERT ON plain BEGIN SELECT 1; END;
 CREATE VIEW v_plain AS SELECT id, name FROM plain;
 CREATE VIRTUAL TABLE docs USING fts5(body);
@@ -281,6 +285,36 @@ describe("getTable structure", () => {
       "café",
     ])
     expect(quoted.constraints.primaryKey).toEqual(["select"])
+  })
+
+  it("lists incoming foreign keys so a delete can warn about cascades", () => {
+    expect(table("plain").referencedBy).toEqual([
+      {
+        table: "cascader",
+        columns: ["plain_id"],
+        referencedColumns: ["id"],
+        onDelete: "CASCADE",
+        onUpdate: "NO ACTION",
+      },
+      {
+        table: "child",
+        columns: ["plain_id"],
+        referencedColumns: ["id"],
+        onDelete: "CASCADE",
+        onUpdate: "SET NULL",
+      },
+    ])
+    // 只写 REFERENCES parent 时引用父表主键，也要补全
+    expect(table("parent_implicit").referencedBy).toEqual([
+      {
+        table: "child_implicit",
+        columns: ["ref"],
+        referencedColumns: ["id"],
+        onDelete: "NO ACTION",
+        onUpdate: "NO ACTION",
+      },
+    ])
+    expect(table("child_implicit").referencedBy).toEqual([])
   })
 
   it("keeps the structure signature stable and changes it with the schema", () => {

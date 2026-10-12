@@ -37,6 +37,7 @@ const TABLE = {
   signature: "sig",
   withoutRowId: false,
   triggers: [],
+  referencedBy: [],
 }
 
 let input = ""

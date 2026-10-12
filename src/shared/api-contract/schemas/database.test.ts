@@ -259,6 +259,7 @@ describe("database capability schema", () => {
     signature: "schema-1",
     withoutRowId: false,
     triggers: [],
+    referencedBy: [],
   }
 
   it("requires every table to report all four operations", () => {
@@ -303,6 +304,31 @@ describe("database capability schema", () => {
         ...tableSummary,
         ...tableDetail,
         triggers: [1],
+      }).success
+    ).toBe(false)
+  })
+  it("reports incoming foreign keys so a delete can warn about cascades", () => {
+    const parsed = DatabaseTableSchema.safeParse({
+      ...tableSummary,
+      ...tableDetail,
+      referencedBy: [
+        {
+          table: "child",
+          columns: ["parent_id"],
+          referencedColumns: ["id"],
+          onDelete: "CASCADE",
+          onUpdate: "NO ACTION",
+        },
+      ],
+    })
+    expect(parsed.success && parsed.data.referencedBy[0].onDelete).toBe(
+      "CASCADE"
+    )
+    expect(
+      DatabaseTableSchema.safeParse({
+        ...tableSummary,
+        ...tableDetail,
+        referencedBy: [{ table: "child" }],
       }).success
     ).toBe(false)
   })

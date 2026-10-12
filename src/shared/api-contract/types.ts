@@ -376,6 +376,7 @@ import type {
   DatabaseDeleteResultSchema,
   DatabaseFilterOperatorSchema,
   DatabaseFilterSchema,
+  DatabaseIncomingForeignKeySchema,
   DatabaseInsertBodySchema,
   DatabaseOperationDisabledReasonSchema,
   DatabaseOperationSchema,
@@ -411,6 +412,9 @@ export type DatabaseOperationDisabledReason = z.infer<
 export type DatabaseCapability = z.infer<typeof DatabaseCapabilitySchema>
 export type DatabaseColumn = z.infer<typeof DatabaseColumnSchema>
 export type DatabaseConstraints = z.infer<typeof DatabaseConstraintsSchema>
+export type DatabaseIncomingForeignKey = z.infer<
+  typeof DatabaseIncomingForeignKeySchema
+>
 export type DatabaseTableKind = z.infer<typeof DatabaseTableKindSchema>
 export type DatabaseTableSummary = z.infer<typeof DatabaseTableSummarySchema>
 export type DatabaseTable = z.infer<typeof DatabaseTableSchema>

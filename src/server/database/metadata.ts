@@ -5,6 +5,7 @@ import type {
   DatabaseColumn,
   DatabaseColumnAffinity,
   DatabaseConstraints,
+  DatabaseIncomingForeignKey,
   DatabaseOperationDisabledReason,
   DatabaseTable,
   DatabaseTableKind,
@@ -463,6 +464,61 @@ const constraintsOf = (
   }
 }
 
+/**
+ * 指向本表的外键：删除或改主键会连带影响这些表，写确认必须能提示。
+ * 只遍历普通表的 foreign_key_list，列表路径不调用它，避免 O(N²) 的开销。
+ */
+const readIncomingForeignKeys = (
+  database: DatabaseSync,
+  table: string,
+  primaryKey: string[]
+): DatabaseIncomingForeignKey[] => {
+  const incoming: DatabaseIncomingForeignKey[] = []
+  for (const row of readTableRows(database)) {
+    if (row.type !== "table") continue
+    const grouped = new Map<
+      number,
+      {
+        table: string
+        columns: string[]
+        referencedColumns: string[]
+        onDelete: string
+        onUpdate: string
+      }
+    >()
+    for (const fk of query(
+      database,
+      `SELECT id, seq, "table", "from", "to", on_update, on_delete
+         FROM pragma_foreign_key_list(?) ORDER BY id, seq`,
+      [row.name]
+    )) {
+      if (asText(fk.table) !== table) continue
+      const id = asNumber(fk.id)
+      let entry = grouped.get(id)
+      if (!entry) {
+        entry = {
+          table: row.name,
+          columns: [],
+          referencedColumns: [],
+          onDelete: asText(fk.on_delete),
+          onUpdate: asText(fk.on_update),
+        }
+        grouped.set(id, entry)
+      }
+      entry.columns.push(asText(fk.from))
+      const referenced = asNullableText(fk.to)
+      if (referenced !== null) entry.referencedColumns.push(referenced)
+      else entry.referencedColumns.push(...primaryKey)
+    }
+    for (const entry of grouped.values()) {
+      if (entry.columns.length > 0 && entry.referencedColumns.length > 0) {
+        incoming.push(entry)
+      }
+    }
+  }
+  return incoming.slice(0, 64)
+}
+
 /** 表结构签名：查询响应里带上它，页面据此发现结构已变化。 */
 export const tableSignature = (
   database: DatabaseSync,
@@ -503,6 +559,7 @@ export const getTable = (
     signature: signatureOf(meta, constraints),
     withoutRowId: meta.withoutRowId,
     triggers: meta.triggers,
+    referencedBy: readIncomingForeignKeys(database, meta.name, meta.primaryKey),
   }
 }
 

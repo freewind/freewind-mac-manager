@@ -210,7 +210,7 @@ const encodeCell = (column: string, raw: unknown): SqliteValue => {
 }
 
 /** 主键列（带类型信息），顺序与表的主键顺序一致。 */
-const primaryKeyColumnsOf = (meta: TableMeta): ColumnMeta[] => {
+export const primaryKeyColumnsOf = (meta: TableMeta): ColumnMeta[] => {
   const columns: ColumnMeta[] = []
   for (const name of meta.primaryKey) {
     const column = meta.columns.find((item) => item.name === name)
@@ -219,7 +219,7 @@ const primaryKeyColumnsOf = (meta: TableMeta): ColumnMeta[] => {
   return columns
 }
 
-const toRecord = (
+export const toRecord = (
   selectColumns: ColumnMeta[],
   primaryKeyColumns: ColumnMeta[],
   row: Record<string, unknown>
@@ -275,7 +275,8 @@ const assertResponseSize = (response: unknown, limits: QueryLimits): void => {
   }
 }
 
-const selectList = (meta: TableMeta): ColumnMeta[] => {
+/** 读取时要选的列：可见列，外加隐藏的主键列（定位需要）。 */
+export const selectColumnsOf = (meta: TableMeta): ColumnMeta[] => {
   const columns = meta.columns.filter((column) => !column.hidden)
   const names = new Set(columns.map((column) => column.name))
   for (const column of primaryKeyColumnsOf(meta)) {
@@ -299,7 +300,7 @@ export const listRecords = (
     ...input.sorts.map((sort) => sort.column),
   ])
 
-  const selectColumns = selectList(meta)
+  const selectColumns = selectColumnsOf(meta)
   const primaryKeyColumns = primaryKeyColumnsOf(meta)
   const where = buildWhere(input.filters)
   const orderBy = buildOrderBy(meta, input.sorts)
@@ -356,7 +357,7 @@ export const getRecord = (
     )
   }
 
-  const selectColumns = selectList(meta)
+  const selectColumns = selectColumnsOf(meta)
   const where = primaryKeyColumns
     .map((column) => `${quoteIdentifier(column.name)} = ?`)
     .join(" AND ")
