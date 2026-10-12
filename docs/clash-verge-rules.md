@@ -120,6 +120,18 @@ pnpm vitest run src/server/clash-verge/acceptance.test.ts
 [`handlers.test.ts`](../src/server/clash-verge/handlers.test.ts)，
 前端面板见 [`MergeFilePanel.test.tsx`](../src/web/features/clash-verge/MergeFilePanel.test.tsx)。
 
+### 全量验证记录（2026-10-13，任务 23）
+
+| 项目 | 结果 |
+| --- | --- |
+| 验收单跑 | `pnpm vitest run src/server/clash-verge/acceptance.test.ts` → 12/12 |
+| 全量表现 | 六轮 `pnpm test`（162 文件 / 1607 条）中 **12 条验收与 clash 服务端全部用例从未失败** |
+| 全量波动 | 轮 3/4 的 `ClashVergePage.test.tsx` 失败来自 2 号执行者未提交的前端在途改动（瞬时态），与服务端和验收测试无关；该文件在途状态已自洽（单跑 10/10），等其提交后复跑 |
+| `pnpm typecheck` / `lint` / `build` | 0 错误 / 0 error（9 条既有 `noDocumentCookie` 警告）/ EXIT=0 产物齐全 |
+| 真实数据红线 | 测试不连真实控制接口：显式配置或注入候选、`AUTO_DISCOVER=0`、mock fetch；约定路径只对不存在的路径 `lstat`，不连接任何真实 socket |
+
+完整六轮轮次表与归属见 [database.md 的全量验证记录](./database.md#全量验证记录2026-10-13任务-23)。
+
 ## 人工验收步骤（未执行）
 
 以下需要真实 Clash Verge 环境，由人工验收任务统一执行，本任务不宣称完成：

@@ -289,6 +289,36 @@ pnpm test                                                        # 全量
 `restore.test.ts`、`restore-plan.test.ts`、`handlers.test.ts`、
 `transfer.test.ts`、`validation.test.ts`、`files.test.ts`、`task.test.ts`。
 
+### 全量验证记录（2026-10-13，任务 23）
+
+四项命令（不跑 `pnpm dev`，51509 由常驻服务占用）：
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm typecheck` | `tsc --noEmit` 0 错误，EXIT=0 |
+| `pnpm lint` | 543 文件、0 error、9 warnings（全部为既有的 `suspicious/noDocumentCookie`），EXIT=0 |
+| `pnpm test` | 六轮全量，162 文件 / 1607 条；每轮恰有 1 条偶发失败或在途红灯，逐轮见下表；**备份域验收 13 条六轮全部通过** |
+| `pnpm build` | EXIT=0；前端 `dist/index.html` 与 SSR 产物 `main` / `task-worker` / `query-worker` / `mutation-worker` / `validation-worker`（含 `sw.js`）齐全 |
+
+全量波动与归属（HEAD 推进中，各轮基线不同）：
+
+| 轮 | 基线 | 通过 | 唯一失败与归属 |
+| --- | --- | --- | --- |
+| 1 | `2e63bfd` | 1600/1601 | `service.test.ts`「没有发布时身份记录…」5 秒超时：本域压线用例（同源两次真备份），`-t` 冷跑 3 连挂、整文件 28/28 过 |
+| 2 | `2e63bfd` | 161 文件过 | 1 条失败因输出截断未取得明细（如实记录） |
+| 3 | `2e63bfd` | 1604/1605 | `ClashVergePage.test.tsx` 在途改动的瞬时态（2 号执行者未提交文件） |
+| 4 | `6d1875a` | 1605/1607 | 同上 + `BackupsPanel.test.tsx` 在途（4 号执行者，随后由 `047b0ed` 修复，单跑 20/20） |
+| 5 | `047b0ed` | 1606/1607 | `service.test.ts`「受恢复计划引用与正在创建的备份都不能删除」偶发超时：同族压线用例，整文件复跑 28/28 |
+| 6 | `047b0ed` | 1606/1607 | `tasks/integration.test.ts`「file_create」偶发：单跑两次 22/22 |
+
+逐条结论：
+
+1. `pnpm typecheck` 与 `pnpm lint` 干净，lint 的 9 条警告为既有同类问题（见「已知边界」）。
+2. 验收范围（备份域 13 条、clash 验收 12 条、database 与 clash 服务端全部用例）在六轮全量中从未失败；单跑复核：备份验收 13/13、clash 验收 12/12。
+3. 全量未拿到零失败：偶发失败集中在并行负载下的压线用例（`service.test` 两条多备份用例、`tasks/integration` 两条），单跑全部稳定通过；已建议另立「测试耗时治理」任务（克隆化或显式超时），不阻塞本验收。
+4. 真实数据红线：执行前静态核查全部测试的隔离——引用 `DATABASE_FILE` 的 3 个测试分别用 `vi.hoisted`、`vi.mock("@server/env")`、服务参数改道；`FILE_ROOT` 用 `vi.stubEnv`；无硬编码 `data/` 路径；clash 测试均不触发真实控制接口发现（显式 URL 或 socket、`AUTO_DISCOVER=0`、mock fetch）。真实 `data/snapshots.sqlite3`（2.6GB）与 launchd 常驻服务全程未被测试触碰。
+5. 不跑真实浏览器与手机（任务 55）；恢复状态 `verified` 语义问题另见任务 65。
+
 ### 人工验收步骤（未执行，留任务 18/55）
 
 1. 真实库上创建一份备份：列表可见、大小与时间正确；下载后用 sqlite3 打开核对。
