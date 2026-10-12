@@ -1,0 +1,504 @@
+import { Add01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type {
+  DatabaseColumn,
+  DatabaseFilter,
+  DatabaseFilterOperator,
+  DatabaseRecord,
+  DatabaseRecordLocatorKey,
+  DatabaseSort,
+  DatabaseTable,
+  SqliteValue,
+} from "@shared/api-contract"
+import { describeError } from "@shared/format"
+import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
+import { Badge } from "@web/components/ui/badge"
+import { Button } from "@web/components/ui/button"
+import { Checkbox } from "@web/components/ui/checkbox"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@web/components/ui/empty"
+import { Input } from "@web/components/ui/input"
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from "@web/components/ui/item"
+import { Label } from "@web/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@web/components/ui/select"
+import { Skeleton } from "@web/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@web/components/ui/table"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { useState } from "react"
+import {
+  FILTER_OPERATOR_LABELS,
+  filterValueFromInput,
+  formatRecordKey,
+  formatSqliteValue,
+  LONG_VALUE_LENGTH,
+  looksLikeJson,
+  operatorNeedsValue,
+  recordKeyFingerprint,
+} from "./format"
+
+const OPERATORS = Object.keys(
+  FILTER_OPERATOR_LABELS
+) as DatabaseFilterOperator[]
+const PAGE_SIZES = [10, 20, 50, 100] as const
+const DEFAULT_SORT = "__default__"
+
+/**
+ * 值的展示：NULL、空串、文本、数值与 BLOB 各自有明确形态，长内容可展开。
+ * 记录列表与记录详情共用，避免两处各写一份取值规则。
+ */
+export const SqliteValueView = (props: { value: SqliteValue }) => {
+  const [expanded, setExpanded] = useState(false)
+  const { value } = props
+  if (value.type === "null") {
+    return <span className="text-muted-foreground">NULL</span>
+  }
+  if (value.type === "text" && value.value === "") {
+    return <span className="text-muted-foreground">空字符串</span>
+  }
+  const text = formatSqliteValue(value)
+  const long = value.type === "text" && text.length > LONG_VALUE_LENGTH
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      <span className="break-all font-mono text-xs">
+        {long && !expanded ? `${text.slice(0, LONG_VALUE_LENGTH)}…` : text}
+      </span>
+      {long ? (
+        <Button
+          variant="link"
+          size="sm"
+          className="min-h-11 px-1"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? "收起" : "展开"}
+        </Button>
+      ) : null}
+      {looksLikeJson(value) ? <Badge variant="outline">JSON</Badge> : null}
+    </span>
+  )
+}
+
+const FilterEditor = (props: {
+  columns: DatabaseColumn[]
+  onAdd: (filter: DatabaseFilter) => void
+}) => {
+  const [columnName, setColumnName] = useState(props.columns[0]?.name ?? "")
+  const [operator, setOperator] = useState<DatabaseFilterOperator>("eq")
+  const [text, setText] = useState("")
+  const column = props.columns.find((item) => item.name === columnName)
+
+  const add = (): void => {
+    if (!column) return
+    props.onAdd(
+      operatorNeedsValue(operator)
+        ? {
+            column: column.name,
+            operator,
+            value: filterValueFromInput(column, text),
+          }
+        : { column: column.name, operator }
+    )
+    setText("")
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="database-filter-column">字段</Label>
+        <Select
+          value={columnName}
+          onValueChange={(next) => setColumnName(next ?? "")}
+        >
+          <SelectTrigger id="database-filter-column" className="min-h-11">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {props.columns.map((item) => (
+              <SelectItem key={item.name} value={item.name}>
+                {item.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="database-filter-operator">条件</Label>
+        <Select
+          value={operator}
+          onValueChange={(next) => setOperator(next as DatabaseFilterOperator)}
+        >
+          <SelectTrigger id="database-filter-operator" className="min-h-11">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {OPERATORS.map((item) => (
+              <SelectItem key={item} value={item}>
+                {FILTER_OPERATOR_LABELS[item]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {operatorNeedsValue(operator) ? (
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="database-filter-value">取值</Label>
+          <Input
+            id="database-filter-value"
+            className="min-h-11"
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+          />
+        </div>
+      ) : null}
+      <Button
+        variant="outline"
+        className="min-h-11"
+        disabled={!column}
+        onClick={add}
+      >
+        <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+        添加筛选
+      </Button>
+    </div>
+  )
+}
+
+export type RecordListProps = {
+  table: DatabaseTable
+  records: DatabaseRecord[]
+  total: number | null
+  pending: boolean
+  error: unknown
+  page: number
+  pageSize: number
+  filters: DatabaseFilter[]
+  sorts: DatabaseSort[]
+  selectedKey: DatabaseRecordLocatorKey | null
+  onSelectRecord: (key: DatabaseRecordLocatorKey) => void
+  onFiltersChange: (filters: DatabaseFilter[]) => void
+  onSortsChange: (sorts: DatabaseSort[]) => void
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
+}
+
+/**
+ * 记录列表：筛选、排序、分页、当前页勾选与详情入口。
+ * 手机单列卡片，桌面用表格；两者共享同一份数据与动作。
+ */
+export const RecordList = (props: RecordListProps) => {
+  const isDesktop = useIsDesktop()
+  const columns = props.table.columns.filter((column) => !column.hidden)
+  const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
+  const activeSort = props.sorts[0]
+
+  const hasNext =
+    props.total === null
+      ? props.records.length >= props.pageSize
+      : props.page * props.pageSize < props.total
+
+  const toggleChecked = (
+    key: DatabaseRecordLocatorKey,
+    checkedNow: boolean
+  ): void => {
+    const fingerprint = recordKeyFingerprint(key)
+    setChecked((current) => {
+      const next = new Set(current)
+      if (checkedNow) next.add(fingerprint)
+      else next.delete(fingerprint)
+      return next
+    })
+  }
+
+  const setSort = (column: string, direction: "asc" | "desc"): void => {
+    props.onSortsChange(column === DEFAULT_SORT ? [] : [{ column, direction }])
+  }
+
+  /**
+   * 筛选条目的 key：按内容（含重复次数）生成，不用数组下标，
+   * 删掉中间一条时其余条目不会换身份。
+   */
+  const filterKeys = (() => {
+    const seen = new Map<string, number>()
+    return props.filters.map((filter) => {
+      const base = `${filter.column}\u0000${filter.operator}\u0000${JSON.stringify(filter.value ?? null)}`
+      const occurrence = seen.get(base) ?? 0
+      seen.set(base, occurrence + 1)
+      return `${base}#${occurrence}`
+    })
+  })()
+
+  const body =
+    props.error !== null && props.error !== undefined ? (
+      <Alert variant="destructive">
+        <AlertTitle>记录读取失败</AlertTitle>
+        <AlertDescription>{describeError(props.error)}</AlertDescription>
+      </Alert>
+    ) : props.pending ? (
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    ) : props.records.length === 0 ? (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>没有符合条件的记录</EmptyTitle>
+          <EmptyDescription>
+            当前筛选与排序下没有任何记录；可以清空筛选后再试。
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    ) : isDesktop ? (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12">选择</TableHead>
+              {columns.map((column) => (
+                <TableHead key={column.name}>{column.name}</TableHead>
+              ))}
+              <TableHead className="w-24">详情</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {props.records.map((record) => {
+              const fingerprint = recordKeyFingerprint(record.key)
+              return (
+                <TableRow key={fingerprint}>
+                  <TableCell>
+                    <Checkbox
+                      aria-label={`选择记录 ${formatRecordKey(record.key)}`}
+                      checked={checked.has(fingerprint)}
+                      onCheckedChange={(next) =>
+                        toggleChecked(record.key, next === true)
+                      }
+                    />
+                  </TableCell>
+                  {columns.map((column) => (
+                    <TableCell key={column.name} className="align-top">
+                      <SqliteValueView value={record.values[column.name]} />
+                    </TableCell>
+                  ))}
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      className="min-h-11"
+                      onClick={() => props.onSelectRecord(record.key)}
+                    >
+                      查看
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    ) : (
+      <ItemGroup>
+        {props.records.map((record) => {
+          const fingerprint = recordKeyFingerprint(record.key)
+          return (
+            <Item key={fingerprint} variant="outline">
+              <ItemContent>
+                <ItemTitle className="font-mono text-xs">
+                  {formatRecordKey(record.key)}
+                </ItemTitle>
+                <ItemDescription className="space-y-1">
+                  {columns.slice(0, 4).map((column) => (
+                    <span key={column.name} className="block">
+                      <span className="text-muted-foreground">
+                        {column.name}：
+                      </span>
+                      <SqliteValueView value={record.values[column.name]} />
+                    </span>
+                  ))}
+                </ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <Checkbox
+                  aria-label={`选择记录 ${formatRecordKey(record.key)}`}
+                  checked={checked.has(fingerprint)}
+                  onCheckedChange={(next) =>
+                    toggleChecked(record.key, next === true)
+                  }
+                />
+                <Button
+                  variant="outline"
+                  className="min-h-11"
+                  onClick={() => props.onSelectRecord(record.key)}
+                >
+                  查看
+                </Button>
+              </ItemActions>
+            </Item>
+          )
+        })}
+      </ItemGroup>
+    )
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <FilterEditor
+          columns={columns}
+          onAdd={(filter) => props.onFiltersChange([...props.filters, filter])}
+        />
+        {props.filters.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {props.filters.map((filter, index) => (
+              <Badge key={filterKeys[index]}>
+                {filter.column} {FILTER_OPERATOR_LABELS[filter.operator]}
+                {filter.value === undefined
+                  ? ""
+                  : ` ${formatSqliteValue(filter.value)}`}
+                <button
+                  type="button"
+                  className="ml-1 inline-flex min-h-6 items-center"
+                  aria-label={`移除筛选 ${filter.column}`}
+                  onClick={() =>
+                    props.onFiltersChange(
+                      props.filters.filter((_, position) => position !== index)
+                    )
+                  }
+                >
+                  <HugeiconsIcon icon={Cancel01Icon} aria-hidden="true" />
+                </button>
+              </Badge>
+            ))}
+            <Button
+              variant="ghost"
+              className="min-h-11"
+              onClick={() => props.onFiltersChange([])}
+            >
+              清空筛选
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="database-sort-column">排序字段</Label>
+          <Select
+            value={activeSort?.column ?? DEFAULT_SORT}
+            onValueChange={(next) =>
+              setSort(next ?? DEFAULT_SORT, activeSort?.direction ?? "asc")
+            }
+          >
+            <SelectTrigger id="database-sort-column" className="min-h-11">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={DEFAULT_SORT}>默认（按主键）</SelectItem>
+              {columns.map((column) => (
+                <SelectItem key={column.name} value={column.name}>
+                  {column.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="database-sort-direction">方向</Label>
+          <Select
+            value={activeSort?.direction ?? "asc"}
+            onValueChange={(next) =>
+              setSort(
+                activeSort?.column ?? DEFAULT_SORT,
+                next as "asc" | "desc"
+              )
+            }
+          >
+            <SelectTrigger id="database-sort-direction" className="min-h-11">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="asc">升序</SelectItem>
+              <SelectItem value="desc">降序</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {body}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          className="min-h-11"
+          disabled={props.page <= 1}
+          onClick={() => props.onPageChange(props.page - 1)}
+        >
+          上一页
+        </Button>
+        <span>第 {props.page} 页</span>
+        <Button
+          variant="outline"
+          className="min-h-11"
+          disabled={!hasNext}
+          onClick={() => props.onPageChange(props.page + 1)}
+        >
+          下一页
+        </Button>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="database-page-size">每页</Label>
+          <Select
+            value={String(props.pageSize)}
+            onValueChange={(next) => props.onPageSizeChange(Number(next))}
+          >
+            <SelectTrigger id="database-page-size" className="min-h-11">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((size) => (
+                <SelectItem key={size} value={String(size)}>
+                  {size} 条
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <span className="text-muted-foreground">
+          {props.total === null
+            ? "数量未知（有界计数未完成）"
+            : `共 ${props.total} 条`}
+        </span>
+        {checked.size > 0 ? (
+          <span className="flex items-center gap-2">
+            已选 {checked.size} 条（仅当前页）
+            <Button
+              variant="ghost"
+              className="min-h-11"
+              onClick={() => setChecked(new Set())}
+            >
+              取消选择
+            </Button>
+          </span>
+        ) : null}
+      </div>
+    </div>
+  )
+}

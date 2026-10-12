@@ -15,6 +15,7 @@ import { LoginPage } from "@web/features/auth/LoginPage"
 import { CaddyPage } from "@web/features/caddy/CaddyPage"
 import { ClashVergePage } from "@web/features/clash-verge/ClashVergePage"
 import { DashboardPage } from "@web/features/dashboard/DashboardPage"
+import { DatabasePage } from "@web/features/database/DatabasePage"
 import { DiskGrowthPage } from "@web/features/disk-growth/DiskGrowthPage"
 import { DockerPage } from "@web/features/docker/DockerPage"
 import { FilesPage } from "@web/features/files/FilesPage"
@@ -47,6 +48,7 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "pi",
   "clash-verge",
   "docker",
+  "database",
   "hardware",
 ]
 
@@ -214,6 +216,7 @@ export const App = () => {
         {feature === "pi" ? <PiPage /> : null}
         {feature === "clash-verge" ? <ClashVergePage /> : null}
         {feature === "docker" ? <DockerPage /> : null}
+        {feature === "database" ? <DatabasePage /> : null}
         {feature === "hardware" ? <HardwarePage /> : null}
       </SidebarInset>
       <AiAssistantDialog onOpenModelSettings={openAiAssistantSettings} />

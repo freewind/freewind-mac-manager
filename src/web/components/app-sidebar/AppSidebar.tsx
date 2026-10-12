@@ -7,6 +7,7 @@ import {
   ContainerIcon,
   CpuIcon,
   DashboardSpeed02Icon,
+  Database01Icon,
   EthernetPortIcon,
   FolderShared01Icon,
   Globe02Icon,
@@ -51,6 +52,7 @@ export type FeatureKey =
   | "pi"
   | "clash-verge"
   | "docker"
+  | "database"
   | "hardware"
 
 type FeatureItem = {
@@ -68,6 +70,7 @@ const FEATURES: FeatureItem[] = [
   { key: "traffic", label: "流量监控", icon: DashboardSpeed02Icon },
   { key: "ports", label: "端口管理", icon: EthernetPortIcon },
   { key: "docker", label: "Docker", icon: ContainerIcon },
+  { key: "database", label: "数据库", icon: Database01Icon },
   { key: "pi", label: "Pi Agent", icon: Robot01Icon },
   { key: "hardware", label: "硬件", icon: ChipIcon },
 ]

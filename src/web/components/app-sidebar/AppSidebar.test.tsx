@@ -26,6 +26,19 @@ afterEach(() => {
 })
 
 describe("侧栏功能入口", () => {
+  it("功能分组里有数据库入口，点击后切到 database", () => {
+    const onSelect = vi.fn()
+    render(
+      <SidebarProvider>
+        <AppSidebar active="overview" onSelect={onSelect} />
+      </SidebarProvider>
+    )
+    const entry = screen.getByText("数据库")
+    expect(entry.closest("button")).toBeTruthy()
+    fireEvent.click(entry)
+    expect(onSelect).toHaveBeenCalledWith("database")
+  })
+
   it("服务分组里有 Caddy 网关，点击后切到 caddy", () => {
     const onSelect = vi.fn()
     render(

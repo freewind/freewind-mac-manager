@@ -198,6 +198,15 @@ export const useDatabase = () => {
     recordsPending: recordsQuery.isPending,
     recordsError: recordsQuery.error,
     recordDetail: recordQuery.data?.record ?? null,
+    recordPending: selectedKey !== null && recordQuery.isPending,
+    recordError: recordQuery.error,
+    /** 页面上数据的最后读取时间（毫秒）；没有任何数据时为 null。 */
+    updatedAt:
+      Math.max(
+        tablesQuery.dataUpdatedAt,
+        tableQuery.dataUpdatedAt,
+        recordsQuery.dataUpdatedAt
+      ) || null,
     // 导航状态（来自 URL）
     table,
     page,
