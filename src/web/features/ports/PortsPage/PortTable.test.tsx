@@ -132,8 +132,45 @@ describe("端口聚合表", () => {
 
     // 危险动作只在用户显式操作后才可能触发
     expect(onRequestKill).not.toHaveBeenCalled()
-    expect(screen.getByRole("button", { name: "操作" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "端口 443 的操作" })).toBeTruthy()
     expect(onRequestKill).not.toHaveBeenCalled()
+  })
+
+  it("操作列表头有文字，且列头与行内单元格都固定在右侧", () => {
+    renderTable()
+
+    // 表头不再留空：用户能看到「操作」列
+    const header = screen.getByRole("columnheader", { name: "操作" })
+    for (const className of ["sticky", "right-0", "w-[1%]"]) {
+      expect(header.className).toContain(className)
+    }
+
+    // 横向滚动时该单元格停在右边缘，并用不透明底色压住滚动内容
+    const entry = screen.getByRole("button", { name: "端口 443 的操作" })
+    expect(entry.className).toContain("size-11")
+    const cell = entry.closest("td")
+    for (const className of ["sticky", "right-0", "bg-background"]) {
+      expect(cell?.className).toContain(className)
+    }
+  })
+
+  it("结束进程入口有可读名称，并把端口、进程名与 PID 交给确认流程", async () => {
+    const user = userEvent.setup()
+    const { onRequestKill } = renderTable()
+
+    await user.click(screen.getByRole("button", { name: "端口 443 的操作" }))
+    const kill = await screen.findByRole("menuitem", {
+      name: "结束进程（端口 443）",
+    })
+    expect(kill.className).toContain("min-h-11")
+    await user.click(kill)
+
+    expect(onRequestKill).toHaveBeenCalledTimes(1)
+    expect(onRequestKill.mock.calls[0]).toEqual([
+      443,
+      groups[0].pids,
+      groups[0].processNames,
+    ])
   })
 
   it("没有匹配端口时给出空状态提示", () => {

@@ -138,7 +138,9 @@ export const PortTable = (props: PortTableProps) => {
             <TableHead className="w-[1%] whitespace-nowrap">状态</TableHead>
             <TableHead className="w-[1%] whitespace-nowrap">暴露</TableHead>
             <TableHead className="w-full">命令</TableHead>
-            <TableHead className="w-[1%] whitespace-nowrap" />
+            <TableHead className="sticky right-0 z-10 w-[1%] whitespace-nowrap bg-background">
+              操作
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -147,10 +149,10 @@ export const PortTable = (props: PortTableProps) => {
             return (
               <Fragment key={group.port}>
                 <TableRow
-                  className={cn(
-                    "cursor-pointer",
-                    model.selectedPort === group.port && "bg-muted/60"
-                  )}
+                  data-state={
+                    model.selectedPort === group.port ? "selected" : undefined
+                  }
+                  className="group cursor-pointer"
                   onClick={() =>
                     model.selectPort(
                       model.selectedPort === group.port ? null : group.port
@@ -255,8 +257,9 @@ export const PortTable = (props: PortTableProps) => {
                       </TooltipContent>
                     </Tooltip>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="sticky right-0 z-10 w-[1%] whitespace-nowrap bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted">
                     <RowActions
+                      port={group.port}
                       busy={model.killBusy}
                       onCopy={() => onCopy(buildGroupText(group, model.view))}
                       onCopyPids={() => onCopy(group.pids.join(", "))}
@@ -357,6 +360,7 @@ const BindingDetail = (props: {
 }
 
 type RowActionsProps = {
+  port: number
   busy: boolean
   onCopy: () => void
   onCopyPids: () => void
@@ -367,7 +371,12 @@ const RowActions = (props: RowActionsProps) => (
   <DropdownMenu>
     <DropdownMenuTrigger
       render={
-        <Button size="icon-sm" variant="ghost" title="操作">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-11"
+          aria-label={`端口 ${props.port} 的操作`}
+        >
           <HugeiconsIcon icon={MoreHorizontalIcon} />
         </Button>
       }
@@ -384,6 +393,8 @@ const RowActions = (props: RowActionsProps) => (
       <DropdownMenuSeparator />
       <DropdownMenuItem
         variant="destructive"
+        className="min-h-11"
+        aria-label={`结束进程（端口 ${props.port}）`}
         disabled={props.busy}
         onClick={props.onKill}
       >
