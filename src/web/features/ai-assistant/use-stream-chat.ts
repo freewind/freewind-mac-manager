@@ -1,5 +1,7 @@
-import { ApiPath } from "@shared/api-path"
-import { buildAuthorizationHeader } from "@shared/client-api"
+import {
+  type AiAssistantStreamEvent,
+  streamAiAssistantMessage,
+} from "@shared/client-api"
 import type { ChatStatus, UIMessage } from "ai"
 import { useCallback, useRef, useState } from "react"
 
@@ -35,48 +37,10 @@ export type ChatMessage = {
   parts: ChatPart[]
 }
 
-export type SseEvent = { event: string; data: string }
-
 let idSeed = 0
 const newId = (): string => {
   idSeed += 1
   return `ai-${Date.now().toString(36)}-${idSeed}`
-}
-
-/**
- * 按 SSE 的空行分帧。返回已完整的帧与尚未结束的尾巴，
- * 尾巴要留在缓冲区，等下一个 chunk 到齐再解析。
- */
-export const parseSseFrames = (
-  buffer: string
-): { events: SseEvent[]; rest: string } => {
-  const chunks = buffer.replace(/\r\n/g, "\n").split("\n\n")
-  const rest = chunks.pop() ?? ""
-  const events = chunks.map((chunk) => {
-    let event = "message"
-    const dataLines: string[] = []
-    for (const line of chunk.split("\n")) {
-      if (line.startsWith("event:")) event = line.slice(6).trim()
-      else if (line.startsWith("data:")) {
-        dataLines.push(line.slice(5).replace(/^ /, ""))
-      }
-    }
-    return { event, data: dataLines.join("\n") }
-  })
-  return { events, rest }
-}
-
-const asRecord = (value: unknown): Record<string, unknown> =>
-  typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : {}
-
-const parseJson = (text: string): Record<string, unknown> => {
-  try {
-    return asRecord(JSON.parse(text))
-  } catch {
-    return {}
-  }
 }
 
 const toUiPart = (
@@ -164,6 +128,10 @@ const appendDelta = (
     ]
   })
 
+/**
+ * 工具事件合并。开始事件带 input，结束事件通常只带 output：
+ * 只覆盖确实带值的字段，否则结束时会把手头已有的 input 抹成 undefined。
+ */
 const upsertTool = (
   state: ChatState,
   tool: {
@@ -178,9 +146,19 @@ const upsertTool = (
     const index = parts.findIndex(
       (part) => part.type === "tool" && part.toolCallId === tool.toolCallId
     )
-    if (index === -1) return [...parts, { type: "tool", ...tool }]
+    const previous = index === -1 ? null : parts[index]
+    const previousTool = previous?.type === "tool" ? previous : null
+    const merged: ChatPart = {
+      type: "tool",
+      toolCallId: tool.toolCallId,
+      name: tool.name || previousTool?.name || "",
+      status: tool.status,
+      input: tool.input !== undefined ? tool.input : previousTool?.input,
+      output: tool.output !== undefined ? tool.output : previousTool?.output,
+    }
+    if (index === -1) return [...parts, merged]
     const next = [...parts]
-    next[index] = { type: "tool", ...tool }
+    next[index] = merged
     return next
   })
 
@@ -192,38 +170,12 @@ const settleParts = (state: ChatState): ChatState =>
     )
   )
 
-const readErrorMessage = async (response: Response): Promise<string> => {
-  try {
-    const body: unknown = await response.json()
-    const message = asRecord(body).message
-    if (typeof message === "string" && message) return message
-  } catch {
-    // 非 JSON 响应按状态码说明。
-  }
-  return `请求失败（HTTP ${response.status}）`
-}
-
-const readStream = async (
-  body: ReadableStream<Uint8Array>,
-  onEvent: (event: SseEvent) => void
-): Promise<void> => {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ""
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const { events, rest } = parseSseFrames(buffer)
-    buffer = rest
-    for (const event of events) onEvent(event)
-  }
-  for (const event of parseSseFrames(`${buffer}\n\n`).events) onEvent(event)
-}
-
 /**
- * 自己读 SSE 流：EventSource 不支持 POST 与自定义头，所以用 fetch + 手动分帧。
- * 不用轮询、不在 effect 里发请求；中断与结果未知都不自动重试。
+ * 助手对话的本地状态：消息装配、终态判定与会话标识。
+ *
+ * 传输（地址、鉴权、fetch、SSE 分帧、401 派发、离线拦截）都在
+ * shared/client-api 的 streamAiAssistantMessage 里，这里只处理业务消息；
+ * 不在 effect 里发请求，断连与结果未知都不自动重试。
  */
 export const useStreamChat = (options: {
   sessionId: string | null
@@ -244,9 +196,52 @@ export const useStreamChat = (options: {
     controllerRef.current?.abort()
   }, [])
 
+  const handleEvent = useCallback(
+    (event: AiAssistantStreamEvent) => {
+      if (event.type === "delta") {
+        setState((prev) => {
+          const started =
+            prev.status === "submitted"
+              ? { ...prev, status: "streaming" as ChatStatus }
+              : prev
+          return appendDelta(started, event.kind, event.delta)
+        })
+        return
+      }
+      if (event.type === "tool") {
+        setState((prev) =>
+          upsertTool(prev, {
+            toolCallId: event.toolCallId,
+            name: event.name,
+            status: event.status,
+            input: event.input,
+            output: event.output,
+          })
+        )
+        return
+      }
+      if (event.type === "error") {
+        setState((prev) => ({ ...prev, error: new Error(event.message) }))
+        return
+      }
+      if (event.sessionId) persistSessionId(event.sessionId)
+      if (event.status === "unknown") {
+        setState((prev) => ({
+          ...settleParts(prev),
+          status: "error",
+          error: new Error(event.message ?? "结果未知，请重新读取核实"),
+        }))
+        return
+      }
+      setState((prev) => ({ ...settleParts(prev), status: "ready" }))
+    },
+    [persistSessionId]
+  )
+
   const send = useCallback(
     async (payload: { role: "user"; content: string }) => {
       const text = payload.content.trim()
+      // 上一条还在流里时忽略新指令：不排队、不重发。
       if (!text || controllerRef.current) return
       setState((prev) => ({
         messages: [
@@ -260,101 +255,17 @@ export const useStreamChat = (options: {
       const controller = new AbortController()
       controllerRef.current = controller
       let sawDone = false
+      const onEvent = (event: AiAssistantStreamEvent): void => {
+        if (event.type === "done") sawDone = true
+        handleEvent(event)
+      }
       try {
-        const response = await fetch(ApiPath.aiAssistantMessage, {
-          method: "POST",
-          headers: {
-            ...buildAuthorizationHeader(),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...(sessionIdRef.current
-              ? { sessionId: sessionIdRef.current }
-              : {}),
-            prompt: text,
-          }),
+        await streamAiAssistantMessage({
+          sessionId: sessionIdRef.current,
+          prompt: text,
           signal: controller.signal,
-        })
-        const returnedId = response.headers.get("x-ai-assistant-session-id")
-        if (returnedId) persistSessionId(returnedId)
-        if (!response.ok || !response.body) {
-          const message = await readErrorMessage(response)
-          setState((prev) => ({
-            ...prev,
-            status: "error",
-            error: new Error(message),
-          }))
-          return
-        }
-        setState((prev) => ({ ...prev, status: "streaming" }))
-        await readStream(response.body, (event) => {
-          const data = parseJson(event.data)
-          if (event.event === "delta") {
-            const delta = data.delta
-            if (typeof delta === "string" && delta) {
-              setState((prev) =>
-                appendDelta(
-                  prev,
-                  data.type === "thinking" ? "thinking" : "text",
-                  delta
-                )
-              )
-            }
-            return
-          }
-          if (event.event === "tool") {
-            const toolCallId = data.id
-            const name = data.name
-            if (typeof toolCallId !== "string" || typeof name !== "string")
-              return
-            const status =
-              data.status === "done"
-                ? ("done" as const)
-                : data.status === "error"
-                  ? ("error" as const)
-                  : ("running" as const)
-            setState((prev) =>
-              upsertTool(prev, {
-                toolCallId,
-                name,
-                status,
-                input: data.input,
-                output: data.output,
-              })
-            )
-            return
-          }
-          if (event.event === "error") {
-            const message = data.message
-            setState((prev) => ({
-              ...prev,
-              error: new Error(
-                typeof message === "string" ? message : "助手执行失败"
-              ),
-            }))
-            return
-          }
-          if (event.event === "done") {
-            sawDone = true
-            const sessionId = data.sessionId
-            if (typeof sessionId === "string" && sessionId) {
-              persistSessionId(sessionId)
-            }
-            if (data.status === "unknown") {
-              const message = data.message
-              setState((prev) => ({
-                ...settleParts(prev),
-                status: "error",
-                error: new Error(
-                  typeof message === "string"
-                    ? message
-                    : "结果未知，请重新读取核实"
-                ),
-              }))
-              return
-            }
-            setState((prev) => ({ ...settleParts(prev), status: "ready" }))
-          }
+          onSessionId: persistSessionId,
+          onEvent,
         })
         if (!sawDone) {
           setState((prev) => ({
@@ -373,14 +284,16 @@ export const useStreamChat = (options: {
           error: new Error(
             aborted
               ? "已中止，结果未知，请重新读取核实"
-              : "网络请求失败，结果未知，请重新读取核实"
+              : error instanceof Error && error.message
+                ? error.message
+                : "网络请求失败，结果未知，请重新读取核实"
           ),
         }))
       } finally {
         controllerRef.current = null
       }
     },
-    [persistSessionId]
+    [handleEvent, persistSessionId]
   )
 
   return {

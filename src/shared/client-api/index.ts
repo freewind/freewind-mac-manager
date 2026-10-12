@@ -5,6 +5,7 @@ export {
   writeAccessPasswordCookie,
 } from "./access-password"
 export * from "./ai-assistant"
+export * from "./ai-assistant-stream"
 export * from "./auth"
 export * from "./auth-types"
 export * from "./caddy"
