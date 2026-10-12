@@ -75,7 +75,8 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
                   className="rounded-lg"
                 />
                 <div className="flex min-w-0 flex-col gap-1">
-                  <SheetTitle className="truncate">{selected.name}</SheetTitle>
+                  {/* 详情标题是手机上唯一能看到进程名的地方，换行显示而不是截断。 */}
+                  <SheetTitle className="break-all">{selected.name}</SheetTitle>
                   <SheetDescription className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                     <span>PID {selected.pid}</span>
                     <span>·</span>

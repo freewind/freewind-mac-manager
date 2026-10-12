@@ -84,6 +84,11 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { IcicleChart } from "@web/features/disk-growth/IcicleChart"
 import {
   diskGrowthKeys,
@@ -597,7 +602,17 @@ const BranchRow = ({
               icon={entry.kind === "dir" ? Folder01Icon : File01Icon}
               className="size-3.5 text-muted-foreground"
             />
-            <span className="truncate">{entry.name}</span>
+            {/* 名称可能很长：外层格子继续省略，悬停看全文。 */}
+            <span className="min-w-0 truncate">
+              <Tooltip>
+                <TooltipTrigger
+                  render={<span className="block truncate">{entry.name}</span>}
+                />
+                <TooltipContent className="max-w-lg break-all">
+                  {entry.name}
+                </TooltipContent>
+              </Tooltip>
+            </span>
             {entry.folded ? <Badge variant="secondary">已折叠</Badge> : null}
           </span>
         </TableCell>
@@ -624,7 +639,15 @@ const BranchRow = ({
           </TableCell>
         )}
         <TableCell className="truncate text-xs text-muted-foreground">
-          {entry.path}
+          {/* 路径可能很长：格子继续负责省略，悬停看全文。 */}
+          <Tooltip>
+            <TooltipTrigger
+              render={<span className="block truncate">{entry.path}</span>}
+            />
+            <TooltipContent className="max-w-lg break-all">
+              {entry.path}
+            </TooltipContent>
+          </Tooltip>
         </TableCell>
         <TableCell className="text-right">
           <DropdownMenu>

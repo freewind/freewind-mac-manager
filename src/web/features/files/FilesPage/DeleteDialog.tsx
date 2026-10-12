@@ -37,9 +37,10 @@ export const DeleteDialog = ({
             删除后不可恢复，以下条目会从磁盘移除：
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {/* 危险动作的确认列表：对象名必须完整可见，不用 truncate；手机没有 hover，不能只靠浮层。 */}
         <ul className="max-h-48 overflow-y-auto rounded-md border p-2 text-xs">
           {names.map((name) => (
-            <li key={name} className="truncate py-0.5">
+            <li key={name} className="py-0.5 break-all">
               {name}
             </li>
           ))}

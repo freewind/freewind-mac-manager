@@ -50,10 +50,21 @@ export const MoveDialog = ({
     <DialogContent className="sm:max-w-lg">
       <DialogHeader>
         <DialogTitle>{mode === "copy" ? "复制到" : "移动到"}</DialogTitle>
-        <DialogDescription className="truncate">
-          {names.length} 个条目：{names.join("、")}
+        <DialogDescription>
+          {`共有 ${names.length} 个条目会${mode === "copy" ? "复制" : "移动"}到选定目录，完整清单如下：`}
         </DialogDescription>
       </DialogHeader>
+      {/* 名字都列出来并能滚动到底：用户要能数清到底有几个对象，不靠省略号。 */}
+      <ul
+        aria-label={`待${mode === "copy" ? "复制" : "移动"}的 ${names.length} 个条目`}
+        className="max-h-24 overflow-y-auto rounded-md border p-2 text-xs break-all text-muted-foreground"
+      >
+        {names.map((name) => (
+          <li key={name} className="py-0.5">
+            {name}
+          </li>
+        ))}
+      </ul>
       {open ? (
         <MovePicker
           rootPath={rootPath}

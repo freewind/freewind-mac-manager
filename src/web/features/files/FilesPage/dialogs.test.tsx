@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -103,6 +104,57 @@ describe("file operation dialogs", () => {
     expect(onOpenChange).not.toHaveBeenCalled()
     await act(async () => result.resolve(true))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it("删除确认框完整列出超长文件名，靠换行与框内滚动而不是省略号", () => {
+    const longName =
+      "2026-05-18-backup-of-very-long-directory-name-with-detail-report-final.txt"
+    render(
+      <DeleteDialog
+        open
+        names={[longName, "b.txt"]}
+        onConfirm={async () => true}
+        onOpenChange={() => undefined}
+      />
+    )
+
+    const item = screen.getByText(longName)
+    // 危险动作确认里对象名要能直接读全：不能靠省略号，也不能只靠 hover
+    expect(item.className).not.toContain("truncate")
+    expect(item.className).toContain("break-all")
+    const list = item.closest("ul")
+    expect(list?.className).toContain("max-h-48")
+    expect(list?.className).toContain("overflow-y-auto")
+    expect(screen.getAllByRole("listitem")).toHaveLength(2)
+  })
+
+  it("移动确认能数出对象总数并完整列出全部名字", () => {
+    const longName =
+      "2026-05-18-backup-of-very-long-directory-name-with-detail-report-final.txt"
+    render(
+      <MoveDialog
+        open
+        mode="move"
+        rootPath="/root"
+        startPath="/root/source"
+        names={[longName, "b.txt", "c.txt"]}
+        onSubmit={async () => true}
+        onOpenChange={() => undefined}
+      />
+    )
+
+    // 数得出共有几个对象
+    expect(
+      screen.getByText("共有 3 个条目会移动到选定目录，完整清单如下：")
+    ).toBeTruthy()
+    const list = screen.getByRole("list", { name: "待移动的 3 个条目" })
+    expect(list.className).toContain("max-h-24")
+    expect(list.className).toContain("overflow-y-auto")
+    // 每个名字都完整列出，不省略
+    for (const name of [longName, "b.txt", "c.txt"]) {
+      const item = within(list).getByText(name)
+      expect(item.className).not.toContain("truncate")
+    }
   })
 
   it("preserves the delete confirmation after a rejected operation", async () => {

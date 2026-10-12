@@ -3,8 +3,15 @@
 import type { ScanSnapshot, TaskRecord, TreeNode } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, render, screen } from "@testing-library/react"
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { TooltipProvider } from "@web/components/ui/tooltip"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useDiskGrowthLocalStore } from "../store"
@@ -13,6 +20,7 @@ import { DiskGrowthPage } from "./DiskGrowthPage"
 const { api, toastMock } = vi.hoisted(() => ({
   api: {
     fetchScans: vi.fn(),
+    fetchEntries: vi.fn(),
     fetchTree: vi.fn(),
     fetchTask: vi.fn(),
     triggerScan: vi.fn(),
@@ -27,6 +35,7 @@ const { api, toastMock } = vi.hoisted(() => ({
 vi.mock(import("@shared/client-api"), async (importOriginal) => ({
   ...(await importOriginal<typeof import("@shared/client-api")>()),
   fetchScans: api.fetchScans,
+  fetchEntries: api.fetchEntries,
   fetchTree: api.fetchTree,
   fetchTask: api.fetchTask,
   triggerScan: api.triggerScan,
@@ -80,8 +89,11 @@ const renderPage = () => {
     },
   })
   render(<DiskGrowthPage />, {
+    // 与 main.tsx 一致挂上 Provider：否则 Tooltip 走默认延时，悬停断言会变成计时竞态。
     wrapper: ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <TooltipProvider>{children}</TooltipProvider>
+      </QueryClientProvider>
     ),
   })
 }
@@ -123,6 +135,48 @@ afterEach(() => {
     multiSelect: false,
     checked: [],
     anchorIndex: null,
+  })
+})
+
+describe("明细表长文本", () => {
+  it("名称与路径格悬停能看到全文，格子仍然只负责省略", async () => {
+    const user = userEvent.setup()
+    // 明细表在 growth 视图里，beforeEach 默认切到了分布图
+    useDiskGrowthLocalStore.getState().setView("growth")
+    api.fetchEntries.mockResolvedValue({
+      entries: [
+        {
+          path: "/Library",
+          name: "Library",
+          kind: "dir",
+          size: 50_000_000,
+          delta: 0,
+          folded: false,
+        },
+      ],
+    })
+    renderPage()
+
+    // 先等到目录树查询落地，表格行才会出现
+    const name = await screen.findByText("Library")
+    const table = screen.getByRole("table")
+    const path = within(table).getByText("/Library")
+    expect(name.closest('[data-slot="tooltip-trigger"]')).not.toBeNull()
+    expect(path.closest('[data-slot="tooltip-trigger"]')).not.toBeNull()
+    // 列宽规范不变：格子继续 truncate，全文交给浮层
+    expect(path.closest("td")?.className).toContain("truncate")
+
+    const nameHits = screen.getAllByText("Library").length
+    await user.hover(name)
+    await waitFor(() =>
+      expect(screen.getAllByText("Library").length).toBeGreaterThan(nameHits)
+    )
+
+    const pathHits = screen.getAllByText("/Library").length
+    await user.hover(path)
+    await waitFor(() =>
+      expect(screen.getAllByText("/Library").length).toBeGreaterThan(pathHits)
+    )
   })
 })
 

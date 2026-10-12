@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useAiAssistantLocalStore } from "@web/features/ai-assistant/store"
+import { useProcessesLocalStore } from "@web/features/processes/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ProcessesPage } from "./ProcessesPage"
 
@@ -101,6 +102,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  // 详情抽屉会留下选中的进程，不清掉会污染后续用例的文本查询
+  useProcessesLocalStore.setState({ selectedPid: null })
   useAiAssistantLocalStore.setState({
     open: false,
     initialContext: null,
@@ -164,6 +167,30 @@ describe("进程页的紧凑工作区", () => {
     await user.click(screen.getByRole("checkbox", { name: "选择 node" }))
 
     expect(await screen.findByText(/已选 1 个进程/)).toBeTruthy()
+  })
+})
+
+describe("进程详情", () => {
+  it("进程详情标题完整可见：长名字换行而不是截断", async () => {
+    const user = userEvent.setup()
+    const longName =
+      "com.apple.WebKit.WebContent.Networking.Helper.very-long-service-name"
+    fetchProcessList.mockResolvedValue({
+      processes: [process({ pid: 4242, name: longName })],
+      overview,
+      currentUser: "peng",
+    })
+    renderPage()
+
+    // 详情是手机上唯一能看到完整进程名的地方，不能靠 hover
+    await user.click(await screen.findByText(longName))
+    const titles = screen
+      .getAllByText(longName)
+      .map((node) => node.closest('[data-slot="sheet-title"]'))
+      .filter((node) => node !== null)
+    expect(titles).toHaveLength(1)
+    expect(titles[0]?.className).toContain("break-all")
+    expect(titles[0]?.className).not.toContain("truncate")
   })
 })
 
