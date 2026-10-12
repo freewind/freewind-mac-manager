@@ -153,6 +153,32 @@ afterEach(() => {
   window.history.replaceState({}, "", "/")
 })
 
+describe("文件页标题区", () => {
+  it("首屏加载时在标题旁给出加载状态，工具栏与面包屑仍在原位", () => {
+    modelOverrides = { isLoading: true }
+    render(<FilesPage />)
+
+    // 标题保持一级标题语义，加载指示只挂在标题旁
+    expect(
+      screen.getByRole("heading", { level: 1, name: "文件管理" })
+    ).toBeTruthy()
+    expect(screen.getByRole("status", { name: "文件管理 加载中" })).toBeTruthy()
+    // 同行的工具栏与下一行的面包屑没有被加载态挤掉
+    expect(screen.getByRole("button", { name: /操作/ })).toBeTruthy()
+    expect(screen.getByRole("navigation", { name: "breadcrumb" })).toBeTruthy()
+  })
+
+  it("加载完成后标题旁的加载状态消失", () => {
+    modelOverrides = { isLoading: false }
+    render(<FilesPage />)
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "文件管理" })
+    ).toBeTruthy()
+    expect(screen.queryByRole("status")).toBeNull()
+  })
+})
+
 describe("文件页布局尺寸", () => {
   it("目录面板传的是无单位百分比字符串，而不是被当成像素的数字", () => {
     render(<FilesPage />)

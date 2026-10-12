@@ -11,6 +11,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { FileEntry } from "@shared/api-contract"
+import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
   ResizableHandle,
@@ -162,7 +163,7 @@ export const FilesPage = () => {
       <header className="flex flex-col gap-3 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <HugeiconsIcon icon={FolderShared01Icon} className="size-4" />
-          <h1 className="text-sm font-medium">文件管理</h1>
+          <PageHeader title="文件管理" loading={model.isLoading} />
           <div className="ml-auto">
             <FilesToolbar
               model={model}

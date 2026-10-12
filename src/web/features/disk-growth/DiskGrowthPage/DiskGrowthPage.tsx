@@ -31,6 +31,7 @@ import {
 import { scanTaskTarget } from "@shared/task-targets"
 import { useQueryClient } from "@tanstack/react-query"
 import { ActionButton } from "@web/components/ActionButton"
+import { PageHeader } from "@web/components/PageHeader"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -192,7 +193,7 @@ export const DiskGrowthPage = () => {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-col gap-2 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-sm font-medium">磁盘增长</h1>
+          <PageHeader title="磁盘增长" loading={isLoading} />
           <ToggleGroup
             value={[view]}
             onValueChange={(value: string[]) => {

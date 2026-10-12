@@ -138,6 +138,25 @@ afterEach(() => {
   })
 })
 
+describe("磁盘增长标题区", () => {
+  it("首屏加载时在标题旁给出加载状态，视图切换与搜索仍在原位", () => {
+    // 快照列表未返回：首屏加载中
+    api.fetchScans.mockReturnValue(new Promise(() => {}))
+    renderPage()
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "磁盘增长" })
+    ).toBeTruthy()
+    expect(screen.getByRole("status", { name: "磁盘增长 加载中" })).toBeTruthy()
+    // 同行的视图切换、搜索框与更多操作菜单都还在
+    expect(screen.getByRole("button", { name: "看增长" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "看大小" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "分布图" })).toBeTruthy()
+    expect(screen.getByPlaceholderText("搜索全库路径")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "更多操作" })).toBeTruthy()
+  })
+})
+
 describe("明细表长文本", () => {
   it("名称与路径格悬停能看到全文，格子仍然只负责省略", async () => {
     const user = userEvent.setup()
