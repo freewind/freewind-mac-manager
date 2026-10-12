@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react"
 
-/** 数据库页的两个视图：数据是主从浏览，备份由后续任务实现内容。 */
+/** 数据库页的两个视图：数据是主从浏览，备份是备份列表、创建导入下载与恢复入口。 */
 export const DATABASE_TABS = [
   { key: "data", label: "数据" },
   { key: "backups", label: "备份" },

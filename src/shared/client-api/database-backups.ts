@@ -147,7 +147,10 @@ const parseJsonBody = (text: string): unknown => {
  *
  * fetch 要观察上传进度只能把请求体换成 ReadableStream（还要 duplex: "half"），
  * 而 Safari 不支持 duplex，手机上的导入会整个坏掉；XHR 的 upload.onprogress
- * 在包括 iOS Safari 在内的浏览器上都可用。
+ * 在包括 iOS Safari 在内的浏览器上都可用。这与 files.ts 的上传是同一套做法。
+ *
+ * 刻意不设 request.timeout：与改动前一致，长导入由服务端 60 分钟总时限
+ * （BACKUP_UPLOAD_TIMEOUT_MS）兜住，客户端取消仍走 signal。
  */
 const sendUpload = (
   file: Blob,

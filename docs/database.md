@@ -155,11 +155,11 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 | 7 | 页面入口、表切换、筛选分页、详情、新增、修改、删除与历史返回在组件测试中通过 | `DatabasePage.test.tsx`（23 条）、`RecordList.test.tsx`（12 条）、`RecordFormDialog.test.tsx`（13 条）、`DeleteRecordsDialog.test.tsx`（8 条）、`AppSidebar.test.tsx` › 功能分组里有数据库入口 | 入口可点、切表清空旧筛选、筛选与翻页写进 URL 并触发新查询、详情打开/关闭/返回键关浮层、新增 201 后关闭并重读、修改只提交变化字段、单条与批量删除提交完整主键与签名、取消不发请求 |
 | 8 | `pnpm typecheck` / `lint` / `build` / `test` 通过且既有域未被破坏 | 命令输出（见下） | 见「检查结果」 |
 
-### 检查结果（本次验收运行）
+### 检查结果（本次验收运行当时的快照）
 
 | 命令 | 结果 |
 | --- | --- |
-| `pnpm test` | 数据库域 17 个测试文件 / 230 条用例全部通过；全量 124 个文件通过、1 个失败（他人未提交的 `PiPage.test.tsx`） |
+| `pnpm test` | 数据库域当时 17 个测试文件 / 230 条用例全部通过；全量 124 个文件通过、当时的 1 条失败是他人未提交的 `PiPage.test.tsx`（现行状态见「已知边界」） |
 | `pnpm typecheck` | 通过，无错误 |
 | `pnpm lint` | 我的 40 个文件 0 问题；全项目 0 error、9 条既有 `noDocumentCookie` 警告 |
 | `pnpm build` | 通过：前端 + `main` / `task-worker` / `query-worker` / `mutation-worker` 四个 SSR 产物齐全 |
@@ -194,6 +194,7 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 | 下载备份原文（octet-stream + 服务端附件名 + 明确长度） | 把路径或任意 URL 当下载目标（只按备份 ID 定位） |
 | 删除备份：逐项结果与内容签名核对，失败项如实列出，不整批回滚 | 无签名的盲删、删除仍被恢复计划引用的备份 |
 | 提交/取消恢复计划与查询状态：`plan` 与 `verified` 分开；已核实 = 恢复执行通过复验（完整性、结构与应用必要表）且启动迁移已通过 | 用计划存在就宣称「已恢复」；已应用或执行中的计划再取消 |
+| 导入与下载都显示真实进度：字节数来自浏览器上报，服务端没给总量时只显示已传 | 没有总量时伪造百分比或进度条 |
 | 恢复执行前自动生成 `pre_restore` 安全备份 | 恢复期间执行写入（新请求按 `409` 拒绝，结果未知须重新读取） |
 
 **`201` 不等于已恢复**：提交计划的 `201` 只代表计划创建成功；恢复由启动维护
@@ -262,11 +263,11 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 命令：
 
 ```bash
-pnpm vitest run src/server/database/backups/acceptance.test.ts   # 13 条，连跑两次均 13/13
+pnpm vitest run src/server/database/backups/acceptance.test.ts   # 14 条，连跑两次均 14/14
 pnpm test                                                        # 全量
 ```
 
-证据文件：`src/server/database/backups/acceptance.test.ts`（13 条）。
+证据文件：`src/server/database/backups/acceptance.test.ts`（14 条）。
 隔离：临时库与临时备份/状态目录（`vi.hoisted` 改道三个环境变量），
 不碰真实 `data/snapshots.sqlite3`、真实备份目录与任何 launchd 服务。
 
@@ -299,7 +300,7 @@ pnpm test                                                        # 全量
 | --- | --- |
 | `pnpm typecheck` | `tsc --noEmit` 0 错误，EXIT=0 |
 | `pnpm lint` | 543 文件、0 error、9 warnings（全部为既有的 `suspicious/noDocumentCookie`），EXIT=0 |
-| `pnpm test` | 六轮全量，162 文件 / 1607 条；每轮恰有 1 条偶发失败或在途红灯，逐轮见下表；**备份域验收 13 条六轮全部通过** |
+| `pnpm test` | 六轮全量，162 文件 / 1607 条；每轮恰有 1 条偶发失败或在途红灯，逐轮见下表；**备份域验收当时 13 条（任务 65 增加第 14 条）六轮全部通过** |
 | `pnpm build` | EXIT=0；前端 `dist/index.html` 与 SSR 产物 `main` / `task-worker` / `query-worker` / `mutation-worker` / `validation-worker`（含 `sw.js`）齐全 |
 
 全量波动与归属（HEAD 推进中，各轮基线不同）：
@@ -316,10 +317,10 @@ pnpm test                                                        # 全量
 逐条结论：
 
 1. `pnpm typecheck` 与 `pnpm lint` 干净，lint 的 9 条警告为既有同类问题（见「已知边界」）。
-2. 验收范围（备份域 13 条、clash 验收 12 条、database 与 clash 服务端全部用例）在六轮全量中从未失败；单跑复核：备份验收 13/13、clash 验收 12/12。
+2. 验收范围（备份域当时 13 条、clash 验收 12 条、database 与 clash 服务端全部用例）在六轮全量中从未失败；单跑复核：备份验收 13/13（任务 65 后的现值为 14 条）、clash 验收 12/12。
 3. 全量未拿到零失败：偶发失败集中在并行负载下的压线用例（`service.test` 两条多备份用例、`tasks/integration` 两条），单跑全部稳定通过；已建议另立「测试耗时治理」任务（克隆化或显式超时），不阻塞本验收。
 4. 真实数据红线：执行前静态核查全部测试的隔离——引用 `DATABASE_FILE` 的 3 个测试分别用 `vi.hoisted`、`vi.mock("@server/env")`、服务参数改道；`FILE_ROOT` 用 `vi.stubEnv`；无硬编码 `data/` 路径；clash 测试均不触发真实控制接口发现（显式 URL 或 socket、`AUTO_DISCOVER=0`、mock fetch）。真实 `data/snapshots.sqlite3`（2.6GB）与 launchd 常驻服务全程未被测试触碰。
-5. 不跑真实浏览器与手机（任务 55）；恢复状态 `verified` 语义问题另见任务 65。
+5. 不跑真实浏览器与手机（任务 55）。
 
 ### 人工验收步骤（未执行，留任务 18/55）
 
@@ -331,6 +332,8 @@ pnpm test                                                        # 全量
 5. 故意改坏备份文件再提交恢复 → 重启 → 确认失败提示、计划 `failed`、
    当前库数据未被触碰。
 6. 手机端（PWA）重复第 3 步，确认面板、确认框与结果未知提示完整可用。
+7. 导入或下载一份 GB 级备份：进度显示已传/已收字节数；服务端没给总量时
+   只显示已传字节，不编造百分比。
 
 ## 已知边界
 
@@ -346,5 +349,6 @@ pnpm test                                                        # 全量
 - **批量删除只针对当前页勾选的记录**，不会跨页累积。
 - 浏览器与真机适配（320px、44px 触控、PWA 安装、弱网）尚未验收，见
   [手机与弱网验收矩阵](./mobile-verification.md)。
-- 全量 `pnpm test` 目前仍有 1 个失败在他人未提交的 `PiPage.test.tsx`（与本域无关）；
-  本域自己的 17 个测试文件、40 个 lint 目标与全项目 typecheck / build 都是干净的。
+- 全量 `pnpm test` 当前全绿（162 文件 / 1607 条用例，2026-10-13 复核）；
+  本域自己的 31 个测试文件（`src/server/database` 18 个 + `src/web/features/database` 13 个）、
+  40 个 lint 目标与全项目 typecheck / build 都是干净的。

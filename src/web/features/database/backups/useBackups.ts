@@ -224,7 +224,7 @@ export const useBackups = () => {
     downloadProgress,
     cancelDownload,
 
-    // 恢复状态（本任务只读展示）
+    // 恢复状态：这里只读展示；提交与取消在 useBackupActions
     restore: restoreQuery.data ?? null,
     restoreLoading: restoreQuery.isPending,
     restoreError:
