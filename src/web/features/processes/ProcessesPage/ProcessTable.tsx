@@ -55,7 +55,7 @@ import {
 import { ProcessAvatar } from "@web/features/processes/ProcessesPage/ProcessAvatar"
 import type { useProcesses } from "@web/features/processes/useProcesses"
 import { cn } from "@web/lib/utils"
-import { useMemo, useState } from "react"
+import { type ReactNode, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 const COLUMN_COUNT = 11
@@ -87,6 +87,8 @@ const compareRows = (
 type ProcessTableProps = {
   model: ReturnType<typeof useProcesses>
   onRequestTerminate: (items: ProcessEntry[], force: boolean) => void
+  /** 表格上方的附加内容（例如可展开的资源详情），随列表一起滚动。 */
+  resources?: ReactNode
 }
 
 export const ProcessTable = (props: ProcessTableProps) => {
@@ -116,6 +118,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
 
   return (
     <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+      {props.resources}
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>

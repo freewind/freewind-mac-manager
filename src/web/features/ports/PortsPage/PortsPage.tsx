@@ -17,23 +17,17 @@ import {
   AlertDialogTitle,
 } from "@web/components/ui/alert-dialog"
 import { Button } from "@web/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@web/components/ui/card"
 import { Checkbox } from "@web/components/ui/checkbox"
 import { Input } from "@web/components/ui/input"
-import { REFRESH_INTERVAL_SECONDS } from "@web/features/ports/store"
+import { PORT_VIEWS, REFRESH_INTERVAL_SECONDS } from "@web/features/ports/store"
 import { usePorts } from "@web/features/ports/usePorts"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { useState } from "react"
 import { toast } from "sonner"
 import { PortFilterBar } from "./PortFilterBar"
-import { PortQuickViews } from "./PortQuickViews"
+import { PortQuickViews, PortViewSelect } from "./PortQuickViews"
 import { PortTable } from "./PortTable"
 
 type PendingConfirm = {
@@ -45,9 +39,12 @@ type PendingConfirm = {
 
 export const PortsPage = () => {
   const model = usePorts()
+  const isDesktop = useIsDesktop()
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
     null
   )
+  const viewLabel =
+    PORT_VIEWS.find((item) => item.key === model.view)?.label ?? model.view
 
   const submission = useDialogSubmit(
     () => setPendingConfirm(null),
@@ -72,6 +69,7 @@ export const PortsPage = () => {
           <PageHeader title="端口管理" loading={model.isLoading} />
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {isDesktop ? null : <PortViewSelect model={model} />}
             <div className="relative">
               <HugeiconsIcon
                 icon={Search01Icon}
@@ -104,32 +102,17 @@ export const PortsPage = () => {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="监听端口"
-            value={String(model.totals.listening)}
-            description={`共 ${model.totals.bindings} 个套接字绑定`}
-          />
-          <StatCard
-            title="已建立连接"
-            value={String(model.totals.connected)}
-            description="按对端服务端口聚合"
-          />
-          <StatCard
-            title="对外暴露"
-            value={String(model.totals.exposed)}
-            description="监听在所有网卡，局域网可访问"
-          />
-          <StatCard
-            title="涉及进程"
-            value={String(model.totals.processCount)}
-            description="当前筛选结果内的进程数"
-          />
+        {/* 一行紧凑摘要：四个关键数字，详细说明不再常驻顶部。 */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted-foreground">
+          <StatItem label="监听端口" value={model.totals.listening} />
+          <StatItem label="已建立连接" value={model.totals.connected} />
+          <StatItem label="对外暴露" value={model.totals.exposed} />
+          <StatItem label="涉及进程" value={model.totals.processCount} />
         </div>
       </header>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
-        <PortQuickViews model={model} />
+        {isDesktop ? <PortQuickViews model={model} /> : null}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <PortFilterBar model={model} />
           <PortTable
@@ -147,9 +130,10 @@ export const PortsPage = () => {
         </div>
       </div>
 
-      <footer className="flex flex-wrap items-center gap-3 border-t px-4 py-2 text-xs text-muted-foreground">
+      {/* 一行状态：当前视图、筛选结果数量与更新时间合并在这里。 */}
+      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-1.5 text-[0.6875rem] text-muted-foreground">
         <span>
-          当前显示 {model.groups.length} 个端口 / {model.totals.bindings}{" "}
+          {viewLabel} · {model.groups.length} 个端口 / {model.totals.bindings}{" "}
           个套接字
         </span>
         <span className="ml-auto">
@@ -197,20 +181,17 @@ export const PortsPage = () => {
   )
 }
 
-type StatCardProps = {
-  title: string
-  value: string
-  description: string
+type StatItemProps = {
+  label: string
+  value: number
 }
 
-const StatCard = (props: StatCardProps) => (
-  <Card className="gap-1 py-3">
-    <CardHeader className="px-4">
-      <CardDescription>{props.title}</CardDescription>
-      <CardTitle className="text-lg tabular-nums">{props.value}</CardTitle>
-    </CardHeader>
-    <CardContent className="px-4">
-      <p className="text-xs text-muted-foreground">{props.description}</p>
-    </CardContent>
-  </Card>
+/** 顶部摘要里的一项统计：只报数字，说明文字不占高度。 */
+const StatItem = (props: StatItemProps) => (
+  <span className="flex items-center gap-1">
+    {props.label}
+    <span className="font-medium text-foreground tabular-nums">
+      {props.value}
+    </span>
+  </span>
 )

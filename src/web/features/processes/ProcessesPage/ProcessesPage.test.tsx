@@ -2,6 +2,7 @@
 import type { MachineOverview, ProcessEntry } from "@shared/api-contract"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { useAiAssistantLocalStore } from "@web/features/ai-assistant/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ProcessesPage } from "./ProcessesPage"
@@ -113,6 +114,56 @@ describe("进程页的标题区", () => {
     renderPage()
 
     expect(screen.getByRole("status", { name: "进程管理 加载中" })).toBeTruthy()
+  })
+})
+
+describe("进程页的紧凑工作区", () => {
+  it("顶部只留一行资源摘要，完整资源卡片默认收起、可在列表区展开", async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText("node")
+
+    // 摘要常驻固定区：只报关键数字
+    expect(screen.getByText(/CPU 15\.0%/)).toBeTruthy()
+    expect(screen.getByText(/内存 4\.0 GB/)).toBeTruthy()
+
+    // 完整卡片默认收起，不占列表高度
+    const trigger = screen.getByRole("button", { name: /资源详情/ })
+    expect(trigger.getAttribute("aria-expanded")).toBe("false")
+    expect(screen.queryByText(/负载/)).toBeNull()
+
+    await user.click(trigger)
+
+    expect(await screen.findByText(/负载/)).toBeTruthy()
+    expect(
+      screen
+        .getByRole("button", { name: /收起资源详情/ })
+        .getAttribute("aria-expanded")
+    ).toBe("true")
+  })
+
+  it("列表是页面唯一的主体滚动区，底部不再重复系统信息", async () => {
+    renderPage()
+    await screen.findByText("node")
+
+    const header = screen.getByRole("columnheader", { name: "进程名称" })
+    expect(header.closest(".overflow-auto")).toBeTruthy()
+
+    // OS 版本与运行时长移进资源详情，不再堆在底部
+    expect(screen.queryByText(/已运行/)).toBeNull()
+    expect(screen.queryByText(/个线程/)).toBeNull()
+  })
+
+  it("批量操作只在选中进程后出现", async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText("node")
+
+    expect(screen.queryByText(/^已选/)).toBeNull()
+
+    await user.click(screen.getByRole("checkbox", { name: "选择 node" }))
+
+    expect(await screen.findByText(/已选 1 个进程/)).toBeTruthy()
   })
 })
 
