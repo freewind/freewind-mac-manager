@@ -26,6 +26,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@web/components/ui/empty"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@web/components/ui/popover"
 import { Progress } from "@web/components/ui/progress"
 import {
   Table,
@@ -327,18 +332,11 @@ const ProcessRow = (props: ProcessRowProps) => {
       <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">
         {item.threads}
       </TableCell>
-      <TableCell className="hidden md:table-cell">
-        {item.ports.length === 0 ? (
-          <span className="text-muted-foreground">—</span>
-        ) : (
-          <span className="flex flex-wrap gap-1">
-            {item.ports.map((port) => (
-              <Badge key={port} variant="outline">
-                :{port}
-              </Badge>
-            ))}
-          </span>
-        )}
+      <TableCell
+        className="hidden md:table-cell"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <PortBadges ports={item.ports} />
       </TableCell>
       <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">
         {formatDuration(uptimeSeconds)}
@@ -377,6 +375,58 @@ const ProcessRow = (props: ProcessRowProps) => {
         </DropdownMenu>
       </TableCell>
     </TableRow>
+  )
+}
+
+type PortBadgesProps = {
+  ports: number[]
+}
+
+/**
+ * 端口列只展示第一个端口，其余收进 `+N`，点击弹出完整列表。
+ *
+ * 之前用 flex-wrap 平铺所有端口，端口一多就换行竖排，把同一行的运行时长挤窄。
+ */
+const PortBadges = (props: PortBadgesProps) => {
+  const { ports } = props
+  const [first, ...rest] = ports
+
+  if (first === undefined) {
+    return <span className="text-muted-foreground">—</span>
+  }
+
+  return (
+    <span className="flex items-center gap-1 whitespace-nowrap">
+      <Badge variant="outline">:{first}</Badge>
+      {rest.length > 0 ? (
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="xs"
+                className="min-h-11 px-1.5 md:min-h-6"
+                aria-label={`查看全部 ${ports.length} 个端口`}
+              >
+                +{rest.length}
+              </Button>
+            }
+          />
+          <PopoverContent align="start" className="w-auto max-w-64 p-2">
+            <ul
+              aria-label={`全部 ${ports.length} 个端口`}
+              className="flex max-h-64 flex-col gap-0.5 overflow-auto"
+            >
+              {ports.map((port) => (
+                <li key={port} className="px-1 py-0.5 tabular-nums">
+                  端口 {port}
+                </li>
+              ))}
+            </ul>
+          </PopoverContent>
+        </Popover>
+      ) : null}
+    </span>
   )
 }
 

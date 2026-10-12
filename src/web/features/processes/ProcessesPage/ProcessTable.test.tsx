@@ -105,4 +105,36 @@ describe("进程表", () => {
     renderTable([])
     expect(screen.getByText("没有匹配的进程")).toBeTruthy()
   })
+
+  it("多端口只显示第一个与 +N，点击后弹出全部端口", async () => {
+    const user = userEvent.setup()
+    renderTable([processEntry({ ports: [59094, 59095, 59108, 59200] })])
+
+    // 行内只留第一个端口，其余不再平铺
+    expect(screen.getByText(":59094")).toBeTruthy()
+    expect(screen.queryByText(":59095")).toBeNull()
+
+    const trigger = screen.getByRole("button", { name: "查看全部 4 个端口" })
+    expect(trigger.textContent).toBe("+3")
+
+    await user.click(trigger)
+    for (const port of [59094, 59095, 59108, 59200]) {
+      expect(await screen.findByText(`端口 ${port}`)).toBeTruthy()
+    }
+  })
+
+  it("只有一个端口时不出现 +N", () => {
+    renderTable([processEntry({ ports: [51509] })])
+
+    expect(screen.getByText(":51509")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /查看全部/ })).toBeNull()
+    expect(screen.queryByText(/^\+\d+$/)).toBeNull()
+  })
+
+  it("没有端口时仍显示占位符", () => {
+    renderTable([processEntry({ ports: [] })])
+
+    expect(screen.getByText("—")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /查看全部/ })).toBeNull()
+  })
 })
