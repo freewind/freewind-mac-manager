@@ -366,7 +366,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
                 <ComboboxEmpty>无匹配项</ComboboxEmpty>
                 <ComboboxList>
                   {(item: { value: string; label: string }) => (
-                    <ComboboxItem key={item.value} value={item.value}>
+                    <ComboboxItem key={item.value} value={item}>
                       {item.label}
                     </ComboboxItem>
                   )}

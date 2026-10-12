@@ -218,7 +218,7 @@ export const RuleFormDialog = (props: RuleFormDialogProps) => {
                 <ComboboxEmpty>无匹配项</ComboboxEmpty>
                 <ComboboxList>
                   {(item: { value: CaddyMatchKind; label: string }) => (
-                    <ComboboxItem key={item.value} value={item.value}>
+                    <ComboboxItem key={item.value} value={item}>
                       {item.label}
                     </ComboboxItem>
                   )}

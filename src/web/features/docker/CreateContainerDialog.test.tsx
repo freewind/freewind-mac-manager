@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 
 import type { DockerImage } from "@shared/api-contract"
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { CreateContainerDialog } from "./CreateContainerDialog"
 
@@ -105,6 +112,29 @@ describe("新建容器表单", () => {
       restartPolicy: "no",
       // 「--save 60 1」是一整行，因此是数组里的一个元素
       command: ["redis-server", "--save 60 1", "yes"],
+    })
+  })
+
+  it("选中重启策略后写入表单并进入提交体，不是 undefined", async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderDialog()
+
+    setValue(screen.getByLabelText("镜像（必填）"), "alpine:3.20")
+
+    // ComboboxItem 必须传对象本身：传字符串时回调里读 .value 会拿到 undefined
+    const combo = screen.getByRole("combobox", {
+      name: "重启策略",
+    }) as HTMLInputElement
+    await user.click(combo)
+    await user.click(await screen.findByRole("option", { name: "总是重启" }))
+    // 选中生效的直接证据：输入框显示被选项的文案（传字符串时这里会是空）
+    expect(combo.value).toBe("总是重启")
+
+    screen.getByRole("button", { name: "创建并启动" }).click()
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({
+      restartPolicy: "always",
     })
   })
 
