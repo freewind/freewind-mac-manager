@@ -54,7 +54,7 @@ export const TrafficPage = () => {
   const assistantContext = buildAiAssistantContext({
     feature: "流量监控",
     subject: model.isRealtime
-      ? `实时视图（每 ${model.status?.intervalSeconds ?? 1} 秒采样）`
+      ? `实时视图（每 ${model.samplingIntervalSeconds} 秒采样）`
       : model.selectedSnapshots[0]
         ? `快照区间 ${model.selectedSnapshots[0].rangeText}${
             model.selectedSnapshotCount > 1
@@ -169,12 +169,12 @@ export const TrafficPage = () => {
           <StatCard
             title={<IconLabel icon={ArrowDown01Icon} text="实时" />}
             value={`${formatBytes(model.status?.downloadRate ?? 0)}/s`}
-            description={`每 ${model.status?.intervalSeconds ?? 1} 秒采样一次`}
+            description={`每 ${model.samplingIntervalSeconds} 秒采样一次`}
           />
           <StatCard
             title={<IconLabel icon={ArrowUp01Icon} text="实时" />}
             value={`${formatBytes(model.status?.uploadRate ?? 0)}/s`}
-            description={`每 ${model.status?.intervalSeconds ?? 1} 秒采样一次`}
+            description={`每 ${model.samplingIntervalSeconds} 秒采样一次`}
           />
           <StatCard
             title={
@@ -261,7 +261,7 @@ export const TrafficPage = () => {
         </span>
         <span className="ml-auto">
           {model.isRealtime
-            ? `实时视图（每 ${model.status?.intervalSeconds ?? 1} 秒采样）`
+            ? `实时视图（每 ${model.samplingIntervalSeconds} 秒采样）`
             : model.selectedSnapshotCount > 1
               ? `已选 ${model.selectedSnapshotCount} 份快照，显示合计`
               : model.selectedSnapshots[0]

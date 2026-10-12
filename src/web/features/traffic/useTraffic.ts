@@ -13,6 +13,7 @@ import { trafficSnapshotTaskTarget } from "@shared/task-targets"
 import { useQueryClient } from "@tanstack/react-query"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
 import {
+  FALLBACK_INTERVAL_SECONDS,
   useInvalidateTrafficAll,
   useKillProcesses,
   useTrafficGroups,
@@ -243,6 +244,9 @@ export const useTraffic = () => {
     // 数据
     snapshots,
     status: statusQuery.data,
+    // 采样间隔以后端状态为唯一来源；状态未就绪时用兜底秒数，页面不做第二份兜底。
+    samplingIntervalSeconds:
+      statusQuery.data?.intervalSeconds ?? FALLBACK_INTERVAL_SECONDS,
     groups,
     totals,
     hiddenCount: allGroups.length - groups.length,

@@ -22,6 +22,16 @@ export const trafficKeys = {
     ["traffic", "groups", [...ids].sort().join("|")] as const,
 }
 
+/** 状态还没拿到时的兜底采样秒数；正常轮询一律以后端返回的 intervalSeconds 为准。 */
+export const FALLBACK_INTERVAL_SECONDS = 1
+
+/**
+ * 轮询间隔由后端的采样间隔推导：服务端改成多少秒，页面就跟随多少，
+ * 避免两处各写一个数字后出现「页面写着每 1 秒、实际 5 秒才刷新」的滞后。
+ */
+export const trafficPollMs = (intervalSeconds: number | undefined): number =>
+  (intervalSeconds ?? FALLBACK_INTERVAL_SECONDS) * 1000
+
 export const useTrafficSnapshots = () =>
   useQuery({
     queryKey: trafficKeys.snapshots,
@@ -33,12 +43,15 @@ export const useTrafficStatus = () =>
   useQuery({
     queryKey: trafficKeys.status,
     queryFn: async (): Promise<TrafficStatus> => fetchTrafficStatus(),
-    refetchInterval: 5000,
+    // 间隔不写死：跟随状态里的采样间隔；状态未就绪时先按兜底间隔取一次。
+    refetchInterval: (query) =>
+      trafficPollMs(query.state.data?.intervalSeconds),
   })
 
 /** 选中「实时」时拉当前进程，否则拉所选快照的合计；实时会自动刷新。 */
 export const useTrafficGroups = (ids: string[]) => {
   const realtime = ids.length === 0 || ids.includes(REALTIME_SNAPSHOT_ID)
+  const queryClient = useQueryClient()
 
   return useQuery({
     queryKey: trafficKeys.groups(ids),
@@ -48,7 +61,14 @@ export const useTrafficGroups = (ids: string[]) => {
       )
       return result.groups
     },
-    refetchInterval: realtime ? 5000 : false,
+    // 实时态跟随采样间隔；非实时态（快照）保持不轮询。
+    refetchInterval: realtime
+      ? () =>
+          trafficPollMs(
+            queryClient.getQueryData<TrafficStatus>(trafficKeys.status)
+              ?.intervalSeconds
+          )
+      : false,
   })
 }
 
