@@ -105,7 +105,7 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
           <Table>
             <TableHeader className="sticky top-0 bg-background">
               <TableRow>
-                <TableHead className="w-8">
+                <TableHead className="w-[1%] whitespace-nowrap">
                   <Checkbox
                     aria-label="全选当前目录"
                     checked={allChecked}

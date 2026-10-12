@@ -323,7 +323,7 @@ export const DashboardPage = () => {
                     <TableHead className="w-[1%] whitespace-nowrap">
                       用户
                     </TableHead>
-                    <TableHead className="w-28 text-right whitespace-nowrap">
+                    <TableHead className="w-[1%] text-right whitespace-nowrap">
                       <SortButton
                         label="CPU"
                         active={model.processSortKey === "cpu"}
@@ -331,7 +331,7 @@ export const DashboardPage = () => {
                         onClick={() => model.setProcessSort("cpu")}
                       />
                     </TableHead>
-                    <TableHead className="w-24 text-right whitespace-nowrap">
+                    <TableHead className="w-[1%] text-right whitespace-nowrap">
                       <SortButton
                         label="内存"
                         active={model.processSortKey === "memory"}

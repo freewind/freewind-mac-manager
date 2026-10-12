@@ -241,23 +241,25 @@ export const DiskGrowthPage = () => {
                   <SortableHead
                     label="大小"
                     sortKey="size"
-                    className="w-24 text-right"
+                    className="w-[1%] text-right whitespace-nowrap"
                   />
                   {view === "size" ? (
                     <SortableHead
                       label="占比"
                       sortKey="size"
-                      className="w-40 text-right"
+                      className="w-[1%] text-right whitespace-nowrap"
                     />
                   ) : (
                     <SortableHead
                       label="增长"
                       sortKey="delta"
-                      className="w-24 text-right"
+                      className="w-[1%] text-right whitespace-nowrap"
                     />
                   )}
                   <TableHead className="w-1/3">路径</TableHead>
-                  <TableHead className="w-16 text-right">操作</TableHead>
+                  <TableHead className="w-[1%] whitespace-nowrap text-right">
+                    操作
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -391,14 +393,22 @@ const SearchResultTable = (props: SearchProps) => {
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
             <TableHead className="min-w-72">名称</TableHead>
-            <TableHead className="w-24 text-right">大小</TableHead>
+            <TableHead className="w-[1%] text-right whitespace-nowrap">
+              大小
+            </TableHead>
             {props.view === "size" ? (
-              <TableHead className="w-40 text-right">占比</TableHead>
+              <TableHead className="w-[1%] text-right whitespace-nowrap">
+                占比
+              </TableHead>
             ) : (
-              <TableHead className="w-24 text-right">增长</TableHead>
+              <TableHead className="w-[1%] text-right whitespace-nowrap">
+                增长
+              </TableHead>
             )}
             <TableHead className="w-1/3">路径</TableHead>
-            <TableHead className="w-16 text-right">操作</TableHead>
+            <TableHead className="w-[1%] whitespace-nowrap text-right">
+              操作
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

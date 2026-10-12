@@ -153,7 +153,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
                 />
               </TableHead>
               <TableHead className="w-full">命令</TableHead>
-              <TableHead className="w-[1%]" />
+              <TableHead className="w-[1%] whitespace-nowrap" />
             </TableRow>
           </TableHeader>
           <TableBody>
