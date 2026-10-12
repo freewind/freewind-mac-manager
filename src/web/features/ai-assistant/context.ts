@@ -46,18 +46,31 @@ export type AiAssistantContextInput = {
 }
 
 const REDACTED = "（已省略疑似凭据内容）"
+const TRUNCATION_MARKER = "…（上下文已截断，省略了部分内容）"
 const SECRET_PATTERN =
   /(api[_-]?key|access[_-]?key|secret|token|password|passwd|authorization|bearer|credential|private[_-]?key)/i
 
+/** 每个输出字段（功能名、对象、错误说明、摘要、列表名与条目）都过同一道脱敏。 */
 const sanitize = (line: string): string =>
   SECRET_PATTERN.test(line) ? REDACTED : line
 
+/** `new Date` 的合法范围：超出就会抛 RangeError。 */
+const MAX_TIME_MS = 8.64e15
+
 /** 固定 UTC 文本，避免同一份快照在不同时区/语言下输出不同内容。 */
 const formatTime = (value: number | null | undefined): string | null => {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0 ||
+    value > MAX_TIME_MS
+  ) {
     return null
   }
-  return `${new Date(value).toISOString().slice(0, 19).replace("T", " ")} UTC`
+  return `${new Date(value)
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d+Z$/, "")} UTC`
 }
 
 const statusLines = (input: AiAssistantContextInput): string[] => {
@@ -65,11 +78,10 @@ const statusLines = (input: AiAssistantContextInput): string[] => {
     return ["数据状态：尚未获取（页面仍在加载，未拿到可摘录的数据）"]
   }
   if (input.status === "error") {
+    const reason = input.errorMessage?.trim()
     return [
       `数据状态：读取失败（${
-        input.errorMessage?.trim()
-          ? input.errorMessage.trim()
-          : "页面未提供失败原因"
+        reason ? sanitize(reason) : "页面未提供失败原因"
       }）`,
     ]
   }
@@ -98,13 +110,19 @@ const listLines = (list: AiAssistantContextList): string[] => {
 
 /**
  * 生成预填上下文。输出稳定：同样的入参永远得到同样的文本。
+ *
+ * 长度预算作用于**整体输出**（含功能名、对象、状态行与收尾说明），
+ * 所以不论哪个字段超长，结果都不会突破 AI_CONTEXT_MAX_CHARS；
+ * 截断时保留收尾说明并补上明确的截断标记。
  */
 export const buildAiAssistantContext = (
   input: AiAssistantContextInput
 ): string => {
-  const heading = input.subject?.trim()
-    ? `【AI 助手上下文 · ${input.feature}】${input.subject.trim()}`
-    : `【AI 助手上下文 · ${input.feature}】`
+  const feature = sanitize(input.feature.trim() || "未命名功能")
+  const subject = input.subject?.trim() ? sanitize(input.subject.trim()) : null
+  const heading = subject
+    ? `【AI 助手上下文 · ${feature}】${subject}`
+    : `【AI 助手上下文 · ${feature}】`
 
   const header = [heading, ...statusLines(input).map(sanitize)]
 
@@ -125,32 +143,18 @@ export const buildAiAssistantContext = (
     body.push("页面尚未展示可摘录的数据，请先在页面上完成一次读取。")
   }
 
-  const compose = (lines: string[]): string =>
-    lines.length > 0
-      ? [...header, "", ...lines, "", AI_CONTEXT_NOTICE].join("\n")
-      : [...header, "", AI_CONTEXT_NOTICE].join("\n")
+  const bodyText = body.join("\n")
+  const full =
+    bodyText.length > 0
+      ? [header.join("\n"), bodyText, AI_CONTEXT_NOTICE].join("\n\n")
+      : [header.join("\n"), AI_CONTEXT_NOTICE].join("\n\n")
+  if (full.length <= AI_CONTEXT_MAX_CHARS) return full
 
-  const budget = AI_CONTEXT_MAX_CHARS - compose([]).length
-  const kept: string[] = []
-  let used = 0
-  let truncated = false
-  for (const line of body) {
-    const cost = line.length + 1
-    if (used + cost > budget) {
-      truncated = true
-      break
-    }
-    kept.push(line)
-    used += cost
-  }
-  if (truncated) {
-    const marker = "…（上下文已截断，省略了部分内容）"
-    while (kept.length > 0 && used + marker.length + 1 > budget) {
-      const dropped = kept.pop() ?? ""
-      used -= dropped.length + 1
-    }
-    kept.push(marker)
-  }
-
-  return compose(kept)
+  // 超出上限：从头部保留能放下的内容，末尾补截断标记与固定收尾说明。
+  const suffix = `\n\n${TRUNCATION_MARKER}\n\n${AI_CONTEXT_NOTICE}`
+  const keep = Math.max(0, AI_CONTEXT_MAX_CHARS - suffix.length)
+  const cut = full.slice(0, keep).trimEnd()
+  // 按 UTF-16 切可能把代理对切成半个字符，这里回退一位。
+  const safe = /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut
+  return `${safe}${suffix}`
 }

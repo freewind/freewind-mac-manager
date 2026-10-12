@@ -168,4 +168,87 @@ describe("buildAiAssistantContext", () => {
     expect(AI_CONTEXT_MAX_CHARS).toBe(4000)
     expect(AI_CONTEXT_MAX_ITEMS_PER_LIST).toBe(10)
   })
+
+  it("对象与错误说明自身超长时也受总长约束", () => {
+    const longSubject = buildAiAssistantContext({
+      feature: "总览",
+      subject: `macbook ${"s".repeat(10_000)}`,
+      status: "ready",
+      summary: ["内存 8.0 GB / 16.0 GB"],
+    })
+    expect(longSubject.length).toBeLessThanOrEqual(AI_CONTEXT_MAX_CHARS)
+    expect(longSubject).toContain("…（上下文已截断，省略了部分内容）")
+    expect(longSubject.endsWith(AI_CONTEXT_NOTICE)).toBe(true)
+
+    const longError = buildAiAssistantContext({
+      feature: "Docker",
+      status: "error",
+      errorMessage: `上游返回 ${"e".repeat(10_000)}`,
+    })
+    expect(longError.length).toBeLessThanOrEqual(AI_CONTEXT_MAX_CHARS)
+    expect(longError).toContain("…（上下文已截断，省略了部分内容）")
+    expect(longError.endsWith(AI_CONTEXT_NOTICE)).toBe(true)
+  })
+
+  it("超长对象被截断时仍保留明确的截断标记与收尾说明", () => {
+    const text = buildAiAssistantContext({
+      feature: "总览",
+      subject: "x".repeat(AI_CONTEXT_MAX_CHARS * 2),
+      status: "ready",
+    })
+    expect(text.length).toBeLessThanOrEqual(AI_CONTEXT_MAX_CHARS)
+    // 不只裁 body：对象本身就被裁掉了，且标记与收尾说明都在。
+    expect(text).toContain("…（上下文已截断，省略了部分内容）")
+    expect(text.trimEnd().endsWith(AI_CONTEXT_NOTICE)).toBe(true)
+    // 末尾形状固定：截断标记 + 收尾说明（前面的内容按预算裁掉）。
+    expect(text.slice(-96)).toMatchInlineSnapshot(`
+      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+      …（上下文已截断，省略了部分内容）
+
+      优先调用本应用 API 核实最新状态；本上下文为页面快照，不代表实时状态。"
+    `)
+    expect(text).not.toContain("【AI 助手上下文 · 总览】…（")
+  })
+
+  it("对象与功能名里的凭据同样被脱敏", () => {
+    const text = buildAiAssistantContext({
+      feature: "总览 password=hunter2",
+      subject: "macbook token tk_live_should_not_leak",
+      status: "ready",
+      summary: ["内存 8.0 GB"],
+      lists: [{ label: "带凭据的列表 api_key=sk-1", items: ["OK"] }],
+    })
+    const withErrorSecret = buildAiAssistantContext({
+      feature: "Docker",
+      status: "error",
+      errorMessage: "连接失败 authorization=Bearer abc.secret.token",
+    })
+    expect(text).not.toContain("hunter2")
+    expect(text).not.toContain("tk_live_should_not_leak")
+    expect(text).not.toContain("sk-1")
+    expect(text).toContain("（已省略疑似凭据内容）")
+    expect(text).toContain("内存 8.0 GB")
+    expect(withErrorSecret).not.toContain("abc.secret.token")
+    expect(withErrorSecret).toContain("（已省略疑似凭据内容）")
+  })
+
+  it("有限但超出 Date 范围的时间按未提供时间处理，不抛错", () => {
+    const outOfRange = buildAiAssistantContext({
+      feature: "总览",
+      collectedAt: 8.64e15 + 1,
+      cachedAt: Number.MAX_VALUE,
+      status: "ready",
+      summary: ["内存 8.0 GB"],
+    })
+    expect(outOfRange).toContain("数据状态：正常（未提供时间）")
+    // 合法边界值仍然照常格式化。
+    const boundary = buildAiAssistantContext({
+      feature: "总览",
+      collectedAt: 8.64e15,
+      status: "ready",
+      summary: ["内存 8.0 GB"],
+    })
+    expect(boundary).toContain("采集时间 +275760-09-13 00:00:00 UTC")
+  })
 })
