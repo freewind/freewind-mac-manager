@@ -9,15 +9,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@web/components/ui/select"
 import { useState } from "react"
 import { toast } from "sonner"
 import { piKeys, usePiModels } from "./queries"
@@ -257,23 +258,33 @@ export const SettingsTab = () => {
             </Button>
           </Field>
           <Field label="默认 Thinking 档位">
-            <Select
+            <Combobox
+              items={[
+                "off",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max",
+              ]}
               value={currentDraft.defaultThinkingLevel}
               onValueChange={(value) =>
                 update("defaultThinkingLevel", value ?? "medium")
               }
             >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {THINKING_LEVELS.map((level) => (
-                  <SelectItem key={level} value={level}>
-                    {level}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <ComboboxInput />
+              <ComboboxContent>
+                <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                <ComboboxList>
+                  {(item) => (
+                    <ComboboxItem key={item} value={item}>
+                      {item}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
           </Field>
           <Field label="主题">
             <Input
