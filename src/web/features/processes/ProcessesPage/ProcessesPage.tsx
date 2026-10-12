@@ -26,6 +26,8 @@ import {
 import { Skeleton } from "@web/components/ui/skeleton"
 import { Toggle } from "@web/components/ui/toggle"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
+import { AiAssistantButton } from "@web/features/ai-assistant/AiAssistantButton"
+import { buildAiAssistantContext } from "@web/features/ai-assistant/context"
 import {
   averageCoreUsage,
   formatDuration,
@@ -58,6 +60,51 @@ export const ProcessesPage = () => {
     if (items.length === 0) return
     setPending({ items, force })
   }
+
+  // 只列 PID、名称与资源占用：不带命令行与可执行文件路径，避免把凭据带进上下文。
+  const assistantContext = buildAiAssistantContext({
+    feature: "进程管理",
+    subject: [
+      PROCESS_SCOPES.find((item) => item.key === model.scope)?.label ??
+        model.scope,
+      model.search ? `搜索「${model.search}」` : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    cachedAt: model.updatedAt,
+    status: model.error ? "error" : model.isLoading ? "loading" : "ready",
+    errorMessage: model.error,
+    summary: [
+      model.overview
+        ? `主机：${model.overview.system.hostname} · ${model.overview.system.chip} · 内存 ${formatBytes(
+            model.overview.memory.used
+          )} / ${formatBytes(model.overview.memory.total)}`
+        : "主机指标：页面尚未获取",
+      model.error
+        ? "进程：未展示（读取失败，不把缺失当成 0 个进程）"
+        : model.isLoading
+          ? "进程：页面尚未获取"
+          : `进程：共 ${model.processes.length} 个，当前筛选后显示 ${model.filteredProcesses.length} 个，线程合计 ${model.threadCount}`,
+      `上次采样：${model.secondsSinceUpdate} 秒前${
+        model.autoRefresh ? "（自动刷新中）" : "（自动刷新已暂停）"
+      }`,
+    ],
+    lists: [
+      {
+        label: "占用 CPU 最高的进程",
+        items: [...model.filteredProcesses]
+          .sort((left, right) => right.cpu - left.cpu)
+          .slice(0, 10)
+          .map(
+            (item) =>
+              `PID ${item.pid} ${item.name} · CPU ${item.cpu.toFixed(
+                1
+              )}% · 内存 ${formatBytes(item.memoryBytes)} · 用户 ${item.user} · 状态 ${item.state}`
+          ),
+        total: model.filteredProcesses.length,
+      },
+    ],
+  })
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -105,6 +152,7 @@ export const ProcessesPage = () => {
             <HugeiconsIcon icon={model.autoRefresh ? PauseIcon : PlayIcon} />
             {model.autoRefresh ? "自动刷新" : "已暂停"}
           </Toggle>
+          <AiAssistantButton context={assistantContext} />
           <Button
             variant="outline"
             size="sm"

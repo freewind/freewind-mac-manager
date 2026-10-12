@@ -3,7 +3,14 @@
 import type { DockerOverview } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
+import { useAiAssistantLocalStore } from "@web/features/ai-assistant/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { DockerPage } from "./DockerPage"
 
@@ -95,6 +102,11 @@ const renderPage = () => {
 
 afterEach(() => {
   cleanup()
+  useAiAssistantLocalStore.setState({
+    open: false,
+    initialContext: null,
+    sessionId: null,
+  })
   fetchDockerOverview.mockReset()
   fetchDockerContainers.mockReset()
   fetchDockerImages.mockReset()
@@ -231,5 +243,40 @@ describe("DockerPage 分区导航", () => {
     renderPage()
     expect(await screen.findByRole("heading", { name: "网络" })).toBeTruthy()
     expect(await screen.findByText("没有网络")).toBeTruthy()
+  })
+
+  it("AI 按钮带上概览计数与缓存里的容器条目", async () => {
+    fetchDockerOverview.mockResolvedValue(overview)
+    fetchDockerContainers.mockResolvedValue({
+      containers: [
+        {
+          id: "c1".padEnd(64, "0"),
+          name: "web",
+          image: "nginx:latest",
+          command: "nginx -g 'daemon off;'",
+          state: "running",
+          status: "Up 3 hours",
+          createdAt: 1_700_000_000_000,
+          startedAt: null,
+          ports: [],
+          mounts: [],
+        },
+      ],
+      skipped: [],
+    })
+    renderPage()
+    expect(await screen.findByText("共 4 个容器")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 助手" }))
+
+    const context = useAiAssistantLocalStore.getState().initialContext ?? ""
+    expect(context).toContain("【AI 助手上下文 · Docker】docker 29.5.2")
+    expect(context).toContain("容器：共 4 · 运行 3 · 暂停 1 · 停止 0")
+    expect(context).toContain("镜像：8 个")
+    expect(context).toContain("容器明细：已从缓存读到 1 条")
+    expect(context).toContain("#c10000000000 web · running · Up 3 hours")
+    expect(context).toContain("优先调用本应用 API 核实最新状态")
+    // 上下文读的是容器分区已经拉到的缓存，不为按钮多发一次请求。
+    expect(fetchDockerContainers).toHaveBeenCalledTimes(1)
   })
 })

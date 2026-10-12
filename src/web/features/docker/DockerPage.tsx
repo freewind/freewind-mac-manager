@@ -4,8 +4,12 @@ import {
   RefreshIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import type { DockerOverview } from "@shared/api-contract"
+import type {
+  DockerContainersResponse,
+  DockerOverview,
+} from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
+import { useQuery } from "@tanstack/react-query"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import {
@@ -17,10 +21,13 @@ import {
 } from "@web/components/ui/card"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
+import { AiAssistantButton } from "@web/features/ai-assistant/AiAssistantButton"
+import { buildAiAssistantContext } from "@web/features/ai-assistant/context"
 import { ColimaCard } from "@web/features/docker/ColimaCard"
 import { ContainerList } from "@web/features/docker/ContainerList"
 import { ImageList } from "@web/features/docker/ImageList"
 import { NetworkList } from "@web/features/docker/NetworkList"
+import { dockerKeys } from "@web/features/docker/queries"
 import { useDocker } from "@web/features/docker/useDocker"
 import {
   DOCKER_TABS,
@@ -34,6 +41,56 @@ export const DockerPage = () => {
   const model = useDocker()
   const { tab, selectTab } = useDockerTab()
   const overview = model.overview
+
+  // 读容器列表的缓存而不发请求：没打开过容器标签时就不要为了上下文多发一次
+  // 接口；拿不到就如实写「未加载」，不拿来饰数据凑数。
+  const cachedContainers = useQuery<DockerContainersResponse>({
+    queryKey: dockerKeys.containers,
+    enabled: false,
+  })
+  const containers = cachedContainers.data?.containers ?? []
+  // 区分「没读过」与「读过但没有容器」：两者不能用同一句话。
+  const containersLoaded = cachedContainers.isSuccess
+
+  // 只整理页面上已经显示出来的计数与缓存里的容器条目。
+  const assistantContext = buildAiAssistantContext({
+    feature: "Docker",
+    subject: [
+      overview ? `docker ${overview.version ?? "版本未知"}` : null,
+      overview?.colima.running ? "Colima 运行中" : null,
+      `当前分区 ${tab}`,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    collectedAt: overview?.checkedAt ?? null,
+    status: overview ? "ready" : model.error ? "error" : "loading",
+    errorMessage: model.error,
+    summary: overview
+      ? [
+          `Docker 可用：${overview.available ? "是" : "否"}`,
+          `容器：共 ${overview.containers.total} · 运行 ${overview.containers.running} · 暂停 ${overview.containers.paused} · 停止 ${overview.containers.stopped}`,
+          `镜像：${overview.images.total} 个，占用 ${formatBytes(overview.images.sizeBytes)}`,
+          `卷：${overview.volumes.total} 个 · 网络：${overview.networks.total} 个`,
+          containersLoaded
+            ? containers.length > 0
+              ? `容器明细：已从缓存读到 ${containers.length} 条`
+              : "容器明细：已读取，当前没有容器"
+            : "容器明细：尚未读取（未打开容器分区时不会额外请求）",
+        ]
+      : [],
+    lists: [
+      {
+        label: "容器（缓存快照）",
+        items: containers
+          .slice(0, 10)
+          .map(
+            (item) =>
+              `#${item.id.slice(0, 12)} ${item.name} · ${item.state} · ${item.status} · 镜像 ${item.image}`
+          ),
+        total: containers.length,
+      },
+    ],
+  })
 
   return (
     <div className="flex min-w-0 flex-col gap-3 p-3">
@@ -50,15 +107,18 @@ export const DockerPage = () => {
           </div>
         </div>
         {/* 手机上也够大的触控目标，图标与文字都在按钮里 */}
-        <Button
-          variant="outline"
-          className="ml-auto min-h-11 shrink-0 px-3"
-          onClick={model.refresh}
-          disabled={model.isRefreshing}
-        >
-          <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
-          刷新
-        </Button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <AiAssistantButton context={assistantContext} />
+          <Button
+            variant="outline"
+            className="min-h-11 shrink-0 px-3"
+            onClick={model.refresh}
+            disabled={model.isRefreshing}
+          >
+            <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+            刷新
+          </Button>
+        </div>
       </header>
 
       {model.error ? (

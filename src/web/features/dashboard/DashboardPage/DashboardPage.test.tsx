@@ -6,7 +6,8 @@ import type {
   ProcessInfo,
 } from "@shared/api-contract"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { useAiAssistantLocalStore } from "@web/features/ai-assistant/store"
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, it } from "vitest"
 import { dashboardKeys } from "../queries"
@@ -97,6 +98,11 @@ const renderPage = () => {
 
 afterEach(() => {
   cleanup()
+  useAiAssistantLocalStore.setState({
+    open: false,
+    initialContext: null,
+    sessionId: null,
+  })
 })
 
 describe("概览页", () => {
@@ -126,5 +132,26 @@ describe("概览页", () => {
     renderPage()
 
     expect(screen.getByText("手机上可左右滑动查看完整的监听地址")).toBeTruthy()
+  })
+
+  it("AI 按钮带上页面上已显示的真实摘要，且只是预填不发请求", () => {
+    renderPage()
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 助手" }))
+
+    const state = useAiAssistantLocalStore.getState()
+    expect(state.open).toBe(true)
+    const context = state.initialContext ?? ""
+    expect(context).toContain("【AI 助手上下文 · 总览】freewind-mbp")
+    expect(context).toContain("Apple M3 Max")
+    expect(context).toContain(
+      "CPU 负载（1/5/15 分钟）：2.50 / 2.10 / 1.90 · 8 核"
+    )
+    expect(context).toContain("监听端口（共 67 条，仅列前 10 条）：")
+    expect(context).toContain("占用最高的进程（按 CPU）（6 条）：")
+    expect(context).toContain("busy-process-1")
+    expect(context).toContain("优先调用本应用 API 核实最新状态")
+    // 只是打开并预填：没有会话，也没有发出任何请求。
+    expect(state.sessionId).toBeNull()
   })
 })

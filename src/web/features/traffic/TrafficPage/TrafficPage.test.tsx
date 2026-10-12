@@ -3,7 +3,8 @@
 import type { TrafficGroup, TrafficStatus } from "@shared/api-contract"
 import { ApiRequestError } from "@shared/client-api"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { useAiAssistantLocalStore } from "@web/features/ai-assistant/store"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { TrafficPage } from "./TrafficPage"
@@ -83,6 +84,11 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  useAiAssistantLocalStore.setState({
+    open: false,
+    initialContext: null,
+    sessionId: null,
+  })
   vi.unstubAllGlobals()
   for (const fn of Object.values(api)) fn.mockReset()
   toastMock.success.mockReset()
@@ -119,5 +125,21 @@ describe("流量页", () => {
     expect(screen.getByText(/共 2 个进程/)).toBeTruthy()
     expect(screen.getByText("vite-dev")).toBeTruthy()
     expect(screen.getByText("webkit")).toBeTruthy()
+  })
+
+  it("AI 按钮带上本页真实流量摘要与进程分组", async () => {
+    renderPage()
+    // 等进程分组的真实数据上来再取上下文。
+    await screen.findByText("webkit")
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 助手" }))
+
+    const context = useAiAssistantLocalStore.getState().initialContext ?? ""
+    expect(context).toContain("【AI 助手上下文 · 流量监控】实时视图")
+    expect(context).toContain("实时速率：下载")
+    expect(context).toContain("累计：7.0 KB（入 3.0 KB / 出 4.0 KB）· 2 个进程")
+    expect(context).toContain("按流量的进程分组（2 条）：")
+    expect(context).toContain("webkit：入 1.0 KB / 出 0")
+    expect(context).toContain("优先调用本应用 API 核实最新状态")
   })
 })

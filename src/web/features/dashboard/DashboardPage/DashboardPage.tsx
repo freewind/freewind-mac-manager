@@ -39,6 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import { AiAssistantButton } from "@web/features/ai-assistant/AiAssistantButton"
+import { buildAiAssistantContext } from "@web/features/ai-assistant/context"
 import { useDashboard } from "@web/features/dashboard/useDashboard"
 import { cn } from "@web/lib/utils"
 import type { ReactNode } from "react"
@@ -46,6 +48,66 @@ import type { ReactNode } from "react"
 export const DashboardPage = () => {
   const model = useDashboard()
   const overview = model.overview
+
+  // 只整理页面上已经显示出来的数据：不取数、不读 DOM，拿不到就写「尚未获取」。
+  const assistantContext = buildAiAssistantContext({
+    feature: "总览",
+    subject: overview
+      ? `${overview.system.hostname} · ${overview.system.model} · ${overview.system.chip} · ${overview.system.osVersion}`
+      : null,
+    collectedAt: overview?.sampledAt ?? null,
+    status: overview ? "ready" : model.error ? "error" : "loading",
+    errorMessage: model.error,
+    summary: overview
+      ? [
+          `CPU 负载（1/5/15 分钟）：${overview.cpu.loadAverage
+            .map((value) => value.toFixed(2))
+            .join(" / ")} · ${overview.cpu.coreCount} 核`,
+          `内存：${formatBytes(overview.memory.used)} / ${formatBytes(
+            overview.memory.total
+          )}（可用 ${formatBytes(overview.memory.free)}，交换区 ${formatBytes(
+            overview.memory.swapUsed
+          )} / ${formatBytes(overview.memory.swapTotal)}）`,
+          model.pressure
+            ? `内存压力：${model.pressure.label}`
+            : "内存压力：页面尚未判定",
+          ...overview.disk.map(
+            (volume) =>
+              `磁盘 ${volume.mount}：${formatBytes(volume.used)} / ${formatBytes(
+                volume.total
+              )}（名称 ${volume.name}）`
+          ),
+          `网络 ${overview.network.interfaceName}：下载 ${formatBytes(
+            overview.network.downloadRate
+          )}/s、上传 ${formatBytes(overview.network.uploadRate)}/s`,
+          `已开机 ${formatDuration(overview.system.uptimeSeconds)} · ${
+            overview.system.userCount
+          } 人登录`,
+        ]
+      : [],
+    lists: [
+      {
+        label: "占用最高的进程（按 CPU）",
+        items: model.processes
+          .slice(0, 10)
+          .map(
+            (item) =>
+              `PID ${item.pid} ${item.name} · CPU ${item.cpu.toFixed(1)}% · 内存 ${formatBytes(item.memory)}`
+          ),
+        total: model.processes.length,
+      },
+      {
+        label: "监听端口",
+        items: model.ports
+          .slice(0, 10)
+          .map(
+            (item) =>
+              `:${item.port} ${item.process}（PID ${item.pid}）· ${item.address}`
+          ),
+        total: model.ports.length,
+      },
+    ],
+  })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -61,6 +123,7 @@ export const DashboardPage = () => {
                   ? `更新于 ${formatClock(overview.sampledAt)} · 每 3 秒自动刷新`
                   : "正在读取状态"}
             </span>
+            <AiAssistantButton context={assistantContext} />
             <Button size="sm" variant="outline" onClick={model.togglePaused}>
               {model.paused ? "继续刷新" : "暂停刷新"}
             </Button>

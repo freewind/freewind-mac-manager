@@ -8,7 +8,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { TrafficSnapshot } from "@shared/api-contract"
-import { formatBytes } from "@shared/format"
+import { describeError, formatBytes } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import {
   AlertDialog,
@@ -27,6 +27,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
+import { AiAssistantButton } from "@web/features/ai-assistant/AiAssistantButton"
+import { buildAiAssistantContext } from "@web/features/ai-assistant/context"
 import { useTraffic } from "@web/features/traffic/useTraffic"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
@@ -47,6 +49,58 @@ export const TrafficPage = () => {
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
     null
   )
+
+  // 只整理页面上已经显示出来的数据；进程明细未就绪时绝不把 0 当真实值。
+  const assistantContext = buildAiAssistantContext({
+    feature: "流量监控",
+    subject: model.isRealtime
+      ? `实时视图（每 ${model.status?.intervalSeconds ?? 5} 秒采样）`
+      : model.selectedSnapshots[0]
+        ? `快照区间 ${model.selectedSnapshots[0].rangeText}${
+            model.selectedSnapshotCount > 1
+              ? `（已选 ${model.selectedSnapshotCount} 份，显示合计）`
+              : ""
+          }`
+        : "尚未选择快照",
+    // 流量侧的时间戳是秒，这里统一换算成毫秒。
+    collectedAt: model.status?.sampledAt ? model.status.sampledAt * 1000 : null,
+    status: model.error ? "error" : model.isLoading ? "loading" : "ready",
+    errorMessage: model.error ? describeError(model.error) : null,
+    summary: [
+      model.status
+        ? `实时速率：下载 ${formatBytes(model.status.downloadRate)}/s、上传 ${formatBytes(model.status.uploadRate)}/s`
+        : "实时速率：页面尚未获取",
+      model.groupsFailed
+        ? "进程明细读取失败，累计与进程数不可用（不把 0 当真实值）"
+        : model.groupsLoading
+          ? "正在读取进程明细，累计值暂不可用"
+          : `累计：${formatBytes(model.totals.total)}（入 ${formatBytes(
+              model.totals.bytesIn
+            )} / 出 ${formatBytes(model.totals.bytesOut)}）· ${
+              model.totals.processCount
+            } 个进程`,
+      `忽略代理进程：${model.ignoreProxy ? "是" : "否"}${
+        model.ignoreProxy && model.hiddenCount > 0
+          ? `（已隐藏 ${model.hiddenCount} 个）`
+          : ""
+      }`,
+    ],
+    lists:
+      model.groupsFailed || model.groupsLoading
+        ? []
+        : [
+            {
+              label: "按流量的进程分组",
+              items: model.groups
+                .slice(0, 10)
+                .map(
+                  (group) =>
+                    `${group.name}：入 ${formatBytes(group.bytesIn)} / 出 ${formatBytes(group.bytesOut)}`
+                ),
+              total: model.groups.length,
+            },
+          ],
+  })
 
   const submission = useDialogSubmit(
     () => setPendingConfirm(null),
@@ -89,6 +143,7 @@ export const TrafficPage = () => {
           <h1 className="text-sm font-medium">流量监控</h1>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <AiAssistantButton context={assistantContext} />
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <input
                 type="checkbox"
