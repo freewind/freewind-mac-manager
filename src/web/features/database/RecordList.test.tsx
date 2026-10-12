@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { DatabaseRecord, DatabaseTable } from "@shared/api-contract"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { recordKeyFingerprint } from "./format"
@@ -125,6 +125,21 @@ const pickFrom = async (label: string, option: string): Promise<void> => {
   await user.click(await screen.findByRole("option", { name: option }))
 }
 
+/**
+ * 可搜索下拉的交互：点输入框展开，再点选项。
+ * base-ui 的 Combobox 是输入框，交互与官方 Select 不同。
+ */
+const pickSearchable = async (
+  label: string,
+  option: string
+): Promise<HTMLElement> => {
+  const user = userEvent.setup()
+  const input = screen.getByRole("combobox", { name: label })
+  await user.click(input)
+  await user.click(await screen.findByRole("option", { name: option }))
+  return input
+}
+
 beforeEach(() => stubMatchMedia())
 afterEach(() => {
   cleanup()
@@ -196,10 +211,70 @@ describe("RecordList 筛选排序分页", () => {
 
   it("选择排序字段时带上方向", async () => {
     const props = renderList()
-    await pickFrom("排序字段", "name")
+    await pickSearchable("排序字段", "name")
     expect(props.onSortsChange).toHaveBeenCalledWith([
       { column: "name", direction: "asc" },
     ])
+  })
+
+  it("受控值会回填到排序字段的输入框", () => {
+    renderList({ sorts: [{ column: "name", direction: "desc" }] })
+    expect(screen.getByRole("combobox", { name: "排序字段" })).toHaveProperty(
+      "value",
+      "name"
+    )
+  })
+
+  it("排序字段可搜索：输入文本只留匹配项，键盘回车直接选中", async () => {
+    const user = userEvent.setup()
+    const props = renderList()
+    const input = screen.getByRole("combobox", { name: "排序字段" })
+    // 键盘可达：聚焦后用方向键展开候选
+    await user.click(input)
+    await user.keyboard("{ArrowDown}")
+    await screen.findByRole("option", { name: "payload" })
+    await user.clear(input)
+    await user.type(input, "note")
+    await screen.findByRole("option", { name: "note" })
+    expect(
+      within(document.body).queryByRole("option", { name: "name" })
+    ).toBeNull()
+    // 回车前先按方向键高亮第一项：没有任何项高亮时回车不选中
+    await user.keyboard("{ArrowDown}{Enter}")
+    expect(props.onSortsChange).toHaveBeenCalledWith([
+      { column: "note", direction: "asc" },
+    ])
+  })
+
+  it("筛选的字段与条件改成了可搜索下拉，算子显示中文标签", async () => {
+    const user = userEvent.setup()
+    const props = renderList()
+    await pickSearchable("字段", "name")
+    await user.type(screen.getByLabelText("取值"), "ap")
+    const operatorInput = await pickSearchable("条件", "包含")
+    expect(operatorInput).toHaveProperty("value", "包含")
+    await user.click(screen.getByRole("button", { name: /添加筛选/ }))
+    expect(props.onFiltersChange).toHaveBeenCalledWith([
+      {
+        column: "name",
+        operator: "contains",
+        value: { type: "text", value: "ap" },
+      },
+    ])
+  })
+
+  it("条件下拉按输入过滤，只留匹配的算子", async () => {
+    const user = userEvent.setup()
+    renderList()
+    const input = screen.getByRole("combobox", { name: "条件" })
+    await user.click(input)
+    await screen.findByRole("option", { name: "等于" })
+    await user.clear(input)
+    await user.type(input, "空")
+    await screen.findByRole("option", { name: "为空" })
+    expect(
+      within(document.body).queryByRole("option", { name: "等于" })
+    ).toBeNull()
   })
 
   it("翻页与每页条数都走 URL 状态回调", async () => {

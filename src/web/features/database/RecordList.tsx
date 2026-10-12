@@ -14,6 +14,14 @@ import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Checkbox } from "@web/components/ui/checkbox"
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
@@ -62,6 +70,11 @@ import {
 const OPERATORS = Object.keys(
   FILTER_OPERATOR_LABELS
 ) as DatabaseFilterOperator[]
+/** 算子要显示中文，且搜索时按中文匹配，所以带上标签。 */
+const OPERATOR_OPTIONS = OPERATORS.map((operator) => ({
+  value: operator,
+  label: FILTER_OPERATOR_LABELS[operator],
+}))
 const PAGE_SIZES = [10, 20, 50, 100] as const
 const DEFAULT_SORT = "__default__"
 
@@ -127,39 +140,54 @@ const FilterEditor = (props: {
     <div className="flex flex-wrap items-end gap-2">
       <div className="flex flex-col gap-1">
         <Label htmlFor="database-filter-column">字段</Label>
-        <Select
+        <Combobox
+          items={props.columns.map((item) => item.name)}
           value={columnName}
           onValueChange={(next) => setColumnName(next ?? "")}
         >
-          <SelectTrigger id="database-filter-column" className="min-h-11">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {props.columns.map((item) => (
-              <SelectItem key={item.name} value={item.name}>
-                {item.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <ComboboxInput
+            id="database-filter-column"
+            className="min-h-11 w-full"
+            placeholder="搜索字段"
+          />
+          <ComboboxContent>
+            <ComboboxEmpty>无匹配字段</ComboboxEmpty>
+            <ComboboxList>
+              {(item) => (
+                <ComboboxItem key={item} value={item}>
+                  {item}
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor="database-filter-operator">条件</Label>
-        <Select
-          value={operator}
-          onValueChange={(next) => setOperator(next as DatabaseFilterOperator)}
+        <Combobox
+          items={OPERATOR_OPTIONS}
+          itemToStringValue={(item) => item.label}
+          value={
+            OPERATOR_OPTIONS.find((item) => item.value === operator) ?? null
+          }
+          onValueChange={(next) => setOperator(next?.value ?? "eq")}
         >
-          <SelectTrigger id="database-filter-operator" className="min-h-11">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {OPERATORS.map((item) => (
-              <SelectItem key={item} value={item}>
-                {FILTER_OPERATOR_LABELS[item]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <ComboboxInput
+            id="database-filter-operator"
+            className="min-h-11 w-full"
+            placeholder="搜索条件"
+          />
+          <ComboboxContent>
+            <ComboboxEmpty>无匹配条件</ComboboxEmpty>
+            <ComboboxList>
+              {(item) => (
+                <ComboboxItem key={item.value} value={item}>
+                  {item.label}
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
       </div>
       {operatorNeedsValue(operator) ? (
         <div className="flex flex-col gap-1">
@@ -220,6 +248,14 @@ export const RecordList = (props: RecordListProps) => {
   const columns = props.table.columns.filter((column) => !column.hidden)
   const checked = props.checkedFingerprints
   const activeSort = props.sorts[0]
+  /** 排序字段的第一个选项是默认排序，其余是当前表的可见列。 */
+  const sortOptions = [
+    { value: DEFAULT_SORT, label: "默认（按主键）" },
+    ...columns.map((column) => ({
+      value: column.name,
+      label: column.name,
+    })),
+  ]
 
   const hasNext =
     props.total === null
@@ -395,24 +431,37 @@ export const RecordList = (props: RecordListProps) => {
       <div className="flex shrink-0 flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
           <Label htmlFor="database-sort-column">排序字段</Label>
-          <Select
-            value={activeSort?.column ?? DEFAULT_SORT}
+          <Combobox
+            items={sortOptions}
+            itemToStringValue={(item) => item.label}
+            value={
+              sortOptions.find(
+                (item) => item.value === (activeSort?.column ?? DEFAULT_SORT)
+              ) ?? null
+            }
             onValueChange={(next) =>
-              setSort(next ?? DEFAULT_SORT, activeSort?.direction ?? "asc")
+              setSort(
+                next?.value ?? DEFAULT_SORT,
+                activeSort?.direction ?? "asc"
+              )
             }
           >
-            <SelectTrigger id="database-sort-column" className="min-h-11">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={DEFAULT_SORT}>默认（按主键）</SelectItem>
-              {columns.map((column) => (
-                <SelectItem key={column.name} value={column.name}>
-                  {column.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <ComboboxInput
+              id="database-sort-column"
+              className="min-h-11 w-full"
+              placeholder="搜索排序字段"
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>无匹配字段</ComboboxEmpty>
+              <ComboboxList>
+                {(item) => (
+                  <ComboboxItem key={item.value} value={item}>
+                    {item.label}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
         </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor="database-sort-direction">方向</Label>
