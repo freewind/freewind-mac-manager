@@ -37,6 +37,17 @@ export const env = {
   get CLASH_VERGE_CONTROLLER_URL() {
     return process.env.CLASH_VERGE_CONTROLLER_URL
   },
+  /**
+   * 控制接口的 unix socket 路径（Clash Verge 服务模式下内核只开 socket）。
+   * 配了就优先用它，不再自动发现。
+   */
+  get CLASH_VERGE_CONTROLLER_UNIX_SOCKET() {
+    return process.env.CLASH_VERGE_CONTROLLER_UNIX_SOCKET
+  },
+  /** 填 0 关闭控制接口自动发现，只认显式配置的地址。 */
+  get CLASH_VERGE_AUTO_DISCOVER() {
+    return process.env.CLASH_VERGE_AUTO_DISCOVER
+  },
   get CLASH_VERGE_SECRET() {
     return process.env.CLASH_VERGE_SECRET
   },

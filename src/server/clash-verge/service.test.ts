@@ -8,6 +8,27 @@ import {
 afterEach(() => vi.unstubAllGlobals())
 
 describe("Clash Verge read service", () => {
+  it("把控制接口的 404 与 429 说清楚，而不是笼统报不可用", async () => {
+    process.env.CLASH_VERGE_CONTROLLER_URL = "http://127.0.0.1:9097"
+    process.env.CLASH_VERGE_SECRET = "test-secret"
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 404 }))
+    )
+    const notFound = await getClashVergeStatus()
+    expect(notFound.availability.state).toBe("unavailable")
+    expect(notFound.availability.message).toContain("没有这个路径")
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 429 }))
+    )
+    const limited = await getClashVergeStatus()
+    expect(limited.availability.state).toBe("unavailable")
+    expect(limited.availability.message).toContain("过于频繁")
+  })
+
   it("projects status without returning raw config fields", async () => {
     const bodies: Record<string, unknown> = {
       version: { version: "1.2", meta: true },

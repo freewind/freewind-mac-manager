@@ -1,12 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { clashVergeRouter } from "./handlers"
 
-afterEach(() => vi.unstubAllGlobals())
+const originalAuto = process.env.CLASH_VERGE_AUTO_DISCOVER
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  if (originalAuto === undefined) delete process.env.CLASH_VERGE_AUTO_DISCOVER
+  else process.env.CLASH_VERGE_AUTO_DISCOVER = originalAuto
+})
 
 describe("Clash Verge handlers", () => {
   it("returns typed unavailable sections instead of claiming online success", async () => {
     delete process.env.CLASH_VERGE_CONTROLLER_URL
+    delete process.env.CLASH_VERGE_CONTROLLER_UNIX_SOCKET
     delete process.env.CLASH_VERGE_SECRET
+    // 关掉自动发现：测试不连本机真实内核
+    process.env.CLASH_VERGE_AUTO_DISCOVER = "0"
     const response = await clashVergeRouter.getClashVergeStatus()
     expect(response.status).toBe(200)
     expect(response.body.availability.state).toBe("not_configured")
