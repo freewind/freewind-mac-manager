@@ -81,6 +81,11 @@ export const ApiPath = {
   dockerColimaAction: `${API_BASE}/docker/colima/action`,
   tasks: `${API_BASE}/tasks`,
   task: `${API_BASE}/tasks/:id`,
+  databaseTables: `${API_BASE}/database/tables`,
+  databaseTable: `${API_BASE}/database/tables/:table`,
+  databaseRecords: `${API_BASE}/database/tables/:table/records`,
+  databaseRecord: `${API_BASE}/database/tables/:table/record`,
+  databaseRecordDelete: `${API_BASE}/database/tables/:table/records/delete`,
 } as const
 
 export type ApiPathKey = keyof typeof ApiPath

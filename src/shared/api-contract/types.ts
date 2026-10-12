@@ -366,3 +366,76 @@ export type DockerNetworkDeleteBody = z.infer<
 export type DockerColimaActionBody = z.infer<
   typeof DockerColimaActionBodySchema
 >
+
+import type {
+  DatabaseCapabilitySchema,
+  DatabaseColumnAffinitySchema,
+  DatabaseColumnSchema,
+  DatabaseConstraintsSchema,
+  DatabaseDeleteBodySchema,
+  DatabaseDeleteResultSchema,
+  DatabaseFilterOperatorSchema,
+  DatabaseFilterSchema,
+  DatabaseInsertBodySchema,
+  DatabaseOperationDisabledReasonSchema,
+  DatabaseOperationSchema,
+  DatabaseRecordKeySchema,
+  DatabaseRecordQuerySchema,
+  DatabaseRecordResponseSchema,
+  DatabaseRecordSchema,
+  DatabaseRecordsQuerySchema,
+  DatabaseRecordsResponseSchema,
+  DatabaseSortDirectionSchema,
+  DatabaseSortSchema,
+  DatabaseTableKindSchema,
+  DatabaseTablePathParamsSchema,
+  DatabaseTableSchema,
+  DatabaseTableSummarySchema,
+  DatabaseTablesResponseSchema,
+  DatabaseUpdateBodySchema,
+  SqliteValueSchema,
+  SqliteWritableValueSchema,
+} from "./schemas/database"
+
+/** database 域的类型全部从 schema 派生，不另建 DTO。 */
+export type SqliteValue = z.infer<typeof SqliteValueSchema>
+export type SqliteWritableValue = z.infer<typeof SqliteWritableValueSchema>
+export type DatabaseColumnAffinity = z.infer<
+  typeof DatabaseColumnAffinitySchema
+>
+export type DatabaseOperation = z.infer<typeof DatabaseOperationSchema>
+export type DatabaseOperationDisabledReason = z.infer<
+  typeof DatabaseOperationDisabledReasonSchema
+>
+export type DatabaseCapability = z.infer<typeof DatabaseCapabilitySchema>
+export type DatabaseColumn = z.infer<typeof DatabaseColumnSchema>
+export type DatabaseConstraints = z.infer<typeof DatabaseConstraintsSchema>
+export type DatabaseTableKind = z.infer<typeof DatabaseTableKindSchema>
+export type DatabaseTableSummary = z.infer<typeof DatabaseTableSummarySchema>
+export type DatabaseTable = z.infer<typeof DatabaseTableSchema>
+export type DatabaseTablesResponse = z.infer<
+  typeof DatabaseTablesResponseSchema
+>
+export type DatabaseRecordKey = z.infer<typeof DatabaseRecordKeySchema>
+export type DatabaseRecord = z.infer<typeof DatabaseRecordSchema>
+export type DatabaseRecordResponse = z.infer<
+  typeof DatabaseRecordResponseSchema
+>
+export type DatabaseFilterOperator = z.infer<
+  typeof DatabaseFilterOperatorSchema
+>
+export type DatabaseFilter = z.infer<typeof DatabaseFilterSchema>
+export type DatabaseSortDirection = z.infer<typeof DatabaseSortDirectionSchema>
+export type DatabaseSort = z.infer<typeof DatabaseSortSchema>
+export type DatabaseRecordsQuery = z.infer<typeof DatabaseRecordsQuerySchema>
+export type DatabaseRecordQuery = z.infer<typeof DatabaseRecordQuerySchema>
+export type DatabaseRecordsResponse = z.infer<
+  typeof DatabaseRecordsResponseSchema
+>
+export type DatabaseInsertBody = z.infer<typeof DatabaseInsertBodySchema>
+export type DatabaseUpdateBody = z.infer<typeof DatabaseUpdateBodySchema>
+export type DatabaseDeleteBody = z.infer<typeof DatabaseDeleteBodySchema>
+export type DatabaseDeleteResult = z.infer<typeof DatabaseDeleteResultSchema>
+export type DatabaseTablePathParams = z.infer<
+  typeof DatabaseTablePathParamsSchema
+>

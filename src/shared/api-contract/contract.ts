@@ -5,6 +5,7 @@ import { authRoutes } from "./routes/auth"
 import { caddyRoutes } from "./routes/caddy"
 import { clashVergeRoutes } from "./routes/clash-verge"
 import { dashboardRoutes } from "./routes/dashboard"
+import { databaseRoutes } from "./routes/database"
 import { diskGrowthRoutes } from "./routes/disk-growth"
 import { dockerRoutes } from "./routes/docker"
 import { filesRoutes } from "./routes/files"
@@ -38,6 +39,7 @@ export const contract = c.router(
     ...frpRoutes,
     ...caddyRoutes,
     ...tasksRoutes,
+    ...databaseRoutes,
   },
   { pathPrefix: API_BASE }
 )
