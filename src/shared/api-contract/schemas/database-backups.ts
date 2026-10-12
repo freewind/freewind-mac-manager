@@ -6,16 +6,41 @@ import { ApiErrorSchema } from "./common"
  *
  * 备份用 SQLite 原生备份能力生成，文件名带 UTC 毫秒时间戳与短 ID，**同名不覆盖**；
  * 上传导入的原始文件名只用于展示，绝不作为路径来源。
+ *
+ * 与大小有关的实现要求（服务端必须遵守，契约只固定边界）：
+ * - 备份与导入都必须**流式**处理文件，不得整文件读入内存；
+ * - 接收上传前先检查目标磁盘可用空间，不够就直接拒绝，不做部分写入；
+ * - 上限按「本机当前库规模的若干倍」留余量，不凭感觉取值。
+ *
+ * JSON 响应只带元信息（文件名、字节数、签名等），不含文件内容，
+ * 因此列表与详情的响应体大小与备份体积无关；文件本身走上传/下载两条传输路径。
  */
 
 /** 备份列表一页最多 100 条。 */
 export const DATABASE_BACKUP_PAGE_SIZE_MAX = 100
 /** 一次最多删除 100 份备份。 */
 export const DATABASE_BACKUP_DELETE_MAX = 100
-/** 上传导入的备份文件大小上限；超过直接拒绝，不做部分写入。 */
-export const DATABASE_BACKUP_UPLOAD_MAX_BYTES = 256 * 1024 * 1024
+/**
+ * 上传导入的备份文件大小上限：8GiB。
+ *
+ * 依据：本机应用库 `data/snapshots.sqlite3` 已经是 1.8GB（另有 675MB WAL），
+ * 用本应用自己生成的备份去导入必须能通过，所以上限要覆盖真实备份并留出余量；
+ * 取当前库规模的几倍（8GiB）而不是刚够用。
+ * 超过上限直接拒绝，不做部分写入；实现必须流式接收并预先检查磁盘可用空间。
+ */
+export const DATABASE_BACKUP_UPLOAD_MAX_BYTES = 8 * 1024 * 1024 * 1024
 /** 内容签名与结构签名的长度上限。 */
 export const DATABASE_BACKUP_SIGNATURE_MAX_LENGTH = 128
+
+/**
+ * 上传大小校验：正好等于上限允许，超过即拒绝。
+ * 用于接收前根据 Content-Length 先挡一次，真正落地时仍要边收边计数。
+ */
+export const DatabaseBackupUploadSizeSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(DATABASE_BACKUP_UPLOAD_MAX_BYTES)
 
 /**
  * 备份 ID：只允许字母、数字、下划线与连字符，因此不可能出现 `.` `/` `..`
@@ -66,6 +91,11 @@ export const DatabaseBackupSchema = z.object({
   fileName: DatabaseBackupFileNameSchema,
   /** 创建时间：UTC 毫秒时间戳。 */
   createdAt: z.number().int().min(0),
+  /**
+   * 文件字节数。刻意不设人为上限：备份就是当前库的快照，库长到多大备份就有多大，
+   * 卡一个「产物上限」只会让真实文件被契约判为非法。
+   * JS number 能精确表示到 2^53 字节（约 9PB），够用。
+   */
   sizeBytes: z.number().int().min(0),
   source: DatabaseBackupSourceSchema,
   integrity: DatabaseBackupIntegritySchema,

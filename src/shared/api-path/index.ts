@@ -93,8 +93,9 @@ export const ApiPath = {
   /**
    * 文件传输例外（不进 JSON 契约）：
    * - 上传导入：multipart/form-data，单个文件不超过
-   *   `DATABASE_BACKUP_UPLOAD_MAX_BYTES`（256MiB），超出回 413；
-   *   只接受 `.sqlite3` 且头部是 SQLite 格式的文件，否则 400；
+   *   `DATABASE_BACKUP_UPLOAD_MAX_BYTES`（8GiB，按本机 1.8GB 库的几倍留余量），
+   *   超出回 413；只接受 `.sqlite3` 且头部是 SQLite 格式的文件，否则 400；
+   *   实现必须流式接收并在接收前检查目标磁盘可用空间，不得整文件读入内存；
    *   仍需访问密码（浏览器原生表单无法自设 Authorization，走 cookie）；
    *   上传时的原始文件名只用于展示，不能作为路径来源。
    */
@@ -103,6 +104,7 @@ export const ApiPath = {
    * 下载：返回 application/octet-stream 与 Content-Disposition，
    * 文件名取自服务端记录（不是客户端输入）；未登录 401，
    * 备份不存在 404，完整性不通过 409。
+   * 备份文件是 GB 量级（当前库 1.8GB），同样必须流式发送，不能整文件读入内存。
    */
   databaseBackupDownload: `${API_BASE}/database/backups/:backupId/download`,
   collaborationTopics: `${API_BASE}/collaboration/topics`,

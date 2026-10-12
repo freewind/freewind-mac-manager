@@ -7,6 +7,7 @@ import {
   DATABASE_BACKUP_ERROR_CODES,
   DATABASE_BACKUP_PAGE_SIZE_MAX,
   DATABASE_BACKUP_SOURCES,
+  DATABASE_BACKUP_UPLOAD_MAX_BYTES,
   DATABASE_RESTORE_STATUSES,
   DatabaseBackupCreatedSchema,
   DatabaseBackupDeleteBodySchema,
@@ -18,6 +19,7 @@ import {
   DatabaseBackupSourceSchema,
   DatabaseBackupsQuerySchema,
   DatabaseBackupsResponseSchema,
+  DatabaseBackupUploadSizeSchema,
   DatabaseRestorePlanBodySchema,
   DatabaseRestorePlanSchema,
   DatabaseRestoreStateSchema,
@@ -407,5 +409,39 @@ describe("文件传输例外", () => {
     const paths = JSON.stringify(contract)
     expect(paths).not.toContain("/database/backups/upload")
     expect(paths).not.toContain("/database/backups/:backupId/download")
+  })
+})
+
+describe("上传大小上限", () => {
+  it("上限覆盖真实库规模，正好等于上限通过、超出即拒绝", () => {
+    // 依据：本机 data/snapshots.sqlite3 已 1.8GB（另有 675MB WAL），
+    // 用本应用自己生成的备份去导入必须能通过，所以上限取当前库规模的几倍
+    expect(DATABASE_BACKUP_UPLOAD_MAX_BYTES).toBe(8 * 1024 * 1024 * 1024)
+    expect(DATABASE_BACKUP_UPLOAD_MAX_BYTES).toBeGreaterThan(
+      1.8 * 1024 * 1024 * 1024
+    )
+    expect(
+      DatabaseBackupUploadSizeSchema.safeParse(DATABASE_BACKUP_UPLOAD_MAX_BYTES)
+        .success
+    ).toBe(true)
+    expect(
+      DatabaseBackupUploadSizeSchema.safeParse(
+        DATABASE_BACKUP_UPLOAD_MAX_BYTES + 1
+      ).success
+    ).toBe(false)
+    for (const value of [0, -1, 1.5]) {
+      expect(DatabaseBackupUploadSizeSchema.safeParse(value).success).toBe(
+        false
+      )
+    }
+  })
+
+  it("备份条目大小不设人为上限：库长多大备份就多大", () => {
+    expect(
+      DatabaseBackupSchema.safeParse({
+        ...backup,
+        sizeBytes: DATABASE_BACKUP_UPLOAD_MAX_BYTES * 2,
+      }).success
+    ).toBe(true)
   })
 })
