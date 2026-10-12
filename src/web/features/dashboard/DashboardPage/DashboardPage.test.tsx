@@ -88,17 +88,23 @@ const ports: PortInfo[] = Array.from({ length: PORT_COUNT }, (_, index) => ({
   address: index === 0 ? "*" : `127.0.0.1:${30_000 + index}`,
 }))
 
-const renderPage = (overviewOverride: Partial<DashboardOverview> = {}) => {
+const renderPage = (
+  overviewOverride: Partial<DashboardOverview> = {},
+  /** pending：概览数据还没回来（首屏加载中），用于验证标题区的加载指示。 */
+  { pending = false }: { pending?: boolean } = {}
+) => {
   const client = new QueryClient({
     defaultOptions: {
       queries: { enabled: false, retry: false },
       mutations: { retry: false },
     },
   })
-  client.setQueryData(dashboardKeys.overview, {
-    ...overview,
-    ...overviewOverride,
-  })
+  if (!pending) {
+    client.setQueryData(dashboardKeys.overview, {
+      ...overview,
+      ...overviewOverride,
+    })
+  }
   client.setQueryData(dashboardKeys.processes, { processes })
   client.setQueryData(dashboardKeys.ports, { ports })
   render(<DashboardPage />, {
@@ -120,6 +126,26 @@ afterEach(() => {
 })
 
 describe("概览页", () => {
+  it("标题保持一级标题语义，同行右侧按钮组不受影响", () => {
+    renderPage()
+
+    expect(screen.getByRole("heading", { level: 1, name: "概览" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "AI 助手" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "暂停刷新" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "刷新" })).toBeTruthy()
+  })
+
+  it("首屏读取期间标题旁显示加载指示，读到数据后消失", () => {
+    renderPage({}, { pending: true })
+
+    expect(screen.getByRole("status", { name: "概览 加载中" })).toBeTruthy()
+    cleanup()
+
+    renderPage()
+
+    expect(screen.queryByRole("status", { name: "概览 加载中" })).toBeNull()
+  })
+
   it("6 行占用最高进程全部渲染", () => {
     renderPage()
 

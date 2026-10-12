@@ -11,6 +11,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { DiskVolume } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
+import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -141,7 +142,7 @@ export const DashboardPage = () => {
       {/* 标题区只留导航与动作：主机信息移进主体滚动区，不常驻占高。 */}
       <header className="flex flex-wrap items-center gap-2 px-4 py-3">
         <HugeiconsIcon icon={CircleGaugeIcon} className="size-4" />
-        <h1 className="text-sm font-medium">概览</h1>
+        <PageHeader title="概览" loading={model.loading} />
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
             {model.paused
