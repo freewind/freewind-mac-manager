@@ -50,7 +50,7 @@ type SnapshotListProps = {
   onRequestMergeSelected: () => void
 }
 
-/** 左栏：快照列表（含实时项、多选、删除与合并入口）。 */
+/** 快照列表：桌面是页面左栏，手机放在抽屉里填满抽屉高度。 */
 export const SnapshotList = (props: SnapshotListProps) => {
   const {
     model,
@@ -60,7 +60,7 @@ export const SnapshotList = (props: SnapshotListProps) => {
   } = props
 
   return (
-    <aside className="flex max-h-72 w-full shrink-0 flex-col border-b md:max-h-none md:w-72 md:border-r md:border-b-0">
+    <aside className="flex min-h-0 w-full flex-1 flex-col border-b md:w-72 md:flex-none md:border-r md:border-b-0">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-xs font-medium">快照（增量）</span>
         <span className="text-[0.6875rem] text-muted-foreground">
