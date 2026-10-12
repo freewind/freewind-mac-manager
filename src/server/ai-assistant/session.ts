@@ -27,6 +27,26 @@ type CachedSession = {
 
 const sessions = new Map<string, CachedSession>()
 
+/**
+ * 在途锁：同一会话同时只允许一次运行。
+ * 它在进入 SSE 之前申请（否则第二个请求会写坏第一个 run 的状态），
+ * 由调用方在 finally 里释放；dispose 会话时也会一并清掉。
+ */
+const inFlight = new Set<string>()
+
+export const beginSessionRun = (sessionId: string): boolean => {
+  if (inFlight.has(sessionId)) return false
+  inFlight.add(sessionId)
+  return true
+}
+
+export const endSessionRun = (sessionId: string): void => {
+  inFlight.delete(sessionId)
+}
+
+export const isSessionRunning = (sessionId: string): boolean =>
+  inFlight.has(sessionId)
+
 const cleanupIdleSessions = (now: number): void => {
   for (const [id, entry] of sessions) {
     if (now - entry.lastUsedAt <= AI_ASSISTANT_SESSION_IDLE_MS) continue
@@ -42,8 +62,14 @@ const loadResourceLoader = async (
   const loader = new DefaultResourceLoader({
     cwd: PROJECT_ROOT,
     agentDir: PI_AGENT_DIR,
-    // 助手的定位由本域提示词决定，不加载项目的 AGENTS.md，避免它被当成编码 agent。
+    // 助手是产品的一部分，不是编码 agent：全局 extensions / skills / prompt 模板 /
+    // 主题与项目上下文（AGENTS.md）都不属于它，一律不加载，避免全局插件污染
+    // 助手的工具集与提示词。它只应该有我们显式注册的 customTools。
     noContextFiles: true,
+    noExtensions: true,
+    noSkills: true,
+    noPromptTemplates: true,
+    noThemes: true,
     systemPromptOverride: () =>
       settings.settings.systemPrompt ?? AI_ASSISTANT_DEFAULT_SYSTEM_PROMPT,
     appendSystemPromptOverride: () => [],
@@ -111,6 +137,7 @@ export const getSession = (sessionId: string): AgentSession => {
 }
 
 export const disposeSession = (sessionId: string): void => {
+  inFlight.delete(sessionId)
   const entry = sessions.get(sessionId)
   if (!entry) return
   sessions.delete(sessionId)

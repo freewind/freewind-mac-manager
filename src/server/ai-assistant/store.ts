@@ -11,6 +11,18 @@ const LIST_LIMIT = 50
 
 let database: DatabaseSync | null = null
 
+/**
+ * 进程刚启动时不可能有正在执行的内存会话：残留的 running 都是上次服务中断
+ * 留下的，一律标成「结果未知」，不能让它们继续冒充执行中。
+ */
+const markOrphanRunsUnknown = (): void => {
+  database
+    ?.prepare(
+      "UPDATE ai_assistant_session SET status='unknown', updated_at=? WHERE status='running'"
+    )
+    .run(Date.now())
+}
+
 const db = (): DatabaseSync => {
   if (database) return database
   mkdirSync(path.dirname(DATABASE_FILE), { recursive: true })
@@ -24,6 +36,8 @@ const db = (): DatabaseSync => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );`)
+  // 建表/连上后立刻清一次孤立记录，之后同一进程里不会再有 running。
+  markOrphanRunsUnknown()
   return database
 }
 
@@ -138,10 +152,55 @@ export const listSessions = (): AiAssistantSession[] =>
   })
 
 export const clearSession = (id: string): void => {
+  const row = db()
+    .prepare("SELECT status FROM ai_assistant_session WHERE id=?")
+    .get(id)
+  if (!row) throw new PublicOperationError(404, "会话不存在")
+  // 正在执行的会话不能删：删掉历史不代表上游停下，会留下无法核实的半成品。
+  if (String(row.status) === "running") {
+    throw new PublicOperationError(409, "会话正在执行，请先中止再清空")
+  }
   const result = db()
     .prepare("DELETE FROM ai_assistant_session WHERE id=?")
     .run(id)
   if (result.changes === 0) throw new PublicOperationError(404, "会话不存在")
+}
+
+/**
+ * 开始一次运行：把用户输入写进历史并置为 running。
+ * 先写库再发请求：写不进去就不该开始执行（否则会出现删了历史仍在跑的孤儿）。
+ */
+export const startSessionRun = (
+  id: string,
+  userMessage: unknown
+): SessionSnapshot => {
+  const session = readSession(id)
+  const result = db()
+    .prepare(
+      "UPDATE ai_assistant_session SET messages=?, status='running', updated_at=? WHERE id=?"
+    )
+    .run(JSON.stringify([...session.messages, userMessage]), Date.now(), id)
+  if (result.changes === 0) throw new PublicOperationError(404, "会话不存在")
+  return readSession(id)
+}
+
+/** 结束一次运行：可选补上已经拿到的回答，并写终态（done / unknown）。 */
+export const finishSessionRun = (
+  id: string,
+  status: "done" | "unknown",
+  answer?: string | null
+): SessionSnapshot => {
+  const session = readSession(id)
+  const messages = answer
+    ? [...session.messages, { role: "assistant", text: answer }]
+    : session.messages
+  const result = db()
+    .prepare(
+      "UPDATE ai_assistant_session SET messages=?, status=?, updated_at=? WHERE id=?"
+    )
+    .run(JSON.stringify(messages), status, Date.now(), id)
+  if (result.changes === 0) throw new PublicOperationError(404, "会话不存在")
+  return readSession(id)
 }
 
 export const appendMessage = (

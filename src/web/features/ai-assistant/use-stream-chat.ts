@@ -1,5 +1,6 @@
 import {
   type AiAssistantStreamEvent,
+  ApiRequestError,
   streamAiAssistantMessage,
 } from "@shared/client-api"
 import type { ChatStatus, UIMessage } from "ai"
@@ -87,9 +88,16 @@ type ChatState = {
   messages: ChatMessage[]
   status: ChatStatus
   error: Error | null
+  /** 失败时的 HTTP 状态码（如 404 表示会话已过期），没有则为 null。 */
+  errorStatus: number | null
 }
 
-const EMPTY_STATE: ChatState = { messages: [], status: "ready", error: null }
+const EMPTY_STATE: ChatState = {
+  messages: [],
+  status: "ready",
+  error: null,
+  errorStatus: null,
+}
 
 const updateAssistantParts = (
   state: ChatState,
@@ -179,7 +187,8 @@ const settleParts = (state: ChatState): ChatState =>
  */
 export const useStreamChat = (options: {
   sessionId: string | null
-  onSessionId: (sessionId: string) => void
+  /** 会话标识变化（含新建对话时的 null）都要同步出去。 */
+  onSessionId: (sessionId: string | null) => void
 }) => {
   const [state, setState] = useState<ChatState>(EMPTY_STATE)
   const controllerRef = useRef<AbortController | null>(null)
@@ -187,7 +196,7 @@ export const useStreamChat = (options: {
   const onSessionIdRef = useRef(options.onSessionId)
   onSessionIdRef.current = options.onSessionId
 
-  const persistSessionId = useCallback((sessionId: string) => {
+  const persistSessionId = useCallback((sessionId: string | null) => {
     sessionIdRef.current = sessionId
     onSessionIdRef.current(sessionId)
   }, [])
@@ -195,6 +204,17 @@ export const useStreamChat = (options: {
   const stop = useCallback(() => {
     controllerRef.current?.abort()
   }, [])
+
+  /**
+   * 新建对话：清空本地消息与会话标识。
+   * 只在空闲时允许：进行中清空会让正在跑的答复找不到归宿。
+   */
+  const reset = useCallback((): boolean => {
+    if (controllerRef.current) return false
+    persistSessionId(null)
+    setState(EMPTY_STATE)
+    return true
+  }, [persistSessionId])
 
   const handleEvent = useCallback(
     (event: AiAssistantStreamEvent) => {
@@ -233,7 +253,13 @@ export const useStreamChat = (options: {
         }))
         return
       }
-      setState((prev) => ({ ...settleParts(prev), status: "ready" }))
+      // 服务端明确告知的问题（例如历史保存失败）要展示出来，不默默成功。
+      const note = event.message
+      setState((prev) =>
+        note
+          ? appendDelta(settleParts(prev), "text", `\n\n（${note}）`)
+          : { ...settleParts(prev), status: "ready" }
+      )
     },
     [persistSessionId]
   )
@@ -251,6 +277,7 @@ export const useStreamChat = (options: {
         ],
         status: "submitted",
         error: null,
+        errorStatus: null,
       }))
       const controller = new AbortController()
       controllerRef.current = controller
@@ -288,6 +315,8 @@ export const useStreamChat = (options: {
                 ? error.message
                 : "网络请求失败，结果未知，请重新读取核实"
           ),
+          errorStatus:
+            error instanceof ApiRequestError ? error.status : prev.errorStatus,
         }))
       } finally {
         controllerRef.current = null
@@ -300,8 +329,11 @@ export const useStreamChat = (options: {
     messages: toUiMessages(state.messages),
     status: state.status,
     error: state.error ?? undefined,
+    /** 会话不存在/已过期（404）时界面要引导新建对话。 */
+    errorStatus: state.errorStatus,
     sessionId: sessionIdRef.current,
     send,
     stop,
+    reset,
   }
 }

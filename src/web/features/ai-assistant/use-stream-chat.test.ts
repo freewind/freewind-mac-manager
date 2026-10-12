@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
-import type { AiAssistantStreamEvent } from "@shared/client-api"
+import {
+  type AiAssistantStreamEvent,
+  ApiRequestError,
+} from "@shared/client-api"
 import { renderHook, waitFor } from "@testing-library/react"
 import { act } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -315,5 +318,108 @@ describe("useStreamChat", () => {
     })
 
     expect(captureOptions()[1].sessionId).toBe("s-1")
+  })
+
+  it("reset 清空消息与会话标识，下一条请求不带旧 id", async () => {
+    api.streamAiAssistantMessage.mockImplementation(
+      async (options: StreamOptions) => {
+        options.onSessionId?.("s-1")
+        options.onEvent({ type: "delta", kind: "text", delta: "答案" })
+        options.onEvent({
+          type: "done",
+          status: "done",
+          sessionId: "s-1",
+          message: null,
+        })
+      }
+    )
+    const { result, onSessionId } = setup()
+    await act(async () => {
+      await result.current.send({ role: "user", content: "第一次" })
+    })
+    expect(result.current.messages).toHaveLength(2)
+    expect(result.current.sessionId).toBe("s-1")
+
+    let resetResult = false
+    act(() => {
+      resetResult = result.current.reset()
+    })
+
+    expect(resetResult).toBe(true)
+    expect(result.current.messages).toHaveLength(0)
+    expect(result.current.sessionId).toBeNull()
+    // 会话标识同步为 null：存储里也一起清掉，避免继续续接旧会话。
+    expect(onSessionId).toHaveBeenLastCalledWith(null)
+
+    await act(async () => {
+      await result.current.send({ role: "user", content: "第二次" })
+    })
+    expect(captureOptions()[1].sessionId).toBeNull()
+  })
+
+  it("进行中不能新建对话：reset 无效且不清空消息", async () => {
+    let release: () => void = () => {}
+    api.streamAiAssistantMessage.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        })
+    )
+    const { result } = setup()
+    await act(async () => {
+      void result.current.send({ role: "user", content: "长回答" })
+    })
+
+    let resetResult = true
+    act(() => {
+      resetResult = result.current.reset()
+    })
+
+    expect(resetResult).toBe(false)
+    expect(result.current.messages).toHaveLength(2)
+
+    await act(async () => {
+      release()
+    })
+  })
+
+  it("会话过期（404）时记录状态码，方便界面引导新建", async () => {
+    api.streamAiAssistantMessage.mockRejectedValue(
+      new ApiRequestError("请求失败（HTTP 404）：会话不存在或已过期", 404, {
+        message: "会话不存在或已过期",
+      })
+    )
+    const { result } = setup()
+
+    await act(async () => {
+      await result.current.send({ role: "user", content: "继续" })
+    })
+
+    expect(result.current.errorStatus).toBe(404)
+    expect(result.current.error?.message).toContain("已过期")
+  })
+
+  it("服务端在成功收尾时带说明（例如历史保存失败）要展示出来", async () => {
+    api.streamAiAssistantMessage.mockImplementation(
+      async (options: StreamOptions) => {
+        options.onEvent({ type: "delta", kind: "text", delta: "答案" })
+        options.onEvent({
+          type: "done",
+          status: "done",
+          sessionId: "s-1",
+          message: "回答已完成，但会话历史保存失败",
+        })
+      }
+    )
+    const { result } = setup()
+
+    await act(async () => {
+      await result.current.send({ role: "user", content: "你好" })
+    })
+
+    expect(partsOf(result.current.messages[1])).toEqual([
+      { type: "text", text: "答案\n\n（回答已完成，但会话历史保存失败）" },
+    ])
+    expect(result.current.error).toBeUndefined()
   })
 })

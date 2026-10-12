@@ -5,7 +5,13 @@ import { ApiPath } from "@shared/api-path"
 import { initServer } from "@ts-rest/express"
 import type express from "express"
 import { getAiAssistantSettings, saveAiAssistantSettings } from "./config"
-import { createSession, getSession } from "./session"
+import {
+  beginSessionRun,
+  createSession,
+  disposeSession,
+  endSessionRun,
+  getSession,
+} from "./session"
 import { clearSession, listSessions } from "./store"
 import { streamSession } from "./stream"
 
@@ -44,7 +50,10 @@ export const createAiAssistantRouter = () =>
     },
     clearAiAssistantSession: async ({ params }) => {
       try {
+        // 正在执行的会话在存储层会被拒；清空后一并丢掉内存会话，
+        // 否则删了历史会话还能继续跑。
         clearSession(params.sessionId)
+        disposeSession(params.sessionId)
         return { status: 204 as const, body: null }
       } catch (error) {
         return publicSystemError(error)
@@ -76,9 +85,22 @@ export const registerAiAssistantStreamEndpoint = (
         : await createSession(getAiAssistantSettings())
       const sessionId = existingId ?? created?.sessionId ?? ""
       const session = created?.session ?? getSession(sessionId)
-      // 必须在写 SSE 头之前设置：客户端据此拿到新建会话的标识。
-      response.setHeader("x-ai-assistant-session-id", sessionId)
-      await streamSession(session, sessionId, parsed.data.prompt, response)
+      // 同一会话已有在途运行：在写 SSE 头之前就拒掉，
+      // 不能把第二个请求的失败算到第一个 run 头上。
+      if (!beginSessionRun(sessionId)) {
+        response.status(409).json({
+          message: "该会话正在执行中，请等待结束或新建对话",
+          executionStatus: "not_started",
+        })
+        return
+      }
+      try {
+        // 必须在写 SSE 头之前设置：客户端据此拿到新建会话的标识。
+        response.setHeader("x-ai-assistant-session-id", sessionId)
+        await streamSession(session, sessionId, parsed.data.prompt, response)
+      } finally {
+        endSessionRun(sessionId)
+      }
     } catch (error) {
       // 还没开始写 SSE 时仍回普通 JSON 错误；已写流则交给 streamSession 收尾。
       if (response.headersSent) return

@@ -1,4 +1,4 @@
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { AgentChat } from "@web/components/agent-elements/agent-chat"
 import {
@@ -63,6 +63,8 @@ export const AiAssistantDialog = (props: AiAssistantDialogProps) => {
   const settings = useAiAssistantSettings(open)
 
   const chat = useStreamChat({ sessionId, onSessionId: setSessionId })
+  // 正在进行时不允许新建：否则正在跑的答复找不到归宿。
+  const chatRunning = chat.status === "submitted" || chat.status === "streaming"
 
   const configured = Boolean(
     settings.data?.settings.providerId && settings.data?.settings.modelId
@@ -84,6 +86,24 @@ export const AiAssistantDialog = (props: AiAssistantDialogProps) => {
           <SheetDescription>
             助手可以查看和操作本机功能。危险动作会先说明目标与影响。
           </SheetDescription>
+          {/* 业务操作放在标题区下方的动作行，不动官方 Sheet 源码。 */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              disabled={chatRunning}
+              onClick={() => chat.reset()}
+            >
+              <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+              新建对话
+            </Button>
+            {chatRunning ? (
+              <span className="text-xs text-muted-foreground">
+                正在回答，可先中止再新建
+              </span>
+            ) : null}
+          </div>
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
@@ -122,18 +142,31 @@ export const AiAssistantDialog = (props: AiAssistantDialogProps) => {
               </Alert>
             </div>
           ) : (
-            <AgentChat
-              className="min-h-0 flex-1"
-              messages={chat.messages}
-              status={chat.status}
-              error={chat.error}
-              onSend={(message) => void chat.send(message)}
-              onStop={chat.stop}
-              toolRenderers={TOOL_RENDERERS}
-              slots={{ InputBar: PrefilledInputBar }}
-              emptyStatePosition="center"
-              showCopyToolbar={false}
-            />
+            <>
+              {chat.errorStatus === 404 ? (
+                <div className="p-4">
+                  <Alert variant="destructive" role="alert">
+                    <AlertTitle>会话已过期</AlertTitle>
+                    <AlertDescription>
+                      服务重启或会话被回收后，旧会话无法续接。用上面的
+                      「新建对话」重新开始：之前那条输入不会自动重发。
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              ) : null}
+              <AgentChat
+                className="min-h-0 flex-1"
+                messages={chat.messages}
+                status={chat.status}
+                error={chat.error}
+                onSend={(message) => void chat.send(message)}
+                onStop={chat.stop}
+                toolRenderers={TOOL_RENDERERS}
+                slots={{ InputBar: PrefilledInputBar }}
+                emptyStatePosition="center"
+                showCopyToolbar={false}
+              />
+            </>
           )}
         </div>
       </SheetContent>

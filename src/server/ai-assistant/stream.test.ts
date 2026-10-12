@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { DatabaseSync } from "node:sqlite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { SseResponse, StreamableSession } from "./stream"
 
@@ -163,6 +164,10 @@ describe("streamSession SSE 桥接", () => {
     expect(text).toContain('"status":"unknown"')
     expect(text).toContain("连接中断，结果未知")
     expect(recorder.isEnded()).toBe(true)
+    // 断连也要落库：不能留下 running / done 这种骗人的终态，已知输入要保留。
+    const stored = store.readSession("s2")
+    expect(stored.status).toBe("unknown")
+    expect(stored.messages).toEqual([{ role: "user", text: "你好" }])
   })
 
   it("prompt 抛错时回 error 与 unknown 终态", async () => {
@@ -180,5 +185,90 @@ describe("streamSession SSE 桥接", () => {
     expect(text).toContain('event: error\ndata: {"message":"上游失败"}')
     expect(text).toContain('"status":"unknown"')
     expect(store.readSession("s3").status).toBe("unknown")
+  })
+
+  it("prompt 开始前就写了 running 与用户输入，正常结束后转 done", async () => {
+    const { streamSession } = await import("./stream")
+    const store = await import("./store")
+    store.saveSession({ id: "s4", settingsSnapshot: {} })
+    let statusDuringPrompt = ""
+    let messagesDuringPrompt: unknown[] = []
+    const fake = makeSession(async () => {
+      const snapshot = store.readSession("s4")
+      statusDuringPrompt = snapshot.status
+      messagesDuringPrompt = snapshot.messages
+    })
+    fake.answer = "答"
+    const recorder = makeResponse()
+
+    await streamSession(
+      asSession(fake),
+      "s4",
+      "只在中间查一次",
+      recorder.response
+    )
+
+    expect(statusDuringPrompt).toBe("running")
+    expect(messagesDuringPrompt).toEqual([
+      { role: "user", text: "只在中间查一次" },
+    ])
+    expect(store.readSession("s4").status).toBe("done")
+  })
+
+  it("出错时保留已经拿到的部分回答，终态仍是 unknown", async () => {
+    const { streamSession } = await import("./stream")
+    const store = await import("./store")
+    store.saveSession({ id: "s5", settingsSnapshot: {} })
+    const fake = makeSession(async () => {
+      throw new Error("上游失败")
+    })
+    fake.answer = "半句"
+
+    await streamSession(asSession(fake), "s5", "你好", makeResponse().response)
+
+    const stored = store.readSession("s5")
+    expect(stored.status).toBe("unknown")
+    expect(stored.messages).toEqual([
+      { role: "user", text: "你好" },
+      { role: "assistant", text: "半句" },
+    ])
+  })
+
+  it("历史写不进去时不假装完整成功：明确告知并记脱敏日志", async () => {
+    const { streamSession } = await import("./stream")
+    const store = await import("./store")
+    store.saveSession({ id: "s6", settingsSnapshot: {} })
+    const fake = makeSession(async () => {
+      // 模拟运行期间历史被别的写入方清掉（绕过 clearSession 的执行中保护）。
+      const raw = new DatabaseSync(process.env.MAC_MANAGER_DB_FILE ?? "")
+      raw.prepare("DELETE FROM ai_assistant_session WHERE id=?").run("s6")
+      raw.close()
+    })
+    fake.answer = "答案"
+    const recorder = makeResponse()
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    await streamSession(asSession(fake), "s6", "你好", recorder.response)
+
+    expect(recorder.text()).toContain("回答已完成，但会话历史保存失败")
+    expect(errorSpy).toHaveBeenCalledTimes(1)
+    // 日志只写会话与终态，不带提示词内容。
+    expect(String(errorSpy.mock.calls[0][0])).not.toContain("你好")
+    errorSpy.mockRestore()
+  })
+
+  it("历史不存在时连跑都不跑，错误交给调用方回普通 JSON", async () => {
+    const { streamSession } = await import("./stream")
+    const recorder = makeResponse()
+    const fake = makeSession(async () => {
+      throw new Error("不该跑到这里")
+    })
+
+    await expect(
+      streamSession(asSession(fake), "missing", "你好", recorder.response)
+    ).rejects.toThrow("会话不存在")
+    // 还没写过 SSE 头，调用方仍能回 JSON 错误。
+    expect(recorder.isEnded()).toBe(false)
+    expect(recorder.text()).toBe("")
   })
 })
