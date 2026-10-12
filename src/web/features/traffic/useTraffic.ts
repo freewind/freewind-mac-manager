@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
 import {
   FALLBACK_INTERVAL_SECONDS,
+  REALTIME_DETAILS_REFRESH_MS,
   useInvalidateTrafficAll,
   useKillProcesses,
   useTrafficGroups,
@@ -247,6 +248,8 @@ export const useTraffic = () => {
     // 采样间隔以后端状态为唯一来源；状态未就绪时用兜底秒数，页面不做第二份兜底。
     samplingIntervalSeconds:
       statusQuery.data?.intervalSeconds ?? FALLBACK_INTERVAL_SECONDS,
+    // 明细刷新比采样慢：明细接口含 ps+lsof，单轮近 1 秒量级，见 queries.ts。
+    detailsRefreshSeconds: REALTIME_DETAILS_REFRESH_MS / 1000,
     groups,
     totals,
     hiddenCount: allGroups.length - groups.length,

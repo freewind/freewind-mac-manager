@@ -50,11 +50,14 @@ export const TrafficPage = () => {
     null
   )
 
+  // 采样与明细是两个频率：采样只读 sqlite，明细含 ps+lsof，不能混为一谈。
+  const realtimeFrequencies = `采样每 ${model.samplingIntervalSeconds} 秒 · 明细每 ${model.detailsRefreshSeconds} 秒`
+
   // 只整理页面上已经显示出来的数据；进程明细未就绪时绝不把 0 当真实值。
   const assistantContext = buildAiAssistantContext({
     feature: "流量监控",
     subject: model.isRealtime
-      ? `实时视图（每 ${model.samplingIntervalSeconds} 秒采样）`
+      ? `实时视图（${realtimeFrequencies}）`
       : model.selectedSnapshots[0]
         ? `快照区间 ${model.selectedSnapshots[0].rangeText}${
             model.selectedSnapshotCount > 1
@@ -261,7 +264,7 @@ export const TrafficPage = () => {
         </span>
         <span className="ml-auto">
           {model.isRealtime
-            ? `实时视图（每 ${model.samplingIntervalSeconds} 秒采样）`
+            ? `实时视图（${realtimeFrequencies}）`
             : model.selectedSnapshotCount > 1
               ? `已选 ${model.selectedSnapshotCount} 份快照，显示合计`
               : model.selectedSnapshots[0]

@@ -7,8 +7,9 @@ import type { ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   FALLBACK_INTERVAL_SECONDS,
+  REALTIME_DETAILS_REFRESH_MS,
+  statusPollMs,
   trafficKeys,
-  trafficPollMs,
   useTrafficGroups,
   useTrafficStatus,
 } from "./queries"
@@ -55,16 +56,20 @@ const sleep = async (ms: number) => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
   api.fetchTrafficStatus.mockReset()
   api.fetchTrafficGroups.mockReset()
 })
 
-describe("trafficPollMs", () => {
-  it("跟随状态里的采样秒数，状态缺失时用兜底秒数", () => {
-    expect(trafficPollMs(1)).toBe(1000)
-    expect(trafficPollMs(2.5)).toBe(2500)
-    expect(trafficPollMs(undefined)).toBe(FALLBACK_INTERVAL_SECONDS * 1000)
+describe("轮询间隔的来源", () => {
+  it("状态间隔跟随后端采样秒数，明细间隔是独立的慢节奏", () => {
+    expect(statusPollMs(1)).toBe(1000)
+    expect(statusPollMs(2.5)).toBe(2500)
+    expect(statusPollMs(undefined)).toBe(FALLBACK_INTERVAL_SECONDS * 1000)
+    // 明细含 ps+lsof，固定慢节奏，不随采样间隔变化
+    expect(REALTIME_DETAILS_REFRESH_MS).toBe(5000)
+    expect(REALTIME_DETAILS_REFRESH_MS).toBeGreaterThan(statusPollMs(1))
   })
 })
 
@@ -134,35 +139,76 @@ describe("状态的轮询间隔", () => {
   })
 })
 
-describe("进程明细的轮询", () => {
-  it("实时态按状态里的采样间隔轮询", async () => {
+describe("实时进程明细的刷新节奏", () => {
+  it("按自己的固定节奏刷新，采样间隔再小也不跟着跑", async () => {
+    vi.useFakeTimers()
     api.fetchTrafficGroups.mockResolvedValue(groupsBody)
     const client = createClient()
+    // 采样间隔 0.05 秒；若明细跟着采样走，1 秒内会打好几次 lsof
     client.setQueryData(trafficKeys.status, status(0.05))
     mount(() => useTrafficGroups([]), client)
 
-    await waitFor(() => expect(api.fetchTrafficGroups).toHaveBeenCalledTimes(1))
-    await waitFor(
-      () =>
-        expect(api.fetchTrafficGroups.mock.calls.length).toBeGreaterThanOrEqual(
-          3
-        ),
-      { timeout: 2000 }
+    await vi.waitFor(() =>
+      expect(api.fetchTrafficGroups).toHaveBeenCalledTimes(1)
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(api.fetchTrafficGroups).toHaveBeenCalledTimes(1)
+
+    // 走完自己的 5 秒节奏才刷新
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REALTIME_DETAILS_REFRESH_MS - 1000)
+    })
+    await vi.waitFor(() =>
+      expect(api.fetchTrafficGroups.mock.calls.length).toBeGreaterThanOrEqual(2)
     )
   })
 
-  it("还没有状态时按兜底间隔轮询", async () => {
+  it("还没有状态数据时也按自己的节奏，不按状态的兜底间隔抢跑", async () => {
+    vi.useFakeTimers()
     api.fetchTrafficGroups.mockResolvedValue(groupsBody)
     mount(() => useTrafficGroups([]))
 
-    await waitFor(() => expect(api.fetchTrafficGroups).toHaveBeenCalledTimes(1))
-    await waitFor(
-      () =>
-        expect(api.fetchTrafficGroups.mock.calls.length).toBeGreaterThanOrEqual(
-          2
-        ),
-      { timeout: 3000 }
+    await vi.waitFor(() =>
+      expect(api.fetchTrafficGroups).toHaveBeenCalledTimes(1)
     )
+    // 兜底间隔是 1 秒，明细不受它影响
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500)
+    })
+    expect(api.fetchTrafficGroups).toHaveBeenCalledTimes(1)
+  })
+
+  it("页面不可见时明细也暂停，恢复可见后继续", async () => {
+    vi.useFakeTimers()
+    api.fetchTrafficGroups.mockResolvedValue(groupsBody)
+    const visibility = vi.spyOn(document, "visibilityState", "get")
+    mount(() => useTrafficGroups([]))
+
+    await vi.waitFor(() =>
+      expect(api.fetchTrafficGroups).toHaveBeenCalledTimes(1)
+    )
+
+    act(() => {
+      visibility.mockReturnValue("hidden")
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REALTIME_DETAILS_REFRESH_MS * 3)
+    })
+    expect(api.fetchTrafficGroups).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      visibility.mockReturnValue("visible")
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    // 恢复可见后重新排上自己的节奏，走完一轮即刷新
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REALTIME_DETAILS_REFRESH_MS + 100)
+    })
+    expect(api.fetchTrafficGroups.mock.calls.length).toBeGreaterThan(1)
   })
 
   it("非实时态（快照）不轮询", async () => {
