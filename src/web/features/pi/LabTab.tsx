@@ -10,6 +10,11 @@ import {
 } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@web/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@web/components/ui/collapsible"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
 import { Textarea } from "@web/components/ui/textarea"
@@ -24,6 +29,17 @@ import { usePiModels } from "./queries"
  */
 const PI_LAB_STALE_LIMIT_MS = 70_000
 const PI_LAB_STALE_LIMIT_SECONDS = PI_LAB_STALE_LIMIT_MS / 1000
+
+/** 折叠摘要用的中文档位名；遇到未知取值就原样显示，不掩盖实际输入。 */
+const THINKING_LABELS: Record<string, string> = {
+  off: "关闭",
+  minimal: "最小",
+  low: "低",
+  medium: "中",
+  high: "高",
+  xhigh: "很高",
+  max: "最大",
+}
 
 export const LabTab = ({
   mode,
@@ -44,6 +60,8 @@ export const LabTab = ({
   const isDesktop = useIsDesktop()
   // 手机上参数与结果二选一：发送后直接看结果，可随时返回参数
   const [mobileView, setMobileView] = useState<"form" | "result">("form")
+  // 高级参数默认收起：chat 与 probe 共用同一个开关，避免两处状态不同步
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [thinking, setThinking] =
     useState<NonNullable<PiLabInput["thinking"]>>("off")
   const [maxTokens, setMaxTokens] = useState(512)
@@ -205,37 +223,6 @@ export const LabTab = ({
             <option key={item.id} value={item.id} />
           ))}
         </datalist>
-        <Label className="grid gap-2">
-          Thinking 档位
-          <Input
-            value={thinking}
-            onChange={(event) => {
-              const value = event.target.value
-              if (
-                [
-                  "off",
-                  "minimal",
-                  "low",
-                  "medium",
-                  "high",
-                  "xhigh",
-                  "max",
-                ].includes(value)
-              )
-                setThinking(value as typeof thinking)
-            }}
-          />
-        </Label>
-        <Label className="grid gap-2">
-          本次输出上限（16–4096）
-          <Input
-            type="number"
-            min={16}
-            max={4096}
-            value={maxTokens}
-            onChange={(event) => setMaxTokens(Number(event.target.value))}
-          />
-        </Label>
         {mode === "probe" ? (
           <>
             <Label className="grid gap-2">
@@ -255,6 +242,60 @@ export const LabTab = ({
           </>
         ) : null}
       </div>
+      <Collapsible
+        open={advancedOpen}
+        onOpenChange={setAdvancedOpen}
+        className="grid gap-2"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <CollapsibleTrigger
+            render={
+              <Button variant="outline" size="sm" className="min-h-11">
+                {advancedOpen ? "收起高级参数" : "展开高级参数"}
+              </Button>
+            }
+          />
+          {/* 收起时也显示当前取值：折叠只藏输入，不藏可见性 */}
+          <span className="text-xs text-muted-foreground">
+            思考：{THINKING_LABELS[thinking] ?? thinking} · 上限：{maxTokens}
+          </span>
+        </div>
+        <CollapsibleContent className="grid gap-3 md:grid-cols-2">
+          <Label className="grid gap-2">
+            Thinking 档位
+            <Input
+              aria-label="Thinking 档位"
+              value={thinking}
+              onChange={(event) => {
+                const value = event.target.value
+                if (
+                  [
+                    "off",
+                    "minimal",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                  ].includes(value)
+                )
+                  setThinking(value as typeof thinking)
+              }}
+            />
+          </Label>
+          <Label className="grid gap-2">
+            本次输出上限（16–4096）
+            <Input
+              aria-label="本次输出上限"
+              type="number"
+              min={16}
+              max={4096}
+              value={maxTokens}
+              onChange={(event) => setMaxTokens(Number(event.target.value))}
+            />
+          </Label>
+        </CollapsibleContent>
+      </Collapsible>
       <Label className="grid gap-2">
         系统提示词
         <Textarea
