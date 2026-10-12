@@ -6,6 +6,8 @@ import { TaskStore } from "@server/common/tasks/store"
 import { TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
 import { ApiPath } from "@shared/api-path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { importAgentHubData } from "./import"
+import { CollaborationStore } from "./store"
 
 const { businessStore, command, migrate } = vi.hoisted(() => ({
   businessStore: vi.fn(() => {
@@ -401,6 +403,129 @@ describe("协作 HTTP 端点", () => {
       asBody<{ thread: { userUnreadCount: number } }>(detail).thread
         .userUnreadCount
     ).toBe(0)
+  })
+})
+
+describe("协作正文清洗", () => {
+  it("落盘前去掉 ANSI 转义序列与控制字符，可读文本保留", async () => {
+    const topicId = await createTopic("清洗")
+    const threadId = await createThread(topicId, "线程")
+    const id = requestId("ansi")
+    // 终端鼠标/粘贴模式误灌的序列：清屏、颜色、响铃、PageUp。
+    const raw = "前\x1b[2J\x1b[31m红色\x1b[0m中\x07后[5~尾"
+    const sent = await request("POST", commentsUrl(topicId, threadId), {
+      body: { body: raw, requestId: id },
+      headers: authHeaders({ [TASK_REQUEST_ID_HEADER]: id }),
+    })
+    expect(sent.status).toBe(201)
+    expect(asBody<{ comment: { body: string } }>(sent).comment.body).toBe(
+      "前红色中后尾"
+    )
+
+    // 读回来也是清洗后的正文，说明清洗发生在落盘前。
+    const listed = await request("GET", commentsUrl(topicId, threadId))
+    expect(
+      asBody<{ comments: { body: string }[] }>(listed).comments.map(
+        (item) => item.body
+      )
+    ).toEqual(["前红色中后尾"])
+  })
+
+  it("编辑评论时同样清洗", async () => {
+    const topicId = await createTopic("清洗")
+    const threadId = await createThread(topicId, "线程")
+    const id = requestId("edit")
+    const sent = await request("POST", commentsUrl(topicId, threadId), {
+      body: { body: "原始正文", requestId: id },
+      headers: authHeaders({ [TASK_REQUEST_ID_HEADER]: id }),
+    })
+    const commentId = asBody<{ comment: { id: string } }>(sent).comment.id
+
+    const edited = await request(
+      "PUT",
+      commentUrl(topicId, threadId, commentId),
+      {
+        body: { body: "改\x1b[31m红\x1b[0m" },
+      }
+    )
+    expect(edited.status).toBe(200)
+    expect(asBody<{ comment: { body: string } }>(edited).comment.body).toBe(
+      "改红"
+    )
+  })
+
+  it("普通中文与 Markdown 原样保留", async () => {
+    const topicId = await createTopic("清洗")
+    const threadId = await createThread(topicId, "线程")
+    const markdown = [
+      "**加粗** 与 _斜体_",
+      "",
+      "```ts",
+      "const a = 1",
+      "```",
+      "",
+      "- [链接](https://example.com/a?b=1&c=2)",
+      "- 中文标点：，。！？",
+    ].join("\n")
+    const id = requestId("md")
+    const sent = await request("POST", commentsUrl(topicId, threadId), {
+      body: { body: markdown, requestId: id },
+      headers: authHeaders({ [TASK_REQUEST_ID_HEADER]: id }),
+    })
+    expect(sent.status).toBe(201)
+    expect(asBody<{ comment: { body: string } }>(sent).comment.body).toBe(
+      markdown
+    )
+  })
+
+  it("清洗只作用于评论正文，标题原样保留", async () => {
+    const title = "标题\x1b[31m红\x1b[0m"
+    const created = await request("POST", ApiPath.collaborationTopics, {
+      body: { title },
+    })
+    expect(created.status).toBe(201)
+    expect(asBody<{ topic: { title: string } }>(created).topic.title).toBe(
+      title
+    )
+  })
+
+  it("导入路径不清洗，保留源数据原始正文", () => {
+    // 导入是无损迁移：源里存什么就落什么，不能顺手改写历史数据。
+    const importDir = mkdtempSync(path.join(tmpdir(), "mac-manager-raw-"))
+    const importStore = new CollaborationStore(
+      path.join(importDir, "raw.sqlite3")
+    )
+    try {
+      const raw = "导入\x1b[31m红\x1b[0m"
+      importAgentHubData(importStore, {
+        topics: [
+          {
+            id: "topic-raw",
+            title: "导入",
+            createdAt: "2026-07-25T00:00:00.000Z",
+            threads: [
+              {
+                id: "thread-raw",
+                title: "线程",
+                createdAt: "2026-07-25T00:00:01.000Z",
+                comments: [
+                  {
+                    id: "comment-raw",
+                    role: "agent",
+                    body: raw,
+                    createdAt: "2026-07-25T00:00:02.000Z",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      expect(importStore.findComment("comment-raw")?.body).toBe(raw)
+    } finally {
+      importStore.close()
+      rmSync(importDir, { recursive: true, force: true })
+    }
   })
 })
 

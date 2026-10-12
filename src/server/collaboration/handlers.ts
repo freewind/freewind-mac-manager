@@ -3,6 +3,7 @@ import {
   PublicOperationError,
   publicSystemError,
 } from "@server/common/public-error"
+import { sanitizeInputText } from "@server/utils/sanitizeInputText"
 import { contract, TASK_REQUEST_ID_HEADER } from "@shared/api-contract"
 import { initServer } from "@ts-rest/express"
 import { publishCollaborationEvent } from "./events"
@@ -129,6 +130,18 @@ const respondError = (error: unknown) => {
   return { status: mapped.status, body: mapped.body }
 }
 
+/**
+ * 评论正文清洗：源项目在追加 user / agent 评论与编辑 user 评论三处都会先
+ * `sanitizeInputText(body).trim()`，空正文直接拒绝；这里对齐同一行为，
+ * 避免终端鼠标/粘贴模式误灌的转义序列与控制字符落盘。
+ * 只作用于评论正文：标题、导入数据都不经过它。
+ */
+const cleanCommentBody = (body: string): string => {
+  const trimmed = sanitizeInputText(body).trim()
+  if (!trimmed) throw new PublicOperationError(400, "消息不能为空")
+  return trimmed
+}
+
 /** 幂等：同一请求标识重复提交时直接返回原消息，不再写入。 */
 const sendCommentOnce = (
   store: CollaborationStore,
@@ -145,13 +158,15 @@ const sendCommentOnce = (
   const existing = store.findCommentByRequestId(requestId)
   if (existing) return { status: 200 as const, body: { comment: existing } }
 
+  // 清洗放在幂等检查之后：重放必须原样返回已存消息，不因本次入参被判非法。
+  const body = cleanCommentBody(input.body)
   const role = input.role ?? "user"
   const comment = store.appendComment(
     {
       id: `comment-${randomUUID()}`,
       threadId,
       role,
-      body: input.body,
+      body,
       createdAt: nowIso(),
       authorAgent: input.authorAgent ?? null,
       // 源项目：用户消息默认未读（readByAgent=false）；Agent 消息不参与未读统计。
@@ -418,7 +433,7 @@ export const createCollaborationRouter = (store: CollaborationStore) =>
           params.threadId,
           params.commentId,
           {
-            body: body.body,
+            body: cleanCommentBody(body.body),
             updatedAt: nowIso(),
             // 源项目：用户消息一旦编辑，未读标记重置为 false。
             readByAgent: false,
