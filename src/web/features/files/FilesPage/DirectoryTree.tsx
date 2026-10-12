@@ -15,10 +15,12 @@ import { cn } from "@web/lib/utils"
 
 type DirectoryTreeProps = {
   model: FilesModel
+  /** 选目录后的动作；手机上由页面用来关掉抽屉。 */
+  onNavigate: (path: string) => void
 }
 
 /** 左侧目录树：同一列表里按层级缩进、原地展开，不做嵌套容器。 */
-export const DirectoryTree = ({ model }: DirectoryTreeProps) => {
+export const DirectoryTree = ({ model, onNavigate }: DirectoryTreeProps) => {
   if (model.rootPath === "") {
     return (
       <div className="flex flex-col gap-1 p-2">
@@ -50,6 +52,7 @@ export const DirectoryTree = ({ model }: DirectoryTreeProps) => {
             path={model.rootPath}
             name={model.rootPath}
             depth={0}
+            onNavigate={onNavigate}
           />
         </div>
       </ScrollArea>
@@ -62,13 +65,20 @@ type TreeBranchProps = {
   path: string
   name: string
   depth: number
+  onNavigate: (path: string) => void
 }
 
 /**
  * 一个树节点。只有展开时才渲染子节点，因此收起的分支不会发起请求；
  * 展开的分支与文件表共用同一份目录缓存，不重复请求。
  */
-const TreeBranch = ({ model, path, name, depth }: TreeBranchProps) => {
+const TreeBranch = ({
+  model,
+  path,
+  name,
+  depth,
+  onNavigate,
+}: TreeBranchProps) => {
   // 树根常驻展开，不参与「全部收起」；其余节点看 expanded
   const isRoot = path === model.rootPath
   const expanded = isRoot || model.isExpanded(path)
@@ -106,7 +116,7 @@ const TreeBranch = ({ model, path, name, depth }: TreeBranchProps) => {
             "min-w-0 flex-1 justify-start",
             isCurrent && "bg-muted"
           )}
-          onClick={() => model.enterDirectory(path)}
+          onClick={() => onNavigate(path)}
         >
           <HugeiconsIcon icon={expanded ? FolderOpenIcon : Folder01Icon} />
           <span className="truncate">{name}</span>
@@ -120,6 +130,7 @@ const TreeBranch = ({ model, path, name, depth }: TreeBranchProps) => {
               path={dir.path}
               name={dir.name}
               depth={depth + 1}
+              onNavigate={onNavigate}
             />
           ))
         : null}

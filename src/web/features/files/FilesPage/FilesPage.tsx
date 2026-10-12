@@ -17,6 +17,12 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@web/components/ui/resizable"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@web/components/ui/sheet"
 import type { EntryAction } from "@web/features/files/actions"
 import { useFiles } from "@web/features/files/useFiles"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
@@ -42,6 +48,8 @@ export const FilesPage = () => {
   const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null)
   const [deletePaths, setDeletePaths] = useState<string[] | null>(null)
   const [transfer, setTransfer] = useState<TransferState | null>(null)
+  // 手机上的目录抽屉；桌面不用它（两套不同时挂载）
+  const [treeOpen, setTreeOpen] = useState(false)
 
   useHistoryOverlay(
     createKind !== null ||
@@ -55,6 +63,15 @@ export const FilesPage = () => {
       setTransfer(null)
     }
   )
+
+  // 抽屉也是浮层：系统返回先关抽屉，不直接回退页面
+  useHistoryOverlay(treeOpen, () => setTreeOpen(false))
+
+  /** 选目录后关掉抽屉（桌面上没有抽屉，这一句是空操作）。 */
+  const navigateFromTree = (path: string): void => {
+    model.enterDirectory(path)
+    setTreeOpen(false)
+  }
 
   // 动作只针对当前目录里确实存在的条目，避免选择里残留的旧路径被当成目标
   const selectedPaths = model.selectedEntries.map((entry) => entry.path)
@@ -149,6 +166,7 @@ export const FilesPage = () => {
           <div className="ml-auto">
             <FilesToolbar
               model={model}
+              onOpenTree={isDesktop ? undefined : () => setTreeOpen(true)}
               primaryActions={
                 newFolderAction && newFileAction
                   ? [newFolderAction, newFileAction]
@@ -178,23 +196,41 @@ export const FilesPage = () => {
         </div>
       ) : null}
 
-      <ResizablePanelGroup
-        orientation={isDesktop ? "horizontal" : "vertical"}
-        className="min-h-0 flex-1"
-      >
-        <ResizablePanel
-          defaultSize="22"
-          minSize="12"
-          maxSize="45"
-          className="min-h-0"
+      {isDesktop ? (
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 flex-1"
         >
-          <DirectoryTree model={model} />
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel className="min-h-0">
+          <ResizablePanel
+            defaultSize="22"
+            minSize="12"
+            maxSize="45"
+            className="min-h-0"
+          >
+            <DirectoryTree model={model} onNavigate={navigateFromTree} />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel className="min-h-0">
+            <FileTable model={model} rowActions={actions} />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <FileTable model={model} rowActions={actions} />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </div>
+      )}
+
+      {/* 手机才挂载抽屉：桌面与手机不会同时渲染两份目录树 */}
+      {isDesktop ? null : (
+        <Sheet open={treeOpen} onOpenChange={setTreeOpen}>
+          <SheetContent side="left" className="w-80 max-w-[85vw] p-0">
+            <SheetHeader className="border-b">
+              <SheetTitle className="sr-only">目录</SheetTitle>
+            </SheetHeader>
+            <DirectoryTree model={model} onNavigate={navigateFromTree} />
+          </SheetContent>
+        </Sheet>
+      )}
 
       <EntryNameDialog
         open={nameDialog !== null}

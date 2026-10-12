@@ -104,7 +104,9 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
           </EmptyHeader>
         </Empty>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
+        // key 跟着当前目录变：切目录后列表回到顶部，
+        // 而左侧树的展开状态与滚动位置不受影响（它不在这里）
+        <ScrollArea key={model.currentPath} className="min-h-0 flex-1">
           <Table>
             <TableHeader className="sticky top-0 bg-background">
               <TableRow>

@@ -1,4 +1,8 @@
-import { MoreHorizontalIcon, RefreshIcon } from "@hugeicons/core-free-icons"
+import {
+  Folder01Icon,
+  MoreHorizontalIcon,
+  RefreshIcon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
 import {
@@ -24,6 +28,8 @@ type FilesToolbarProps = {
   model: FilesModel
   primaryActions: EntryAction[]
   menuActions: EntryAction[]
+  /** 手机上打开目录抽屉；桌面不传，这个入口也就不出现。 */
+  onOpenTree?: () => void
 }
 
 /** 操作入口的可访问名称带上对象：读屏不会只听到一个笼统的「操作」。
@@ -44,8 +50,21 @@ export const FilesToolbar = ({
   model,
   primaryActions,
   menuActions,
+  onOpenTree,
 }: FilesToolbarProps) => (
   <div className="flex flex-wrap items-center gap-2">
+    {onOpenTree ? (
+      <Button
+        size="sm"
+        className="min-h-11"
+        variant="outline"
+        onClick={onOpenTree}
+      >
+        <HugeiconsIcon icon={Folder01Icon} />
+        目录
+      </Button>
+    ) : null}
+
     {primaryActions.map((action) => (
       <Button
         key={action.key}

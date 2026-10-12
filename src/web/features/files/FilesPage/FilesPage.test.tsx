@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import type { FileEntry } from "@shared/api-contract"
-import { cleanup, render, screen } from "@testing-library/react"
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { FilesModel } from "@web/features/files/useFiles"
 import type { ReactNode } from "react"
@@ -249,6 +255,89 @@ describe("文件页布局尺寸", () => {
       const item = await screen.findByRole("menuitem", { name: label })
       expect(item.getAttribute("aria-disabled")).not.toBe("true")
     }
+  })
+})
+
+describe("左右分栏滚动", () => {
+  const scrollers = (): Element[] =>
+    Array.from(document.querySelectorAll('[data-slot="scroll-area"]'))
+
+  it("桌面两列各有自己的滚动容器，切目录只重置列表", () => {
+    setDesktop(true)
+    modelOverrides = {
+      currentPath: "/Users/demo",
+      entries: [fileEntry()],
+      crumbs: [{ name: "/Users/demo", path: "/Users/demo" }],
+    }
+    const { rerender } = render(<FilesPage />)
+
+    const [treeScroller, tableScroller] = scrollers()
+    expect(scrollers()).toHaveLength(2)
+    // 两列各自滚动：表格在右侧容器里，不在左侧树里
+    expect(tableScroller?.contains(screen.getByRole("table"))).toBe(true)
+    expect(treeScroller?.contains(screen.getByRole("table"))).toBe(false)
+
+    // 切目录：列表容器重挂载（滚动回到顶部），左侧树仍是原来那个容器
+    modelOverrides = {
+      currentPath: "/Users/demo/sub",
+      entries: [
+        fileEntry({ name: "other.txt", path: "/Users/demo/sub/other.txt" }),
+      ],
+      crumbs: [{ name: "/Users/demo/sub", path: "/Users/demo/sub" }],
+    }
+    rerender(<FilesPage />)
+
+    const [treeAfter, tableAfter] = scrollers()
+    expect(treeAfter).toBe(treeScroller)
+    expect(tableAfter).not.toBe(tableScroller)
+  })
+
+  it("手机上目录树在抽屉里：有入口、选目录后自动关闭、接入历史返回", async () => {
+    const user = userEvent.setup()
+    const enterDirectory = vi.fn()
+    setDesktop(false)
+    modelOverrides = {
+      currentPath: "/Users/demo",
+      entries: [fileEntry()],
+      crumbs: [{ name: "/Users/demo", path: "/Users/demo" }],
+      enterDirectory,
+    }
+    render(<FilesPage />)
+
+    // 手机上不渲染左右分栏：只有一个滚动容器（文件列表）
+    expect(scrollers()).toHaveLength(1)
+
+    await user.click(screen.getByRole("button", { name: "目录" }))
+    const drawer = await screen.findByRole("dialog")
+    expect(within(drawer).getByText("全部收起")).toBeTruthy()
+    // 抽屉是浮层：打开时记录进历史栈，系统返回先关它
+    const overlays = (window.history.state as { macManagerOverlays?: string[] })
+      .macManagerOverlays
+    expect(overlays?.length).toBeGreaterThan(0)
+
+    await user.click(
+      within(drawer).getByRole("button", { name: "/Users/demo" })
+    )
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(enterDirectory).toHaveBeenCalled()
+  })
+
+  it("路径区一行展示，长路径靠局部横向滚动而不撑多行", () => {
+    const deep = "/Users/demo/very/deep/path/segment"
+    modelOverrides = {
+      crumbs: [
+        { name: "/Users/demo", path: "/Users/demo" },
+        { name: deep, path: deep },
+      ],
+    }
+    render(<FilesPage />)
+
+    const scroller = document.querySelector(".min-w-0.overflow-x-auto")
+    expect(scroller).not.toBeNull()
+    // 内容按内容宽度一行展开，不换行撑高顶部
+    expect(scroller?.querySelector(".w-max")).not.toBeNull()
+    // 完整路径可从 title 取到，不只靠视觉截断
+    expect(screen.getAllByTitle(deep).length).toBeGreaterThan(0)
   })
 })
 
