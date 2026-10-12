@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 
-import { ApiRequestError } from "@shared/client-api"
+import type { DatabaseRecordLocatorKey } from "@shared/api-contract"
+import {
+  ApiRequestError,
+  type DatabaseRecordsQueryInput,
+} from "@shared/client-api"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
@@ -64,7 +68,9 @@ const tableDetail = {
   referencedBy: [],
 }
 
-const key = [{ column: "id", value: { type: "integer", value: "1" } }]
+const key: DatabaseRecordLocatorKey = [
+  { column: "id", value: { type: "integer", value: "1" } },
+]
 
 const record = {
   key,
@@ -83,12 +89,12 @@ const recordsBody = {
   signature: "sig",
 }
 
-const recordsQuery = {
+const recordsQuery: DatabaseRecordsQueryInput = {
   page: 1,
   pageSize: 50,
   filters: [],
   sorts: [],
-} as const
+}
 
 const mount = <T,>(hook: () => T) => {
   const client = new QueryClient({

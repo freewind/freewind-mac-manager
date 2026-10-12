@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { DatabaseRecordLocatorKey } from "@shared/api-contract"
 import { ApiRequestError } from "@shared/client-api"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
@@ -59,7 +60,9 @@ const tableDetail = {
   referencedBy: [],
 }
 
-const key = [{ column: "id", value: { type: "integer", value: "1" } }]
+const key: DatabaseRecordLocatorKey = [
+  { column: "id", value: { type: "integer", value: "1" } },
+]
 const record = {
   key,
   values: { id: { type: "integer", value: "1" } },
