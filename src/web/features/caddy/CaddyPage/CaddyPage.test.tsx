@@ -743,4 +743,28 @@ describe("Caddy 页面离线与可达性", () => {
       "54740"
     )
   })
+
+  it("将要写入的正文在可横向滚动的容器里，长行不把页面撑宽", async () => {
+    const longLine = "very-long-line-without-breaks-".repeat(12)
+    api.fetchCaddyRules.mockResolvedValue(
+      rulesResponse({
+        hasUnappliedChanges: true,
+        currentSignature: "sig-2",
+        changes: { ...emptyChanges(), added: [rule({ id: "r2" })] },
+        previewText: `${longLine}\n`,
+      })
+    )
+    renderPage()
+    await openTab("变更预览")
+
+    const label = await screen.findByText("将要写入受管区域的正文")
+    // 横向滚动在预览容器内，不依赖页面级横向滚动
+    const scroller = label.parentElement?.querySelector(".overflow-x-auto")
+    expect(scroller).not.toBeNull()
+    const pre = scroller?.querySelector("pre")
+    expect(pre?.className).toContain("whitespace-pre")
+    expect(pre?.className).toContain("w-max")
+    // 长行完整保留，没有被裁切丢内容
+    expect(pre?.textContent).toContain(longLine)
+  })
 })

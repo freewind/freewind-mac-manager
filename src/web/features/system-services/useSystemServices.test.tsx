@@ -123,4 +123,34 @@ describe("system service confirmation", () => {
     expect(stopService).toHaveBeenCalledTimes(2)
     client.clear()
   })
+
+  it("plist 原文的长行收在区块内：限高局部滚动、保持等宽不换行、内容不丢", () => {
+    const longLine =
+      "<key>ThrottleInterval</key><string>用来验证横向滚动不会把页面撑宽的超长一行</string>"
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { enabled: false, retry: false },
+        mutations: { retry: false },
+      },
+    })
+    client.setQueryData(systemServiceKeys.list, {
+      services: [{ ...service, plist: `<plist>${longLine}` }],
+      skipped: [],
+    })
+    render(<SystemServicesPage />, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    })
+
+    // 预览容器限高并在自己内部滚动，长行不将页面撑宽
+    const scroller = document.querySelector(".max-h-80.overflow-auto")
+    expect(scroller).not.toBeNull()
+    const pre = scroller?.querySelector("pre")
+    expect(pre?.className).toContain("whitespace-pre")
+    expect(pre?.className).toContain("w-max")
+    // 长行完整保留，没有被裁切丢内容
+    expect(pre?.textContent).toContain(longLine)
+    client.clear()
+  })
 })
