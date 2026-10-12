@@ -175,10 +175,10 @@ export const App = () => {
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh overflow-hidden">
       <AppSidebar active={feature} onSelect={selectFeature} />
-      <SidebarInset className="min-w-0">
-        <div className="flex items-center gap-2 border-b px-2 py-2">
+      <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+        <div className="flex shrink-0 items-center gap-2 border-b px-2 py-2">
           <SidebarTrigger />
           {canGoBack ? (
             <Button
@@ -204,20 +204,23 @@ export const App = () => {
             </Button>
           </div>
         </div>
-        {feature === "overview" ? <DashboardPage /> : null}
-        {feature === "files" ? <FilesPage /> : null}
-        {feature === "disk-growth" ? <DiskGrowthPage /> : null}
-        {feature === "processes" ? <ProcessesPage /> : null}
-        {feature === "traffic" ? <TrafficPage /> : null}
-        {feature === "ports" ? <PortsPage /> : null}
-        {feature === "frp" ? <FrpPage /> : null}
-        {feature === "caddy" ? <CaddyPage /> : null}
-        {feature === "system-services" ? <SystemServicesPage /> : null}
-        {feature === "pi" ? <PiPage /> : null}
-        {feature === "clash-verge" ? <ClashVergePage /> : null}
-        {feature === "docker" ? <DockerPage /> : null}
-        {feature === "database" ? <DatabasePage /> : null}
-        {feature === "hardware" ? <HardwarePage /> : null}
+        {/* 内容区只给确定高度与兜底滚动：各页自己用 min-h-0 flex-1 的局部滚动区。 */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+          {feature === "overview" ? <DashboardPage /> : null}
+          {feature === "files" ? <FilesPage /> : null}
+          {feature === "disk-growth" ? <DiskGrowthPage /> : null}
+          {feature === "processes" ? <ProcessesPage /> : null}
+          {feature === "traffic" ? <TrafficPage /> : null}
+          {feature === "ports" ? <PortsPage /> : null}
+          {feature === "frp" ? <FrpPage /> : null}
+          {feature === "caddy" ? <CaddyPage /> : null}
+          {feature === "system-services" ? <SystemServicesPage /> : null}
+          {feature === "pi" ? <PiPage /> : null}
+          {feature === "clash-verge" ? <ClashVergePage /> : null}
+          {feature === "docker" ? <DockerPage /> : null}
+          {feature === "database" ? <DatabasePage /> : null}
+          {feature === "hardware" ? <HardwarePage /> : null}
+        </div>
       </SidebarInset>
       <AiAssistantDialog onOpenModelSettings={openAiAssistantSettings} />
     </SidebarProvider>
