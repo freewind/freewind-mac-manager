@@ -179,6 +179,127 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 8. 制造超时（例如锁住数据库）后提交：确认提示「结果未知」，只提供核实入口，不自动重试。
 9. PWA 安装后重复第 1-3 步，确认独立启动形态与返回行为正常。
 
+## 备份与恢复
+
+本节是备份域（创建、导入、下载、删除、恢复计划与启动前恢复）的边界、配置、
+状态码、上限与验收。管理能力本身见上文；这里的实现已经是既定事实，
+本节只做如实描述，不宣称业务功能因此完成。
+
+### 功能边界
+
+| 能做 | 不能做 |
+| --- | --- |
+| 创建原生备份：快照库经原生 `sqlite3_backup` 规范化为自包含单文件，走任务受理（`201` 完成 / `202` 受理） | 让恢复立即生效——恢复在**下次启动**由维护屏障执行，本次进程不暂停、不杀进程 |
+| 导入已有的 SQLite 备份：流式接收、子进程校验（完整性 + 应用必要表）、原子发布 | 导入未经校验的文件、WAL/SHM 旁置文件或非 SQLite 内容 |
+| 下载备份原文（octet-stream + 服务端附件名 + 明确长度） | 把路径或任意 URL 当下载目标（只按备份 ID 定位） |
+| 删除备份：逐项结果与内容签名核对，失败项如实列出，不整批回滚 | 无签名的盲删、删除仍被恢复计划引用的备份 |
+| 提交/取消恢复计划与查询状态：`plan`、`currentSignature`、`verified` 三者分开 | 用计划存在就宣称「已恢复」；已应用或执行中的计划再取消 |
+| 恢复执行前自动生成 `pre_restore` 安全备份 | 恢复期间执行写入（新请求按 `409` 拒绝，结果未知须重新读取） |
+
+**`201` 不等于已恢复**：提交计划的 `201` 只代表计划创建成功；恢复由启动维护
+屏障在**下次启动**执行（先等待已登记的数据库使用者退出，绝不杀进程），
+迁移通过后应用才继续启动。
+
+### 配置项
+
+| 环境变量 | 默认值 | 作用 |
+| --- | --- | --- |
+| `MAC_MANAGER_BACKUP_DIR` | `<项目>/data/database-backups` | 备份文件目录（下载与恢复来源） |
+| `MAC_MANAGER_BACKUP_STATE_DIR` | `<项目>/data/database-backup-state` | 恢复计划、进行中标记等维护状态，与备份文件分开 |
+| `MAC_MANAGER_DB_FILE` | `<项目>/data/snapshots.sqlite3` | 应用库；测试一律改道到临时文件 |
+
+服务端口由 `APP_PORT` 注入（dev 51509 / 生产 51510），与备份无关。
+
+### 状态码与错误码
+
+| 端点 | 成功 | 业务错误（`code`） |
+| --- | --- | --- |
+| `GET /api/database/backups?page&pageSize&source` | `200` + 分页列表 | `401` 公共结构 |
+| `GET /api/database/backups/:backupId` | `200` 详情 | `404 backup_not_found` |
+| `POST /api/database/backups`（创建） | `201` 已发布 / `202` 受理回执 | 任务提交错误走公共 `ApiError`：`409`（已有创建任务未跑完，`executionStatus: not_started`）；缺 `x-task-request-id` → `400` |
+| `POST /api/database/backups/delete` | `200` + `{deleted, failed}` 逐项结果 | 入参不合约 `400`（超 100 条在契约层拒绝） |
+| `POST /api/database/backups/restore`（提交计划） | `201` 计划已创建（**非已恢复**） | `404 backup_not_found`、`409 signature_mismatch`、`409 restore_plan_pending` |
+| `GET /api/database/backups/restore` | `200` + `{plan, currentSignature, verified}` | 计划文件损坏 → `500` |
+| `DELETE /api/database/backups/restore` | `200` 已取消 | `404` 无计划、`409 restore_not_cancellable` |
+| `POST /api/database/backups/upload`（传输例外） | `201` 导入完成 | `413 too_large` 超 8 GiB、`400 unsupported_format` 非 SQLite、`400 backup_invalid` 空内容或形态不合格 |
+| `GET /api/database/backups/:backupId/download`（传输例外） | `200` 文件流 | `404 backup_not_found`、`400` 发布后被改动 |
+
+未认证一律 `401`（公共结构）；连续失败锁定返回 `429` + `Retry-After`；
+未预期异常 `500` 只回通用 message。写操作不自动重试：超时或断连是
+**结果未知**，须重新读取列表或恢复状态核实。
+
+### 上限
+
+| 项 | 值 | 超出的结果 |
+| --- | --- | --- |
+| 上传大小 | 8 GiB（按 Content-Length 预检） | `413`，不接收字节 |
+| 删除条数 | ≤ 100 | `400`（契约层拒绝，一条不执行） |
+| 列表页大小 | ≤ 100（默认 50） | `400` |
+| 内容签名 | ≤ 128 字符 | `400` |
+| 校验子进程 | 并发 1、排队 8、15 分钟上限 | 排队满拒绝并提示稍后重试；超时整进程终止并清理临时文件 |
+| 恢复执行 | 全程 30 分钟；等待使用者 30 秒 | 到点停止并保持原状，计划留待下次启动 |
+
+### 已知限制
+
+- **vitest 下原生备份的间歇性长等待**：同一源文件连续多次原生备份在测试
+  环境偶发 10-20 秒等待（真实环境毫秒级，机制未查明，不阻塞生产）。
+  规避写法：验收测试每条用例重建临时库（新源），单用例真实备份不超过两次；
+  需要多份备份的 `service.test.ts` 删除用例改为「一次真备份 + 两份同内容
+  克隆手工登记」，逐项删除断言不变。
+- **`verified=true` 只在恢复完成瞬间成立**：回执签名是屏障结束时的库文件
+  字节，而启动迁移与协作域初始化会写库，服务首次可查询时字节已不同于回执，
+  端点上的 `verified` 会是 `false`。验收在屏障结束、服务起来之前用状态端点
+  同一比对逻辑断言「回执签名 == 文件签名」（即 `verified=true` 分支的判定
+  输入一致且非空）。此差异属任务 14 的设计问题，待另立任务处理。
+- **恢复计划旁置存储**：计划文件损坏时启动报 `unknown` 并保留文件，不猜测、
+  不自动清理；`GET /restore` 对损坏计划返回 `500`。
+- 上传下载是传输例外，不在 JSON 契约内；路径、上限与认证语义在
+  `src/shared/api-path/index.ts` 的说明里。
+
+### 自动验收证据（本次新增）
+
+命令：
+
+```bash
+pnpm vitest run src/server/database/backups/acceptance.test.ts   # 13 条，连跑两次均 13/13
+pnpm test                                                        # 全量
+```
+
+证据文件：`src/server/database/backups/acceptance.test.ts`（13 条）。
+隔离：临时库与临时备份/状态目录（`vi.hoisted` 改道三个环境变量），
+不碰真实 `data/snapshots.sqlite3`、真实备份目录与任何 launchd 服务。
+
+| # | 用例名 | 断言要点 |
+| --- | --- | --- |
+| 1 | 列表按页读取：total、目录与占用如实回显 | 两份备份 `pageSize=1` 翻两页，`total=2`、`directory`/`totalBytes` 如实 |
+| 2 | 创建：201 表示已发布可恢复；202 是受理回执；创建在跑时新请求 409 | 完成 `201` + 备份对象；挂起 `202` + `taskId`；并发新请求 `409` + `executionStatus: not_started` |
+| 3 | 声明超过 8 GiB 上限：413 且不接收字节 | 伪 Content-Length 请求直接 `413` |
+| 4 | 导入非 SQLite 与空内容都拒绝为 400 | 非 SQLite → `unsupported_format`；空内容 → `backup_invalid`，均不落盘 |
+| 5 | 下载 200：附件名与字节齐全，摘要与登记的内容签名一致 | `octet-stream`、`attachment` + 文件名、字节数与 sha256 等于登记签名 |
+| 6 | 下载不存在的备份 404 且带稳定错误码 | `404` + `backup_not_found` |
+| 7 | 逐项结果：签名对的删除，签名不符与不存在的进 failed，不整批失败 | `deleted` 与 `failed` 并存，失败消息含「签名」「不存在」 |
+| 8 | 超过 100 条时契约 400，一条也不执行 | 101 条 → `400` |
+| 9 | 提交计划 201 只代表计划创建：404、409 签名不符、409 计划待执行 | 缺失 `404`、错签名 `409 signature_mismatch`、`201` 后当前数据不变、重复 `409 restore_plan_pending`、状态三字段分开 |
+| 10 | 取消：无计划 404、取消 200、再取消 409 restore_not_cancellable | 状态迁移与不可取消语义 |
+| 11 | 屏障执行恢复：数据回到备份、迁移通过才起服务、回执与文件签名一致 | 提交不改数据 → 屏障执行 `applied` → 屏障后回执签名 == 文件 sha256（`verified=true` 分支判定）→ 迁移通过 → 新服务查询 `plan=applied` 且 `currentSignature` 非空；`pre_restore` 安全备份在列表中 |
+| 12 | 来源在提交后被改动：恢复明确失败，计划报 failed，当前库不动 | 篡改备份文件后执行 → `failed`，当前库保持原数据，端点如实报 `failed` |
+| 13 | 全部备份端点未带凭据都 401，不返回任何数据 | 7 个 JSON 端点 + 下载 + 上传全部 `401` |
+
+模块级测试（不在本节重复断言）：`backups/` 下 `service.test.ts`、
+`restore.test.ts`、`restore-plan.test.ts`、`handlers.test.ts`、
+`transfer.test.ts`、`validation.test.ts`、`files.test.ts`、`task.test.ts`。
+
+### 人工验收步骤（未执行，留任务 18/55）
+
+1. 真实库上创建一份备份：列表可见、大小与时间正确；下载后用 sqlite3 打开核对。
+2. 导入一份真实历史备份：校验纳入列表；确认当前库没有被改动。
+3. 提交恢复计划 → 确认提示「重启后生效」；重启应用 → 数据回到备份内容、
+   状态显示计划已应用；`pre_restore` 安全备份在列表中。
+4. 提交计划后取消 → 重启 → 确认未执行恢复、数据不变。
+5. 故意改坏备份文件再提交恢复 → 重启 → 确认失败提示、计划 `failed`、
+   当前库数据未被触碰。
+6. 手机端（PWA）重复第 3 步，确认面板、确认框与结果未知提示完整可用。
+
 ## 已知边界
 
 - **不做业务校验**：这里直接改底层表，不会维护其他域的签名、时间戳或业务不变量；外键级联与
