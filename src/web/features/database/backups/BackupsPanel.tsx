@@ -33,11 +33,15 @@ import { useState } from "react"
 import { BackupImportDialog } from "./BackupImportDialog"
 import { DeleteBackupsDialog } from "./DeleteBackupsDialog"
 import { DeleteResultAlert } from "./DeleteResultAlert"
-import { SOURCE_LABELS } from "./labels"
+import { formatProgress, SOURCE_LABELS } from "./labels"
 import { RestorePlanDialog } from "./RestorePlanDialog"
 import { RestoreStatusCard } from "./RestoreStatusCard"
 import { useBackupActions } from "./useBackupActions"
-import { type BackupSourceFilter, useBackups } from "./useBackups"
+import {
+  type BackupSourceFilter,
+  type TransferProgress,
+  useBackups,
+} from "./useBackups"
 
 const SOURCE_FILTERS: readonly { value: BackupSourceFilter; label: string }[] =
   [
@@ -62,6 +66,7 @@ const BackupRow = (props: {
   selected: boolean
   onToggleSelected: (id: string, next: boolean) => void
   downloadingId: string | null
+  downloadProgress: TransferProgress | null
   onDownload: (backup: DatabaseBackup) => void
   onCancelDownload: () => void
   onRestore: (backup: DatabaseBackup) => void
@@ -71,6 +76,7 @@ const BackupRow = (props: {
     selected,
     onToggleSelected,
     downloadingId,
+    downloadProgress,
     onDownload,
     onCancelDownload,
     onRestore,
@@ -136,10 +142,17 @@ const BackupRow = (props: {
       <TableCell className="align-top">
         <div className="flex flex-col items-start gap-2">
           {downloading ? (
-            <Button variant="outline" size="sm" onClick={onCancelDownload}>
-              <LoaderCircle className="animate-spin" aria-hidden="true" />
-              取消下载
-            </Button>
+            <div className="flex flex-col items-start gap-1">
+              <Button variant="outline" size="sm" onClick={onCancelDownload}>
+                <LoaderCircle className="animate-spin" aria-hidden="true" />
+                取消下载
+              </Button>
+              {downloadProgress === null ? null : (
+                <span className="text-muted-foreground text-xs">
+                  {formatProgress(downloadProgress)}
+                </span>
+              )}
+            </div>
           ) : (
             <Button
               variant="outline"
@@ -272,6 +285,9 @@ export const BackupsPanel = () => {
                 size={14}
               />
               正在导入备份…
+              {model.importProgress === null
+                ? null
+                : formatProgress(model.importProgress)}
               <Button variant="ghost" size="sm" onClick={model.cancelImport}>
                 取消导入
               </Button>
@@ -384,6 +400,7 @@ export const BackupsPanel = () => {
                   selected={actions.selectedIds.includes(backup.id)}
                   onToggleSelected={actions.toggleSelected}
                   downloadingId={model.downloadingId}
+                  downloadProgress={model.downloadProgress}
                   onDownload={(item) => void model.download(item)}
                   onCancelDownload={model.cancelDownload}
                   onRestore={actions.openRestore}
@@ -418,8 +435,8 @@ export const BackupsPanel = () => {
         )}
 
         <p className="text-muted-foreground text-xs">
-          下载会把整个文件流式发送到本机浏览器（当前无法逐段显示进度，GB
-          级文件按分钟计），随时可以取消；取消或失败都不会影响备份文件本身。
+          下载会把整个文件流式发送到本机浏览器，GB
+          级文件按分钟计，随时可以取消；取消或失败都不会影响备份文件本身。
         </p>
       </div>
 
@@ -427,6 +444,7 @@ export const BackupsPanel = () => {
         open={importOpen}
         onOpenChange={setImportOpen}
         importing={model.importing}
+        progress={model.importProgress}
         onImport={model.importBackup}
         onCancelImport={model.cancelImport}
       />

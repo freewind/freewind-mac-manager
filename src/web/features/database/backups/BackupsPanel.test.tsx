@@ -5,6 +5,7 @@ import type {
   DatabaseBackupsResponse,
   DatabaseRestoreState,
 } from "@shared/api-contract"
+import { ApiRequestError } from "@shared/client-api"
 import {
   onlineManager,
   QueryClient,
@@ -118,6 +119,12 @@ afterEach(() => {
 
 const rowOf = (fileName: string): HTMLElement =>
   screen.getByText(fileName).closest("tr") as HTMLElement
+
+const openImport = async (user: ReturnType<typeof userEvent.setup>) => {
+  await screen.findByText("snapshots-1791700000000-aaa111.sqlite3")
+  await user.click(screen.getByRole("button", { name: /导入备份/ }))
+  await screen.findByRole("dialog")
+}
 
 describe("备份列表", () => {
   it("不确定的信息如实说清：null 不是 0，阻塞原因与不完整原因都要显示", async () => {
@@ -254,12 +261,6 @@ describe("创建备份", () => {
 })
 
 describe("导入备份", () => {
-  const openImport = async (user: ReturnType<typeof userEvent.setup>) => {
-    await screen.findByText("snapshots-1791700000000-aaa111.sqlite3")
-    await user.click(screen.getByRole("button", { name: /导入备份/ }))
-    await screen.findByRole("dialog")
-  }
-
   it("超过 8GiB 的文件在本地就拒绝，不发请求", async () => {
     const user = userEvent.setup()
     mount()
@@ -374,5 +375,122 @@ describe("下载备份", () => {
     )
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("传输进度", () => {
+  const deferred = <T,>() => {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((next) => {
+      resolve = next
+    })
+    return { promise, resolve }
+  }
+
+  it("导入时显示已传字节与总量", async () => {
+    const pending = deferred<DatabaseBackupCreated>()
+    api.uploadDatabaseBackup.mockImplementation(
+      async (
+        _file: File,
+        options?: { onProgress?: (loaded: number, total?: number) => void }
+      ) => {
+        options?.onProgress?.(10 * 1024 * 1024, 20 * 1024 * 1024)
+        return pending.promise
+      }
+    )
+    const user = userEvent.setup()
+    mount()
+    await openImport(user)
+    await user.upload(
+      screen.getByLabelText("备份文件"),
+      new File(["x"], "旧机器.sqlite3")
+    )
+    await user.click(screen.getByRole("button", { name: /开始导入/ }))
+
+    expect(
+      await screen.findByText("已传 10.0 MB / 共 20.0 MB（50%）")
+    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "取消上传" })).toBeTruthy()
+
+    pending.resolve({ backup: backup({ id: "snap-9" }), message: "已导入" })
+  })
+
+  it("下载时显示进度，取消入口仍在", async () => {
+    const pending = deferred<{
+      blob: Blob
+      fileName: string
+      sizeBytes: number
+    }>()
+    api.downloadDatabaseBackup.mockImplementation(
+      async (
+        _id: string,
+        options?: { onProgress?: (loaded: number, total?: number) => void }
+      ) => {
+        options?.onProgress?.(1024 * 1024, 4 * 1024 * 1024)
+        return pending.promise
+      }
+    )
+    const user = userEvent.setup()
+    mount()
+    await screen.findByText("snapshots-1791700000000-aaa111.sqlite3")
+
+    await user.click(screen.getByRole("button", { name: /^下载$/ }))
+
+    expect(
+      await screen.findByText("已传 1.0 MB / 共 4.0 MB（25%）")
+    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: /取消下载/ })).toBeTruthy()
+  })
+
+  it("拿不到总量时只显示已传字节，不编造百分比", async () => {
+    const pending = deferred<{
+      blob: Blob
+      fileName: string
+      sizeBytes: number
+    }>()
+    api.downloadDatabaseBackup.mockImplementation(
+      async (
+        _id: string,
+        options?: { onProgress?: (loaded: number, total?: number) => void }
+      ) => {
+        options?.onProgress?.(3 * 1024 * 1024)
+        return pending.promise
+      }
+    )
+    const user = userEvent.setup()
+    mount()
+    await screen.findByText("snapshots-1791700000000-aaa111.sqlite3")
+
+    await user.click(screen.getByRole("button", { name: /^下载$/ }))
+
+    expect(await screen.findByText("已传 3.0 MB")).toBeTruthy()
+    expect(screen.queryByText(/共 .*（\d+%）/)).toBeNull()
+  })
+
+  it("413 分支文案不变：照实转述服务端的超限原因", async () => {
+    api.uploadDatabaseBackup.mockRejectedValue(
+      new ApiRequestError(
+        "请求失败（HTTP 413）：上传文件超过 8 GiB 上限",
+        413,
+        {
+          message: "上传文件超过 8 GiB 上限",
+          code: "too_large",
+        }
+      )
+    )
+    const user = userEvent.setup()
+    mount()
+    await openImport(user)
+    await user.upload(
+      screen.getByLabelText("备份文件"),
+      new File(["x"], "旧机器.sqlite3")
+    )
+    await user.click(screen.getByRole("button", { name: /开始导入/ }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    const message = String(vi.mocked(toast.error).mock.calls[0]?.[0] ?? "")
+    expect(message).toContain("HTTP 413")
+    expect(message).toContain("上传文件超过 8 GiB 上限")
+    expect(message).toContain("重新读取列表核实")
   })
 })

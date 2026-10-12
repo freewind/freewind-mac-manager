@@ -12,13 +12,18 @@ import {
 } from "@web/components/ui/dialog"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
+import { Progress } from "@web/components/ui/progress"
 import { LoaderCircle, Upload } from "lucide-react"
 import { useState } from "react"
+import { formatProgress, progressPercent } from "./labels"
+import type { TransferProgress } from "./useBackups"
 
 type BackupImportDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   importing: boolean
+  /** 上传进度；拿不到总量时只有已传字节数。 */
+  progress: TransferProgress | null
   /** 返回是否导入成功，成功后由调用方关闭对话框。 */
   onImport: (file: File) => Promise<boolean>
   onCancelImport: () => void
@@ -31,10 +36,12 @@ type BackupImportDialogProps = {
  * 上传期间可以取消（AbortSignal），取消后不产生新备份。
  */
 export const BackupImportDialog = (props: BackupImportDialogProps) => {
-  const { open, onOpenChange, importing, onImport, onCancelImport } = props
+  const { open, onOpenChange, importing, progress, onImport, onCancelImport } =
+    props
   const [file, setFile] = useState<File | null>(null)
 
   const tooLarge = file !== null && file.size > DATABASE_BACKUP_UPLOAD_MAX_BYTES
+  const percent = progress === null ? null : progressPercent(progress)
 
   const close = (next: boolean): void => {
     if (!next && importing) return // 上传中不让对话框直接消失，先取消或等结果
@@ -88,9 +95,14 @@ export const BackupImportDialog = (props: BackupImportDialogProps) => {
                 <LoaderCircle className="animate-spin" aria-hidden="true" />
                 正在导入
               </AlertTitle>
-              <AlertDescription>
-                上传进度无法逐段显示（当前用原生 fetch 上传），GB
-                级文件按分钟计；中断或失败会提示重新读取列表核实，不会自动重传。
+              <AlertDescription className="space-y-2">
+                {progress === null ? null : (
+                  <span className="block">{formatProgress(progress)}</span>
+                )}
+                {percent === null ? null : <Progress value={percent} />}
+                <span>
+                  上传期间可以取消；中断或失败会提示重新读取列表核实，不会自动重传。
+                </span>
               </AlertDescription>
             </Alert>
           ) : null}

@@ -114,6 +114,17 @@ export const cancelDatabaseRestore = async (): Promise<DatabaseRestorePlan> =>
 
 // ---- 传输例外：上传与下载不进 JSON 契约，按 ApiPath 直连 ----
 
+/**
+ * 传输进度。
+ *
+ * `totalBytes` 只有在拿得到长度时才有值（上传是文件大小，下载是
+ * Content-Length）；拿不到时前端只显示已传字节数，不编造百分比。
+ */
+export type TransferProgressHandler = (
+  loadedBytes: number,
+  totalBytes?: number
+) => void
+
 /** 原始文件名只作展示：编码进请求头，服务端会再净化并拒绝路径成分。 */
 const originalFileNameHeaders = (
   originalFileName?: string
@@ -121,6 +132,85 @@ const originalFileNameHeaders = (
   originalFileName
     ? { "x-file-name": encodeURIComponent(originalFileName) }
     : {}
+
+/** 解析响应体：服务端错误体是 JSON，解析不了就当没有内容。 */
+const parseJsonBody = (text: string): unknown => {
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 上传走 XMLHttpRequest 而不是 fetch：只有它能拿到真实的上传进度。
+ *
+ * fetch 要观察上传进度只能把请求体换成 ReadableStream（还要 duplex: "half"），
+ * 而 Safari 不支持 duplex，手机上的导入会整个坏掉；XHR 的 upload.onprogress
+ * 在包括 iOS Safari 在内的浏览器上都可用。
+ */
+const sendUpload = (
+  file: Blob,
+  options?: {
+    signal?: AbortSignal
+    originalFileName?: string
+    onProgress?: TransferProgressHandler
+  }
+): Promise<{ status: number; body: unknown }> =>
+  new Promise((resolve, reject) => {
+    const signal = options?.signal
+    if (signal?.aborted === true) {
+      reject(new ApiRequestError("上传未发送：已取消", 0))
+      return
+    }
+    const request = new XMLHttpRequest()
+    request.open("POST", ApiPath.databaseBackupUpload)
+    for (const [key, value] of Object.entries({
+      ...buildAuthorizationHeader(),
+      ...originalFileNameHeaders(options?.originalFileName),
+    })) {
+      request.setRequestHeader(key, value)
+    }
+
+    const abort = (): void => request.abort()
+    const finish = (): void => signal?.removeEventListener("abort", abort)
+    signal?.addEventListener("abort", abort, { once: true })
+
+    // 只报浏览器给的字节数：lengthComputable 为假时没有 total
+    request.upload.addEventListener("progress", (event) => {
+      if (signal?.aborted === true) return
+      options?.onProgress?.(
+        event.loaded,
+        event.lengthComputable ? event.total : undefined
+      )
+    })
+    request.addEventListener("load", () => {
+      finish()
+      resolve({
+        status: request.status,
+        body: parseJsonBody(request.responseText),
+      })
+    })
+    request.addEventListener("abort", () => {
+      finish()
+      reject(new ApiRequestError("上传已取消", null))
+    })
+    request.addEventListener("error", () => {
+      finish()
+      // 连接中断无法确认服务端是否收下文件：按结果未知处理，禁止自动重传
+      reject(
+        new ApiRequestError(
+          "上传中断，结果未知，请重新读取列表确认",
+          null,
+          undefined,
+          undefined,
+          true
+        )
+      )
+    })
+
+    request.send(file)
+  })
 
 /**
  * 上传导入一个 SQLite 备份（传输例外，raw body 流式）：
@@ -130,22 +220,13 @@ const originalFileNameHeaders = (
  */
 export const uploadDatabaseBackup = async (
   file: Blob,
-  options?: { signal?: AbortSignal; originalFileName?: string }
-): Promise<DatabaseBackupCreated> => {
-  const response = await fetch(ApiPath.databaseBackupUpload, {
-    method: "POST",
-    headers: {
-      ...buildAuthorizationHeader(),
-      ...originalFileNameHeaders(options?.originalFileName),
-    },
-    body: file,
-    signal: options?.signal,
-  })
-  return unwrap<DatabaseBackupCreated>({
-    status: response.status,
-    body: await response.json(),
-  })
-}
+  options?: {
+    signal?: AbortSignal
+    originalFileName?: string
+    onProgress?: TransferProgressHandler
+  }
+): Promise<DatabaseBackupCreated> =>
+  unwrap<DatabaseBackupCreated>(await sendUpload(file, options))
 
 /** 解析服务端附件名：Content-Disposition 里的 filename 参数。 */
 const fileNameFromDisposition = (value: string | null): string | null => {
@@ -155,12 +236,48 @@ const fileNameFromDisposition = (value: string | null): string | null => {
 }
 
 /**
+ * 按块读取响应体并累计字节：读多少报多少，读完的字节数就是真实大小。
+ *
+ * 没有进度回调、或环境不提供响应流（response.body 为空）时退回 response.blob()，
+ * 行为与改动前一致。
+ */
+const readResponseBody = async (
+  response: Response,
+  onProgress?: TransferProgressHandler
+): Promise<{ blob: Blob; sizeBytes: number }> => {
+  const declared = Number(response.headers.get("content-length") ?? "")
+  const totalBytes =
+    Number.isFinite(declared) && declared > 0 ? declared : undefined
+  const body = response.body
+  if (body === null || onProgress === undefined) {
+    return { blob: await response.blob(), sizeBytes: totalBytes ?? 0 }
+  }
+
+  const reader = body.getReader()
+  const chunks: BlobPart[] = []
+  let loaded = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    loaded += value.byteLength
+    onProgress(loaded, totalBytes)
+  }
+  return {
+    blob: new Blob(chunks, {
+      type: response.headers.get("content-type") ?? "",
+    }),
+    sizeBytes: loaded,
+  }
+}
+
+/**
  * 下载备份（传输例外）：返回文件字节与服务端附件名。
  * 只读操作；中断只需中止 signal，服务端会随流关闭句柄。
  */
 export const downloadDatabaseBackup = async (
   backupId: string,
-  options?: { signal?: AbortSignal }
+  options?: { signal?: AbortSignal; onProgress?: TransferProgressHandler }
 ): Promise<{ blob: Blob; fileName: string | null; sizeBytes: number }> => {
   const response = await fetch(
     ApiPath.databaseBackupDownload.replace(
@@ -186,11 +303,15 @@ export const downloadDatabaseBackup = async (
       body
     )
   }
+  const { blob, sizeBytes } = await readResponseBody(
+    response,
+    options?.onProgress
+  )
   return {
-    blob: await response.blob(),
+    blob,
     fileName: fileNameFromDisposition(
       response.headers.get("content-disposition")
     ),
-    sizeBytes: Number(response.headers.get("content-length") ?? 0),
+    sizeBytes,
   }
 }

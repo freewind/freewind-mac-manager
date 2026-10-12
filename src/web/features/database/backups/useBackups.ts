@@ -8,6 +8,7 @@ import {
 import {
   createDatabaseBackup,
   downloadDatabaseBackup,
+  type TransferProgressHandler,
   uploadDatabaseBackup,
 } from "@shared/client-api"
 import { describeError, formatBytes } from "@shared/format"
@@ -25,6 +26,27 @@ import {
 
 /** 来源筛选：all 表示不传 source。 */
 export type BackupSourceFilter = DatabaseBackupSource | "all"
+
+/** 传输进度：total 缺失时界面只说已传字节数。 */
+export type TransferProgress = { loaded: number; total?: number }
+
+/**
+ * 进度每 1MiB 才更新一次界面：GB 级文件会读几万个 chunk，每个都 setState
+ * 会把界面拖垮；完成那一下（loaded 追平 total）照旧更新。
+ */
+const PROGRESS_STEP_BYTES = 1024 * 1024
+
+const progressReporter = (
+  report: (progress: TransferProgress) => void
+): TransferProgressHandler => {
+  let lastReported = 0
+  return (loadedBytes, totalBytes) => {
+    const finished = totalBytes !== undefined && loadedBytes >= totalBytes
+    if (!finished && loadedBytes - lastReported < PROGRESS_STEP_BYTES) return
+    lastReported = loadedBytes
+    report({ loaded: loadedBytes, total: totalBytes })
+  }
+}
 
 /** 触发浏览器保存：GB 级文件一次性生成对象 URL，用完立刻释放。 */
 const saveBlob = (blob: Blob, fileName: string): void => {
@@ -50,7 +72,12 @@ export const useBackups = () => {
   const [page, setPage] = useState(1)
   const [source, setSource] = useState<BackupSourceFilter>("all")
   const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState<TransferProgress | null>(
+    null
+  )
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadProgress, setDownloadProgress] =
+    useState<TransferProgress | null>(null)
   const importAbort = useRef<AbortController | null>(null)
   const downloadAbort = useRef<AbortController | null>(null)
 
@@ -94,10 +121,13 @@ export const useBackups = () => {
     const controller = new AbortController()
     importAbort.current = controller
     setImporting(true)
+    // 上传的总量就是文件大小，一开始就能说清「共多少」
+    setImportProgress({ loaded: 0, total: file.size })
     try {
       const created = await uploadDatabaseBackup(file, {
         signal: controller.signal,
         originalFileName: file.name,
+        onProgress: progressReporter(setImportProgress),
       })
       toast.success(`已导入 ${created.backup.fileName}`)
       await invalidate()
@@ -116,6 +146,7 @@ export const useBackups = () => {
       return false
     } finally {
       setImporting(false)
+      setImportProgress(null)
       importAbort.current = null
     }
   }
@@ -130,9 +161,11 @@ export const useBackups = () => {
     const controller = new AbortController()
     downloadAbort.current = controller
     setDownloadingId(backup.id)
+    setDownloadProgress({ loaded: 0, total: backup.sizeBytes || undefined })
     try {
       const result = await downloadDatabaseBackup(backup.id, {
         signal: controller.signal,
+        onProgress: progressReporter(setDownloadProgress),
       })
       const fileName = result.fileName ?? backup.fileName
       saveBlob(result.blob, fileName)
@@ -145,6 +178,7 @@ export const useBackups = () => {
       toast.error(`下载失败：${describeError(error)}`)
     } finally {
       setDownloadingId(null)
+      setDownloadProgress(null)
       downloadAbort.current = null
     }
   }
@@ -181,11 +215,13 @@ export const useBackups = () => {
     // 导入（传输例外）
     importBackup,
     importing,
+    importProgress,
     cancelImport,
 
     // 下载（传输例外）
     download,
     downloadingId,
+    downloadProgress,
     cancelDownload,
 
     // 恢复状态（本任务只读展示）
