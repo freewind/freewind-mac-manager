@@ -58,10 +58,13 @@ const featureFromUrl = (): FeatureKey => {
     : "overview"
 }
 
-const featureUrl = (feature: FeatureKey) => {
+const featureUrl = (feature: FeatureKey, piTab?: string) => {
   const url = new URL(window.location.href)
   if (feature === "overview") url.searchParams.delete("feature")
   else url.searchParams.set("feature", feature)
+  // 子标签只在明确指定时保留；切到别的功能时清掉，避免留下无意义的定位。
+  if (feature === "pi" && piTab) url.searchParams.set("piTab", piTab)
+  else url.searchParams.delete("piTab")
   return url
 }
 
@@ -97,6 +100,22 @@ const useFeatureNavigation = () => {
   }
 
   return { feature, canGoBack: canGoBackValue === "true", selectFeature }
+}
+
+/**
+ * 定位到 Pi 页的「AI助手」子标签。
+ * 已经在 Pi 页时 selectFeature 会因功能未变而直接返回，所以这里直接写 URL
+ * 并派发 popstate：PiPage 订阅该事件后能切到正确子标签。
+ */
+const openAiAssistantSettings = (): void => {
+  window.history.pushState(
+    { macManagerFeature: true },
+    "",
+    featureUrl("pi", "assistant")
+  )
+  window.dispatchEvent(
+    new PopStateEvent("popstate", { state: window.history.state })
+  )
 }
 
 export const App = () => {
@@ -197,7 +216,7 @@ export const App = () => {
         {feature === "docker" ? <DockerPage /> : null}
         {feature === "hardware" ? <HardwarePage /> : null}
       </SidebarInset>
-      <AiAssistantDialog onOpenModelSettings={() => selectFeature("pi")} />
+      <AiAssistantDialog onOpenModelSettings={openAiAssistantSettings} />
     </SidebarProvider>
   )
 }

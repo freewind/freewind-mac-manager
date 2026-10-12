@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@web/components/ui/select"
 import { Textarea } from "@web/components/ui/textarea"
+import { SettingsCard } from "@web/features/ai-assistant/SettingsCard"
 import {
   forgetPendingRequest,
   rememberPendingRequest,
@@ -53,6 +54,7 @@ import { GroupsTab } from "./GroupsTab"
 import { LabTab } from "./LabTab"
 import { piKeys, usePiBenchmarks, usePiModels } from "./queries"
 import { SettingsTab } from "./SettingsTab"
+import { usePiTab } from "./use-pi-tab"
 
 type ProviderEntry = ReturnType<typeof usePiModels>["data"] extends infer T
   ? T extends { providers: (infer P)[] }
@@ -101,11 +103,8 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 export const PiPage = () => {
   const queryClient = useQueryClient()
   const query = usePiModels()
-  const [activeTab, setActiveTab] = useState<
-    "models" | "groups" | "settings" | "probe" | "chat"
-  >(() =>
-    new URL(window.location.href).searchParams.get("piRun") ? "chat" : "models"
-  )
+  const { tab: activeTab, selectTab } = usePiTab()
+  const setActiveTab = selectTab
   const [labSelection, setLabSelection] = useState<{
     provider: string
     model: string
@@ -336,6 +335,13 @@ export const PiPage = () => {
           >
             Playground
           </Button>
+          <Button
+            className="min-h-11"
+            variant={activeTab === "assistant" ? "default" : "ghost"}
+            onClick={() => setActiveTab("assistant")}
+          >
+            AI助手
+          </Button>
         </div>
         {activeTab === "models" ? (
           <div className="ml-auto flex gap-2">
@@ -357,6 +363,8 @@ export const PiPage = () => {
       </header>
       {activeTab === "groups" ? (
         <GroupsTab />
+      ) : activeTab === "assistant" ? (
+        <SettingsCard />
       ) : activeTab === "settings" ? (
         <SettingsTab />
       ) : activeTab === "probe" || activeTab === "chat" ? (

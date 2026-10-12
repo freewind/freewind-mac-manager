@@ -18,6 +18,8 @@ const {
   addProvider,
   updateProvider,
   deleteProvider,
+  fetchAssistantSettings,
+  saveAssistantSettings,
 } = vi.hoisted(() => ({
   fetchModels: vi.fn(),
   fetchBenchmarks: vi.fn(),
@@ -26,6 +28,8 @@ const {
   addProvider: vi.fn(),
   updateProvider: vi.fn(),
   deleteProvider: vi.fn(),
+  fetchAssistantSettings: vi.fn(),
+  saveAssistantSettings: vi.fn(),
 }))
 
 vi.mock("@shared/client-api", () => ({
@@ -36,6 +40,9 @@ vi.mock("@shared/client-api", () => ({
   addPiProvider: addProvider,
   updatePiProvider: updateProvider,
   deletePiProvider: deleteProvider,
+  // 助手设置卡片（AI助手标签）从同一入口读取能力，此处用无害替身补全
+  fetchAiAssistantSettings: fetchAssistantSettings,
+  saveAiAssistantSettings: saveAssistantSettings,
   // 页面与其它页签从同一入口导入的其余能力，此处用无害替身补全
   fetchTaskByRequestId: vi.fn(),
   newRequestId: vi.fn(() => "req_test_benchmark_001"),
@@ -80,10 +87,18 @@ const renderPage = () => {
 
 afterEach(() => {
   cleanup()
+  window.history.replaceState({}, "", "/")
 })
 
 beforeEach(() => {
   fetchModels.mockReset().mockResolvedValue(response)
+  fetchAssistantSettings.mockReset().mockResolvedValue({
+    settings: {},
+    signature: "c".repeat(64),
+    updatedAt: 1,
+    defaults: { systemPrompt: "默认提示词", enabledTools: ["read"] },
+  })
+  saveAssistantSettings.mockReset()
   fetchBenchmarks.mockReset().mockResolvedValue({ benchmarks: [] })
   startBenchmark.mockReset().mockResolvedValue({
     kind: "completed",
@@ -142,5 +157,25 @@ describe("Pi model manager page", () => {
     expect(screen.getByText(/将从 Pi 的 models.json 删除/)).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "删除 Provider" }))
     await waitFor(() => expect(deleteProvider).toHaveBeenCalledTimes(1))
+  })
+
+  it("通过 piTab=assistant 直接定位到 AI 助手设置", async () => {
+    window.history.replaceState({}, "", "/?feature=pi&piTab=assistant")
+    renderPage()
+
+    expect(await screen.findByText(/设置只保存在应用数据库/)).toBeTruthy()
+    expect(await screen.findByLabelText("助手系统提示词")).toBeTruthy()
+  })
+
+  it("点击「AI助手」标签后，地址栏带上 piTab，刷新可恢复", async () => {
+    renderPage()
+    await screen.findByText("test")
+
+    fireEvent.click(screen.getByRole("button", { name: "AI助手" }))
+
+    expect(await screen.findByText(/设置只保存在应用数据库/)).toBeTruthy()
+    expect(new URL(window.location.href).searchParams.get("piTab")).toBe(
+      "assistant"
+    )
   })
 })
