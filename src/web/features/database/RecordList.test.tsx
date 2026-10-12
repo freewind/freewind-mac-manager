@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { recordKeyFingerprint } from "./format"
 import { RecordList, type RecordListProps } from "./RecordList"
 
-const stubMatchMedia = (): void => {
+const stubMatchMedia = (desktop = false): void => {
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false,
+    matches: desktop,
     media: query,
     onchange: null,
     addEventListener: () => undefined,
@@ -179,6 +179,45 @@ describe("RecordList 取值展示", () => {
   it("数量未知时明确说明，不冒充 0", () => {
     renderList({ total: null })
     expect(screen.getByText(/数量未知/)).toBeTruthy()
+  })
+})
+
+describe("RecordList 桌面表格列宽", () => {
+  beforeEach(() => stubMatchMedia(true))
+
+  it("选择列与详情列有宽度基准，详情列固定在右侧", () => {
+    renderList()
+    const select = screen.getByRole("columnheader", { name: "选择" })
+    for (const className of ["w-[1%]", "whitespace-nowrap"]) {
+      expect(select.className).toContain(className)
+    }
+    const detail = screen.getByRole("columnheader", { name: "详情" })
+    for (const className of [
+      "sticky",
+      "right-0",
+      "z-10",
+      "w-[1%]",
+      "whitespace-nowrap",
+      "bg-background",
+    ]) {
+      expect(detail.className).toContain(className)
+    }
+  })
+
+  it("数据列是主列不加宽度基准，详情入口固定在右侧单元格里", () => {
+    renderList()
+    for (const name of ["id", "name", "note", "payload"]) {
+      expect(
+        screen.getByRole("columnheader", { name }).className
+      ).not.toContain("w-[1%]")
+    }
+    const entry = screen.getAllByRole("button", { name: "查看" })[0]
+    const cell = entry.closest("td")
+    for (const className of ["sticky", "right-0", "bg-background"]) {
+      expect(cell?.className).toContain(className)
+    }
+    // 按钮容器按整排按钮计算列宽，窄屏下不会被折行
+    expect(entry.parentElement?.className).toContain("min-w-max")
   })
 })
 

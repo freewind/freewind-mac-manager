@@ -304,11 +304,15 @@ export const RecordList = (props: RecordListProps) => {
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
-            <TableHead className="w-12">选择</TableHead>
+            {/* 选择列与详情列是短标记列：给表头最小宽度基准，不被内容挤变形 */}
+            <TableHead className="w-[1%] whitespace-nowrap">选择</TableHead>
+            {/* 数据列是承载内容的宽列（主列）：不给 w-[1%]，长值自己截断并可展开 */}
             {columns.map((column) => (
               <TableHead key={column.name}>{column.name}</TableHead>
             ))}
-            <TableHead className="w-24">详情</TableHead>
+            <TableHead className="sticky right-0 z-10 w-[1%] whitespace-nowrap bg-background">
+              详情
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -330,14 +334,17 @@ export const RecordList = (props: RecordListProps) => {
                     <SqliteValueView value={record.values[column.name]} />
                   </TableCell>
                 ))}
-                <TableCell>
-                  <Button
-                    variant="outline"
-                    className="min-h-11"
-                    onClick={() => props.onSelectRecord(record.key)}
-                  >
-                    查看
-                  </Button>
+                {/* 详情入口固定在右侧：横向滚动时仍然可见，按钮不被折行 */}
+                <TableCell className="sticky right-0 z-10 bg-background">
+                  <div className="min-w-max">
+                    <Button
+                      variant="outline"
+                      className="min-h-11"
+                      onClick={() => props.onSelectRecord(record.key)}
+                    >
+                      查看
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             )

@@ -312,6 +312,28 @@ describe("DatabasePage 浏览", () => {
     expect(screen.getByText("没有主键")).toBeTruthy()
   })
 
+  it("桌面下表结构的短标记列表头有宽度基准，内容列没有", async () => {
+    stubMatchMedia(true)
+    setUrl("?feature=database&dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /表结构/ })).toBeTruthy()
+    )
+    await user.click(screen.getByRole("button", { name: /表结构/ }))
+    for (const name of ["声明类型", "亲和性", "标记"]) {
+      const header = screen.getByRole("columnheader", { name })
+      expect(header.className).toContain("w-[1%]")
+      expect(header.className).toContain("whitespace-nowrap")
+    }
+    // 字段、默认值与写入是可能很长或整句的内容列，不给最小宽度、保持可换行
+    for (const name of ["字段", "默认值", "写入"]) {
+      expect(
+        screen.getByRole("columnheader", { name }).className
+      ).not.toContain("w-[1%]")
+    }
+  })
+
   it("表列表为空时给出明确空状态", async () => {
     api.fetchDatabaseTables.mockResolvedValue({ tables: [] })
     renderPage()

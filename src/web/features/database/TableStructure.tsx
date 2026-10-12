@@ -58,6 +58,12 @@ const COLUMN_HEADERS = [
 ] as const
 
 /**
+ * 表头列宽基准：短标记列给最小宽度，让「字段」这类内容列承接剩余宽度。
+ *「默认值」与「写入」可能是长字面量或一整句话，保持可换行，不给 nowrap。
+ */
+const AUX_COLUMN_HEADERS = new Set(["声明类型", "亲和性", "标记"])
+
+/**
  * 表结构：字段、主键、约束、默认值、生成列、外键与触发器。
  * 只读表在这里把「为什么不能写」直接展示出来，不留给用户猜。
  */
@@ -127,7 +133,16 @@ export const TableStructure = (props: { table: DatabaseTable }) => {
                 <TableHeader>
                   <TableRow>
                     {COLUMN_HEADERS.map((header) => (
-                      <TableHead key={header}>{header}</TableHead>
+                      <TableHead
+                        key={header}
+                        className={
+                          AUX_COLUMN_HEADERS.has(header)
+                            ? "w-[1%] whitespace-nowrap"
+                            : undefined
+                        }
+                      >
+                        {header}
+                      </TableHead>
                     ))}
                   </TableRow>
                 </TableHeader>
