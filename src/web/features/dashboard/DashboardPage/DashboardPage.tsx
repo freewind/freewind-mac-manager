@@ -16,6 +16,7 @@ import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -50,9 +51,30 @@ import { useDashboard } from "@web/features/dashboard/useDashboard"
 import { cn } from "@web/lib/utils"
 import type { ReactNode } from "react"
 
+/** 端口卡只做摘要：完整列表在「端口管理」页，卡片里不再自己滚。 */
+const PORT_SUMMARY_LIMIT = 6
+
+/**
+ * 跳到对应功能页。与侧栏用同一套 URL 协议：写 feature 参数后派发 popstate，
+ * App 订阅它切页，不做整页刷新。
+ */
+const openFeature = (feature: "processes" | "ports"): void => {
+  const url = new URL(window.location.href)
+  url.searchParams.set("feature", feature)
+  window.history.pushState(
+    { ...window.history.state, macManagerFeature: true },
+    "",
+    url
+  )
+  window.dispatchEvent(
+    new PopStateEvent("popstate", { state: window.history.state })
+  )
+}
+
 export const DashboardPage = () => {
   const model = useDashboard()
   const overview = model.overview
+  const summaryPorts = model.ports.slice(0, PORT_SUMMARY_LIMIT)
 
   // 只整理页面上已经显示出来的数据：不取数、不读 DOM，拿不到就写「尚未获取」。
   const assistantContext = buildAiAssistantContext({
@@ -116,40 +138,27 @@ export const DashboardPage = () => {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex flex-col gap-2 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <HugeiconsIcon icon={CircleGaugeIcon} className="size-4" />
-          <h1 className="text-sm font-medium">概览</h1>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {model.paused
-                ? "已暂停自动刷新"
-                : overview
-                  ? `更新于 ${formatClock(overview.sampledAt)} · 每 ${overview.refreshIntervalSeconds} 秒自动刷新`
-                  : "正在读取状态"}
-            </span>
-            <AiAssistantButton context={assistantContext} />
-            <Button size="sm" variant="outline" onClick={model.togglePaused}>
-              {model.paused ? "继续刷新" : "暂停刷新"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={model.refresh}>
-              <HugeiconsIcon icon={RefreshIcon} />
-              刷新
-            </Button>
-          </div>
+      {/* 标题区只留导航与动作：主机信息移进主体滚动区，不常驻占高。 */}
+      <header className="flex flex-wrap items-center gap-2 px-4 py-3">
+        <HugeiconsIcon icon={CircleGaugeIcon} className="size-4" />
+        <h1 className="text-sm font-medium">概览</h1>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {model.paused
+              ? "已暂停自动刷新"
+              : overview
+                ? `更新于 ${formatClock(overview.sampledAt)} · 每 ${overview.refreshIntervalSeconds} 秒自动刷新`
+                : "正在读取状态"}
+          </span>
+          <AiAssistantButton context={assistantContext} />
+          <Button size="sm" variant="outline" onClick={model.togglePaused}>
+            {model.paused ? "继续刷新" : "暂停刷新"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={model.refresh}>
+            <HugeiconsIcon icon={RefreshIcon} />
+            刷新
+          </Button>
         </div>
-        {overview ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span className="text-foreground">{overview.system.hostname}</span>
-            <span>{overview.system.model}</span>
-            <span>{overview.system.chip}</span>
-            <span>{overview.system.osVersion}</span>
-            <span>已开机 {formatDuration(overview.system.uptimeSeconds)}</span>
-            <span>{overview.system.userCount} 人登录</span>
-          </div>
-        ) : (
-          <Skeleton className="h-4 w-96" />
-        )}
       </header>
       <Separator />
 
@@ -160,6 +169,27 @@ export const DashboardPage = () => {
             <AlertDescription>{model.error}</AlertDescription>
           </Alert>
         ) : null}
+
+        {/* 主机信息放在主体滚动区里，随页面一起滚。 */}
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
+          {overview ? (
+            <>
+              <span className="text-foreground">
+                {overview.system.hostname}
+              </span>
+              <span>{overview.system.model}</span>
+              <span>{overview.system.chip}</span>
+              <span>{overview.system.osVersion}</span>
+              <span>
+                已开机 {formatDuration(overview.system.uptimeSeconds)}
+              </span>
+              <span>{overview.system.userCount} 人登录</span>
+            </>
+          ) : (
+            <Skeleton className="h-4 w-64" />
+          )}
+        </div>
+
         {overview ? (
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
             <MetricCard
@@ -308,6 +338,15 @@ export const DashboardPage = () => {
               <CardDescription className="text-xs">
                 点表头切换排序，共 {model.processes.length} 个
               </CardDescription>
+              <CardAction>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => openFeature("processes")}
+                >
+                  查看全部进程
+                </Button>
+              </CardAction>
             </CardHeader>
             <Separator />
             <CardContent className="px-0">
@@ -401,16 +440,25 @@ export const DashboardPage = () => {
             <CardHeader className="py-3">
               <CardTitle className="text-sm">本机监听端口</CardTitle>
               <CardDescription className="text-xs">
-                共 {model.ports.length} 个端口在监听
+                {model.ports.length > summaryPorts.length
+                  ? `共 ${model.ports.length} 个端口在监听，摘要只列前 ${summaryPorts.length} 个`
+                  : `共 ${model.ports.length} 个端口在监听`}
               </CardDescription>
-              <p className="text-xs text-muted-foreground md:hidden">
-                手机上可左右滑动查看完整的监听地址
-              </p>
+              <CardAction>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => openFeature("ports")}
+                >
+                  查看全部端口
+                </Button>
+              </CardAction>
             </CardHeader>
             <Separator />
-            <CardContent className="max-h-[28rem] overflow-x-hidden overflow-y-auto px-0">
+            {/* 不再限高与内嵌滚动：条目已是摘要，展开交给页面主体滚动。 */}
+            <CardContent className="px-0">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-background">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="w-[1%] whitespace-nowrap">
                       端口
@@ -425,7 +473,7 @@ export const DashboardPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {model.ports.map((item) => (
+                  {summaryPorts.map((item) => (
                     <TableRow key={`${item.port}-${item.pid}`}>
                       <TableCell className="font-medium tabular-nums">
                         {item.port}
@@ -434,7 +482,7 @@ export const DashboardPage = () => {
                       <TableCell className="text-muted-foreground tabular-nums">
                         {item.pid}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="break-words text-muted-foreground">
                         {item.address === "*" ? "所有网卡" : item.address}
                       </TableCell>
                     </TableRow>

@@ -110,6 +110,8 @@ const renderPage = (overviewOverride: Partial<DashboardOverview> = {}) => {
 
 afterEach(() => {
   cleanup()
+  // 入口按钮会写 URL：每个用例从干净地址开始。
+  window.history.replaceState({}, "", "/")
   useAiAssistantLocalStore.setState({
     open: false,
     initialContext: null,
@@ -118,19 +120,6 @@ afterEach(() => {
 })
 
 describe("概览页", () => {
-  it("67 行监听端口全部渲染，页面不再只显示前几行", () => {
-    renderPage()
-
-    expect(screen.getByText(`共 ${PORT_COUNT} 个端口在监听`)).toBeTruthy()
-    // 67 行都在 DOM 里：限高只是把过长的列表收进内部滚动，不丢数据
-    const renderedRows = ports.reduce(
-      (total, item) => total + screen.getAllByText(String(item.port)).length,
-      0
-    )
-    expect(renderedRows).toBe(PORT_COUNT)
-    expect(screen.getByText(`listener-${PORT_COUNT}`)).toBeTruthy()
-  })
-
   it("6 行占用最高进程全部渲染", () => {
     renderPage()
 
@@ -146,29 +135,65 @@ describe("概览页", () => {
     expect(screen.getByText(/每 7 秒自动刷新/)).toBeTruthy()
   })
 
-  it("端口卡在手机上给出左右滑动查看的提示", () => {
+  it("主机信息移入主体滚动区，标题区只留导航与动作", () => {
     renderPage()
 
-    expect(screen.getByText("手机上可左右滑动查看完整的监听地址")).toBeTruthy()
+    const header = screen.getByRole("banner")
+    expect(header.textContent).toContain("概览")
+    expect(header.textContent).not.toContain("MacBook Pro")
+
+    const hostLine = screen.getByText("MacBook Pro")
+    expect(header.contains(hostLine)).toBe(false)
+    expect(hostLine.closest(".overflow-auto")).not.toBeNull()
   })
 
-  it("监听端口卡的滚动收在卡片内部：表头常驻、不留第二条横向滚动条", () => {
+  it("端口卡只展示摘要条目，完整列表交给端口管理页", () => {
     renderPage()
 
-    // 表头在内部滚动时保持可见，不会被行内容盖住
-    const header = document.querySelector('[data-slot="table-header"].sticky')
-    expect(header).not.toBeNull()
-    expect(header?.className).toContain("bg-background")
+    expect(
+      screen.getByText(`共 ${PORT_COUNT} 个端口在监听，摘要只列前 6 个`)
+    ).toBeTruthy()
+    for (const item of ports.slice(0, 6)) {
+      expect(screen.getByText(String(item.port))).toBeTruthy()
+    }
+    // 摘要之外的行不再塞进卡片
+    expect(screen.queryByText(String(ports[6].port))).toBeNull()
+    expect(screen.queryByText(`listener-${PORT_COUNT}`)).toBeNull()
+  })
 
-    // 滚动容器限高纵向滚动，并显式关掉横向溢出，
-    // 否则 overflow-y-auto 会把横向也算成 auto，与表内的横向滚动叠成两层
-    const scroller = screen
+  it("端口卡不再自己滚动，表头也不 sticky 压住相邻内容", () => {
+    renderPage()
+
+    const cardContent = screen
       .getByText("监听地址")
       .closest('[data-slot="card-content"]')
-    expect(scroller).not.toBeNull()
-    expect(scroller?.className).toContain("overflow-y-auto")
-    expect(scroller?.className).toContain("overflow-x-hidden")
-    expect(scroller?.className).toContain("max-h-[28rem]")
+    expect(cardContent).not.toBeNull()
+    expect(cardContent?.className ?? "").not.toContain("overflow-y-auto")
+    expect(cardContent?.className ?? "").not.toContain("max-h-")
+    expect(
+      document.querySelector('[data-slot="table-header"].sticky')
+    ).toBeNull()
+  })
+
+  it("不再承诺做不到的横向滑动", () => {
+    renderPage()
+
+    // 地址列改成换行展示，卡片不提供横向滑动，就不再写这句承诺
+    expect(screen.queryByText(/左右滑动/)).toBeNull()
+  })
+
+  it("两张卡片都能跳到对应管理页", () => {
+    renderPage()
+
+    fireEvent.click(screen.getByRole("button", { name: "查看全部进程" }))
+    expect(new URL(window.location.href).searchParams.get("feature")).toBe(
+      "processes"
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "查看全部端口" }))
+    expect(new URL(window.location.href).searchParams.get("feature")).toBe(
+      "ports"
+    )
   })
 
   it("被截断的命令列悬停后能看到完整命令行，短标签不成为 Tooltip 触发元素", async () => {
