@@ -5,6 +5,14 @@ import {
 } from "@shared/api-contract"
 import { Button } from "@web/components/ui/button"
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -20,13 +28,6 @@ import {
   FieldLabel,
 } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@web/components/ui/select"
 import { useState } from "react"
 
 type ProxyFormDialogProps = {
@@ -123,21 +124,23 @@ export const ProxyFormDialog = (props: ProxyFormDialogProps) => {
 
           <Field>
             <FieldLabel>类型</FieldLabel>
-            <Select
+            <Combobox
+              items={FRP_PROXY_TYPES}
               value={form.type}
               onValueChange={(value) => patch({ type: value as FrpProxyType })}
             >
-              <SelectTrigger className="w-full">
-                <SelectValue>{(value) => String(value ?? "")}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {FRP_PROXY_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <ComboboxInput className="w-full" />
+              <ComboboxContent>
+                <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                <ComboboxList>
+                  {(item) => (
+                    <ComboboxItem key={item} value={item}>
+                      {item}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
           </Field>
 
           <div className="grid grid-cols-2 gap-4">

@@ -9,6 +9,14 @@ import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import { Checkbox } from "@web/components/ui/checkbox"
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,13 +32,6 @@ import {
   FieldLabel,
 } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@web/components/ui/select"
 import { Textarea } from "@web/components/ui/textarea"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useState } from "react"
@@ -183,27 +184,47 @@ export const RuleFormDialog = (props: RuleFormDialogProps) => {
 
           <Field>
             <FieldLabel htmlFor="caddy-rule-match-kind">匹配方式</FieldLabel>
-            <Select
-              value={form.matchKind}
+            <Combobox
+              items={CADDY_MATCH_KINDS.map((kind) => ({
+                value: kind,
+                label: matchKindLabel(kind),
+              }))}
+              itemToStringValue={(item: {
+                value: CaddyMatchKind
+                label: string
+              }) => item.value}
+              value={
+                CADDY_MATCH_KINDS.find((k) => k === form.matchKind)
+                  ? {
+                      value: form.matchKind,
+                      label: matchKindLabel(form.matchKind),
+                    }
+                  : null
+              }
               disabled={props.busy}
               onValueChange={(value) =>
-                patch({ matchKind: value as CaddyMatchKind })
+                patch({
+                  matchKind: (
+                    value as { value: CaddyMatchKind; label: string } | null
+                  )?.value as CaddyMatchKind,
+                })
               }
             >
-              <SelectTrigger
+              <ComboboxInput
                 id="caddy-rule-match-kind"
                 className="min-h-11 w-full"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CADDY_MATCH_KINDS.map((kind) => (
-                  <SelectItem key={kind} value={kind}>
-                    {matchKindLabel(kind)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              />
+              <ComboboxContent>
+                <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                <ComboboxList>
+                  {(item: { value: CaddyMatchKind; label: string }) => (
+                    <ComboboxItem key={item.value} value={item.value}>
+                      {item.label}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
           </Field>
 
           {form.matchKind === "host" ? (

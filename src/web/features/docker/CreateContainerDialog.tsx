@@ -8,6 +8,14 @@ import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -23,13 +31,6 @@ import {
   FieldLabel,
 } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@web/components/ui/select"
 import { Textarea } from "@web/components/ui/textarea"
 import {
   buildCreateBody,
@@ -336,27 +337,43 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
 
           <Field>
             <FieldLabel htmlFor="create-restart">重启策略</FieldLabel>
-            <Select
-              value={form.restartPolicy}
+            <Combobox
+              items={Object.entries(RESTART_POLICY_LABELS).map(
+                ([value, label]) => ({ value, label })
+              )}
+              itemToStringValue={(item: { value: string; label: string }) =>
+                item.value
+              }
+              value={
+                form.restartPolicy &&
+                form.restartPolicy in RESTART_POLICY_LABELS
+                  ? {
+                      value: form.restartPolicy,
+                      label: RESTART_POLICY_LABELS[form.restartPolicy],
+                    }
+                  : null
+              }
               disabled={props.busy}
               onValueChange={(value) =>
                 patch({
-                  restartPolicy:
-                    value as DockerContainerCreateBody["restartPolicy"],
+                  restartPolicy: (
+                    value as { value: string; label: string } | null
+                  )?.value as DockerContainerCreateBody["restartPolicy"],
                 })
               }
             >
-              <SelectTrigger id="create-restart" className="min-h-11 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(RESTART_POLICY_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <ComboboxInput id="create-restart" className="min-h-11 w-full" />
+              <ComboboxContent>
+                <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                <ComboboxList>
+                  {(item: { value: string; label: string }) => (
+                    <ComboboxItem key={item.value} value={item.value}>
+                      {item.label}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
           </Field>
 
           <Field>
