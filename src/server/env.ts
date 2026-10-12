@@ -17,7 +17,10 @@ const findRoot = (start: string): string => {
 export const PROJECT_ROOT = findRoot(import.meta.dirname)
 export const WEB_DIST_DIR = path.join(PROJECT_ROOT, "dist")
 export const DATA_DIR = path.join(PROJECT_ROOT, "data")
-export const DATABASE_FILE = path.join(DATA_DIR, "snapshots.sqlite3")
+/** 单库文件：默认在项目 data 目录，可用 MAC_MANAGER_DB_FILE 覆盖（测试指向临时文件）。 */
+export const DATABASE_FILE = path.resolve(
+  process.env.MAC_MANAGER_DB_FILE ?? path.join(DATA_DIR, "snapshots.sqlite3")
+)
 export const PI_AGENT_DIR = path.resolve(
   process.env.PI_CODING_AGENT_DIR ??
     path.join(process.env.HOME ?? "", ".pi", "agent")

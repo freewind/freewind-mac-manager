@@ -1,5 +1,6 @@
 import { API_BASE } from "@shared/api-path"
 import { c } from "./init"
+import { aiAssistantRoutes } from "./routes/ai-assistant"
 import { authRoutes } from "./routes/auth"
 import { caddyRoutes } from "./routes/caddy"
 import { clashVergeRoutes } from "./routes/clash-verge"
@@ -30,6 +31,7 @@ export const contract = c.router(
     ...dashboardRoutes,
     ...portsRoutes,
     ...piRoutes,
+    ...aiAssistantRoutes,
     ...filesRoutes,
     ...processesRoutes,
     ...systemServicesRoutes,

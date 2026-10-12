@@ -157,6 +157,13 @@ import type { HardwareOverviewSchema } from "./schemas/hardware"
 export type HardwareOverview = z.infer<typeof HardwareOverviewSchema>
 
 import type {
+  AiAssistantSessionListSchema,
+  AiAssistantSessionSchema,
+  AiAssistantSettingsMutationSchema,
+  AiAssistantSettingsResponseSchema,
+  AiAssistantSettingsSchema,
+} from "./schemas/ai-assistant"
+import type {
   PiBenchmarkDeleteSchema,
   PiBenchmarkErrorSchema,
   PiBenchmarkListSchema,
@@ -201,6 +208,19 @@ export type PiSettingsDocument = z.infer<typeof PiSettingsDocumentSchema>
 export type PiSettingsInput = z.input<typeof PiSettingsMutationSchema>
 export type PiModelGroupInput = z.input<typeof PiModelGroupInputSchema>
 export type PiModelGroupsResponse = z.infer<typeof PiModelGroupsResponseSchema>
+export type AiAssistantSettingsResponse = z.infer<
+  typeof AiAssistantSettingsResponseSchema
+>
+export type AiAssistantSettingsInput = z.input<
+  typeof AiAssistantSettingsMutationSchema
+>
+export type AiAssistantSessionList = z.infer<
+  typeof AiAssistantSessionListSchema
+>
+export type AiAssistantSettingsDocument = z.infer<
+  typeof AiAssistantSettingsSchema
+>
+export type AiAssistantSessionSummary = z.infer<typeof AiAssistantSessionSchema>
 
 export type ProcessEntry = z.infer<typeof ProcessEntrySchema>
 export type ProcessState = z.infer<typeof ProcessStateSchema>

@@ -4,6 +4,7 @@ export {
   readAccessPasswordFromCookie,
   writeAccessPasswordCookie,
 } from "./access-password"
+export * from "./ai-assistant"
 export * from "./auth"
 export * from "./auth-types"
 export * from "./caddy"

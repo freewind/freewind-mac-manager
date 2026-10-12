@@ -1,5 +1,10 @@
 import { createExpressEndpoints } from "@ts-rest/express"
 import express from "express"
+import {
+  aiAssistantContract,
+  createAiAssistantRouter,
+  registerAiAssistantStreamEndpoint,
+} from "./ai-assistant/handlers"
 import { authContract, createAuthManager, createAuthRouter } from "./auth"
 import { caddyContract, createCaddyRouter } from "./caddy/handlers"
 import { clashVergeContract, clashVergeRouter } from "./clash-verge/handlers"
@@ -94,6 +99,13 @@ export const createApp = (injected?: {
   )
   createExpressEndpoints(portsContract, portsRouter, app, options)
   createExpressEndpoints(piContract, createPiRouter(taskRuntime), app, options)
+  createExpressEndpoints(
+    aiAssistantContract,
+    createAiAssistantRouter(),
+    app,
+    options
+  )
+  registerAiAssistantStreamEndpoint(app)
   createExpressEndpoints(processesContract, processesRouter, app, options)
   createExpressEndpoints(
     systemServicesContract,
