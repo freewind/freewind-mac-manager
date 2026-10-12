@@ -36,6 +36,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@web/components/ui/collapsible"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@web/components/ui/dropdown-menu"
 import { Field, FieldContent, FieldLabel } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
 import { Separator } from "@web/components/ui/separator"
@@ -48,6 +59,7 @@ import {
 import { useFrp } from "@web/features/frp/useFrp"
 import { useEditProtection } from "@web/hooks/use-edit-protection"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { useState } from "react"
 import { toast } from "sonner"
 import { ProxyFormDialog } from "./ProxyFormDialog"
@@ -60,6 +72,9 @@ const TYPE_FILTERS: { key: "all" | FrpProxyType; label: string }[] = [
   { key: "http", label: "HTTP" },
   { key: "https", label: "HTTPS" },
 ]
+
+const TYPE_FILTER_LABEL = (key: "all" | FrpProxyType): string =>
+  TYPE_FILTERS.find((item) => item.key === key)?.label ?? "全部类型"
 
 /**
  * 启动命令由服务端从 launchd plist 读出的可执行文件与 -c 配置路径还原，
@@ -83,10 +98,14 @@ const InfoField = (props: { label: string; children: React.ReactNode }) => (
 
 export const FrpPage = () => {
   const model = useFrp()
+  const isDesktop = useIsDesktop()
   const [formOpen, setFormOpen] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
   const [editing, setEditing] = useState<FrpProxy | null>(null)
   const [pendingDelete, setPendingDelete] = useState<FrpProxy | null>(null)
+  // 服务端详情与配置预览默认收起：首屏留给隧道列表
+  const [serverOpen, setServerOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   useEditProtection(model.dirty || formOpen)
 
   useHistoryOverlay(formOpen || pendingDelete !== null || discardOpen, () => {
@@ -181,28 +200,6 @@ export const FrpPage = () => {
               <HugeiconsIcon icon={RefreshIcon} />
               重新读取
             </ActionButton>
-            {model.dirty ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="min-h-11"
-                disabled={model.saving}
-                onClick={() => setDiscardOpen(true)}
-              >
-                放弃草稿
-              </Button>
-            ) : null}
-            <ActionButton
-              size="sm"
-              className="min-h-11"
-              busy={model.saving}
-              busyLabel="保存中…"
-              disabled={!model.dirty || formOpen || pendingDelete !== null}
-              onClick={model.save}
-            >
-              <HugeiconsIcon icon={CloudSavingDone01Icon} />
-              保存
-            </ActionButton>
           </div>
         </div>
 
@@ -219,18 +216,47 @@ export const FrpPage = () => {
               className="pl-7"
             />
           </div>
-          <ToggleGroup
-            value={[model.typeFilter]}
-            onValueChange={(values) =>
-              model.setTypeFilter((values[0] ?? "all") as "all" | FrpProxyType)
-            }
-          >
-            {TYPE_FILTERS.map((item) => (
-              <ToggleGroupItem key={item.key} value={item.key}>
-                {item.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+          {isDesktop ? (
+            <ToggleGroup
+              value={[model.typeFilter]}
+              onValueChange={(values) =>
+                model.setTypeFilter(
+                  (values[0] ?? "all") as "all" | FrpProxyType
+                )
+              }
+            >
+              {TYPE_FILTERS.map((item) => (
+                <ToggleGroupItem key={item.key} value={item.key}>
+                  {item.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="min-h-11"
+                    aria-label={`类型筛选：${TYPE_FILTER_LABEL(model.typeFilter)}`}
+                  >
+                    类型：{TYPE_FILTER_LABEL(model.typeFilter)}
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="start">
+                {TYPE_FILTERS.map((item) => (
+                  <DropdownMenuItem
+                    key={item.key}
+                    onClick={() => model.setTypeFilter(item.key)}
+                  >
+                    {item.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <span className="text-xs text-muted-foreground">
             显示 {model.visibleProxies.length} / {model.summary.total} 条
           </span>
@@ -257,82 +283,97 @@ export const FrpPage = () => {
             </Alert>
           ) : null}
           {server ? (
-            <Card className="gap-3 py-4">
-              <CardHeader className="px-4">
-                <CardTitle className="text-sm">服务端</CardTitle>
-                <CardDescription>frpc 连接的服务端与运行环境</CardDescription>
-                <CardAction>
-                  <Badge
-                    variant={
-                      server.state === "running" ? "secondary" : "destructive"
-                    }
-                  >
-                    <HugeiconsIcon
-                      icon={server.state === "running" ? PlayIcon : StopIcon}
-                    />
-                    {server.state === "running" ? "运行中" : "已停止"}
-                  </Badge>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 gap-x-6 gap-y-3 px-4 lg:grid-cols-2">
-                <InfoField label="服务地址">
-                  <span className="font-mono">
-                    {server.serverAddr}:{server.serverPort}
-                  </span>
-                </InfoField>
-                <InfoField label="鉴权方式">
-                  {server.authMethod} /{" "}
-                  <span className="font-mono">******</span>
-                </InfoField>
-                <InfoField label="配置文件">
-                  <span className="font-mono">{server.configPath}</span>
-                </InfoField>
-                <InfoField label="frpc 路径">
-                  <span className="font-mono">{server.binaryPath}</span>
-                </InfoField>
-                <InfoField label="启动命令">
-                  <span className="flex min-w-0 items-center gap-1">
-                    {/* 完整命令一眼可读：格子内截断，悬停看全文；复制按钮不在触发范围里。 */}
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <span className="min-w-0 truncate font-mono">
-                            {launchCommand}
-                          </span>
-                        }
-                      />
-                      <TooltipContent className="max-w-lg break-all">
-                        {launchCommand}
-                      </TooltipContent>
-                    </Tooltip>
-                    <Button
-                      aria-label="复制 frpc 启动命令"
-                      className="shrink-0"
-                      onClick={() => void copyLaunchCommand()}
-                      size="icon-xs"
-                      variant="ghost"
+            <Collapsible open={serverOpen} onOpenChange={setServerOpen}>
+              <Card className="gap-0 py-0">
+                <CardHeader className="px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="text-sm">服务端</CardTitle>
+                    <span className="font-mono text-xs">
+                      {server.serverAddr}:{server.serverPort}
+                    </span>
+                    <Badge
+                      variant={
+                        server.state === "running" ? "secondary" : "destructive"
+                      }
                     >
-                      <HugeiconsIcon icon={Copy01Icon} />
-                    </Button>
-                  </span>
-                </InfoField>
-                <InfoField label="launchd">
-                  <span className="font-mono">{server.launchdLabel}</span>
-                </InfoField>
-                <InfoField label="PID">
-                  {server.pid === null ? "—" : server.pid}
-                </InfoField>
-                <InfoField label="启动时间">
-                  {server.startedAt === null
-                    ? "—"
-                    : formatTimestamp(server.startedAt)}
-                </InfoField>
-                <InfoField label="探测结果">
-                  可达 {model.summary.reachable} · 不可达{" "}
-                  {model.summary.unreachable}
-                </InfoField>
-              </CardContent>
-            </Card>
+                      <HugeiconsIcon
+                        icon={server.state === "running" ? PlayIcon : StopIcon}
+                      />
+                      {server.state === "running" ? "运行中" : "已停止"}
+                    </Badge>
+                    {/* 启动命令常驻折叠首行：收起后也能一眼看到并复制 */}
+                    <span className="flex min-w-0 items-center gap-1">
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span className="min-w-0 truncate font-mono text-xs">
+                              {launchCommand}
+                            </span>
+                          }
+                        />
+                        <TooltipContent className="max-w-lg break-all">
+                          {launchCommand}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Button
+                        aria-label="复制 frpc 启动命令"
+                        className="shrink-0"
+                        onClick={() => void copyLaunchCommand()}
+                        size="icon-xs"
+                        variant="ghost"
+                      >
+                        <HugeiconsIcon icon={Copy01Icon} />
+                      </Button>
+                    </span>
+                    <CollapsibleTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="ml-auto min-h-11"
+                        >
+                          {serverOpen ? "收起服务端详情" : "展开服务端详情"}
+                        </Button>
+                      }
+                    />
+                  </div>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="grid grid-cols-1 gap-x-6 gap-y-3 border-t px-4 py-3 lg:grid-cols-2">
+                    <InfoField label="服务地址">
+                      <span className="font-mono">
+                        {server.serverAddr}:{server.serverPort}
+                      </span>
+                    </InfoField>
+                    <InfoField label="鉴权方式">
+                      {server.authMethod} /{" "}
+                      <span className="font-mono">******</span>
+                    </InfoField>
+                    <InfoField label="配置文件">
+                      <span className="font-mono">{server.configPath}</span>
+                    </InfoField>
+                    <InfoField label="frpc 路径">
+                      <span className="font-mono">{server.binaryPath}</span>
+                    </InfoField>
+                    <InfoField label="launchd">
+                      <span className="font-mono">{server.launchdLabel}</span>
+                    </InfoField>
+                    <InfoField label="PID">
+                      {server.pid === null ? "—" : server.pid}
+                    </InfoField>
+                    <InfoField label="启动时间">
+                      {server.startedAt === null
+                        ? "—"
+                        : formatTimestamp(server.startedAt)}
+                    </InfoField>
+                    <InfoField label="探测结果">
+                      可达 {model.summary.reachable} · 不可达{" "}
+                      {model.summary.unreachable}
+                    </InfoField>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           ) : null}
 
           <Card className="gap-0 overflow-hidden py-0">
@@ -353,30 +394,73 @@ export const FrpPage = () => {
             />
           </Card>
 
-          <Card className="gap-0 overflow-hidden py-0">
-            <CardHeader className="px-4 py-3">
-              <CardTitle className="text-sm">frpc 配置预览</CardTitle>
-              <CardDescription>
-                保存时写入 {server?.configPath ?? "配置文件"}
-              </CardDescription>
-              <CardAction>
-                <Button variant="outline" size="xs" onClick={copyToml}>
-                  <HugeiconsIcon icon={Copy01Icon} />
-                  复制
-                </Button>
-              </CardAction>
-            </CardHeader>
-            <Separator />
-            <section
-              aria-label="frpc 配置预览"
-              className="max-h-72 min-w-0 overflow-auto"
-            >
-              <pre className="w-max min-w-full p-3 font-mono text-[0.6875rem] leading-relaxed whitespace-pre">
-                {model.toml}
-              </pre>
-            </section>
-          </Card>
+          <Collapsible open={previewOpen} onOpenChange={setPreviewOpen}>
+            <Card className="gap-0 overflow-hidden py-0">
+              <CardHeader className="px-4 py-3">
+                <CardTitle className="text-sm">frpc 配置预览</CardTitle>
+                <CardDescription>
+                  保存时写入 {server?.configPath ?? "配置文件"}
+                </CardDescription>
+                <CardAction className="flex items-center gap-1.5">
+                  <Button variant="outline" size="xs" onClick={copyToml}>
+                    <HugeiconsIcon icon={Copy01Icon} />
+                    复制
+                  </Button>
+                  <CollapsibleTrigger
+                    render={
+                      <Button variant="outline" size="sm" className="min-h-11">
+                        {previewOpen ? "收起预览" : "打开预览"}
+                      </Button>
+                    }
+                  />
+                </CardAction>
+              </CardHeader>
+              <CollapsibleContent>
+                <Separator />
+                <section
+                  aria-label="frpc 配置预览"
+                  className="max-h-72 min-w-0 overflow-auto"
+                >
+                  <pre className="w-max min-w-full p-3 font-mono text-[0.6875rem] leading-relaxed whitespace-pre">
+                    {model.toml}
+                  </pre>
+                </section>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         </div>
+      </div>
+
+      {/* 保存入口常驻：长列表滚动时也一直可见 */}
+      <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
+        {model.dirty ? (
+          <Badge variant="outline" className="text-amber-600">
+            有未保存的改动
+          </Badge>
+        ) : (
+          <Badge variant="ghost">已保存</Badge>
+        )}
+        {model.dirty ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-11"
+            disabled={model.saving}
+            onClick={() => setDiscardOpen(true)}
+          >
+            放弃草稿
+          </Button>
+        ) : null}
+        <ActionButton
+          className="ml-auto min-h-11"
+          busy={model.saving}
+          busyLabel="保存中…"
+          disabled={!model.dirty || formOpen || pendingDelete !== null}
+          onClick={model.save}
+        >
+          <HugeiconsIcon icon={CloudSavingDone01Icon} />
+          保存
+        </ActionButton>
       </div>
 
       {formOpen ? (

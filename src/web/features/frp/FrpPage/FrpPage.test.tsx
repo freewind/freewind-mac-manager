@@ -58,6 +58,23 @@ const config: FrpConfig = {
   savedSignature: "",
 }
 
+let desktop = true
+
+/** 与 useIsDesktop 一致的匹配媒体查询替身：改 desktop 就切换断点。 */
+const setDesktop = (value: boolean) => {
+  desktop = value
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: desktop,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }))
+}
+
 const renderPage = () => {
   const client = new QueryClient({
     defaultOptions: {
@@ -77,6 +94,7 @@ const renderPage = () => {
 }
 
 beforeEach(() => {
+  setDesktop(true)
   api.probeFrpProxy.mockReset()
   for (const fn of [
     toastMock,
@@ -94,17 +112,19 @@ afterEach(() => {
 })
 
 describe("FRP 页", () => {
-  it("服务端卡的长路径与服务标识仍是完整文本", () => {
+  it("服务端卡的长路径与服务标识仍是完整文本", async () => {
     renderPage()
+    // 服务端详情默认收起：先展开再看完整字段
+    screen.getByRole("button", { name: "展开服务端详情" }).click()
 
     // 断行只影响视觉：完整值必须原样可取
-    expect(screen.getByText(CONFIG_PATH)).toBeTruthy()
+    expect(await screen.findByText(CONFIG_PATH)).toBeTruthy()
     expect(screen.getByText(BINARY_PATH)).toBeTruthy()
     expect(screen.getByText(LAUNCHD_LABEL)).toBeTruthy()
-    // 页头与服务端卡各显示一次服务地址
+    // 页头状态行、服务端折叠首行与展开后的详情各一次
     expect(
       screen.getAllByText(`${SERVER_ADDR.split(":")[0]}:34080`)
-    ).toHaveLength(2)
+    ).toHaveLength(3)
   })
 
   it("隧道表的六个列头齐全", () => {
@@ -169,7 +189,7 @@ describe("FRP 页", () => {
 
     // 只是参数片段会让人看不出真正启动了什么
     const command = `${BINARY_PATH} -c ${CONFIG_PATH}`
-    expect(screen.getByText("启动命令")).toBeTruthy()
+    // 启动命令常驻服务端折叠首行：收起状态也能一眼看到完整命令
     expect(screen.getByText(command)).toBeTruthy()
     expect(screen.queryByText(`-c ${CONFIG_PATH}`)).toBeNull()
     // 隧道列表本身没有命令列，命令只属于服务级的一份配置
@@ -215,10 +235,36 @@ describe("FRP 页", () => {
     expect(actionHead.className).toContain("whitespace-nowrap")
   })
 
-  it("配置预览的滚动只在预览区内部，复制按钮留在预览之外", () => {
+  it("隧道列表在首屏，保存入口在常驻底栏", () => {
     renderPage()
 
-    const preview = screen.getByRole("region", { name: "frpc 配置预览" })
+    // 服务端详情默认收起：它的长内容不会把隧道列表推到下面
+    expect(screen.queryByText(CONFIG_PATH)).toBeNull()
+    expect(screen.getByRole("columnheader", { name: "隧道名" })).toBeTruthy()
+    // 启动命令这类服务级信息仍在折叠首行可见
+    expect(screen.getByText(`${BINARY_PATH} -c ${CONFIG_PATH}`)).toBeTruthy()
+
+    // 保存入口在主体滚动区之外：长列表滚动时不会消失
+    const scroller = document.querySelector(
+      ".min-h-0.min-w-0.flex-1.overflow-auto"
+    )
+    expect(scroller).not.toBeNull()
+    const save = screen.getByRole("button", { name: "保存" })
+    expect(scroller?.contains(save)).toBe(false)
+    // 未保存状态同样常驻可见（三种状态之一，不会什么都不显示）
+    expect(
+      screen.getAllByText(/有未保存的改动|已保存|配置未读到/).length
+    ).toBeGreaterThan(0)
+  })
+
+  it("配置预览的滚动只在预览区内部，复制按钮留在预览之外", async () => {
+    renderPage()
+    // 预览按需打开：默认不占首屏
+    screen.getByRole("button", { name: "打开预览" }).click()
+
+    const preview = await screen.findByRole("region", {
+      name: "frpc 配置预览",
+    })
     // 限高 + 内部滚动：不再用 max-h 的 ScrollArea，内容不会溢出遮住下方操作
     expect(preview.className).toContain("max-h-72")
     expect(preview.className).toContain("overflow-auto")
