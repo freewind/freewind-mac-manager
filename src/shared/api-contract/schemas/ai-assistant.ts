@@ -69,3 +69,8 @@ export const AiAssistantSessionListSchema = z.object({
 export const AiAssistantSessionPathSchema = z.object({
   sessionId: z.string().min(1).max(256),
 })
+
+export const AiAssistantMessageRequestSchema = z.object({
+  sessionId: z.string().min(1).max(256).optional(),
+  prompt: z.string().min(1).max(10_000),
+})
