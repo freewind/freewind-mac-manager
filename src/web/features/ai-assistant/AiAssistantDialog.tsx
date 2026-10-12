@@ -1,7 +1,5 @@
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { fetchAiAssistantSettings } from "@shared/client-api"
-import { useQuery } from "@tanstack/react-query"
 import { AgentChat } from "@web/components/agent-elements/agent-chat"
 import {
   InputBar,
@@ -20,6 +18,7 @@ import { Skeleton } from "@web/components/ui/skeleton"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useEffect } from "react"
 import { AiAssistantToolCard } from "./AiAssistantToolCard"
+import { useAiAssistantSettings } from "./queries"
 import { useAiAssistantLocalStore } from "./store"
 import { AI_ASSISTANT_TOOL_NAME, useStreamChat } from "./use-stream-chat"
 
@@ -61,12 +60,7 @@ export const AiAssistantDialog = (props: AiAssistantDialogProps) => {
 
   useHistoryOverlay(open, close)
 
-  const settings = useQuery({
-    queryKey: ["ai-assistant", "settings"],
-    queryFn: fetchAiAssistantSettings,
-    enabled: open,
-    retry: false,
-  })
+  const settings = useAiAssistantSettings(open)
 
   const chat = useStreamChat({ sessionId, onSessionId: setSessionId })
 
