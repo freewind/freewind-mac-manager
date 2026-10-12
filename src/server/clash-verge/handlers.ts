@@ -1,8 +1,11 @@
+import { publicSystemError } from "@server/common/public-error"
 import { contract } from "@shared/api-contract"
 import {
   getClashVergeConnections,
   getClashVergeProxies,
   getClashVergeStatus,
+  readClashVergeMergeFile,
+  saveClashVergeMergeFile,
 } from "./service"
 
 /**
@@ -14,6 +17,8 @@ export const clashVergeContract = {
   getClashVergeStatus: contract.getClashVergeStatus,
   getClashVergeProxies: contract.getClashVergeProxies,
   getClashVergeConnections: contract.getClashVergeConnections,
+  getClashVergeMergeFile: contract.getClashVergeMergeFile,
+  saveClashVergeMergeFile: contract.saveClashVergeMergeFile,
 }
 
 export const clashVergeRouter = {
@@ -29,4 +34,22 @@ export const clashVergeRouter = {
     status: 200 as const,
     body: await getClashVergeConnections(),
   }),
+  // Merge 文件读写：已知错误（404/403/400/409）按语义回显，其余异常走公共兜底。
+  getClashVergeMergeFile: async () => {
+    try {
+      return { status: 200 as const, body: await readClashVergeMergeFile() }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  saveClashVergeMergeFile: async ({ body }: { body: { content: string } }) => {
+    try {
+      return {
+        status: 200 as const,
+        body: { message: await saveClashVergeMergeFile(body.content) },
+      }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
 }

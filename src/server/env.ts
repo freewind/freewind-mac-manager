@@ -42,6 +42,30 @@ export const env = {
   },
 }
 
+/**
+ * Clash Verge Rev 的 profiles 目录：全局 Merge（uid: Merge）就在其中。
+ * 默认取本机常规安装位置，可用 CLASH_VERGE_PROFILE_DIR 覆盖（测试指向临时目录）。
+ */
+export const CLASH_VERGE_PROFILE_DIR = path.resolve(
+  process.env.CLASH_VERGE_PROFILE_DIR ??
+    path.join(
+      process.env.HOME ?? "",
+      "Library",
+      "Application Support",
+      "io.github.clash-verge-rev.clash-verge-rev",
+      "profiles"
+    )
+)
+
+/**
+ * 全局 Merge 文件：固定叫 Merge.yaml，路径由服务端推导，不接受客户端传路径；
+ * 可用 CLASH_VERGE_MERGE_FILE 单独覆盖（测试与换机器用）。
+ */
+export const CLASH_VERGE_MERGE_FILE = path.resolve(
+  process.env.CLASH_VERGE_MERGE_FILE ??
+    path.join(CLASH_VERGE_PROFILE_DIR, "Merge.yaml")
+)
+
 /** 登录密码只从 .env 读取；未配置时返回空串，由调用方按“未配置”处理。 */
 export const getAuthPassword = (): string =>
   process.env.MAC_MANAGER_PASSWORD ?? ""

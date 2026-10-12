@@ -1,11 +1,20 @@
+import { randomUUID } from "node:crypto"
+import type { Stats } from "node:fs"
+import { constants } from "node:fs"
+import { chmod, lstat, open, realpath, rename, rm } from "node:fs/promises"
+import path from "node:path"
+import { PublicOperationError } from "@server/common/public-error"
+import { CLASH_VERGE_MERGE_FILE, CLASH_VERGE_PROFILE_DIR } from "@server/env"
 import type {
   ClashVergeConnection,
   ClashVergeConnectionsResponse,
+  ClashVergeMergeFile,
   ClashVergeProxiesResponse,
   ClashVergeProxy,
   ClashVergeStatus,
 } from "@shared/api-contract"
 import {
+  CLASH_VERGE_MERGE_MAX_CHARS,
   ClashVergeConnectionsResponseSchema,
   ClashVergeProxiesResponseSchema,
   ClashVergeStatusSchema,
@@ -236,3 +245,125 @@ export const getClashVergeConnections =
       })
     }
   }
+
+/* ---------- 全局 Merge 文件（uid: Merge）读写 ---------- */
+
+/**
+ * Merge 文件字节上限：schema 按字符数挡请求体，这里按 UTF-8 字节数
+ * （每字符最多 4 字节）先挡磁盘文件，读完再按字符数复核，两层都不放行超大内容。
+ */
+const mergeByteLimit = (): number => CLASH_VERGE_MERGE_MAX_CHARS * 4
+
+/** 不跟随符号链接打开；竞态窗口内被换成链接时也回 403，不落成通用 500。 */
+const openWithNoFollow = async (file: string) => {
+  try {
+    return await open(file, constants.O_RDONLY | constants.O_NOFOLLOW)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ELOOP") {
+      throw new PublicOperationError(403, "Merge 文件不允许是符号链接")
+    }
+    throw error
+  }
+}
+
+/**
+ * 固定路径的目标校验：路径来自服务端配置，不接受客户端传入。
+ * 先拒绝符号链接，再确认真实路径落在 profiles 目录内（防配置目录被换链越界）；
+ * 文件不存在给 404，而不是让底层 ENOENT 变成通用 500。
+ */
+const resolveMergeTarget = async (): Promise<Stats> => {
+  let info: Stats
+  try {
+    info = await lstat(CLASH_VERGE_MERGE_FILE)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new PublicOperationError(
+        404,
+        `找不到 Clash Verge 全局 Merge 文件：${CLASH_VERGE_MERGE_FILE}（请先在 Clash Verge 中生成 Merge 配置）`
+      )
+    }
+    throw error
+  }
+  if (info.isSymbolicLink()) {
+    throw new PublicOperationError(403, "Merge 文件不允许是符号链接")
+  }
+  const [realFile, realDir] = await Promise.all([
+    realpath(CLASH_VERGE_MERGE_FILE),
+    realpath(CLASH_VERGE_PROFILE_DIR).catch(() => null),
+  ])
+  if (realDir === null) {
+    throw new PublicOperationError(
+      404,
+      `找不到 Clash Verge 配置目录：${CLASH_VERGE_PROFILE_DIR}`
+    )
+  }
+  const relative = path.relative(realDir, realFile)
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new PublicOperationError(403, "Merge 文件不在 Clash Verge 配置目录内")
+  }
+  return info
+}
+
+/** 读全局 Merge：整份文本，超上限拒绝读取，不截断冒充成功。 */
+export const readClashVergeMergeFile =
+  async (): Promise<ClashVergeMergeFile> => {
+    const info = await resolveMergeTarget()
+    if (info.size > mergeByteLimit()) {
+      throw new PublicOperationError(403, "Merge 文件超出大小上限，拒绝读取")
+    }
+    // O_NOFOLLOW：lstat 校验与打开之间目标被换成符号链接也读不进去。
+    const handle = await openWithNoFollow(CLASH_VERGE_MERGE_FILE)
+    let content: string
+    try {
+      content = await handle.readFile("utf8")
+    } finally {
+      await handle.close()
+    }
+    if (content.length > CLASH_VERGE_MERGE_MAX_CHARS) {
+      throw new PublicOperationError(403, "Merge 文件超出大小上限，拒绝读取")
+    }
+    return {
+      path: CLASH_VERGE_MERGE_FILE,
+      content,
+      size: info.size,
+      modified: Math.floor(info.mtimeMs / 1000),
+    }
+  }
+
+/**
+ * 保存全局 Merge：整份替换。已知限制——本函数只落盘，不触发 Clash Verge
+ * 重载，保存后需在 Clash Verge 内重载配置才生效；也不修改订阅专属 merge。
+ * 原子写：同目录临时文件 → fsync → rename，正式路径不会出现半截内容，
+ * 权限位沿用原文件。写前再查一次符号链接，避免校验与写入之间被换目标。
+ */
+export const saveClashVergeMergeFile = async (
+  content: string
+): Promise<string> => {
+  if (content.length > CLASH_VERGE_MERGE_MAX_CHARS) {
+    throw new PublicOperationError(400, "Merge 内容超出大小上限")
+  }
+  const info = await resolveMergeTarget()
+  const mode = info.mode & 0o777
+  const temp = path.join(
+    path.dirname(CLASH_VERGE_MERGE_FILE),
+    `.Merge.${randomUUID().replace(/-/g, "").slice(0, 16)}.tmp`
+  )
+  try {
+    const handle = await open(temp, "wx", mode)
+    try {
+      await handle.writeFile(content, "utf8")
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    const current = await lstat(CLASH_VERGE_MERGE_FILE)
+    if (current.isSymbolicLink()) {
+      throw new PublicOperationError(403, "Merge 文件不允许是符号链接")
+    }
+    await chmod(temp, mode)
+    await rename(temp, CLASH_VERGE_MERGE_FILE)
+  } finally {
+    await rm(temp, { force: true })
+  }
+  return `已写入 ${CLASH_VERGE_MERGE_FILE}（${Buffer.byteLength(content, "utf8")} 字节）；需在 Clash Verge 中重载配置后生效`
+}

@@ -72,3 +72,22 @@ export const ClashVergeConnectionsResponseSchema = z.object({
   truncated: z.boolean(),
   connections: z.array(ClashVergeConnectionSchema).max(200),
 })
+
+/**
+ * 全局 Merge 是手写规则文本，正常几 KB；上限防误把整份订阅贴进来，
+ * 也是保存 body 的契约边界（zod 按字符数计，服务层读取时再按字节复核）。
+ */
+export const CLASH_VERGE_MERGE_MAX_CHARS = 256 * 1024
+
+export const ClashVergeMergeFileSchema = z.object({
+  /** 服务端固定路径（Clash Verge profiles/Merge.yaml），只回显、不接受客户端传入。 */
+  path: z.string(),
+  content: z.string(),
+  size: z.number().int().nonnegative(),
+  /** 修改时间，秒级时间戳。 */
+  modified: z.number().int().nonnegative(),
+})
+
+export const SaveClashVergeMergeBodySchema = z.object({
+  content: z.string().max(CLASH_VERGE_MERGE_MAX_CHARS),
+})

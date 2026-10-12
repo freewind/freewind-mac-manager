@@ -7,6 +7,8 @@ export const ApiPath = {
   clashVergeStatus: `${API_BASE}/clash-verge/status`,
   clashVergeProxies: `${API_BASE}/clash-verge/proxies`,
   clashVergeConnections: `${API_BASE}/clash-verge/connections`,
+  /** 全局 Merge 文件（uid: Merge）读写：路径固定为 Clash Verge profiles/Merge.yaml，客户端不传路径。 */
+  clashVergeMergeFile: `${API_BASE}/clash-verge/merge-file`,
   diskGrowthScans: `${API_BASE}/disk-growth/scans`,
   diskGrowthEntries: `${API_BASE}/disk-growth/entries`,
   diskGrowthTree: `${API_BASE}/disk-growth/tree`,
