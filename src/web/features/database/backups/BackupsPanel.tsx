@@ -1,8 +1,9 @@
-import type { DatabaseBackup, DatabaseBackupSource } from "@shared/api-contract"
+import type { DatabaseBackup } from "@shared/api-contract"
 import { formatBytes, formatTimestamp } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
+import { Checkbox } from "@web/components/ui/checkbox"
 import {
   Empty,
   EmptyDescription,
@@ -19,17 +20,24 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
-import { Download, LoaderCircle, Plus, RefreshCw, Upload } from "lucide-react"
+import {
+  DatabaseBackup as DatabaseBackupIcon,
+  Download,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Trash,
+  Upload,
+} from "lucide-react"
 import { useState } from "react"
 import { BackupImportDialog } from "./BackupImportDialog"
+import { DeleteBackupsDialog } from "./DeleteBackupsDialog"
+import { DeleteResultAlert } from "./DeleteResultAlert"
+import { SOURCE_LABELS } from "./labels"
+import { RestorePlanDialog } from "./RestorePlanDialog"
 import { RestoreStatusCard } from "./RestoreStatusCard"
+import { useBackupActions } from "./useBackupActions"
 import { type BackupSourceFilter, useBackups } from "./useBackups"
-
-const SOURCE_LABELS: Record<DatabaseBackupSource, string> = {
-  manual: "手工创建",
-  import: "导入",
-  pre_restore: "恢复前自动",
-}
 
 const SOURCE_FILTERS: readonly { value: BackupSourceFilter; label: string }[] =
   [
@@ -45,18 +53,42 @@ const formatScale = (backup: DatabaseBackup): string =>
     ? "尚未统计"
     : `${backup.tableCount} 表 / ${backup.rowCount} 行`
 
+/** 不能用于恢复的备份不给恢复入口，但仍可以查看与删除。 */
+const restoreBlocked = (backup: DatabaseBackup): boolean =>
+  backup.restoreBlockedReason !== null || !backup.integrity.ok
+
 const BackupRow = (props: {
   backup: DatabaseBackup
+  selected: boolean
+  onToggleSelected: (id: string, next: boolean) => void
   downloadingId: string | null
   onDownload: (backup: DatabaseBackup) => void
   onCancelDownload: () => void
+  onRestore: (backup: DatabaseBackup) => void
 }) => {
-  const { backup, downloadingId, onDownload, onCancelDownload } = props
+  const {
+    backup,
+    selected,
+    onToggleSelected,
+    downloadingId,
+    onDownload,
+    onCancelDownload,
+    onRestore,
+  } = props
   const downloading = downloadingId === backup.id
   const otherDownloading = downloadingId !== null && !downloading
 
   return (
-    <TableRow>
+    <TableRow data-selected={selected ? "true" : undefined}>
+      <TableCell className="align-top">
+        <Checkbox
+          aria-label={`选中 ${backup.fileName}`}
+          checked={selected}
+          onCheckedChange={(checked) =>
+            onToggleSelected(backup.id, checked === true)
+          }
+        />
+      </TableCell>
       <TableCell className="max-w-[22rem] align-top">
         <span className="block break-all font-mono text-xs">
           {backup.fileName}
@@ -102,22 +134,33 @@ const BackupRow = (props: {
         {formatScale(backup)}
       </TableCell>
       <TableCell className="align-top">
-        {downloading ? (
-          <Button variant="outline" size="sm" onClick={onCancelDownload}>
-            <LoaderCircle className="animate-spin" aria-hidden="true" />
-            取消下载
-          </Button>
-        ) : (
+        <div className="flex flex-col items-start gap-2">
+          {downloading ? (
+            <Button variant="outline" size="sm" onClick={onCancelDownload}>
+              <LoaderCircle className="animate-spin" aria-hidden="true" />
+              取消下载
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={otherDownloading}
+              onClick={() => onDownload(backup)}
+            >
+              <Download aria-hidden="true" />
+              下载
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
-            disabled={otherDownloading}
-            onClick={() => onDownload(backup)}
+            disabled={restoreBlocked(backup)}
+            onClick={() => onRestore(backup)}
           >
-            <Download aria-hidden="true" />
-            下载
+            <DatabaseBackupIcon aria-hidden="true" />
+            恢复
           </Button>
-        )}
+        </div>
       </TableCell>
     </TableRow>
   )
@@ -126,13 +169,20 @@ const BackupRow = (props: {
 /**
  * 备份视图：列表（分页 + 来源筛选）、创建、导入、下载，以及只读的恢复状态。
  *
- * 页面主体滚动交给这里的唯一容器，头部工具区不滚动，符合整页只有一个纵向
- * 滚动区的约定。恢复的确认与提交、备份删除都不在本视图内。
+ * 危险动作都在确认框里完成：删除逐条列出对象与影响、恢复必须写清「提交不等于
+ * 已恢复」并做签名比对；两者提交后都重新读取服务端状态，不做本地假删。
  */
 export const BackupsPanel = () => {
   const model = useBackups()
+  const actions = useBackupActions({
+    backups: model.backups,
+    planStatus: model.restore?.plan?.status ?? null,
+    refresh: model.refresh,
+  })
   const [importOpen, setImportOpen] = useState(false)
   const pageCount = Math.max(1, Math.ceil(model.total / model.pageSize))
+  const allSelected =
+    model.backups.length > 0 && actions.selected.length === model.backups.length
 
   return (
     <div className="min-h-0 min-w-0 flex-1 overflow-auto">
@@ -141,7 +191,58 @@ export const BackupsPanel = () => {
           state={model.restore}
           loading={model.restoreLoading}
           error={model.restoreError}
+          action={
+            actions.canCancelPlan ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={actions.busy !== null}
+                onClick={() => void actions.cancelPlan()}
+              >
+                {actions.busy === "cancel" ? "正在取消…" : "取消恢复计划"}
+              </Button>
+            ) : undefined
+          }
         />
+
+        {actions.cancelNotice === null ? null : (
+          <Alert variant="destructive">
+            <AlertTitle>取消恢复计划没有成功</AlertTitle>
+            <AlertDescription>{actions.cancelNotice}</AlertDescription>
+          </Alert>
+        )}
+
+        {actions.cancelUnknown === null ? null : (
+          <Alert>
+            <AlertTitle>结果未知</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <span>{actions.cancelUnknown}</span>
+              <span className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  className="min-h-11"
+                  onClick={() => void actions.verify()}
+                >
+                  重新读取核实
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="min-h-11"
+                  onClick={actions.dismissUnknown}
+                >
+                  已核对，继续
+                </Button>
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {actions.deleteOutcome === null ? null : (
+          <DeleteResultAlert
+            outcome={actions.deleteOutcome}
+            onDismiss={actions.dismissDeleteOutcome}
+          />
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -212,6 +313,22 @@ export const BackupsPanel = () => {
           </span>
         </div>
 
+        {actions.selected.length === 0 ? null : (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="destructive"
+              disabled={actions.busy !== null}
+              onClick={actions.openDelete}
+            >
+              <Trash aria-hidden="true" />
+              删除选中的 {actions.selected.length} 份
+            </Button>
+            <Button variant="ghost" size="sm" onClick={actions.clearSelection}>
+              清除选择
+            </Button>
+          </div>
+        )}
+
         {model.listError === null ? null : (
           <Alert variant="destructive">
             <AlertTitle>备份列表读取失败</AlertTitle>
@@ -239,6 +356,17 @@ export const BackupsPanel = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="选中当前页全部备份"
+                    checked={allSelected}
+                    onCheckedChange={(checked) =>
+                      checked === true
+                        ? actions.selectAll()
+                        : actions.clearSelection()
+                    }
+                  />
+                </TableHead>
                 <TableHead>文件名</TableHead>
                 <TableHead>创建时间</TableHead>
                 <TableHead>大小</TableHead>
@@ -253,9 +381,12 @@ export const BackupsPanel = () => {
                 <BackupRow
                   key={backup.id}
                   backup={backup}
+                  selected={actions.selectedIds.includes(backup.id)}
+                  onToggleSelected={actions.toggleSelected}
                   downloadingId={model.downloadingId}
                   onDownload={(item) => void model.download(item)}
                   onCancelDownload={model.cancelDownload}
+                  onRestore={actions.openRestore}
                 />
               ))}
             </TableBody>
@@ -298,6 +429,35 @@ export const BackupsPanel = () => {
         importing={model.importing}
         onImport={model.importBackup}
         onCancelImport={model.cancelImport}
+      />
+
+      <DeleteBackupsDialog
+        open={actions.deleteDialogOpen}
+        onOpenChange={actions.setDeleteDialogOpen}
+        targets={actions.selected}
+        busy={actions.busy === "delete"}
+        failure={actions.deleteFailure}
+        unknownNotice={actions.deleteUnknown}
+        onVerify={() => void actions.verify()}
+        onDismissUnknown={actions.dismissUnknown}
+        onConfirm={() => void actions.confirmDelete()}
+      />
+
+      <RestorePlanDialog
+        open={actions.restoreTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) actions.closeRestore()
+        }}
+        backup={actions.restoreTarget}
+        currentSignature={model.restore?.currentSignature ?? null}
+        busy={actions.busy === "restore"}
+        failure={actions.restoreFailure}
+        unknownNotice={actions.restoreUnknown}
+        backupCurrent={actions.backupCurrent}
+        onBackupCurrentChange={actions.setBackupCurrent}
+        onVerify={() => void actions.verify()}
+        onDismissUnknown={actions.dismissUnknown}
+        onConfirm={() => void actions.confirmRestore()}
       />
     </div>
   )

@@ -3,9 +3,15 @@ import type {
   DatabaseRestoreStatus,
 } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
-import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@web/components/ui/alert"
 import { Badge } from "@web/components/ui/badge"
 import { Skeleton } from "@web/components/ui/skeleton"
+import type { ReactNode } from "react"
 
 export type RestoreTone = "ok" | "pending" | "danger" | "muted"
 
@@ -91,7 +97,7 @@ export const describeRestoreState = (
       return {
         tone: "muted",
         title: "恢复计划已取消，当前数据库未变",
-        detail: target,
+        detail: `${target} · 没有待执行的恢复计划，重启不会再执行恢复`,
       }
     case "unknown":
       return {
@@ -106,9 +112,11 @@ type RestoreStatusCardProps = {
   state: DatabaseRestoreState | null
   loading: boolean
   error: string | null
+  /** 可选操作位（例如取消尚未执行的计划）；状态展示本身不负责动作。 */
+  action?: ReactNode
 }
 
-/** 恢复状态区：只读展示，恢复的确认与提交由后续流程负责。 */
+/** 恢复状态区：状态与「是否已核实」的展示，可选操作位只放轻动作（取消计划）。 */
 export const RestoreStatusCard = (props: RestoreStatusCardProps) => {
   const { state, loading, error } = props
   if (loading) return <Skeleton className="h-24 w-full" />
@@ -145,6 +153,9 @@ export const RestoreStatusCard = (props: RestoreStatusCardProps) => {
           </span>
         )}
       </AlertDescription>
+      {props.action === undefined ? null : (
+        <AlertAction>{props.action}</AlertAction>
+      )}
     </Alert>
   )
 }
