@@ -1,5 +1,3 @@
-import { InformationCircleIcon, LockIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { ProcessEntry } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
@@ -32,6 +30,7 @@ import { ProcessAvatar } from "@web/features/processes/ProcessesPage/ProcessAvat
 import type { useProcesses } from "@web/features/processes/useProcesses"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { cn } from "@web/lib/utils"
+import { Info, Lock } from "lucide-react"
 import type { ReactNode } from "react"
 
 type ProcessDetailSheetProps = {
@@ -218,10 +217,11 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
 
             <div className="flex flex-wrap items-start gap-2 border-t p-4">
               <span className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
-                <HugeiconsIcon
-                  icon={ownedByCurrentUser ? InformationCircleIcon : LockIcon}
-                  className="size-3.5"
-                />
+                {ownedByCurrentUser ? (
+                  <Info className="size-3.5" />
+                ) : (
+                  <Lock className="size-3.5" />
+                )}
                 {ownedByCurrentUser
                   ? "结束前请确认进程不需要保存数据"
                   : "系统进程，需要管理员权限"}

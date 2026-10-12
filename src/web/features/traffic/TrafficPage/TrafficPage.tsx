@@ -1,13 +1,3 @@
-import {
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  ClockIcon,
-  DashboardSpeed02Icon,
-  Download01Icon,
-  RefreshIcon,
-  Upload01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { TrafficSnapshot } from "@shared/api-contract"
 import { describeError, formatBytes } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -36,6 +26,16 @@ import { useTraffic } from "@web/features/traffic/useTraffic"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import {
+  ArrowDown,
+  ArrowUp,
+  Clock,
+  Download,
+  Gauge,
+  type LucideIcon,
+  RefreshCw,
+  Upload,
+} from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { ProcessTable } from "./ProcessTable"
@@ -174,11 +174,7 @@ export const TrafficPage = () => {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-col gap-2 border-b px-4 py-2">
         <div className="flex flex-wrap items-center gap-2">
-          <HugeiconsIcon
-            icon={DashboardSpeed02Icon}
-            className="size-4"
-            aria-hidden="true"
-          />
+          <Gauge className="size-4" aria-hidden="true" />
           <PageHeader title="流量监控" loading={model.isLoading} />
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -188,7 +184,7 @@ export const TrafficPage = () => {
                 <SheetTrigger
                   render={
                     <Button variant="outline" size="sm" className="min-h-11">
-                      <HugeiconsIcon icon={ClockIcon} aria-hidden="true" />
+                      <Clock aria-hidden="true" />
                       快照
                     </Button>
                   }
@@ -220,7 +216,7 @@ export const TrafficPage = () => {
               variant="outline"
               onClick={model.refresh}
             >
-              <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+              <RefreshCw aria-hidden="true" />
               刷新
             </Button>
           </div>
@@ -229,12 +225,12 @@ export const TrafficPage = () => {
         {/* 一行摘要：实时速率与当前累计分开标识，不再占三张统计卡片。 */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted-foreground">
           <Metric
-            icon={ArrowDown01Icon}
+            icon={ArrowDown}
             label="实时下载"
             value={`${formatBytes(model.status?.downloadRate ?? 0)}/s`}
           />
           <Metric
-            icon={ArrowUp01Icon}
+            icon={ArrowUp}
             label="实时上传"
             value={`${formatBytes(model.status?.uploadRate ?? 0)}/s`}
           />
@@ -255,18 +251,10 @@ export const TrafficPage = () => {
               <span>进程级数据不可用，不代表流量为 0</span>
             ) : (
               <span className="flex items-center gap-1 tabular-nums">
-                <HugeiconsIcon
-                  icon={Upload01Icon}
-                  className="size-3"
-                  aria-hidden="true"
-                />
-                入 {formatBytes(model.totals.bytesIn)}
-                <HugeiconsIcon
-                  icon={Download01Icon}
-                  className="ml-1 size-3"
-                  aria-hidden="true"
-                />
-                出 {formatBytes(model.totals.bytesOut)}
+                <Upload className="size-3" aria-hidden="true" />入{" "}
+                {formatBytes(model.totals.bytesIn)}
+                <Download className="ml-1 size-3" aria-hidden="true" />出{" "}
+                {formatBytes(model.totals.bytesOut)}
               </span>
             )}
           </span>
@@ -352,7 +340,7 @@ export const TrafficPage = () => {
 }
 
 type MetricProps = {
-  icon: typeof RefreshIcon
+  icon: LucideIcon
   label: string
   value: string
 }
@@ -360,7 +348,7 @@ type MetricProps = {
 /** 摘要里的一项：图标 + 名称 + 数值，说明文字不再各占一张卡片。 */
 const Metric = (props: MetricProps) => (
   <span className="flex items-center gap-1">
-    <HugeiconsIcon icon={props.icon} className="size-3" aria-hidden="true" />
+    <props.icon className="size-3" aria-hidden="true" />
     {props.label}
     <span className="font-medium text-foreground tabular-nums">
       {props.value}

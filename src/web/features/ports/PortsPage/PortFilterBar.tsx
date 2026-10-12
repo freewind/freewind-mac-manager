@@ -1,5 +1,3 @@
-import { ArrowDown01Icon, ArrowUp01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
 import {
   Collapsible,
@@ -14,6 +12,7 @@ import type {
 } from "@web/features/ports/store"
 import type { usePorts } from "@web/features/ports/usePorts"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { ArrowDown, ArrowUp } from "lucide-react"
 import { useState } from "react"
 
 const PROTOCOL_OPTIONS: { value: PortProtocolFilter; label: string }[] = [
@@ -81,10 +80,11 @@ export const PortFilterBar = (props: PortFilterBarProps) => {
         <CollapsibleTrigger
           render={<Button variant="outline" size="sm" className="min-h-11" />}
         >
-          <HugeiconsIcon
-            icon={open ? ArrowUp01Icon : ArrowDown01Icon}
-            aria-hidden="true"
-          />
+          {open ? (
+            <ArrowUp aria-hidden="true" />
+          ) : (
+            <ArrowDown aria-hidden="true" />
+          )}
           详细筛选
         </CollapsibleTrigger>
         <span className="min-w-0 flex-1 truncate text-[0.6875rem] text-muted-foreground">

@@ -1,14 +1,3 @@
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-  ArrowUp01Icon,
-  Copy01Icon,
-  Delete02Icon,
-  Download01Icon,
-  MoreHorizontalIcon,
-  Upload01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { TrafficChild } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
@@ -42,6 +31,16 @@ import {
 } from "@web/components/ui/tooltip"
 import type { useTraffic } from "@web/features/traffic/useTraffic"
 import { cn } from "@web/lib/utils"
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  Copy,
+  Download,
+  MoreHorizontal,
+  Trash2,
+  Upload,
+} from "lucide-react"
 import { Fragment, useMemo, useState } from "react"
 
 type SortKey = "name" | "bytesIn" | "bytesOut" | "total"
@@ -129,9 +128,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
               <TableHead className="w-[1%] whitespace-nowrap">状态</TableHead>
               <TableHead className="w-[1%] text-right whitespace-nowrap">
                 <SortButton
-                  label={
-                    <HugeiconsIcon icon={Upload01Icon} className="size-3.5" />
-                  }
+                  label={<Upload className="size-3.5" />}
                   active={sortKey === "bytesIn"}
                   descending={descending}
                   onClick={() => toggleSort("bytesIn")}
@@ -139,9 +136,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
               </TableHead>
               <TableHead className="w-[1%] text-right whitespace-nowrap">
                 <SortButton
-                  label={
-                    <HugeiconsIcon icon={Download01Icon} className="size-3.5" />
-                  }
+                  label={<Download className="size-3.5" />}
                   active={sortKey === "bytesOut"}
                   descending={descending}
                   onClick={() => toggleSort("bytesOut")}
@@ -195,10 +190,11 @@ export const ProcessTable = (props: ProcessTableProps) => {
                           model.toggleExpanded(groupItem.name)
                         }}
                       >
-                        <HugeiconsIcon
-                          icon={expanded ? ArrowDown01Icon : ArrowRight01Icon}
-                          className="size-3.5 text-muted-foreground"
-                        />
+                        {expanded ? (
+                          <ArrowDown className="size-3.5 text-muted-foreground" />
+                        ) : (
+                          <ArrowRight className="size-3.5 text-muted-foreground" />
+                        )}
                         <span>{groupItem.name}</span>
                       </button>
                     </TableCell>
@@ -366,13 +362,13 @@ const RowActions = (props: RowActionsProps) => (
     <DropdownMenuTrigger
       render={
         <Button size="icon-sm" variant="ghost" title="操作">
-          <HugeiconsIcon icon={MoreHorizontalIcon} />
+          <MoreHorizontal />
         </Button>
       }
     />
     <DropdownMenuContent align="end">
       <DropdownMenuItem onClick={props.onCopy}>
-        <HugeiconsIcon icon={Copy01Icon} />
+        <Copy />
         复制整行信息
       </DropdownMenuItem>
       <DropdownMenuSeparator />
@@ -380,7 +376,7 @@ const RowActions = (props: RowActionsProps) => (
         disabled={!props.running || props.busy}
         onClick={props.onKill}
       >
-        <HugeiconsIcon icon={Delete02Icon} />
+        <Trash2 />
         结束进程
       </DropdownMenuItem>
     </DropdownMenuContent>
@@ -425,10 +421,11 @@ const SortButton = (props: SortButtonProps) => {
     >
       {label}
       {active ? (
-        <HugeiconsIcon
-          icon={descending ? ArrowDown01Icon : ArrowUp01Icon}
-          className="size-3"
-        />
+        descending ? (
+          <ArrowDown className="size-3" />
+        ) : (
+          <ArrowUp className="size-3" />
+        )
       ) : null}
     </Button>
   )

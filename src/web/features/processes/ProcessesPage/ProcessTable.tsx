@@ -1,12 +1,3 @@
-import {
-  Cancel01Icon,
-  Copy01Icon,
-  Delete02Icon,
-  EyeIcon,
-  MoreHorizontalIcon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { ProcessEntry } from "@shared/api-contract"
 import { describeError, formatBytes } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
@@ -55,6 +46,7 @@ import {
 import { ProcessAvatar } from "@web/features/processes/ProcessesPage/ProcessAvatar"
 import type { useProcesses } from "@web/features/processes/useProcesses"
 import { cn } from "@web/lib/utils"
+import { Copy, Eye, MoreHorizontal, Search, Trash2, X } from "lucide-react"
 import { type ReactNode, useMemo, useState } from "react"
 import { toast } from "sonner"
 
@@ -205,7 +197,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
                 <Empty className="py-10">
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
-                      <HugeiconsIcon icon={Search01Icon} />
+                      <Search />
                     </EmptyMedia>
                     <EmptyTitle>没有匹配的进程</EmptyTitle>
                     <EmptyDescription>
@@ -349,29 +341,29 @@ const ProcessRow = (props: ProcessRowProps) => {
           <DropdownMenuTrigger
             render={
               <Button variant="ghost" size="icon-xs" aria-label="更多操作">
-                <HugeiconsIcon icon={MoreHorizontalIcon} />
+                <MoreHorizontal />
               </Button>
             }
           />
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={onOpen}>
-              <HugeiconsIcon icon={EyeIcon} />
+              <Eye />
               查看详情
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => void copyPid()}>
-              <HugeiconsIcon icon={Copy01Icon} />
+              <Copy />
               复制 PID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onRequestTerminate([item], false)}>
-              <HugeiconsIcon icon={Cancel01Icon} />
+              <X />
               结束进程
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"
               onClick={() => onRequestTerminate([item], true)}
             >
-              <HugeiconsIcon icon={Delete02Icon} />
+              <Trash2 />
               强制结束
             </DropdownMenuItem>
           </DropdownMenuContent>

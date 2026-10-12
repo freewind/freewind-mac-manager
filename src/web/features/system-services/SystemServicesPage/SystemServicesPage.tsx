@@ -1,21 +1,3 @@
-import {
-  Alert02Icon,
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  BanIcon,
-  CheckmarkCircle02Icon,
-  Copy01Icon,
-  FolderOpenIcon,
-  Link01Icon,
-  MoreHorizontalIcon,
-  PlayIcon,
-  RefreshIcon,
-  Search01Icon,
-  Shield01Icon,
-  StopIcon,
-  TrashIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type {
   ServiceDomain,
   ServiceState,
@@ -110,6 +92,24 @@ import {
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  Ban,
+  CircleCheck,
+  Copy,
+  FolderOpen,
+  Link,
+  type LucideIcon,
+  MoreHorizontal,
+  Play,
+  RefreshCw,
+  Search,
+  Shield,
+  Square,
+  Trash2,
+} from "lucide-react"
 import { useState } from "react"
 
 const STATE_ORDER: ServiceState[] = ["running", "stopped", "failed", "disabled"]
@@ -152,11 +152,11 @@ const CONFIRM_TEXTS: Record<ServiceAction, { detail: string; ok: string }> = {
   enable: { detail: "服务下次登录时会自动启动。", ok: "启用" },
 }
 
-const STATE_ICONS: Record<ServiceState, typeof PlayIcon> = {
-  running: CheckmarkCircle02Icon,
-  stopped: StopIcon,
-  failed: Alert02Icon,
-  disabled: BanIcon,
+const STATE_ICONS: Record<ServiceState, LucideIcon> = {
+  running: CircleCheck,
+  stopped: Square,
+  failed: AlertTriangle,
+  disabled: Ban,
 }
 
 const STATE_ICON_CLASSES: Record<ServiceState, string> = {
@@ -164,6 +164,12 @@ const STATE_ICON_CLASSES: Record<ServiceState, string> = {
   stopped: "text-muted-foreground",
   failed: "text-destructive",
   disabled: "text-muted-foreground/60",
+}
+
+/** 状态图标：按服务状态取 lucide 组件，颜色跟随状态样式。 */
+const ServiceStateIcon = ({ state }: { state: ServiceState }) => {
+  const Icon = STATE_ICONS[state]
+  return <Icon className={STATE_ICON_CLASSES[state]} />
 }
 
 /** 每个动作在当前状态下是否可用，以及不可用的原因。 */
@@ -287,7 +293,7 @@ export const SystemServicesPage = () => {
     if (!isDesktop) setDetailOpen(true)
   }
 
-  const actionButton = (action: ServiceAction, icon: typeof PlayIcon) => {
+  const actionButton = (action: ServiceAction, Icon: LucideIcon) => {
     if (!service) return null
     const availability = actionAvailability(service, action)
     return (
@@ -304,7 +310,7 @@ export const SystemServicesPage = () => {
         title={availability.reason ?? undefined}
         onClick={() => model.requestAction(action, service)}
       >
-        <HugeiconsIcon icon={icon} />
+        <Icon />
         {ACTION_LABELS[action]}
       </ActionButton>
     )
@@ -344,11 +350,11 @@ export const SystemServicesPage = () => {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            {actionButton("start", PlayIcon)}
-            {actionButton("stop", StopIcon)}
-            {actionButton("restart", RefreshIcon)}
-            {actionButton("load", Link01Icon)}
-            {actionButton("unload", TrashIcon)}
+            {actionButton("start", Play)}
+            {actionButton("stop", Square)}
+            {actionButton("restart", RefreshCw)}
+            {actionButton("load", Link)}
+            {actionButton("unload", Trash2)}
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -363,7 +369,7 @@ export const SystemServicesPage = () => {
                         : undefined
                     }
                   >
-                    <HugeiconsIcon icon={MoreHorizontalIcon} />
+                    <MoreHorizontal />
                   </Button>
                 }
               />
@@ -372,41 +378,41 @@ export const SystemServicesPage = () => {
                   onClick={() => model.requestAction("disable", service)}
                   disabled={service.disabled || model.isPending}
                 >
-                  <HugeiconsIcon icon={BanIcon} />
+                  <Ban />
                   禁用（开机不启动）
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => model.requestAction("enable", service)}
                   disabled={!service.disabled || model.isPending}
                 >
-                  <HugeiconsIcon icon={CheckmarkCircle02Icon} />
+                  <CircleCheck />
                   启用（恢复开机启动）
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => model.copy(service.filePath, " plist 路径")}
                 >
-                  <HugeiconsIcon icon={Copy01Icon} />
+                  <Copy />
                   复制 plist 路径
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => model.copy(service.plist, " plist 内容")}
                 >
-                  <HugeiconsIcon icon={Copy01Icon} />
+                  <Copy />
                   复制 plist 内容
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={launchCommand === ""}
                   onClick={() => model.copy(launchCommand, "启动命令")}
                 >
-                  <HugeiconsIcon icon={Copy01Icon} />
+                  <Copy />
                   复制启动命令
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={model.isPending}
                   onClick={() => model.reveal(service)}
                 >
-                  <HugeiconsIcon icon={FolderOpenIcon} />
+                  <FolderOpen />
                   在访达中显示
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -533,7 +539,7 @@ export const SystemServicesPage = () => {
                     size="xs"
                     onClick={() => model.copy(service.plist, " plist 内容")}
                   >
-                    <HugeiconsIcon icon={Copy01Icon} />
+                    <Copy />
                     复制内容
                   </Button>
                   <ActionButton
@@ -544,7 +550,7 @@ export const SystemServicesPage = () => {
                     size="xs"
                     onClick={() => model.reveal(service)}
                   >
-                    <HugeiconsIcon icon={FolderOpenIcon} />
+                    <FolderOpen />
                     访达定位
                   </ActionButton>
                   {/* 原文默认收起：需要的时侯再展开，面板自己的滚动不变 */}
@@ -555,14 +561,11 @@ export const SystemServicesPage = () => {
                         size="xs"
                         aria-expanded={plistOpenLabel === service.label}
                       >
-                        <HugeiconsIcon
-                          icon={
-                            plistOpenLabel === service.label
-                              ? ArrowUp01Icon
-                              : ArrowDown01Icon
-                          }
-                          aria-hidden="true"
-                        />
+                        {plistOpenLabel === service.label ? (
+                          <ArrowUp aria-hidden="true" />
+                        ) : (
+                          <ArrowDown aria-hidden="true" />
+                        )}
                         {plistOpenLabel === service.label
                           ? "收起原文"
                           : "查看原文"}
@@ -590,7 +593,7 @@ export const SystemServicesPage = () => {
       <Empty className="py-10">
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <HugeiconsIcon icon={Alert02Icon} />
+            <AlertTriangle />
           </EmptyMedia>
           <EmptyTitle>没有可显示的服务</EmptyTitle>
           <EmptyDescription>
@@ -624,14 +627,14 @@ export const SystemServicesPage = () => {
             className="ml-auto min-h-11"
             onClick={model.refresh}
           >
-            <HugeiconsIcon icon={RefreshIcon} />
+            <RefreshCw />
             重新读取
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <InputGroup className="w-full md:w-80">
             <InputGroupAddon>
-              <HugeiconsIcon icon={Search01Icon} />
+              <Search />
             </InputGroupAddon>
             <InputGroupInput
               value={model.keyword}
@@ -648,10 +651,11 @@ export const SystemServicesPage = () => {
                   className="min-h-11"
                   aria-expanded={filtersOpen}
                 >
-                  <HugeiconsIcon
-                    icon={filtersOpen ? ArrowUp01Icon : ArrowDown01Icon}
-                    aria-hidden="true"
-                  />
+                  {filtersOpen ? (
+                    <ArrowUp aria-hidden="true" />
+                  ) : (
+                    <ArrowDown aria-hidden="true" />
+                  )}
                   详细筛选
                 </Button>
               }
@@ -725,10 +729,7 @@ export const SystemServicesPage = () => {
                   className="cursor-pointer"
                 >
                   <ItemMedia variant="icon">
-                    <HugeiconsIcon
-                      icon={STATE_ICONS[item.state]}
-                      className={STATE_ICON_CLASSES[item.state]}
-                    />
+                    <ServiceStateIcon state={item.state} />
                   </ItemMedia>
                   <ItemContent>
                     <ItemTitle>{item.label}</ItemTitle>
@@ -738,10 +739,7 @@ export const SystemServicesPage = () => {
                   </ItemContent>
                   {item.requiresRoot ? (
                     <ItemActions>
-                      <HugeiconsIcon
-                        icon={Shield01Icon}
-                        className="size-3 text-muted-foreground"
-                      />
+                      <Shield className="size-3 text-muted-foreground" />
                     </ItemActions>
                   ) : null}
                 </Item>
@@ -751,7 +749,7 @@ export const SystemServicesPage = () => {
               <Empty className="mx-2 py-6">
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
-                    <HugeiconsIcon icon={Search01Icon} />
+                    <Search />
                   </EmptyMedia>
                   <EmptyTitle>没有符合条件的服务</EmptyTitle>
                   <EmptyDescription>

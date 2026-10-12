@@ -1,9 +1,3 @@
-import {
-  EthernetPortIcon,
-  RefreshIcon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { PageHeader } from "@web/components/PageHeader"
@@ -24,6 +18,7 @@ import { usePorts } from "@web/features/ports/usePorts"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { Network, RefreshCw, Search } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { PortFilterBar } from "./PortFilterBar"
@@ -65,16 +60,13 @@ export const PortsPage = () => {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-col gap-3 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <HugeiconsIcon icon={EthernetPortIcon} className="size-4" />
+          <Network className="size-4" />
           <PageHeader title="端口管理" loading={model.isLoading} />
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {isDesktop ? null : <PortViewSelect model={model} />}
             <div className="relative">
-              <HugeiconsIcon
-                icon={Search01Icon}
-                className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
-              />
+              <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={model.search}
                 onChange={(event) => model.setSearch(event.target.value)}
@@ -96,7 +88,7 @@ export const PortsPage = () => {
               variant="outline"
               onClick={model.refresh}
             >
-              <HugeiconsIcon icon={RefreshIcon} />
+              <RefreshCw />
               刷新
             </Button>
           </div>

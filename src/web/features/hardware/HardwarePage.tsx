@@ -1,10 +1,3 @@
-import {
-  ChipIcon,
-  Copy01Icon,
-  Download01Icon,
-  RefreshIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { HardwareOverview } from "@shared/api-contract"
 import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -29,6 +22,7 @@ import {
 } from "@web/components/ui/empty"
 import { Separator } from "@web/components/ui/separator"
 import { Skeleton } from "@web/components/ui/skeleton"
+import { CircuitBoard, Copy, Download, RefreshCw } from "lucide-react"
 import type { ReactNode } from "react"
 import {
   formatHardwareBytes,
@@ -477,7 +471,7 @@ export const HardwarePage = () => {
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex flex-wrap items-center gap-2 px-4 py-3">
-        <HugeiconsIcon icon={ChipIcon} className="size-4" />
+        <CircuitBoard className="size-4" />
         <PageHeader title="硬件" loading={model.isPending} />
         <Badge variant="outline">含敏感信息</Badge>
         <div className="ml-auto flex flex-wrap gap-2">
@@ -488,7 +482,7 @@ export const HardwarePage = () => {
             onClick={() => void model.copy()}
             disabled={!data}
           >
-            <HugeiconsIcon icon={Copy01Icon} />
+            <Copy />
             复制文本
           </Button>
           <Button
@@ -498,7 +492,7 @@ export const HardwarePage = () => {
             onClick={model.exportText}
             disabled={!data}
           >
-            <HugeiconsIcon icon={Download01Icon} />
+            <Download />
             导出
           </Button>
           <Button
@@ -508,7 +502,7 @@ export const HardwarePage = () => {
             onClick={() => void model.refresh()}
             disabled={model.isFetching}
           >
-            <HugeiconsIcon icon={RefreshIcon} />
+            <RefreshCw />
             刷新
           </Button>
         </div>

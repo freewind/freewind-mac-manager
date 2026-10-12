@@ -1,10 +1,3 @@
-import {
-  Delete02Icon,
-  Download01Icon,
-  MoreHorizontalIcon,
-  Upload01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { TrafficSnapshot } from "@shared/api-contract"
 import { formatBytes, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -42,6 +35,7 @@ import { ScrollArea } from "@web/components/ui/scroll-area"
 import { REALTIME_SNAPSHOT_ID } from "@web/features/traffic/store"
 import type { useTraffic } from "@web/features/traffic/useTraffic"
 import { cn } from "@web/lib/utils"
+import { Download, MoreHorizontal, Trash2, Upload } from "lucide-react"
 
 type SnapshotListProps = {
   model: ReturnType<typeof useTraffic>
@@ -122,9 +116,9 @@ export const SnapshotList = (props: SnapshotListProps) => {
                 <ItemContent>
                   <ItemTitle className="text-emerald-600">实时</ItemTitle>
                   <ItemDescription className="flex items-center gap-1">
-                    <HugeiconsIcon icon={Upload01Icon} className="size-3" />
+                    <Upload className="size-3" />
                     {formatBytes(model.totals.bytesIn)}
-                    <HugeiconsIcon icon={Download01Icon} className="size-3" />
+                    <Download className="size-3" />
                     {formatBytes(model.totals.bytesOut)}
                     <span className="pl-0.5">
                       合计 {formatBytes(model.totals.total)}
@@ -170,12 +164,9 @@ export const SnapshotList = (props: SnapshotListProps) => {
                         ) : null}
                       </ItemTitle>
                       <ItemDescription className="flex items-center gap-1">
-                        <HugeiconsIcon icon={Upload01Icon} className="size-3" />
+                        <Upload className="size-3" />
                         {formatBytes(snapshot.bytesIn)}
-                        <HugeiconsIcon
-                          icon={Download01Icon}
-                          className="size-3"
-                        />
+                        <Download className="size-3" />
                         {formatBytes(snapshot.bytesOut)}
                         <span className="pl-0.5">
                           合计{" "}
@@ -192,7 +183,7 @@ export const SnapshotList = (props: SnapshotListProps) => {
                               variant="ghost"
                               title="快照操作"
                             >
-                              <HugeiconsIcon icon={MoreHorizontalIcon} />
+                              <MoreHorizontal />
                             </Button>
                           }
                         />
@@ -210,7 +201,7 @@ export const SnapshotList = (props: SnapshotListProps) => {
                             disabled={model.snapshotWriteBusy}
                             onClick={() => onRequestDelete(snapshot)}
                           >
-                            <HugeiconsIcon icon={Delete02Icon} />
+                            <Trash2 />
                             删除快照
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -232,7 +223,7 @@ export const SnapshotList = (props: SnapshotListProps) => {
                     disabled={model.snapshotWriteBusy}
                     onClick={() => onRequestDelete(snapshot)}
                   >
-                    <HugeiconsIcon icon={Delete02Icon} />
+                    <Trash2 />
                     删除快照
                   </ContextMenuItem>
                 </ContextMenuContent>

@@ -1,15 +1,3 @@
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-  ArrowUp01Icon,
-  Copy01Icon,
-  Delete02Icon,
-  FlowConnectionIcon,
-  Globe02Icon,
-  MoreHorizontalIcon,
-  SquareLock01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { PortBinding } from "@shared/api-contract"
 import { formatTimestamp } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
@@ -52,6 +40,17 @@ import {
 import type { PortGroup } from "@web/features/ports/domain"
 import type { usePorts } from "@web/features/ports/usePorts"
 import { cn } from "@web/lib/utils"
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  Copy,
+  Globe,
+  Lock,
+  MoreHorizontal,
+  Trash2,
+  Workflow,
+} from "lucide-react"
 import { Fragment, type ReactNode, useMemo, useState } from "react"
 
 type SortKey = "port" | "service" | "processCount"
@@ -168,10 +167,11 @@ export const PortTable = (props: PortTableProps) => {
                         model.toggleExpanded(group.port)
                       }}
                     >
-                      <HugeiconsIcon
-                        icon={open ? ArrowDown01Icon : ArrowRight01Icon}
-                        className="size-3.5 text-muted-foreground"
-                      />
+                      {open ? (
+                        <ArrowDown className="size-3.5 text-muted-foreground" />
+                      ) : (
+                        <ArrowRight className="size-3.5 text-muted-foreground" />
+                      )}
                       {group.port}
                     </button>
                   </TableCell>
@@ -335,21 +335,21 @@ const BindingDetail = (props: {
           <DropdownMenuTrigger
             render={
               <Button size="icon-sm" variant="ghost" title="绑定操作">
-                <HugeiconsIcon icon={MoreHorizontalIcon} />
+                <MoreHorizontal />
               </Button>
             }
           />
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => props.onCopy(item.command)}>
-              <HugeiconsIcon icon={Copy01Icon} />
+              <Copy />
               复制命令
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => props.onCopy(String(item.pid))}>
-              <HugeiconsIcon icon={Copy01Icon} />
+              <Copy />
               复制 PID
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => props.onCopy(item.cwd)}>
-              <HugeiconsIcon icon={Copy01Icon} />
+              <Copy />
               复制工作目录
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -377,17 +377,17 @@ const RowActions = (props: RowActionsProps) => (
           className="size-11"
           aria-label={`端口 ${props.port} 的操作`}
         >
-          <HugeiconsIcon icon={MoreHorizontalIcon} />
+          <MoreHorizontal />
         </Button>
       }
     />
     <DropdownMenuContent align="end">
       <DropdownMenuItem onClick={props.onCopy}>
-        <HugeiconsIcon icon={Copy01Icon} />
+        <Copy />
         复制整行信息
       </DropdownMenuItem>
       <DropdownMenuItem onClick={props.onCopyPids}>
-        <HugeiconsIcon icon={Copy01Icon} />
+        <Copy />
         复制 PID
       </DropdownMenuItem>
       <DropdownMenuSeparator />
@@ -398,7 +398,7 @@ const RowActions = (props: RowActionsProps) => (
         disabled={props.busy}
         onClick={props.onKill}
       >
-        <HugeiconsIcon icon={Delete02Icon} />
+        <Trash2 />
         结束进程
       </DropdownMenuItem>
     </DropdownMenuContent>
@@ -430,7 +430,7 @@ const ExposureBadge = (props: {
   if (props.state === "ESTABLISHED") {
     return (
       <Badge variant="outline" className="gap-1 text-sky-600">
-        <HugeiconsIcon icon={FlowConnectionIcon} className="size-3" />
+        <Workflow className="size-3" />
         出站连接
       </Badge>
     )
@@ -440,12 +440,12 @@ const ExposureBadge = (props: {
       variant="outline"
       className="gap-1 border-orange-500/40 text-orange-600"
     >
-      <HugeiconsIcon icon={Globe02Icon} className="size-3" />
+      <Globe className="size-3" />
       对外暴露
     </Badge>
   ) : (
     <Badge variant="outline" className="gap-1 text-muted-foreground">
-      <HugeiconsIcon icon={SquareLock01Icon} className="size-3" />
+      <Lock className="size-3" />
       仅本机
     </Badge>
   )
@@ -467,10 +467,11 @@ const SortButton = (props: SortButtonProps) => (
   >
     {props.label}
     {props.active ? (
-      <HugeiconsIcon
-        icon={props.descending ? ArrowDown01Icon : ArrowUp01Icon}
-        className="size-3"
-      />
+      props.descending ? (
+        <ArrowDown className="size-3" />
+      ) : (
+        <ArrowUp className="size-3" />
+      )
     ) : null}
   </Button>
 )

@@ -1,12 +1,3 @@
-import {
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  PauseIcon,
-  PlayIcon,
-  RefreshIcon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { MachineOverview, ProcessEntry } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { PageHeader } from "@web/components/PageHeader"
@@ -51,6 +42,14 @@ import {
 } from "@web/features/processes/store"
 import { useProcesses } from "@web/features/processes/useProcesses"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import {
+  ArrowDown,
+  ArrowUp,
+  Pause,
+  Play,
+  RefreshCw,
+  Search,
+} from "lucide-react"
 import { useState } from "react"
 
 /** 页面级瞬时状态：确认弹窗的目标。
@@ -135,7 +134,7 @@ export const ProcessesPage = () => {
               placeholder="搜索进程名、PID、用户、端口"
             />
             <InputGroupAddon>
-              <HugeiconsIcon icon={Search01Icon} />
+              <Search />
             </InputGroupAddon>
           </InputGroup>
           <ToggleGroup
@@ -161,7 +160,7 @@ export const ProcessesPage = () => {
             size="sm"
             className="min-h-11"
           >
-            <HugeiconsIcon icon={model.autoRefresh ? PauseIcon : PlayIcon} />
+            {model.autoRefresh ? <Pause /> : <Play />}
             {model.autoRefresh ? "自动刷新" : "已暂停"}
           </Toggle>
           <AiAssistantButton context={assistantContext} />
@@ -171,7 +170,7 @@ export const ProcessesPage = () => {
             className="min-h-11"
             onClick={model.refresh}
           >
-            <HugeiconsIcon icon={RefreshIcon} />
+            <RefreshCw />
             立即刷新
           </Button>
         </div>
@@ -184,10 +183,11 @@ export const ProcessesPage = () => {
               <Button variant="ghost" size="xs" className="min-h-7 px-1" />
             }
           >
-            <HugeiconsIcon
-              icon={resourcesOpen ? ArrowUp01Icon : ArrowDown01Icon}
-              aria-hidden="true"
-            />
+            {resourcesOpen ? (
+              <ArrowUp aria-hidden="true" />
+            ) : (
+              <ArrowDown aria-hidden="true" />
+            )}
             {resourcesOpen ? "收起资源详情" : "资源详情"}
           </CollapsibleTrigger>
           <span className="ml-auto flex items-center gap-3">
