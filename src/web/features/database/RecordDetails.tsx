@@ -1,7 +1,10 @@
+import { Delete02Icon, PencilEdit02Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
 import type { DatabaseRecord, DatabaseTable } from "@shared/api-contract"
 import { describeError } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Badge } from "@web/components/ui/badge"
+import { Button } from "@web/components/ui/button"
 import { Separator } from "@web/components/ui/separator"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { formatRecordKey, sqliteValueTypeLabel } from "./format"
@@ -12,6 +15,24 @@ export type RecordDetailsProps = {
   record: DatabaseRecord | null
   pending: boolean
   error: unknown
+  /** 表能力与在线状态由页面判断；不可写时按钮禁用并说明原因。 */
+  canEdit: boolean
+  canDelete: boolean
+  busy: boolean
+  onEdit: () => void
+  onDelete: () => void
+}
+
+/** 不可写时说明原因，避免只留一个灰按钮。 */
+const capabilityHint = (
+  table: DatabaseTable,
+  operation: "update" | "delete"
+): string | null => {
+  const capability = table.capabilities.find(
+    (item) => item.operation === operation
+  )
+  if (!capability || capability.allowed) return null
+  return capability.message
 }
 
 /**
@@ -37,8 +58,37 @@ export const RecordDetails = (props: RecordDetailsProps) => {
     )
   }
 
+  const editHint = capabilityHint(props.table, "update")
+  const deleteHint = capabilityHint(props.table, "delete")
+
   return (
     <div className="space-y-4 text-sm">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          className="min-h-11"
+          disabled={!props.canEdit || props.busy}
+          onClick={props.onEdit}
+        >
+          <HugeiconsIcon icon={PencilEdit02Icon} aria-hidden="true" />
+          修改记录
+        </Button>
+        <Button
+          variant="destructive"
+          className="min-h-11"
+          disabled={!props.canDelete || props.busy}
+          onClick={props.onDelete}
+        >
+          <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+          删除记录
+        </Button>
+      </div>
+      {editHint === null ? null : (
+        <p className="text-muted-foreground">不能修改：{editHint}</p>
+      )}
+      {deleteHint === null ? null : (
+        <p className="text-muted-foreground">不能删除：{deleteHint}</p>
+      )}
       <div className="space-y-1">
         <p className="text-muted-foreground">主键</p>
         <p className="font-mono text-xs">{formatRecordKey(props.record.key)}</p>

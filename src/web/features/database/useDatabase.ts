@@ -230,6 +230,8 @@ export const useDatabase = () => {
     busy,
     actionFailure,
     unknownNotice,
+    /** 结果未知后用户已核对：清掉提示，允许继续操作。 */
+    dismissUnknownResult: () => setUnknown(null),
     online,
   }
 }

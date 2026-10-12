@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import type { DatabaseRecord, DatabaseTable } from "@shared/api-contract"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { recordKeyFingerprint } from "./format"
 import { RecordList, type RecordListProps } from "./RecordList"
 
 const stubMatchMedia = (): void => {
@@ -101,6 +102,12 @@ const renderList = (overrides: Partial<RecordListProps> = {}) => {
     filters: [],
     sorts: [],
     selectedKey: null,
+    checkedFingerprints: new Set<string>(),
+    canDelete: true,
+    deleteBusy: false,
+    onToggleChecked: vi.fn(),
+    onClearChecked: vi.fn(),
+    onRequestDeleteChecked: vi.fn(),
     onSelectRecord: vi.fn(),
     onFiltersChange: vi.fn(),
     onSortsChange: vi.fn(),
@@ -210,16 +217,38 @@ describe("RecordList 筛选排序分页", () => {
 })
 
 describe("RecordList 当前页勾选与详情入口", () => {
-  it("勾选只影响当前页的本地计数", async () => {
+  it("勾选把记录交给页面，计数由页面状态驱动", async () => {
     const user = userEvent.setup()
-    renderList()
+    const props = renderList()
     expect(screen.queryByText(/已选/)).toBeNull()
     await user.click(
       screen.getByRole("checkbox", { name: `选择记录 id=${bigId}` })
     )
+    expect(props.onToggleChecked).toHaveBeenCalledWith(records[0], true)
+    // 勾选状态由页面持有，这里不自己记
+    expect(screen.queryByText(/已选/)).toBeNull()
+  })
+
+  it("已选数量、取消选择与批量删除入口都走页面回调", async () => {
+    const user = userEvent.setup()
+    const props = renderList({
+      checkedFingerprints: new Set([recordKeyFingerprint(records[0].key)]),
+    })
     expect(screen.getByText(/已选 1 条/)).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: /删除选中 1 条/ }))
+    expect(props.onRequestDeleteChecked).toHaveBeenCalledTimes(1)
     await user.click(screen.getByRole("button", { name: "取消选择" }))
-    await waitFor(() => expect(screen.queryByText(/已选/)).toBeNull())
+    expect(props.onClearChecked).toHaveBeenCalledTimes(1)
+  })
+
+  it("表不支持删除时批量删除按钮禁用", () => {
+    renderList({
+      canDelete: false,
+      checkedFingerprints: new Set([recordKeyFingerprint(records[0].key)]),
+    })
+    expect(
+      screen.getByRole("button", { name: /删除选中 1 条/ })
+    ).toHaveProperty("disabled", true)
   })
 
   it("查看按钮把主键交给详情", async () => {

@@ -197,6 +197,14 @@ export type RecordListProps = {
   filters: DatabaseFilter[]
   sorts: DatabaseSort[]
   selectedKey: DatabaseRecordLocatorKey | null
+  /** 当前页勾选的记录指纹；勾选状态由页面持有，便于批量删除。 */
+  checkedFingerprints: ReadonlySet<string>
+  /** 是否允许删除（表能力与在线状态由页面判断）。 */
+  canDelete: boolean
+  deleteBusy: boolean
+  onToggleChecked: (record: DatabaseRecord, checkedNow: boolean) => void
+  onClearChecked: () => void
+  onRequestDeleteChecked: () => void
   onSelectRecord: (key: DatabaseRecordLocatorKey) => void
   onFiltersChange: (filters: DatabaseFilter[]) => void
   onSortsChange: (sorts: DatabaseSort[]) => void
@@ -211,26 +219,13 @@ export type RecordListProps = {
 export const RecordList = (props: RecordListProps) => {
   const isDesktop = useIsDesktop()
   const columns = props.table.columns.filter((column) => !column.hidden)
-  const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
+  const checked = props.checkedFingerprints
   const activeSort = props.sorts[0]
 
   const hasNext =
     props.total === null
       ? props.records.length >= props.pageSize
       : props.page * props.pageSize < props.total
-
-  const toggleChecked = (
-    key: DatabaseRecordLocatorKey,
-    checkedNow: boolean
-  ): void => {
-    const fingerprint = recordKeyFingerprint(key)
-    setChecked((current) => {
-      const next = new Set(current)
-      if (checkedNow) next.add(fingerprint)
-      else next.delete(fingerprint)
-      return next
-    })
-  }
 
   const setSort = (column: string, direction: "asc" | "desc"): void => {
     props.onSortsChange(column === DEFAULT_SORT ? [] : [{ column, direction }])
@@ -292,7 +287,7 @@ export const RecordList = (props: RecordListProps) => {
                       aria-label={`选择记录 ${formatRecordKey(record.key)}`}
                       checked={checked.has(fingerprint)}
                       onCheckedChange={(next) =>
-                        toggleChecked(record.key, next === true)
+                        props.onToggleChecked(record, next === true)
                       }
                     />
                   </TableCell>
@@ -342,7 +337,7 @@ export const RecordList = (props: RecordListProps) => {
                   aria-label={`选择记录 ${formatRecordKey(record.key)}`}
                   checked={checked.has(fingerprint)}
                   onCheckedChange={(next) =>
-                    toggleChecked(record.key, next === true)
+                    props.onToggleChecked(record, next === true)
                   }
                 />
                 <Button
@@ -487,14 +482,22 @@ export const RecordList = (props: RecordListProps) => {
             : `共 ${props.total} 条`}
         </span>
         {checked.size > 0 ? (
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
             已选 {checked.size} 条（仅当前页）
             <Button
               variant="ghost"
               className="min-h-11"
-              onClick={() => setChecked(new Set())}
+              onClick={props.onClearChecked}
             >
               取消选择
+            </Button>
+            <Button
+              variant="destructive"
+              className="min-h-11"
+              disabled={!props.canDelete || props.deleteBusy}
+              onClick={props.onRequestDeleteChecked}
+            >
+              删除选中 {checked.size} 条
             </Button>
           </span>
         ) : null}

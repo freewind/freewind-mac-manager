@@ -6,9 +6,20 @@ import type {
   DatabaseTableSummary,
 } from "@shared/api-contract"
 import { ApiRequestError } from "@shared/client-api"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query"
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { toast } from "sonner"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { DatabasePage } from "./DatabasePage"
 
@@ -157,6 +168,13 @@ const recordsBody = (total: number | null) => ({
   signature: "sig",
 })
 
+const setOnline = (online: boolean): void => {
+  Object.defineProperty(window.navigator, "onLine", {
+    value: online,
+    configurable: true,
+  })
+}
+
 const setUrl = (search: string): void => {
   window.history.replaceState({}, "", `/${search}`)
 }
@@ -181,6 +199,10 @@ const pickFrom = async (label: string, option: string): Promise<void> => {
 
 beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockReset()
+  // 每个用例都从在线开始：离线会暂停查询，而 onlineManager 是模块级单例，
+  // 必须在用例之间显式恢复，否则后续用例的查询会一直处于暂停状态
+  setOnline(true)
+  onlineManager.setOnline(true)
   stubMatchMedia(false)
   setUrl("")
   api.fetchDatabaseTables.mockResolvedValue({
@@ -354,5 +376,309 @@ describe("DatabasePage 记录详情", () => {
 
     window.history.back()
     await waitFor(() => expect(screen.queryByText("记录签名")).toBeNull())
+  })
+})
+
+/** 打开记录详情，拿到窄屏 Sheet 里的操作按钮。 */
+const openDetails = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByRole("button", { name: "查看" }))
+  await waitFor(() => expect(screen.getByText("记录签名")).toBeTruthy())
+}
+
+describe("DatabasePage 新增记录", () => {
+  it("填写后按契约提交，成功后关闭并重新读取", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    const readsBefore = api.fetchDatabaseRecords.mock.calls.length
+
+    await user.click(screen.getByRole("button", { name: /新增记录/ }))
+    const dialog = await screen.findByRole("dialog")
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /^name/ }),
+      "banana"
+    )
+    await user.click(within(dialog).getByRole("button", { name: /新增记录/ }))
+
+    await waitFor(() =>
+      expect(api.createDatabaseRecord).toHaveBeenCalledWith("items", {
+        values: { name: { type: "text", value: "banana" } },
+      })
+    )
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    // 成功后失效并重新读取，不做乐观更新
+    await waitFor(() =>
+      expect(api.fetchDatabaseRecords.mock.calls.length).toBeGreaterThan(
+        readsBefore
+      )
+    )
+  })
+
+  it("重复点击只发送一次", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    let resolveCreate: (value: unknown) => void = () => {}
+    api.createDatabaseRecord.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCreate = resolve
+      })
+    )
+
+    await user.click(screen.getByRole("button", { name: /新增记录/ }))
+    const dialog = await screen.findByRole("dialog")
+    const submit = within(dialog).getByRole("button", { name: /新增记录/ })
+    await user.click(submit)
+    await user.click(submit)
+    expect(api.createDatabaseRecord).toHaveBeenCalledTimes(1)
+    resolveCreate({ table: "items", record })
+  })
+
+  it("离线时禁止提交并说明原因", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: /新增记录/ }))
+    const dialog = await screen.findByRole("dialog")
+
+    setOnline(false)
+    window.dispatchEvent(new Event("offline"))
+    await user.click(within(dialog).getByRole("button", { name: /新增记录/ }))
+    expect(api.createDatabaseRecord).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/当前离线，操作未发送/).length
+      ).toBeGreaterThan(0)
+    )
+  })
+
+  it("约束错误把原因留在表单里，草稿不丢", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    api.createDatabaseRecord.mockRejectedValue(
+      new ApiRequestError("请求失败（HTTP 409）：违反唯一约束", 409)
+    )
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: /新增记录/ }))
+    const dialog = await screen.findByRole("dialog")
+    const nameField = within(dialog).getByRole("textbox", { name: /^name/ })
+    await user.type(nameField, "banana")
+    await user.click(within(dialog).getByRole("button", { name: /新增记录/ }))
+
+    await waitFor(() => expect(screen.getByText(/违反唯一约束/)).toBeTruthy())
+    // 表单还在，草稿也在
+    expect(screen.getByRole("dialog")).toBeTruthy()
+    expect(nameField).toHaveProperty("value", "banana")
+    expect(api.createDatabaseRecord).toHaveBeenCalledTimes(1)
+  })
+
+  it("结果未知时不重发，只能重新读取核实且不宣称成功", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    api.createDatabaseRecord.mockRejectedValue(
+      new ApiRequestError(
+        "写入超过 5000 毫秒，结果未知，请重新读取确认",
+        500,
+        { message: "结果未知", executionStatus: "unknown" },
+        undefined,
+        true
+      )
+    )
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: /新增记录/ }))
+    const dialog = await screen.findByRole("dialog")
+    await user.click(within(dialog).getByRole("button", { name: /新增记录/ }))
+
+    await waitFor(() => expect(screen.getByText("结果未知")).toBeTruthy())
+    expect(api.createDatabaseRecord).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(toast.success)).not.toHaveBeenCalled()
+    const submit = within(dialog).getByRole("button", { name: /新增记录/ })
+    expect(submit).toHaveProperty("disabled", true)
+
+    const readsBefore = api.fetchDatabaseRecords.mock.calls.length
+    await user.click(
+      within(dialog).getByRole("button", { name: "重新读取核实" })
+    )
+    // 核实只是重新读取，不重发写入、也不报成功
+    await waitFor(() =>
+      expect(api.fetchDatabaseRecords.mock.calls.length).toBeGreaterThan(
+        readsBefore
+      )
+    )
+    expect(api.createDatabaseRecord).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(toast.success)).not.toHaveBeenCalled()
+  })
+
+  it("带未保存草稿时切换表被拦住，不默默丢弃", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: /新增记录/ }))
+    const dialog = await screen.findByRole("dialog")
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /^name/ }),
+      "draft"
+    )
+
+    // 有草稿时表选择被禁用，并给出说明，不会默默丢掉草稿
+    await waitFor(() => expect(screen.getByText(/有未保存的草稿/)).toBeTruthy())
+    expect(document.getElementById("database-table")).toHaveProperty(
+      "disabled",
+      true
+    )
+    expect(new URL(window.location.href).searchParams.get("dbTable")).toBe(
+      "items"
+    )
+  })
+
+  it("返回键先关闭表单浮层", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: /新增记录/ }))
+    await screen.findByRole("dialog")
+
+    window.history.back()
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+})
+
+describe("DatabasePage 修改记录", () => {
+  it("只提交改动过的字段", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await openDetails(user)
+
+    await user.click(screen.getByRole("button", { name: "修改记录" }))
+    const dialog = await screen.findByRole("dialog")
+    const nameField = within(dialog).getByRole("textbox", { name: /^name/ })
+    await user.clear(nameField)
+    await user.type(nameField, "cherry")
+    await user.click(within(dialog).getByRole("button", { name: /保存修改/ }))
+
+    await waitFor(() =>
+      expect(api.updateDatabaseRecord).toHaveBeenCalledWith("items", {
+        key,
+        expectedSignature: record.signature,
+        values: { name: { type: "text", value: "cherry" } },
+      })
+    )
+  })
+
+  it("没改动就提交空字段集合", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await openDetails(user)
+
+    await user.click(screen.getByRole("button", { name: "修改记录" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.click(within(dialog).getByRole("button", { name: /保存修改/ }))
+    await waitFor(() =>
+      expect(api.updateDatabaseRecord).toHaveBeenCalledWith("items", {
+        key,
+        expectedSignature: record.signature,
+        values: {},
+      })
+    )
+  })
+})
+
+describe("DatabasePage 删除记录", () => {
+  it("单条删除显示对象并提交完整主键与签名", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await openDetails(user)
+
+    await user.click(screen.getByRole("button", { name: "删除记录" }))
+    const dialog = await screen.findByRole("alertdialog")
+    expect(within(dialog).getByText("删除 1 条记录？")).toBeTruthy()
+    expect(within(dialog).getByText("id=7")).toBeTruthy()
+    await user.click(
+      within(dialog).getByRole("button", { name: "删除 1 条记录" })
+    )
+    await waitFor(() =>
+      expect(api.deleteDatabaseRecords).toHaveBeenCalledWith("items", {
+        items: [{ key, expectedSignature: record.signature }],
+      })
+    )
+  })
+
+  it("当前页勾选后可以批量删除", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await user.click(screen.getByRole("checkbox", { name: "选择记录 id=7" }))
+    await user.click(screen.getByRole("button", { name: /删除选中 1 条/ }))
+
+    const dialog = await screen.findByRole("alertdialog")
+    await user.click(
+      within(dialog).getByRole("button", { name: "删除 1 条记录" })
+    )
+    await waitFor(() =>
+      expect(api.deleteDatabaseRecords).toHaveBeenCalledWith("items", {
+        items: [{ key, expectedSignature: record.signature }],
+      })
+    )
+  })
+
+  it("取消不发删除请求", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await openDetails(user)
+    await user.click(screen.getByRole("button", { name: "删除记录" }))
+    const dialog = await screen.findByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "取消" }))
+    expect(api.deleteDatabaseRecords).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+  })
+
+  it("只读表禁止删除与修改", async () => {
+    setUrl("?dbTable=nopk")
+    const user = userEvent.setup()
+    api.fetchDatabaseRecords.mockResolvedValue({
+      ...recordsBody(1),
+      table: "nopk",
+      records: [
+        {
+          // 没有可靠主键的表：记录主键是空数组
+          key: [],
+          values: {
+            id: { type: "integer", value: "1" },
+            name: { type: "text", value: "only" },
+            total: { type: "integer", value: "2" },
+          },
+          signature: "row-sig-nopk",
+        },
+      ],
+    })
+    renderPage()
+    await waitFor(() => expect(screen.getByText("only")).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: "查看" }))
+    await waitFor(() => expect(screen.getByText("记录签名")).toBeTruthy())
+    expect(screen.getByRole("button", { name: "修改记录" })).toHaveProperty(
+      "disabled",
+      true
+    )
+    expect(screen.getByRole("button", { name: "删除记录" })).toHaveProperty(
+      "disabled",
+      true
+    )
+    expect(screen.getByText(/不能删除：/)).toBeTruthy()
   })
 })
