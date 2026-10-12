@@ -1,3 +1,7 @@
+import {
+  assertRestoreBarrierOpen,
+  registerDatabaseUser,
+} from "./common/database-maintenance"
 import { publicSystemError } from "./common/public-error"
 import {
   parseWorkerJob,
@@ -26,6 +30,42 @@ const readJob = async (): Promise<string> => {
 }
 
 const main = async (): Promise<void> => {
+  // 遵守维护屏障：数据库正在恢复时不碰库、不执行任务，只报告冲突；
+  // 恢复本身只由启动入口执行，后台 worker 绝不擅自恢复。
+  try {
+    assertRestoreBarrierOpen()
+  } catch (error) {
+    write({
+      type: "failed",
+      error: error instanceof Error ? error.message : "数据库维护中",
+      httpStatus: 409,
+    })
+    process.exitCode = 1
+    return
+  }
+
+  // 登记为数据库使用者：恢复前能靠它发现还有 worker 在跑。
+  let databaseUser: ReturnType<typeof registerDatabaseUser> | null = null
+  try {
+    databaseUser = registerDatabaseUser("task-worker")
+  } catch (error) {
+    write({
+      type: "failed",
+      error: error instanceof Error ? error.message : "使用者登记失败",
+      httpStatus: 500,
+    })
+    process.exitCode = 1
+    return
+  }
+
+  try {
+    await runTask()
+  } finally {
+    databaseUser.unregister()
+  }
+}
+
+const runTask = async (): Promise<void> => {
   const raw = await readJob()
   if (raw.length === 0) {
     // 父进程在派发前就退出了：这里没有开始任何动作。

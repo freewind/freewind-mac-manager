@@ -1,6 +1,11 @@
 import { type ChildProcess, spawn } from "node:child_process"
 import { closeSync, constants, openSync, readSync, statSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
+import {
+  assertRestoreBarrierOpen,
+  type RegisteredDatabaseUser,
+  registerDatabaseUser,
+} from "@server/common/database-maintenance"
 import { databaseBackupValidationWorkerCommand } from "@server/env"
 import { z } from "zod"
 import { inspectBackupContent } from "./catalog"
@@ -296,12 +301,36 @@ export const createBackupValidationRunner = (
 
   const runOnce = (file: string): Promise<BackupValidationResult> =>
     new Promise<BackupValidationResult>((resolve, reject) => {
+      // 维护屏障：恢复进行中不做校验（校验会开库读），按冲突拒绝。
+      try {
+        assertRestoreBarrierOpen()
+      } catch (error) {
+        reject(
+          new Error(error instanceof Error ? error.message : "数据库维护中")
+        )
+        return
+      }
       const child = spawn(command, args, {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
         env,
       })
       children.add(child)
+      // 登记子进程为数据库使用者：恢复前能发现还有校验在跑。
+      let registration: RegisteredDatabaseUser | null = null
+      if (child.pid !== undefined) {
+        try {
+          registration = registerDatabaseUser("validation", { pid: child.pid })
+        } catch (error) {
+          killChild(child)
+          reject(
+            new Error(
+              `校验子进程无法登记：${error instanceof Error ? error.message : String(error)}`
+            )
+          )
+          return
+        }
+      }
 
       let settled = false
       let timeout: NodeJS.Timeout | null = null
@@ -315,6 +344,7 @@ export const createBackupValidationRunner = (
         if (timeout) clearTimeout(timeout)
         timeout = null
         children.delete(child)
+        registration?.unregister()
         killChild(child)
         finish()
       }

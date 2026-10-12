@@ -1,4 +1,9 @@
 import { type ChildProcess, spawn } from "node:child_process"
+import {
+  assertRestoreBarrierOpen,
+  type RegisteredDatabaseUser,
+  registerDatabaseUser,
+} from "@server/common/database-maintenance"
 import { databaseQueryWorkerCommand } from "@server/env"
 import type {
   DatabaseFilter,
@@ -136,12 +141,41 @@ export const createQueryRunner = (
 
   const runOnce = (job: DatabaseQueryJob): Promise<unknown> =>
     new Promise<unknown>((resolve, reject) => {
+      // 维护屏障：数据库正在恢复时不开子进程，按冲突拒绝；
+      // 锁损坏或无法验证同样拒绝（fail-closed）。
+      try {
+        assertRestoreBarrierOpen()
+      } catch (error) {
+        reject(
+          new DatabaseQueryError(
+            409,
+            error instanceof Error ? error.message : "数据库维护中"
+          )
+        )
+        return
+      }
       const child = spawn(command, args, {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
         env,
       })
       children.add(child)
+      // 登记子进程为数据库使用者：恢复前能发现还有查询在跑。
+      let registration: RegisteredDatabaseUser | null = null
+      if (child.pid !== undefined) {
+        try {
+          registration = registerDatabaseUser("query", { pid: child.pid })
+        } catch (error) {
+          killChild(child)
+          reject(
+            new DatabaseQueryError(
+              500,
+              `查询子进程无法登记：${error instanceof Error ? error.message : String(error)}`
+            )
+          )
+          return
+        }
+      }
 
       let settled = false
       let timeout: NodeJS.Timeout | null = null
@@ -155,6 +189,7 @@ export const createQueryRunner = (
         if (timeout) clearTimeout(timeout)
         timeout = null
         children.delete(child)
+        registration?.unregister()
         killChild(child)
         finish()
       }

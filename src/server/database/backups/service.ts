@@ -241,7 +241,7 @@ const toCreateError = (error: unknown): DatabaseBackupError => {
 }
 
 /** 源库规模：只读连接读页大小与页数，用于磁盘空间预检与进度换算。 */
-const readSourceSize = (
+export const readSourceSize = (
   file: string
 ): { pageSize: number; pageCount: number; bytes: number } => {
   const database = openDatabase({ file, mode: "readonly" })
@@ -257,7 +257,7 @@ const readSourceSize = (
 }
 
 /** 把副本整理成自包含单文件：默认还是 WAL 模式，转 DELETE 后不需要旁置文件。 */
-const makeSelfContained = (file: string): void => {
+export const makeSelfContained = (file: string): void => {
   const database = new DatabaseSync(file)
   try {
     const row = database.prepare("PRAGMA journal_mode = DELETE").get()

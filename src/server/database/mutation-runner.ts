@@ -1,4 +1,9 @@
 import { type ChildProcess, spawn } from "node:child_process"
+import {
+  assertRestoreBarrierOpen,
+  type RegisteredDatabaseUser,
+  registerDatabaseUser,
+} from "@server/common/database-maintenance"
 import { mutationWorkerCommand } from "@server/env"
 import type {
   DatabaseDeleteResult,
@@ -134,12 +139,43 @@ export const createMutationRunner = (
 
   const runOnce = (job: MutationJob): Promise<unknown> =>
     new Promise<unknown>((resolve, reject) => {
+      // 维护屏障：数据库正在恢复时不开子进程；事务尚未开始，
+      // 因此按明确失败（not_started）拒绝，不报结果未知。
+      try {
+        assertRestoreBarrierOpen()
+      } catch (error) {
+        reject(
+          new DatabaseMutationError(
+            409,
+            error instanceof Error ? error.message : "数据库维护中",
+            "not_started"
+          )
+        )
+        return
+      }
       const child = spawn(command, args, {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
         env,
       })
       children.add(child)
+      // 登记子进程为数据库使用者：恢复前能发现还有写入在跑。
+      let registration: RegisteredDatabaseUser | null = null
+      if (child.pid !== undefined) {
+        try {
+          registration = registerDatabaseUser("mutation", { pid: child.pid })
+        } catch (error) {
+          killChild(child)
+          reject(
+            new DatabaseMutationError(
+              500,
+              `写入子进程无法登记：${error instanceof Error ? error.message : String(error)}`,
+              "not_started"
+            )
+          )
+          return
+        }
+      }
 
       let settled = false
       let timeout: NodeJS.Timeout | null = null
@@ -153,6 +189,7 @@ export const createMutationRunner = (
         if (timeout) clearTimeout(timeout)
         timeout = null
         children.delete(child)
+        registration?.unregister()
         killChild(child)
         finish()
       }

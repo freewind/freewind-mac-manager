@@ -1,15 +1,41 @@
 import express from "express"
 import { createApp } from "./app"
+import {
+  registerDatabaseUser,
+  runStartupMaintenanceBarrier,
+} from "./common/database-maintenance"
+import { runPendingRestore } from "./database/backups/restore"
+import { hasPendingRestoreWork } from "./database/backups/restore-plan"
 import { startScheduler } from "./disk-growth/service"
 import { resolveServerPort, WEB_DIST_DIR } from "./env"
 import { createTaskRuntime } from "./tasks/runtime"
 import { startTrafficSampler } from "./traffic/service"
+
+/**
+ * 启动顺序（不可调换）：
+ * 1. 维护屏障：有恢复计划时先完成受控恢复——此时还没有任何业务连接；
+ * 2. 登记本进程为数据库使用者（登记晚于恢复，否则会挡住自己）；
+ * 3. 创建任务运行时与业务连接，最后才启动采样与调度。
+ * 启动迁移在 createApp 内执行；迁移失败会直接抛错退出，
+ * 因此不会出现“迁移失败却宣布恢复成功”的情况。
+ */
+const restoreOutcome = await runStartupMaintenanceBarrier({
+  hasPendingWork: () => hasPendingRestoreWork(),
+  executeRestore: () => runPendingRestore(),
+})
+
+const databaseUser = registerDatabaseUser("server")
 
 // 任务运行时归属进程生命周期：退出时中止执行中的子进程，并把它们标成结果未知。
 const tasks = createTaskRuntime()
 
 const app = createApp({ tasks })
 app.use(express.static(WEB_DIST_DIR))
+
+// 走到这里说明启动迁移也成功了：只有此时才宣布恢复整体完成。
+if (restoreOutcome?.status === "applied") {
+  console.log(`[mac-manager] ${restoreOutcome.message}，启动迁移已通过`)
+}
 
 // 启动时先校验端口，缺失合法的 APP_PORT 就直接失败退出。
 const port = resolveServerPort()
@@ -37,6 +63,7 @@ const shutdown = (signal: string): void => {
   server.close()
   tasks.runner.shutdown()
   tasks.store.close()
+  databaseUser.unregister()
   process.exit(0)
 }
 
