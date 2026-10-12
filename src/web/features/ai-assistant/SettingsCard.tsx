@@ -136,9 +136,27 @@ export const SettingsCard = () => {
   )
   const providerModels = selectedProvider?.provider.models ?? []
   const promptLength = form.systemPrompt.length
+  // 模型目录是唯一可信来源：读失败、还在读，或所选 Provider/模型不在目录里，
+  // 都不能保存——否则会把已删掉的模型写进设置里。
+  const directoryReady = models.data !== undefined && !models.isError
+  const providerKnown = providers.some((entry) => entry.id === form.providerId)
+  const modelKnown = providerModels.some((model) => model.id === form.modelId)
+  const selectionValid = directoryReady && providerKnown && modelKnown
+  const selectionInvalid =
+    directoryReady && providers.length > 0 && !selectionValid
+  const selectionMessage = !providerKnown
+    ? "所选 Provider 已不在模型目录里（可能已被删除），请重新选择。"
+    : "所选模型已不在该 Provider 下（可能已被删除），请重新选择模型。"
+
+  const rereadSettings = async (): Promise<void> => {
+    const result = await settings.refetch()
+    // 已重新读到最新配置：冲突提示的使命结束，后面用新 signature 保存。
+    if (!result.isError) setSaveError(null)
+  }
 
   const submit = (): void => {
-    if (!loaded || !form.providerId || !form.modelId) return
+    // 不只靠按钮禁用：刷新后目录变化或签名过期时，这里也不提交。
+    if (!loaded || !selectionValid) return
     const prompt = form.systemPrompt
     const cleared: ClearableField[] = []
     if (!prompt.trim()) cleared.push("systemPrompt")
@@ -188,9 +206,17 @@ export const SettingsCard = () => {
             <Skeleton className="h-9 w-2/3" />
           </div>
         ) : (
-          <>
+          <form
+            aria-label="AI 助手设置"
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              submit()
+            }}
+          >
             <div className="flex flex-wrap items-center gap-2">
               <Button
+                type="button"
                 variant="outline"
                 className="min-h-11"
                 onClick={() => void models.refetch()}
@@ -212,12 +238,26 @@ export const SettingsCard = () => {
                   无法读取 Pi 配置的模型，请确认 Pi 的 models.json 可用后重试。
                 </AlertDescription>
               </Alert>
+            ) : models.isPending ? (
+              <Alert role="status">
+                <AlertTitle>正在读取模型目录…</AlertTitle>
+                <AlertDescription>
+                  读取完成前无法确认所选 Provider 与模型是否仍然存在。
+                </AlertDescription>
+              </Alert>
             ) : providers.length === 0 ? (
               <Alert role="status">
                 <AlertTitle>Pi 还没有可用的 Provider</AlertTitle>
                 <AlertDescription>
                   先在「模型」标签里配置 Provider 与模型，再回来选择助手模型。
                 </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {selectionInvalid ? (
+              <Alert variant="destructive" role="alert">
+                <AlertTitle>当前选择已失效</AlertTitle>
+                <AlertDescription>{selectionMessage}</AlertDescription>
               </Alert>
             ) : null}
 
@@ -322,6 +362,7 @@ export const SettingsCard = () => {
             </Label>
             <div className="flex flex-wrap items-center gap-2">
               <Button
+                type="button"
                 variant="outline"
                 className="min-h-11"
                 onClick={() =>
@@ -347,19 +388,31 @@ export const SettingsCard = () => {
 
             <div className="flex flex-wrap items-center gap-2">
               <Button
+                type="submit"
                 className="min-h-11"
-                onClick={submit}
-                disabled={save.isPending || !form.providerId || !form.modelId}
+                disabled={save.isPending || !selectionValid}
               >
                 {save.isPending ? "正在保存…" : "保存设置"}
               </Button>
-              {!form.providerId || !form.modelId ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => void rereadSettings()}
+                disabled={settings.isFetching}
+              >
+                <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+                {settings.isFetching ? "正在读取…" : "重新读取设置"}
+              </Button>
+              {!selectionValid ? (
                 <p className="text-xs text-muted-foreground">
-                  选好 Provider 与模型后才能保存。
+                  {directoryReady
+                    ? "所选 Provider 或模型已失效，请重新选择后再保存。"
+                    : "模型目录尚未读取成功，暂时不能保存。"}
                 </p>
               ) : null}
             </div>
-          </>
+          </form>
         )}
       </CardContent>
     </Card>

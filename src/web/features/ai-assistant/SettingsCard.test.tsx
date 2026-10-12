@@ -260,4 +260,116 @@ describe("AI 助手设置卡片", () => {
 
     expect(await screen.findByText("Pi 还没有可用的 Provider")).toBeTruthy()
   })
+
+  it("模型目录还在读取时显示加载状态，不冒充「无 Provider」，也不允许保存", async () => {
+    api.fetchPiModels.mockReturnValue(new Promise(() => {}))
+    renderCard()
+
+    expect(await screen.findByText("正在读取模型目录…")).toBeTruthy()
+    expect(screen.queryByText("Pi 还没有可用的 Provider")).toBeNull()
+    expect(
+      (screen.getByRole("button", { name: "保存设置" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true)
+  })
+
+  it("409 后重新读取设置：用新 signature 保存，草稿仍保留", async () => {
+    const firstSignature = "a".repeat(64)
+    const secondSignature = "d".repeat(64)
+    api.fetchAiAssistantSettings
+      .mockReset()
+      .mockResolvedValueOnce(settingsResponse({}, firstSignature))
+      .mockResolvedValueOnce(settingsResponse({}, secondSignature))
+    renderCard()
+    const textarea = await screen.findByLabelText("助手系统提示词")
+    fireEvent.change(textarea, { target: { value: "编辑中的草稿" } })
+
+    api.saveAiAssistantSettings.mockRejectedValueOnce(
+      new ApiRequestError("请求失败（HTTP 409）", 409, { message: "冲突" })
+    )
+    fireEvent.click(screen.getByRole("button", { name: "保存设置" }))
+    expect(await screen.findByText(/配置已被其他程序修改（冲突）/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "重新读取设置" }))
+    // 重新读取是显式入口：不自动重试保存。
+    await waitFor(() =>
+      expect(api.fetchAiAssistantSettings).toHaveBeenCalledTimes(2)
+    )
+    expect(api.saveAiAssistantSettings).toHaveBeenCalledTimes(1)
+    // 草稿没被刷新冲掉。
+    expect(screen.getByLabelText("助手系统提示词")).toHaveProperty(
+      "value",
+      "编辑中的草稿"
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "保存设置" }))
+    await waitFor(() =>
+      expect(api.saveAiAssistantSettings).toHaveBeenCalledTimes(2)
+    )
+    expect(api.saveAiAssistantSettings.mock.calls[1][0].signature).toBe(
+      secondSignature
+    )
+    expect(api.saveAiAssistantSettings.mock.calls[1][0].settings).toMatchObject(
+      { systemPrompt: "编辑中的草稿" }
+    )
+  })
+
+  it("刷新后已选模型被删除：持续显示失效并禁止提交", async () => {
+    api.fetchPiModels
+      .mockReset()
+      .mockResolvedValueOnce(modelsResponse)
+      .mockResolvedValueOnce({
+        signature: "b".repeat(64),
+        updatedAt: 2,
+        // alpha 只剩 m2：原先选定的 m1 已经不在目录里。
+        providers: [
+          {
+            id: "alpha",
+            hasApiKey: true,
+            modelCount: 1,
+            provider: {
+              name: "Alpha",
+              baseUrl: "https://alpha.test/v1",
+              api: "openai-completions",
+              models: [{ id: "m2" }],
+            },
+          },
+        ],
+      })
+    renderCard()
+    await screen.findByLabelText("助手系统提示词")
+
+    fireEvent.click(screen.getByRole("button", { name: /刷新模型列表/ }))
+
+    expect(await screen.findByText("当前选择已失效")).toBeTruthy()
+    expect(screen.getByText(/所选模型已不在该 Provider 下/)).toBeTruthy()
+    expect(
+      (screen.getByRole("button", { name: "保存设置" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true)
+    // 不只靠按钮禁用：直接用表单提交也不能发出请求。
+    fireEvent.submit(screen.getByRole("form", { name: "AI 助手设置" }))
+    expect(api.saveAiAssistantSettings).not.toHaveBeenCalled()
+  })
+
+  it("刷新后已选 Provider 被删除：同样禁止提交", async () => {
+    api.fetchPiModels
+      .mockReset()
+      .mockResolvedValueOnce(modelsResponse)
+      .mockResolvedValueOnce({
+        signature: "b".repeat(64),
+        updatedAt: 2,
+        providers: [modelsResponse.providers[1]],
+      })
+    renderCard()
+    await screen.findByLabelText("助手系统提示词")
+
+    fireEvent.click(screen.getByRole("button", { name: /刷新模型列表/ }))
+
+    expect(
+      await screen.findByText(/所选 Provider 已不在模型目录里/)
+    ).toBeTruthy()
+    fireEvent.submit(screen.getByRole("form", { name: "AI 助手设置" }))
+    expect(api.saveAiAssistantSettings).not.toHaveBeenCalled()
+  })
 })
