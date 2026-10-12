@@ -5,6 +5,7 @@ import type {
 } from "@shared/api-contract"
 import { describeError } from "@shared/format"
 import { useQueryClient } from "@tanstack/react-query"
+import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import {
@@ -19,19 +20,20 @@ import {
   CollapsibleTrigger,
 } from "@web/components/ui/collapsible"
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
 } from "@web/components/ui/empty"
 import { Label } from "@web/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@web/components/ui/select"
 import {
   Sheet,
   SheetContent,
@@ -360,10 +362,20 @@ export const DatabasePage = () => {
   const insertHint = capabilityHint("insert")
   const failureNotice = dialog === null ? model.actionFailure : null
 
+  /**
+   * 表选择做成可搜索下拉：表名数量不可预知，宽库动辄几十张表。
+   * 选项文本带上「表/视图」，搜索时也按这个文本匹配。
+   */
+  const tableOptions = model.tables.map((entry) => ({
+    value: entry.name,
+    label: `${entry.name}（${entry.kind === "view" ? "视图" : "表"}）`,
+  }))
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* 视图标签栏：状态放 URL，刷新与返回都能恢复 */}
-      <header className="flex shrink-0 items-center gap-2 border-b px-4 py-3">
+      <header className="flex shrink-0 flex-col gap-2 border-b px-4 py-3">
+        <PageHeader title="数据库" loading={model.tablesPending} />
         <DatabaseTabNav tab={tab} selectTab={selectTab} />
       </header>
 
@@ -425,25 +437,33 @@ export const DatabasePage = () => {
             <div className="flex flex-wrap items-end gap-2">
               <div className="flex flex-col gap-1">
                 <Label htmlFor="database-table">表</Label>
-                <Select
-                  value={model.table ?? ""}
-                  onValueChange={(next) => selectTable(next)}
+                <Combobox
+                  items={tableOptions}
+                  itemToStringValue={(item) => item.label}
+                  value={
+                    tableOptions.find((item) => item.value === model.table) ??
+                    null
+                  }
+                  disabled={model.tables.length === 0 || dirty}
+                  onValueChange={(next) => selectTable(next?.value ?? null)}
                 >
-                  <SelectTrigger
+                  <ComboboxInput
                     id="database-table"
-                    className="min-h-11 min-w-56"
+                    className="min-h-11 w-56"
+                    placeholder="搜索表"
                     disabled={model.tables.length === 0 || dirty}
-                  >
-                    <SelectValue placeholder="选择表" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {model.tables.map((table) => (
-                      <SelectItem key={table.name} value={table.name}>
-                        {table.name}（{table.kind === "view" ? "视图" : "表"}）
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  />
+                  <ComboboxContent>
+                    <ComboboxEmpty>无匹配表</ComboboxEmpty>
+                    <ComboboxList>
+                      {(item) => (
+                        <ComboboxItem key={item.value} value={item}>
+                          {item.label}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </div>
               <Button
                 variant="outline"

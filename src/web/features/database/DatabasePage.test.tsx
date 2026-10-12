@@ -199,6 +199,15 @@ const pickFrom = async (label: string, option: string): Promise<void> => {
   await user.click(await screen.findByRole("option", { name: option }))
 }
 
+/** 手动控制何时完成的 promise，用来观察首屏加载状态。 */
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => {
+    resolve = r
+  })
+  return { promise, resolve }
+}
+
 beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockReset()
   // 每个用例都从在线开始：离线会暂停查询，而 onlineManager 是模块级单例，
@@ -237,6 +246,41 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+})
+
+describe("DatabasePage 页面标题", () => {
+  it("标题是 h1 且与侧栏名称一致，主查询读取时给出加载状态", async () => {
+    const tables = deferred<{ tables: DatabaseTableSummary[] }>()
+    api.fetchDatabaseTables.mockReturnValue(tables.promise)
+    setUrl("?dbTable=items")
+    renderPage()
+    expect(
+      screen.getByRole("heading", { level: 1, name: "数据库" })
+    ).toBeTruthy()
+    expect(screen.getByRole("status", { name: "数据库 加载中" })).toBeTruthy()
+    tables.resolve({
+      tables: [summary("items", "table", writableCapabilities)],
+    })
+    // 读取完成后加载指示消失，不跟着后续刷新闪动
+    await waitFor(() =>
+      expect(screen.queryByRole("status", { name: "数据库 加载中" })).toBeNull()
+    )
+    expect(
+      screen.getByRole("heading", { level: 1, name: "数据库" })
+    ).toBeTruthy()
+  })
+
+  it("加标题行后固定区控件与视图标签栏都还在", async () => {
+    setUrl("?dbTable=items")
+    renderPage()
+    expect(screen.getByText("直接操作底层数据")).toBeTruthy()
+    expect(screen.getByRole("combobox", { name: "表" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "刷新" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "新增记录" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "数据" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "备份" })).toBeTruthy()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+  })
 })
 
 describe("DatabasePage 浏览", () => {
