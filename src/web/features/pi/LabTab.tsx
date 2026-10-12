@@ -13,6 +13,7 @@ import { Button } from "@web/components/ui/button"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
 import { Textarea } from "@web/components/ui/textarea"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { usePiModels } from "./queries"
@@ -40,6 +41,9 @@ export const LabTab = ({
   const [sessionId, setSession] = useState<string>(() => crypto.randomUUID())
   const [prompt, setPrompt] = useState("请简短回答：1 + 1 等于多少？")
   const [systemPrompt, setSystem] = useState("你是一个简洁的对话助手。")
+  const isDesktop = useIsDesktop()
+  // 手机上参数与结果二选一：发送后直接看结果，可随时返回参数
+  const [mobileView, setMobileView] = useState<"form" | "result">("form")
   const [thinking, setThinking] =
     useState<NonNullable<PiLabInput["thinking"]>>("off")
   const [maxTokens, setMaxTokens] = useState(512)
@@ -164,21 +168,9 @@ export const LabTab = ({
     onError: (error) => toast.error(error.message),
   })
   const selected = models.data?.providers.find((item) => item.id === providerId)
-  return (
-    <section className="grid min-w-0 gap-4 p-4">
-      <h2 className="font-medium">
-        {mode === "chat" ? "Playground" : "有界能力探测"}
-      </h2>
-      <p className="text-sm text-muted-foreground">
-        发送会产生真实 API 请求及费用；不加载工具、扩展或电脑文件。内容仅保留 24
-        小时。
-      </p>
-      {mode === "probe" ? (
-        <p className="text-sm">
-          最多 4 次请求、总输出预算 4096 tokens、总时限 60
-          秒。仅报告实际参数和接受性，不证明理论上限或思考效果。
-        </p>
-      ) : null}
+  /** 参数区：桌面与结果并列的一列，手机上单独一屏。 */
+  const paramsSection = (
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2">
         <Label className="grid gap-2">
           Provider ID
@@ -277,31 +269,12 @@ export const LabTab = ({
           onChange={(event) => setPrompt(event.target.value)}
         />
       </Label>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          className="min-h-12"
-          disabled={busy || send.isPending}
-          onClick={() => send.mutate()}
-        >
-          {mode === "chat" ? "发送消息" : "发起有界探测"}
-        </Button>
-        <Button
-          className="min-h-11"
-          variant="outline"
-          disabled={!busy || cancel.isPending}
-          onClick={() => cancel.mutate()}
-        >
-          中止当前请求
-        </Button>
-        <Button
-          className="min-h-11"
-          variant="outline"
-          disabled={busy || clear.isPending}
-          onClick={() => clear.mutate()}
-        >
-          清空此会话
-        </Button>
-      </div>
+    </div>
+  )
+
+  /** 结果区：进度、错误、结果与近期请求。 */
+  const resultSection = (
+    <div className="flex min-h-0 min-w-0 flex-col gap-4">
       {busy ? (
         <div
           role="status"
@@ -390,6 +363,78 @@ export const LabTab = ({
             </Button>
           ))}
       </div>
-    </section>
+    </div>
+  )
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+        <h2 className="text-sm font-medium">
+          {mode === "chat" ? "Playground" : "有界能力探测"}
+        </h2>
+        <p className="truncate text-xs text-muted-foreground">
+          发送会产生真实 API 请求及费用；内容仅保留 24 小时
+        </p>
+        {mode === "probe" ? (
+          <span className="truncate text-xs text-muted-foreground">
+            最多 4 次请求、总输出预算 4096 tokens、总时限 60 秒
+          </span>
+        ) : null}
+        {/* 手机：结果视图保留返回参数的入口，不用上下长滚找表单 */}
+        {!isDesktop && mobileView === "result" ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto min-h-11"
+            onClick={() => setMobileView("form")}
+          >
+            返回参数
+          </Button>
+        ) : null}
+      </header>
+
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
+        {isDesktop ? (
+          <div className="grid min-w-0 gap-4 md:grid-cols-2">
+            {paramsSection}
+            {resultSection}
+          </div>
+        ) : mobileView === "form" ? (
+          paramsSection
+        ) : (
+          resultSection
+        )}
+      </div>
+
+      {/* 请求入口常驻底栏：结果再长也不用回头找按钮 */}
+      <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
+        <Button
+          className="min-h-12"
+          disabled={busy || send.isPending}
+          onClick={() => {
+            if (!isDesktop) setMobileView("result")
+            send.mutate()
+          }}
+        >
+          {mode === "chat" ? "发送消息" : "发起有界探测"}
+        </Button>
+        <Button
+          className="min-h-11"
+          variant="outline"
+          disabled={!busy || cancel.isPending}
+          onClick={() => cancel.mutate()}
+        >
+          中止当前请求
+        </Button>
+        <Button
+          className="min-h-11"
+          variant="outline"
+          disabled={busy || clear.isPending}
+          onClick={() => clear.mutate()}
+        >
+          清空此会话
+        </Button>
+      </div>
+    </div>
   )
 }

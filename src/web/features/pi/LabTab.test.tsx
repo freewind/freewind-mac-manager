@@ -81,7 +81,25 @@ const sleep = async (ms: number) => {
   })
 }
 
+let desktop = true
+
+/** 与 useIsDesktop 一致的匹配媒体查询替身：改 desktop 就切换断点。 */
+const setDesktop = (value: boolean) => {
+  desktop = value
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: desktop,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }))
+}
+
 beforeEach(() => {
+  setDesktop(true)
   window.history.replaceState({}, "", `/?piRun=${RUN_ID}`)
   api.fetchPiModels.mockResolvedValue({ providers: [] })
   api.fetchPiLabRuns.mockResolvedValue([])
@@ -90,6 +108,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllGlobals()
   window.history.replaceState({}, "", "/")
   for (const fn of Object.values(api)) fn.mockReset()
 })
@@ -162,6 +181,30 @@ describe("能力探测的进度与收敛", () => {
 
     await waitFor(() => expect(api.cancelPiLab).toHaveBeenCalledTimes(1))
     expect(api.cancelPiLab.mock.calls[0][0]).toBe(RUN_ID)
+  })
+
+  it("手机二选一渲染：参数视图不挂载结果区，请求入口常驻底栏", async () => {
+    setDesktop(false)
+    api.fetchPiLab.mockResolvedValue(runResult())
+    renderLab()
+
+    expect(await screen.findByText("系统提示词")).toBeTruthy()
+    // 结果区（进度）在参数视图下不挂载，而不是隐藏两套
+    expect(screen.queryByRole("status", { name: "探测进度" })).toBeNull()
+    // 请求入口在常驻底栏上，随时可点
+    expect(screen.getByRole("button", { name: "发起有界探测" })).toBeTruthy()
+  })
+
+  it("桌面参数与结果并列在两列网格里", async () => {
+    api.fetchPiLab.mockResolvedValue(runResult())
+    renderLab()
+
+    await screen.findByRole("status", { name: "探测进度" })
+    const grid = document.querySelector(".md\\:grid-cols-2")
+    expect(grid).not.toBeNull()
+    // 参数与结果同在一个两列容器里，各自滚动不互相推挤
+    expect(grid?.textContent).toContain("系统提示词")
+    expect(grid?.querySelector('[aria-label="探测进度"]')).not.toBeNull()
   })
 
   it("探测结束后不再显示进度", async () => {
