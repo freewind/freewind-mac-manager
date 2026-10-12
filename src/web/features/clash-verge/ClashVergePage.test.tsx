@@ -139,6 +139,24 @@ describe("ClashVergePage", () => {
     ).toBeNull()
   })
 
+  it("标题接入 PageHeader：首屏加载有指示，同行控件原位不动", async () => {
+    // 首屏加载中：三个查询都未返回
+    fetchers.status.mockReturnValue(new Promise(() => {}))
+    fetchers.proxies.mockReturnValue(new Promise(() => {}))
+    fetchers.connections.mockReturnValue(new Promise(() => {}))
+    fetchers.mergeFile.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    // h1 仍在，加载指示以可访问名称存在
+    expect(
+      await screen.findByRole("heading", { name: "Clash Verge" })
+    ).toBeTruthy()
+    expect(
+      await screen.findByRole("status", { name: "Clash Verge 加载中" })
+    ).toBeTruthy()
+    // 同行的状态文案区与刷新按钮原位保留
+    expect(screen.getByRole("button", { name: /刷新/ })).toBeTruthy()
+  })
+
   it("代理组默认摘要展示当前节点与数量，完整成员按需展开", async () => {
     mockAllOk()
     renderPage()
@@ -199,7 +217,9 @@ describe("ClashVergePage", () => {
     fetchers.connections.mockResolvedValue(connections)
     fetchers.mergeFile.mockResolvedValue(mergeFile)
     renderPage()
-    const notice = await screen.findByRole("status")
+    const notice = await screen.findByRole("status", {
+      name: "数据状态提示",
+    })
     expect(notice.textContent).toContain(
       "Clash Verge 控制接口没有这个路径（内核版本可能不支持）"
     )
@@ -208,7 +228,9 @@ describe("ClashVergePage", () => {
     )
     // 提示在顶部，切到其他分区仍然常驻
     await openTab("活动连接")
-    expect(screen.getByRole("status").textContent).toContain("请求过于频繁")
+    expect(
+      screen.getByRole("status", { name: "数据状态提示" }).textContent
+    ).toContain("请求过于频繁")
   })
 
   it("未配置时按状态兜底文案提示，与空数据区分开", async () => {
@@ -234,7 +256,7 @@ describe("ClashVergePage", () => {
     })
     fetchers.mergeFile.mockResolvedValue(mergeFile)
     renderPage()
-    expect(await screen.findByText(/尚未配置本机只读控制接口/)).toBeTruthy()
+    expect(await screen.findByText(/未发现本机控制接口/)).toBeTruthy()
     await openTab("活动连接")
     expect(await screen.findByText("当前没有活动连接")).toBeTruthy()
   })

@@ -1,8 +1,8 @@
-import { RefreshIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { ClashVergeAvailability } from "@shared/api-contract"
+import { PageHeader } from "@web/components/PageHeader"
 import { Button } from "@web/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
+import { RefreshCw } from "lucide-react"
 import { ConnectionsList } from "./ConnectionsList"
 import { MergeFilePanel } from "./MergeFilePanel"
 import { ProxyGroups } from "./ProxyGroups"
@@ -12,8 +12,9 @@ import { useClashVerge } from "./useClashVerge"
 
 /**
  * 单一节文案兜底：优先展示服务端 availability.message（任务 26 后
- * 404/429 分别带 not_found / rate_limited 的具体文案），不把它们
- * 都归并成「不可用」。
+ * 404/429 分别带 not_found / rate_limited 的具体文案，自动发现失败时
+ * message 也已带尝试过的来源），不把它们都归并成「不可用」。
+ * 兜底只在 message 为空时使用，前端不重复实现发现逻辑。
  */
 const sectionNotice = (
   label: string,
@@ -22,7 +23,7 @@ const sectionNotice = (
   if (!availability || availability.state === "available") return null
   if (availability.message) return `${label}：${availability.message}`
   const fallback: Record<string, string> = {
-    not_configured: "尚未配置本机只读控制接口",
+    not_configured: "未发现本机控制接口",
     unauthorized: "控制接口认证失败；请检查服务端配置",
     unavailable: "控制接口不可用；当前数据可能过期",
   }
@@ -46,10 +47,11 @@ export const ClashVergePage = () => {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex flex-col gap-2 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-sm font-medium">Clash Verge</h1>
+          <PageHeader title="Clash Verge" loading={model.isLoading} />
           {notices.length > 0 ? (
             <span
               role="status"
+              aria-label="数据状态提示"
               className="min-w-0 text-xs break-words text-amber-700 dark:text-amber-400"
             >
               {notices.join("；")}
@@ -62,7 +64,7 @@ export const ClashVergePage = () => {
             onClick={model.refresh}
             disabled={model.isFetching}
           >
-            <HugeiconsIcon icon={RefreshIcon} />
+            <RefreshCw aria-hidden="true" />
             刷新
           </Button>
         </div>
