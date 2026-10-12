@@ -8,7 +8,13 @@ import type {
 import { ApiRequestError } from "@shared/client-api"
 import { formatTimestamp } from "@shared/format"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useAiAssistantLocalStore } from "@web/features/ai-assistant/store"
 import {
@@ -250,6 +256,19 @@ describe("流量页", () => {
     expect(detailViewport()?.scrollTop ?? 0).toBe(0)
     // 左侧快照列表仍在原处，没有被一起重置
     expect(screen.getByText("快照（增量）")).toBeTruthy()
+  })
+
+  it("分组行被截断的命令悬停后能看到完整命令行", async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText("vite-dev")
+
+    const full = "node node_modules/.bin/vite"
+    const cell = screen.getAllByText(full)[0]
+    expect(cell.closest('[data-slot="tooltip-trigger"]')).not.toBeNull()
+
+    await user.hover(cell)
+    await waitFor(() => expect(screen.getAllByText(full)).toHaveLength(2))
   })
 
   it("AI 按钮带上本页真实流量摘要与进程分组", async () => {

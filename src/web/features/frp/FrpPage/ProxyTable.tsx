@@ -32,6 +32,11 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import type { FrpPageModel } from "@web/features/frp/useFrp"
 import { cn } from "@web/lib/utils"
 
@@ -112,17 +117,28 @@ export const ProxyTable = (props: ProxyTableProps) => {
                   </span>
                 ) : probe ? (
                   <span className="flex items-center gap-1.5">
-                    <Badge
-                      className={
-                        probe.reachable
-                          ? "bg-emerald-600/15 text-emerald-700 dark:text-emerald-400"
-                          : undefined
-                      }
-                      variant={probe.reachable ? "secondary" : "destructive"}
-                      title={probe.message}
-                    >
-                      {probe.reachable ? "可达" : "不可达"}
-                    </Badge>
+                    {/* 探测说明只在悬停/聚焦时看：触发元素只有 Badge，行内操作按钮不在里面。 */}
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Badge
+                            className={cn(
+                              "cursor-default",
+                              probe.reachable &&
+                                "bg-emerald-600/15 text-emerald-700 dark:text-emerald-400"
+                            )}
+                            variant={
+                              probe.reachable ? "secondary" : "destructive"
+                            }
+                          >
+                            {probe.reachable ? "可达" : "不可达"}
+                          </Badge>
+                        }
+                      />
+                      <TooltipContent className="max-w-xs">
+                        {probe.message}
+                      </TooltipContent>
+                    </Tooltip>
                     <span className="text-xs text-muted-foreground">
                       {probe.reachable
                         ? `${probe.latencyMs}ms · ${formatTimestamp(probe.checkedAt)}`

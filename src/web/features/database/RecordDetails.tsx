@@ -7,6 +7,11 @@ import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Separator } from "@web/components/ui/separator"
 import { Skeleton } from "@web/components/ui/skeleton"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { formatRecordKey, sqliteValueTypeLabel } from "./format"
 import { SqliteValueView } from "./RecordList"
 
@@ -95,12 +100,18 @@ export const RecordDetails = (props: RecordDetailsProps) => {
       </div>
       <div className="space-y-1">
         <p className="text-muted-foreground">记录签名</p>
-        <p
-          className="truncate font-mono text-xs"
-          title={props.record.signature}
-        >
-          {props.record.signature}
-        </p>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <p className="truncate font-mono text-xs">
+                {props.record.signature}
+              </p>
+            }
+          />
+          <TooltipContent className="max-w-lg break-all">
+            {props.record.signature}
+          </TooltipContent>
+        </Tooltip>
       </div>
       <Separator />
       <dl className="space-y-4">

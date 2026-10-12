@@ -13,6 +13,11 @@ import {
 } from "@web/components/ui/sheet"
 import { Skeleton } from "@web/components/ui/skeleton"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
+import {
   DOCKER_LOG_TAIL_DEFAULT,
   useDockerContainerLogsQuery,
 } from "@web/features/docker/queries"
@@ -42,8 +47,21 @@ export const ContainerLogsSheet = (props: ContainerLogsSheetProps) => {
     >
       <SheetContent side="right" className="gap-0 p-0 sm:max-w-2xl">
         <SheetHeader className="gap-1 border-b p-4">
-          <SheetTitle className="truncate">
-            日志 {props.container?.name ?? ""}
+          <SheetTitle className="flex min-w-0 items-center gap-1">
+            <span className="shrink-0">日志</span>
+            {/* 容器名可能很长：标题里也不截断文本，完整值在悬停/聚焦时给出。 */}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="min-w-0 truncate">
+                    {props.container?.name ?? ""}
+                  </span>
+                }
+              />
+              <TooltipContent className="max-w-lg break-all">
+                {props.container?.name ?? ""}
+              </TooltipContent>
+            </Tooltip>
           </SheetTitle>
           <SheetDescription>
             末尾 {DOCKER_LOG_TAIL_DEFAULT} 行；日志会持续增长，这里只按需读取。

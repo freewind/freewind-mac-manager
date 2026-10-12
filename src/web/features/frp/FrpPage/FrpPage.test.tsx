@@ -3,12 +3,14 @@
 import type { FrpConfig } from "@shared/api-contract"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { frpKeys } from "../queries"
 import { FrpPage } from "./FrpPage"
 
-const { toastMock } = vi.hoisted(() => ({
+const { api, toastMock } = vi.hoisted(() => ({
+  api: { probeFrpProxy: vi.fn() },
   toastMock: Object.assign(vi.fn(), {
     success: vi.fn(),
     error: vi.fn(),
@@ -17,6 +19,11 @@ const { toastMock } = vi.hoisted(() => ({
   }),
 }))
 
+// 只替身探测请求；配置仍由测试直接写进查询缓存。
+vi.mock(import("@shared/client-api"), async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@shared/client-api")>()),
+  probeFrpProxy: api.probeFrpProxy,
+}))
 vi.mock("sonner", () => ({ toast: toastMock }))
 
 /** 复现线上数据：极长的配置路径、frpc 路径、launchd 标识与服务端地址。 */
@@ -66,6 +73,7 @@ const renderPage = () => {
 }
 
 beforeEach(() => {
+  api.probeFrpProxy.mockReset()
   for (const fn of [
     toastMock,
     toastMock.success,
@@ -115,6 +123,41 @@ describe("FRP 页", () => {
     renderPage()
 
     expect(screen.getByText("手机上可左右滑动查看远程端口与操作")).toBeTruthy()
+  })
+
+  it("探测说明改为悬停展示：Badge 是触发元素，操作按钮与短地址格都不在触发范围里", async () => {
+    const user = userEvent.setup()
+    api.probeFrpProxy.mockResolvedValue({
+      reachable: false,
+      latencyMs: 3000,
+      message: "连接超时：hm.wwszxc.tax:34080 无响应",
+      checkedAt: 1_700_000_000,
+    })
+    renderPage()
+
+    await user.click(screen.getByRole("button", { name: "xianyu-web 的操作" }))
+    await user.click(await screen.findByRole("menuitem", { name: "探测连通" }))
+
+    const badge = await screen.findByText("不可达")
+    expect(badge.closest('[data-slot="tooltip-trigger"]')).not.toBeNull()
+
+    await user.hover(badge)
+    expect(
+      await screen.findByText("连接超时：hm.wwszxc.tax:34080 无响应")
+    ).toBeTruthy()
+
+    // 操作按钮在单独一格里：不能被 Tooltip 触发元素包住
+    expect(
+      screen
+        .getByRole("button", { name: "xianyu-web 的操作" })
+        .closest('[data-slot="tooltip-trigger"]')
+    ).toBeNull()
+    // 短地址格本身没被截断，不包 Tooltip，避免噪音
+    expect(
+      screen
+        .getByText("127.0.0.1:8080")
+        .closest('[data-slot="tooltip-trigger"]')
+    ).toBeNull()
   })
 
   it("配置预览的滚动只在预览区内部，复制按钮留在预览之外", () => {

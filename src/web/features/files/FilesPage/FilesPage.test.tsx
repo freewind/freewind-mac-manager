@@ -196,6 +196,28 @@ describe("文件页布局尺寸", () => {
     }
   })
 
+  it("操作入口的可访问名称带上对象：单选用文件名，多选用数量", () => {
+    modelOverrides = {
+      selectedEntries: [fileEntry({ name: "network-rules.yaml" })],
+    }
+    const single = render(<FilesPage />)
+    expect(
+      screen.getByRole("button", { name: "对 network-rules.yaml 的操作" })
+    ).toBeTruthy()
+    single.unmount()
+
+    modelOverrides = {
+      selectedEntries: [
+        fileEntry({ name: "a.txt", path: "/Users/demo/a.txt" }),
+        fileEntry({ name: "b.txt", path: "/Users/demo/b.txt" }),
+      ],
+    }
+    render(<FilesPage />)
+    expect(
+      screen.getByRole("button", { name: "对选中的 2 个条目的操作" })
+    ).toBeTruthy()
+  })
+
   it("选中一个文件后同样的五个动作可用（对照：不是菜单整体被禁用）", async () => {
     const user = userEvent.setup()
     modelOverrides = { selectedEntries: [fileEntry()] }

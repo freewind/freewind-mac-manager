@@ -18,6 +18,19 @@ type FilesToolbarProps = {
   menuActions: EntryAction[]
 }
 
+/** 操作入口的可访问名称带上对象：读屏不会只听到一个笼统的「操作」。
+ *  可见文字「操作」始终被包含，满足标签与名称一致。 */
+const selectionLabel = (model: FilesModel): string => {
+  const selected = model.selectedEntries
+  if (selected.length === 1) {
+    return `对 ${selected[0]?.name ?? ""} 的操作`
+  }
+  if (selected.length > 1) {
+    return `对选中的 ${selected.length} 个条目的操作`
+  }
+  return "操作"
+}
+
 /** 页头工具栏：新建类动作直接铺开，行相关动作收进「操作」菜单。 */
 export const FilesToolbar = ({
   model,
@@ -41,7 +54,14 @@ export const FilesToolbar = ({
 
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button size="sm" className="min-h-11" variant="outline" />}
+        render={
+          <Button
+            size="sm"
+            className="min-h-11"
+            variant="outline"
+            aria-label={selectionLabel(model)}
+          />
+        }
       >
         <HugeiconsIcon icon={MoreHorizontalIcon} />
         操作

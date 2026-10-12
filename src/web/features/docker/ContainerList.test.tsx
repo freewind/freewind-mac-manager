@@ -10,6 +10,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { clearPendingRequests } from "@web/features/tasks/pending-requests"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ContainerList } from "./ContainerList"
@@ -242,6 +243,34 @@ describe("容器列表", () => {
     await waitFor(() =>
       expect(api.fetchDockerContainerLogs).toHaveBeenCalledTimes(2)
     )
+  })
+
+  it("日志抽屉标题里的长容器名悬停后给出完整值", async () => {
+    const user = userEvent.setup()
+    const longName = "very-long-container-name-that-would-be-truncated"
+    api.fetchDockerContainers.mockResolvedValue(
+      containersResponse([container({ name: longName })])
+    )
+    renderList()
+
+    await user.click(
+      await screen.findByRole("button", { name: `查看容器 ${longName} 的日志` })
+    )
+
+    const title = await screen.findByRole("heading", {
+      name: new RegExp(longName),
+    })
+    const trigger = title.querySelector('[data-slot="tooltip-trigger"]')
+    expect(trigger?.textContent).toBe(longName)
+
+    expect(screen.getAllByText(longName).length).toBeGreaterThan(0)
+    expect(document.querySelector('[data-slot="tooltip-content"]')).toBeNull()
+    await user.hover(trigger as HTMLElement)
+    expect(
+      await screen.findByText(longName, {
+        selector: '[data-slot="tooltip-content"]',
+      })
+    ).toBeTruthy()
   })
 
   it("动作失败只提示错误，不冒充成功", async () => {

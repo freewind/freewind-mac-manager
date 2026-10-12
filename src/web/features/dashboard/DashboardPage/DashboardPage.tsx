@@ -39,6 +39,11 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { AiAssistantButton } from "@web/features/ai-assistant/AiAssistantButton"
 import { buildAiAssistantContext } from "@web/features/ai-assistant/context"
 import { useDashboard } from "@web/features/dashboard/useDashboard"
@@ -358,11 +363,19 @@ export const DashboardPage = () => {
                       <TableCell className="text-right tabular-nums">
                         {formatBytes(item.memory)}
                       </TableCell>
-                      <TableCell
-                        className="max-w-0 truncate text-xs text-muted-foreground"
-                        title={item.command}
-                      >
-                        {item.command}
+                      <TableCell className="max-w-0 truncate text-xs text-muted-foreground">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <span className="block truncate">
+                                {item.command}
+                              </span>
+                            }
+                          />
+                          <TooltipContent className="max-w-lg break-all">
+                            {item.command}
+                          </TooltipContent>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -486,8 +499,15 @@ const VolumeRow = (props: { volume: DiskVolume }) => {
   const usage = ratio(volume.used, volume.total)
   return (
     <div className="flex flex-col gap-1">
-      <span className="flex items-center justify-between text-[0.6875rem] text-muted-foreground">
-        <span className="truncate">{volume.name}</span>
+      <span className="flex items-center justify-between gap-2 text-[0.6875rem] text-muted-foreground">
+        <Tooltip>
+          <TooltipTrigger
+            render={<span className="min-w-0 truncate">{volume.name}</span>}
+          />
+          <TooltipContent className="max-w-lg break-all">
+            {volume.name}
+          </TooltipContent>
+        </Tooltip>
         <span className="tabular-nums">
           {formatBytes(volume.used)} / {formatBytes(volume.total)}
         </span>

@@ -223,7 +223,18 @@ export const ProcessTable = (props: ProcessTableProps) => {
                       {formatBytes(groupItem.bytesIn + groupItem.bytesOut)}
                     </TableCell>
                     <TableCell className="max-w-0 truncate text-muted-foreground">
-                      {groupItem.children[0]?.command}
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span className="block truncate">
+                              {groupItem.children[0]?.command}
+                            </span>
+                          }
+                        />
+                        <TooltipContent className="max-w-lg break-all">
+                          {groupItem.children[0]?.command}
+                        </TooltipContent>
+                      </Tooltip>
                     </TableCell>
                     <TableCell>
                       <RowActions

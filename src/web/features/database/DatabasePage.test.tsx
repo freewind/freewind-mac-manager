@@ -360,6 +360,13 @@ describe("DatabasePage 记录详情", () => {
     await user.click(screen.getByRole("button", { name: "查看" }))
     await waitFor(() => expect(screen.getByText("记录签名")).toBeTruthy())
     expect(screen.getByText("row-signature-7")).toBeTruthy()
+    // 签名被截断时，悬停能读到完整值（触发元素就是这段文本本身）
+    const signature = screen.getByText("row-signature-7")
+    expect(signature.closest('[data-slot="tooltip-trigger"]')).not.toBeNull()
+    await user.hover(signature)
+    await waitFor(() =>
+      expect(screen.getAllByText("row-signature-7")).toHaveLength(2)
+    )
     expect(screen.getAllByText(/id=7/).length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole("button", { name: "Close" }))

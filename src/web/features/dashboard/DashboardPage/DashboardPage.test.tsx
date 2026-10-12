@@ -6,7 +6,15 @@ import type {
   ProcessInfo,
 } from "@shared/api-contract"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { useAiAssistantLocalStore } from "@web/features/ai-assistant/store"
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, it } from "vitest"
@@ -151,6 +159,45 @@ describe("概览页", () => {
     expect(scroller?.className).toContain("overflow-y-auto")
     expect(scroller?.className).toContain("overflow-x-hidden")
     expect(scroller?.className).toContain("max-h-[28rem]")
+  })
+
+  it("被截断的命令列悬停后能看到完整命令行，短标签不成为 Tooltip 触发元素", async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const full = processes[0].command
+    const cell = screen.getAllByText(full)[0]
+    expect(cell.closest('[data-slot="tooltip-trigger"]')).not.toBeNull()
+
+    await user.hover(cell)
+    await waitFor(() => expect(screen.getAllByText(full)).toHaveLength(2))
+
+    // 同一行的短标签（PID）不加 Tooltip，避免噪音
+    const row = cell.closest("tr") as HTMLElement
+    expect(
+      within(row)
+        .getByText(String(processes[0].pid))
+        .closest('[data-slot="tooltip-trigger"]')
+    ).toBeNull()
+
+    // 列头与列宽类不变：任务 30 的 w-full 仍在
+    expect(
+      screen.getByRole("columnheader", { name: "命令" }).className
+    ).toContain("w-full")
+  })
+
+  it("磁盘卡里被截断的卷名也能悬停看到完整值", async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const volume = overview.disk[0]
+    const name = screen.getByText(volume.name)
+    expect(name.closest('[data-slot="tooltip-trigger"]')).not.toBeNull()
+
+    await user.hover(name)
+    await waitFor(() =>
+      expect(screen.getAllByText(volume.name).length).toBeGreaterThan(1)
+    )
   })
 
   it("AI 按钮带上页面上已显示的真实摘要，且只是预填不发请求", () => {
