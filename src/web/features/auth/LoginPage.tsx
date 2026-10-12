@@ -53,8 +53,7 @@ export const LoginPage = ({ configured, onAuthenticated }: LoginPageProps) => {
               <Label htmlFor="password">密码</Label>
               <Input
                 id="password"
-                autoComplete="current-password"
-                type="password"
+                type="text"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={submitting}
