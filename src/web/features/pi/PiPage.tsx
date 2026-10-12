@@ -26,6 +26,14 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -35,13 +43,6 @@ import {
 } from "@web/components/ui/dialog"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@web/components/ui/select"
 import { Textarea } from "@web/components/ui/textarea"
 import { SettingsCard } from "@web/features/ai-assistant/SettingsCard"
 import {
@@ -402,74 +403,90 @@ export const PiPage = () => {
             <CardContent className="grid gap-3 sm:grid-cols-2">
               <Label className="grid gap-1 text-xs">
                 Provider
-                <Select
+                <Combobox
+                  items={(query.data?.providers ?? []).map((p) => p.id)}
                   value={benchmarkProvider}
                   onValueChange={(value) => {
                     setBenchmarkProvider(value ?? "")
                     setBenchmarkModel("")
                   }}
                 >
-                  <SelectTrigger aria-label="测速 Provider">
-                    <SelectValue placeholder="选择 Provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {query.data?.providers.map((entry) => (
-                      <SelectItem key={entry.id} value={entry.id}>
-                        {entry.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <ComboboxInput
+                    aria-label="测速 Provider"
+                    placeholder="选择 Provider"
+                  />
+                  <ComboboxContent>
+                    <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                    <ComboboxList>
+                      {(item) => (
+                        <ComboboxItem key={item} value={item}>
+                          {item}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Label>
               <Label className="grid gap-1 text-xs">
                 模型
-                <Select
+                <Combobox
+                  items={(
+                    query.data?.providers.find(
+                      (entry) => entry.id === benchmarkProvider
+                    )?.provider.models ?? []
+                  ).map((m) => m.id)}
                   value={benchmarkModel}
                   onValueChange={(value) => setBenchmarkModel(value ?? "")}
                 >
-                  <SelectTrigger aria-label="测速模型">
-                    <SelectValue placeholder="选择模型" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {query.data?.providers
-                      .find((entry) => entry.id === benchmarkProvider)
-                      ?.provider.models.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.name ?? model.id} · max{" "}
-                          {model.maxTokens ?? "未声明"}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                  <ComboboxInput aria-label="测速模型" placeholder="选择模型" />
+                  <ComboboxContent>
+                    <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                    <ComboboxList>
+                      {(item) => {
+                        const model = query.data?.providers
+                          .find((entry) => entry.id === benchmarkProvider)
+                          ?.provider.models.find((m) => m.id === item)
+                        return (
+                          <ComboboxItem key={item} value={item}>
+                            {model?.name ?? item} · max{" "}
+                            {model?.maxTokens ?? "未声明"}
+                          </ComboboxItem>
+                        )
+                      }}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Label>
               <Label className="grid gap-1 text-xs">
                 Thinking
-                <Select
+                <Combobox
+                  items={[
+                    "off",
+                    "minimal",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                  ]}
                   value={benchmarkThinking}
                   onValueChange={(value) => {
                     if (value)
                       setBenchmarkThinking(value as typeof benchmarkThinking)
                   }}
                 >
-                  <SelectTrigger aria-label="测速 Thinking">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[
-                      "off",
-                      "minimal",
-                      "low",
-                      "medium",
-                      "high",
-                      "xhigh",
-                      "max",
-                    ].map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <ComboboxInput aria-label="测速 Thinking" />
+                  <ComboboxContent>
+                    <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                    <ComboboxList>
+                      {(item) => (
+                        <ComboboxItem key={item} value={item}>
+                          {item}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Label>
               <Button
                 className="min-h-11"

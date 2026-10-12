@@ -17,18 +17,12 @@ import {
 import {
   Combobox,
   ComboboxContent,
+  ComboboxEmpty,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
 } from "@web/components/ui/combobox"
 import { Label } from "@web/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@web/components/ui/select"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { Textarea } from "@web/components/ui/textarea"
 import { useState } from "react"
@@ -323,29 +317,33 @@ export const SettingsCard = () => {
 
               <Label className="grid gap-1 text-xs md:col-span-2">
                 Thinking 档位
-                <Select
+                <Combobox
+                  items={
+                    [
+                      THINKING_DEFAULT,
+                      ...AI_ASSISTANT_THINKING_LEVELS,
+                    ] as string[]
+                  }
                   value={form.thinkingLevel}
                   onValueChange={(value) =>
                     update({ thinkingLevel: toThinkingOption(value ?? "") })
                   }
                 >
-                  <SelectTrigger
+                  <ComboboxInput
                     aria-label="助手 Thinking 档位"
                     className="min-h-11"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={THINKING_DEFAULT}>
-                      跟随 Pi 默认
-                    </SelectItem>
-                    {AI_ASSISTANT_THINKING_LEVELS.map((level) => (
-                      <SelectItem key={level} value={level}>
-                        {level}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  />
+                  <ComboboxContent>
+                    <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                    <ComboboxList>
+                      {(item) => (
+                        <ComboboxItem key={item} value={item}>
+                          {item === THINKING_DEFAULT ? "跟随 Pi 默认" : item}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Label>
             </div>
 
