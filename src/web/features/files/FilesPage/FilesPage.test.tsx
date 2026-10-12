@@ -46,7 +46,8 @@ vi.mock("@web/features/files/useFiles", () => ({
   useFiles: () => createFilesModel(modelOverrides),
 }))
 
-vi.mock("@web/features/files/queries", () => ({
+vi.mock("@web/features/files/queries", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@web/features/files/queries")>()),
   useDirectoryQuery: () => ({
     data: { path: "/Users/demo", entries: [] },
     isLoading: false,
@@ -78,6 +79,23 @@ const createFilesModel = (overrides: Partial<FilesModel> = {}): FilesModel => ({
   isExpanded: () => false,
   toggleExpanded: () => undefined,
   collapseAll: () => undefined,
+  search: {
+    query: "",
+    mode: "substring",
+    caseSensitive: false,
+    searchContent: true,
+    active: false,
+  },
+  setSearchQuery: () => undefined,
+  setSearchMode: () => undefined,
+  setSearchCaseSensitive: () => undefined,
+  setSearchContent: () => undefined,
+  submitSearch: () => undefined,
+  clearSearch: () => undefined,
+  searchResult: null,
+  searchLoading: false,
+  searchError: null,
+  openSearchResult: () => undefined,
   selected: [],
   isSelected: () => false,
   selectOnly: () => undefined,
@@ -229,5 +247,56 @@ describe("文件页布局尺寸", () => {
       const item = await screen.findByRole("menuitem", { name: label })
       expect(item.getAttribute("aria-disabled")).not.toBe("true")
     }
+  })
+})
+
+describe("目录内搜索", () => {
+  it("搜索激活时展示来源、条数、截断标志与内容摘要", () => {
+    modelOverrides = {
+      search: {
+        query: "needle",
+        mode: "substring",
+        caseSensitive: false,
+        searchContent: true,
+        active: true,
+      },
+      searchResult: {
+        root: "/Users/demo",
+        query: "needle",
+        matches: [
+          {
+            path: "/Users/demo/sub/gamma.txt",
+            name: "gamma.txt",
+            kind: "file",
+            size: 12,
+            modified: 1_700_000_000,
+            source: "content",
+            snippet: "needle in sub",
+            lineNumber: 7,
+          },
+          {
+            path: "/Users/demo/needle.txt",
+            name: "needle.txt",
+            kind: "file",
+            size: 20,
+            modified: 1_700_000_100,
+            source: "name",
+            snippet: null,
+            lineNumber: null,
+          },
+        ],
+        scannedFiles: 12,
+        truncated: true,
+      },
+    }
+    render(<FilesPage />)
+
+    expect(screen.getByText(/命中 2 条 · 已扫描 12 个文件/)).toBeTruthy()
+    expect(screen.getByText("结果已截断，只显示前一部分")).toBeTruthy()
+    // 两种来源可区分：内容命中带摘要与行号，文件名命中没有摘要
+    expect(screen.getByText("内容")).toBeTruthy()
+    expect(screen.getByText("文件名")).toBeTruthy()
+    expect(screen.getByText(/第 7 行：needle in sub/)).toBeTruthy()
+    expect(screen.getByRole("button", { name: "退出搜索" })).toBeTruthy()
   })
 })

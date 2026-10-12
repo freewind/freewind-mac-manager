@@ -21,6 +21,9 @@ import type {
   FileBatchResultSchema,
   FileContentResponseSchema,
   FileEntrySchema,
+  FileSearchMatchSchema,
+  FileSearchQuerySchema,
+  FileSearchResponseSchema,
   UploadResponseSchema,
 } from "./schemas/files"
 import type {
@@ -114,12 +117,16 @@ export type { TaskKind, TaskRecord } from "./schemas/tasks"
 export type TreeResponse = z.infer<typeof TreeResponseSchema>
 export type TreeNode = TreeNodeWire
 export type FileEntry = z.infer<typeof FileEntrySchema>
+export type FileSearchQuery = z.infer<typeof FileSearchQuerySchema>
+export type FileSearchMatch = z.infer<typeof FileSearchMatchSchema>
+export type FileSearchResponse = z.infer<typeof FileSearchResponseSchema>
 export type DirectoryResponse = z.infer<typeof DirectoryResponseSchema>
 export type FileContentResponse = z.infer<typeof FileContentResponseSchema>
 export type UploadResponse = z.infer<typeof UploadResponseSchema>
 
 import type {
   CpuInfoSchema,
+  DashboardOverviewSchema,
   DiskVolumeSchema,
   MachineOverviewSchema,
   MemoryInfoSchema,
@@ -137,6 +144,7 @@ export type MemoryInfo = z.infer<typeof MemoryInfoSchema>
 export type DiskVolume = z.infer<typeof DiskVolumeSchema>
 export type NetworkInfo = z.infer<typeof NetworkInfoSchema>
 export type MachineOverview = z.infer<typeof MachineOverviewSchema>
+export type DashboardOverview = z.infer<typeof DashboardOverviewSchema>
 export type ProcessInfo = z.infer<typeof ProcessInfoSchema>
 export type PortInfo = z.infer<typeof PortInfoSchema>
 export type ProcessesResponse = z.infer<typeof ProcessesResponseSchema>

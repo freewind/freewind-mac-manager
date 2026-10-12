@@ -7,6 +7,7 @@ import {
   fetchDirectory,
   moveEntries as moveEntriesApi,
   renameEntry as renameEntryApi,
+  searchFiles as searchFilesApi,
 } from "@shared/client-api"
 import type { QueryClient } from "@tanstack/react-query"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -19,7 +20,45 @@ import { dirnameOf, isDescendantPath } from "@web/features/files/domain"
 export const filesKeys = {
   all: ["files"] as const,
   directory: (path: string) => ["files", "directory", path] as const,
+  search: (input: FileSearchRequest | null) =>
+    ["files", "search", input] as const,
 }
+
+/**
+ * 搜索边界：与服务端 schema 的上限一致，并原样告诉用户，
+ * 不让人以为扫了整个磁盘。
+ */
+export const SEARCH_MAX_DEPTH = 3
+export const SEARCH_RESULT_LIMIT = 200
+export const SEARCH_MAX_FILE_BYTES = 2 * 1024 * 1024
+
+export type FileSearchRequest = {
+  root: string
+  query: string
+  mode: "substring" | "wildcard" | "exact"
+  caseSensitive: boolean
+  searchContent: boolean
+}
+
+/**
+ * 目录内搜索：input 为 null 时不发请求。
+ * 只读查询，不重试、不排队，失败就直接如实显示错误。
+ */
+export const useFileSearchQuery = (input: FileSearchRequest | null) =>
+  useQuery({
+    queryKey: filesKeys.search(input),
+    queryFn: async () => {
+      if (input === null) throw new Error("没有搜索条件")
+      return searchFilesApi({
+        ...input,
+        maxDepth: SEARCH_MAX_DEPTH,
+        limit: SEARCH_RESULT_LIMIT,
+      })
+    },
+    enabled: input !== null,
+    retry: false,
+    staleTime: 5_000,
+  })
 
 /**
  * 一个目录 = 一份 DirectoryResponse：目录树、文件表与面包屑共用同一份缓存，

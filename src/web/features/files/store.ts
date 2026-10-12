@@ -16,6 +16,8 @@ type FilesLocalState = {
   expanded: string[]
   /** 文件表里勾选的条目路径。 */
   selected: string[]
+  /** 内容搜索的输入；active 为 true 时才真的发请求。 */
+  search: FilesSearchState
 
   setCurrentPath: (path: string) => void
   enterDirectory: (rootPath: string, path: string) => void
@@ -27,6 +29,23 @@ type FilesLocalState = {
   toggleSelected: (path: string, checked: boolean) => void
   setSelectedForPaths: (checked: boolean, paths: string[]) => void
   clearSelection: () => void
+
+  setSearchQuery: (query: string) => void
+  setSearchMode: (mode: FilesSearchState["mode"]) => void
+  setSearchCaseSensitive: (value: boolean) => void
+  setSearchContent: (value: boolean) => void
+  /** 提交搜索：只有非空查询才进入请求态（避免空串扫整个目录）。 */
+  submitSearch: () => void
+  clearSearch: () => void
+}
+
+export type FilesSearchState = {
+  query: string
+  mode: "substring" | "wildcard" | "exact"
+  caseSensitive: boolean
+  /** 关掉时只比文件名，开启才会读文件内容。 */
+  searchContent: boolean
+  active: boolean
 }
 
 export const useFilesLocalStore = create<FilesLocalState>((set) => ({
@@ -105,4 +124,37 @@ export const useFilesLocalStore = create<FilesLocalState>((set) => ({
     })),
 
   clearSelection: () => set({ selected: [] }),
+
+  search: {
+    query: "",
+    mode: "substring",
+    caseSensitive: false,
+    searchContent: true,
+    active: false,
+  },
+
+  setSearchQuery: (query) =>
+    set((state) => ({ search: { ...state.search, query } })),
+
+  setSearchMode: (mode) =>
+    set((state) => ({ search: { ...state.search, mode } })),
+
+  setSearchCaseSensitive: (caseSensitive) =>
+    set((state) => ({ search: { ...state.search, caseSensitive } })),
+
+  setSearchContent: (searchContent) =>
+    set((state) => ({ search: { ...state.search, searchContent } })),
+
+  submitSearch: () =>
+    set((state) => ({
+      search: {
+        ...state.search,
+        active: state.search.query.trim().length > 0,
+      },
+      // 搜索结果是另一套列表，旧目录的选择不再对应任何一行
+      selected: [],
+    })),
+
+  clearSearch: () =>
+    set((state) => ({ search: { ...state.search, query: "", active: false } })),
 }))

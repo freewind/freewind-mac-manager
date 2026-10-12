@@ -45,6 +45,7 @@ import type { FilesModel } from "@web/features/files/useFiles"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { cn } from "@web/lib/utils"
 import { Fragment, useMemo, useState } from "react"
+import { SearchResults } from "./SearchResults"
 
 type FileTableProps = {
   model: FilesModel
@@ -83,6 +84,8 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
         {selectedCount > 0 ? <span>已选 {selectedCount} 项</span> : null}
         {model.isFetching ? <span>读取中…</span> : null}
       </div>
+
+      <SearchResults model={model} />
 
       {model.isLoading && rows.length === 0 ? (
         <div className="flex flex-col gap-1 p-3">

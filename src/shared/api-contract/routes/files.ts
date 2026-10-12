@@ -12,6 +12,8 @@ import {
   DirectoryResponseSchema,
   FileBatchResultSchema,
   FileContentResponseSchema,
+  FileSearchQuerySchema,
+  FileSearchResponseSchema,
   PathQuerySchema,
   PathsQuerySchema,
   RenameEntryBodySchema,
@@ -112,6 +114,13 @@ export const filesRoutes = {
     path: toContractPath(ApiPath.filesContent),
     query: PathQuerySchema,
     responses: { 200: FileContentResponseSchema, ...errorResponses },
+  },
+  // 只读搜索：限深、限条数、带超时；不建索引，不改磁盘。
+  searchFiles: {
+    method: "GET",
+    path: toContractPath(ApiPath.filesSearch),
+    query: FileSearchQuerySchema,
+    responses: { 200: FileSearchResponseSchema, ...errorResponses },
   },
   writeFileContent: {
     method: "PUT",

@@ -8,7 +8,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@web/components/ui/dropdown-menu"
+import { Input } from "@web/components/ui/input"
+import { Toggle } from "@web/components/ui/toggle"
+import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import type { EntryAction } from "@web/features/files/actions"
+import {
+  SEARCH_MAX_DEPTH,
+  SEARCH_MAX_FILE_BYTES,
+  SEARCH_RESULT_LIMIT,
+} from "@web/features/files/queries"
 import type { FilesModel } from "@web/features/files/useFiles"
 import { Fragment } from "react"
 
@@ -94,5 +102,62 @@ export const FilesToolbar = ({
       <HugeiconsIcon icon={RefreshIcon} />
       刷新
     </Button>
+
+    <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
+      <Input
+        aria-label="搜索文件名或内容"
+        className="min-h-11 w-full md:w-56"
+        placeholder="搜索文件名或内容"
+        value={model.search.query}
+        onChange={(event) => model.setSearchQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") model.submitSearch()
+        }}
+      />
+      <ToggleGroup
+        value={[model.search.mode]}
+        onValueChange={(values) => {
+          const next = values[0]
+          if (next)
+            model.setSearchMode(next as "substring" | "wildcard" | "exact")
+        }}
+        variant="outline"
+        className="min-h-11"
+        aria-label="匹配方式"
+      >
+        <ToggleGroupItem value="substring">子串</ToggleGroupItem>
+        <ToggleGroupItem value="wildcard">通配</ToggleGroupItem>
+        <ToggleGroupItem value="exact">精确</ToggleGroupItem>
+      </ToggleGroup>
+      <Toggle
+        pressed={model.search.caseSensitive}
+        onPressedChange={model.setSearchCaseSensitive}
+        variant="outline"
+        className="min-h-11"
+      >
+        区分大小写
+      </Toggle>
+      <Toggle
+        pressed={model.search.searchContent}
+        onPressedChange={model.setSearchContent}
+        variant="outline"
+        className="min-h-11"
+      >
+        搜文件内容
+      </Toggle>
+      <Button
+        size="sm"
+        className="min-h-11"
+        onClick={model.submitSearch}
+        disabled={model.search.query.trim().length === 0}
+      >
+        搜索
+      </Button>
+      <p className="w-full text-xs text-muted-foreground">
+        在当前目录内最多下探 {SEARCH_MAX_DEPTH} 层、返回 {SEARCH_RESULT_LIMIT}{" "}
+        条；搜内容时单文件不超过{" "}
+        {Math.round(SEARCH_MAX_FILE_BYTES / (1024 * 1024))} MB，不建索引。
+      </p>
+    </div>
   </div>
 )

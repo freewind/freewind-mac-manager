@@ -60,6 +60,45 @@ export const UploadResponseSchema = ActionResponseSchema.extend({
 })
 
 /**
+ * 目录内搜索：先按文件名匹配，开searchContent 时再读文件内容匹配。
+ * 只做本地只读扫描，不建索引；深度、条数与查询串长度都有硬上限。
+ */
+export const FileSearchModeSchema = z.enum(["exact", "wildcard", "substring"])
+
+export const FileSearchQuerySchema = z.object({
+  root: z.string().default(""),
+  query: z.string().min(1).max(256),
+  mode: FileSearchModeSchema.default("substring"),
+  caseSensitive: z.coerce.boolean().default(false),
+  searchContent: z.coerce.boolean().default(false),
+  maxDepth: z.coerce.number().int().min(1).max(8).default(3),
+  limit: z.coerce.number().int().min(1).max(500).default(200),
+})
+
+export const FileSearchMatchSchema = z.object({
+  path: z.string(),
+  name: z.string(),
+  kind: z.enum(["dir", "file"]),
+  size: z.number(),
+  modified: z.number(),
+  /** 命中来源：文件名或文件内容；两种模式的结果可据此区分。 */
+  source: z.enum(["name", "content"]),
+  /** 内容命中的那一行（截断后）；文件名命中时为 null。 */
+  snippet: z.string().nullable(),
+  lineNumber: z.number().nullable(),
+})
+
+export const FileSearchResponseSchema = z.object({
+  root: z.string(),
+  query: z.string(),
+  matches: z.array(FileSearchMatchSchema),
+  /** 实际读过的候选文件数，供上限说明与排查。 */
+  scannedFiles: z.number(),
+  /** 因为条数或扫描上限而截断时为 true，不谎报完整结果。 */
+  truncated: z.boolean(),
+})
+
+/**
  * 复制、删除、移动这类批量操作的结果：逐项可核实，允许部分完成。
  * 不把整棵目录树的明细写进任务记录，只留已处理的条目与失败原因。
  */

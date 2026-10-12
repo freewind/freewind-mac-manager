@@ -10,6 +10,7 @@ import { ApiPath } from "@shared/api-path"
 import { initServer } from "@ts-rest/express"
 import type express from "express"
 import { z } from "zod"
+import { searchFiles } from "./search"
 import {
   listDirectory,
   openDownload,
@@ -44,6 +45,7 @@ export const filesContract = {
   copyEntries: contract.copyEntries,
   moveEntries: contract.moveEntries,
   readFileContent: contract.readFileContent,
+  searchFiles: contract.searchFiles,
   writeFileContent: contract.writeFileContent,
   downloadFile: contract.downloadFile,
 }
@@ -189,6 +191,15 @@ export const createFilesRouter = (runtime: TaskRuntime) =>
     readFileContent: async ({ query }) => {
       try {
         return { status: 200 as const, body: await readFileContent(query.path) }
+      } catch (error) {
+        return toError(error)
+      }
+    },
+
+    // 只读搜索：不落库、不改缓存，参数校验与边界都由 schema 与 search.ts 负责
+    searchFiles: async ({ query }) => {
+      try {
+        return { status: 200 as const, body: await searchFiles(query) }
       } catch (error) {
         return toError(error)
       }

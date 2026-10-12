@@ -301,15 +301,17 @@ const resolveExistingPath = async (input: string): Promise<string> => {
   return resolved
 }
 
-const resolveExistingDirectory = async (input: string): Promise<string> => {
+export const resolveExistingDirectory = async (
+  input: string
+): Promise<string> => {
   const target = await resolveExistingPath(input)
   const info = await stat(target)
   if (!info.isDirectory()) throw new PublicOperationError(400, "不是目录")
   return target
 }
 
-/** target 是否等于 ancestor 或位于其之下。 */
-const isInside = (ancestor: string, target: string): boolean =>
+/** target 是否等于 ancestor 或位于其之下（搜索时用来挡住 find 输出里的越界项）。 */
+export const isInside = (ancestor: string, target: string): boolean =>
   target === ancestor ||
   target.startsWith(
     ancestor.endsWith(path.sep) ? ancestor : `${ancestor}${path.sep}`

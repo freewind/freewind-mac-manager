@@ -22,6 +22,7 @@ export const ApiPath = {
   filesEntriesMove: `${API_BASE}/files/entries/move`,
   filesDirectories: `${API_BASE}/files/directories`,
   filesContent: `${API_BASE}/files/content`,
+  filesSearch: `${API_BASE}/files/search`,
   filesDownload: `${API_BASE}/files/download`,
   filesUploads: `${API_BASE}/files/uploads`,
   trafficStatus: `${API_BASE}/traffic/status`,

@@ -22,11 +22,16 @@ import {
   parentPath,
   withName,
 } from "@web/features/files/domain"
-import { filesKeys, useDirectoryQuery } from "@web/features/files/queries"
+import {
+  type FileSearchRequest,
+  filesKeys,
+  useDirectoryQuery,
+  useFileSearchQuery,
+} from "@web/features/files/queries"
 import { useFilesLocalStore } from "@web/features/files/store"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
 import { useTaskAction } from "@web/hooks/use-task-action"
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 
 /** 用临时 <a> 触发浏览器原生下载；window.open 在非直接点击时会被拦截。 */
@@ -244,6 +249,29 @@ export const useFiles = () => {
     deleteAction.busy ||
     transferAction.busy
 
+  // 搜索词、模式与开关都来自共享 store；对象引用稳定，避免每次渲染都换 query key
+  const searchInput = useMemo<FileSearchRequest | null>(
+    () =>
+      local.search.active && local.search.query.trim().length > 0
+        ? {
+            root: resolvedPath,
+            query: local.search.query.trim(),
+            mode: local.search.mode,
+            caseSensitive: local.search.caseSensitive,
+            searchContent: local.search.searchContent,
+          }
+        : null,
+    [local.search, resolvedPath]
+  )
+  const searchQuery = useFileSearchQuery(searchInput)
+
+  /** 打开某条搜索结果：跳到它所在目录并选中它，复用现有导航与选择。 */
+  const openSearchResult = (entryPath: string): void => {
+    local.enterDirectory(rootPath, dirnameOf(entryPath))
+    local.setSelected([entryPath])
+    local.clearSearch()
+  }
+
   return {
     // 数据
     rootPath,
@@ -260,6 +288,19 @@ export const useFiles = () => {
     isExpanded: (path: string) => local.expanded.includes(path),
     toggleExpanded: local.toggleExpanded,
     collapseAll: local.collapseAll,
+
+    // 内容搜索
+    search: local.search,
+    setSearchQuery: local.setSearchQuery,
+    setSearchMode: local.setSearchMode,
+    setSearchCaseSensitive: local.setSearchCaseSensitive,
+    setSearchContent: local.setSearchContent,
+    submitSearch: local.submitSearch,
+    clearSearch: local.clearSearch,
+    searchResult: searchQuery.data ?? null,
+    searchLoading: searchQuery.isFetching,
+    searchError: searchQuery.error,
+    openSearchResult,
     selected: local.selected,
     isSelected,
     selectOnly,

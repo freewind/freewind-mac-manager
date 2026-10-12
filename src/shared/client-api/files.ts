@@ -4,6 +4,8 @@ import type {
   FileBatchResult,
   FileContentResponse,
   FileEntry,
+  FileSearchQuery,
+  FileSearchResponse,
 } from "@shared/api-contract"
 import { UploadResponseSchema } from "@shared/api-contract/schemas/files"
 import { ApiPath } from "@shared/api-path"
@@ -23,6 +25,24 @@ export const fetchDirectory = async (
   path: string
 ): Promise<DirectoryResponse> =>
   unwrap<DirectoryResponse>(await apiClient.listDirectory({ query: { path } }))
+
+/**
+ * 目录内搜索。上限已由契约限定（深度 ≤ 8、条数 ≤ 500、查询串 ≤ 256），
+ * 客户端还额外掐一道，避免从调用方绕过契约的默认值。
+ * 只读请求，不做离线重试。
+ */
+export const searchFiles = async (
+  input: FileSearchQuery
+): Promise<FileSearchResponse> =>
+  unwrap<FileSearchResponse>(
+    await apiClient.searchFiles({
+      query: {
+        ...input,
+        maxDepth: Math.min(Math.max(input.maxDepth ?? 3, 1), 8),
+        limit: Math.min(Math.max(input.limit ?? 200, 1), 500),
+      },
+    })
+  )
 
 /**
  * 新建与改名也与批量任务共用同一把目标锁：请求标识由服务端用来复用任务，
