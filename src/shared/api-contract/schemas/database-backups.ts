@@ -265,22 +265,22 @@ export const DatabaseRestorePlanBodySchema = z.object({
 export const DatabaseRestoreStateSchema = z
   .object({
     plan: DatabaseRestorePlanSchema.nullable(),
-    /** 当前库内容签名；读取失败时为 null。 */
-    currentSignature: z
-      .string()
-      .min(16)
-      .max(DATABASE_BACKUP_SIGNATURE_MAX_LENGTH)
-      .nullable(),
-    /** 是否已核实当前库就是计划里的备份。 */
+    /**
+     * 已核实 = 恢复执行成功并通过复验（完整性、结构与应用必要表）。
+     * 服务能应答本状态即表示启动迁移已通过，因此计划 applied 时即为已核实；
+     * 不与后续写入的库字节比对——运行中流量采样与业务操作必然持续写库，
+     * 字节比对在生产上永远不成立。恢复完成时的库字节指纹记录在计划回执
+     * （finalSignature）里，仅作诊断，不参与本判定。
+     */
     verified: z.boolean(),
   })
   .superRefine((state, ctx) => {
-    // 「已核实」必须有可核实的依据：没有签名就不能宣称已经恢复
-    if (state.verified && state.currentSignature === null) {
+    // 「已核实」只能跟在已应用的计划后面：未应用就宣称核实是谎报。
+    if (state.verified && state.plan?.status !== "applied") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "宣称已核实时必须给出当前库签名",
-        path: ["currentSignature"],
+        message: "只有已应用（applied）的计划才能宣称已核实",
+        path: ["verified"],
       })
     }
   })

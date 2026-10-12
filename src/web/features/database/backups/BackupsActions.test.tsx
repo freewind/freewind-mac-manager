@@ -48,7 +48,6 @@ vi.mock("sonner", () => ({
 }))
 
 const SIGNATURE_A = "a".repeat(32)
-const SIGNATURE_B = "b".repeat(32)
 const FILE_A = "snapshots-1791700000000-aaa111.sqlite3"
 const FILE_B = "snapshots-1791600000000-bbb222.sqlite3"
 
@@ -91,7 +90,6 @@ const restorePlan = (
 
 const idleRestore: DatabaseRestoreState = {
   plan: null,
-  currentSignature: null,
   verified: false,
 }
 
@@ -322,7 +320,6 @@ describe("提交恢复计划", () => {
   it("确认框写清影响与签名，确认后带签名提交且不说已恢复", async () => {
     api.fetchDatabaseRestoreState.mockResolvedValue({
       plan: null,
-      currentSignature: SIGNATURE_B,
       verified: false,
     })
     api.planDatabaseRestore.mockResolvedValue(restorePlan("planned"))
@@ -338,12 +335,8 @@ describe("提交恢复计划", () => {
       )
     ).toBeTruthy()
     expect(dialog.getByText("aaaaaaaa…")).toBeTruthy()
-    expect(dialog.getByText("bbbbbbbb…")).toBeTruthy()
-    expect(
-      dialog.getByText(
-        "当前数据库与这份备份不同：恢复会用这份备份整份替换当前数据库"
-      )
-    ).toBeTruthy()
+    // 确认阶段不展示与比对当前库签名：核实由恢复执行完成。
+    expect(dialog.queryByText("当前数据库的签名")).toBeNull()
     // 停在确认框
     expect(api.planDatabaseRestore).not.toHaveBeenCalled()
 
@@ -458,7 +451,6 @@ describe("取消恢复计划", () => {
   it("只有等待执行的计划给取消入口", async () => {
     api.fetchDatabaseRestoreState.mockResolvedValue({
       plan: restorePlan("planned"),
-      currentSignature: null,
       verified: false,
     })
     const { unmount } = mount()
@@ -469,7 +461,6 @@ describe("取消恢复计划", () => {
 
     api.fetchDatabaseRestoreState.mockResolvedValue({
       plan: restorePlan("applying"),
-      currentSignature: null,
       verified: false,
     })
     mount()
@@ -480,7 +471,6 @@ describe("取消恢复计划", () => {
   it("取消成功：提示重启不再执行恢复，并重新读取状态", async () => {
     api.fetchDatabaseRestoreState.mockResolvedValue({
       plan: restorePlan("planned"),
-      currentSignature: null,
       verified: false,
     })
     api.cancelDatabaseRestore.mockResolvedValue(restorePlan("cancelled"))
@@ -504,7 +494,6 @@ describe("取消恢复计划", () => {
   it("已经开始执行（409）：写明无法取消并隐藏入口", async () => {
     api.fetchDatabaseRestoreState.mockResolvedValue({
       plan: restorePlan("planned"),
-      currentSignature: null,
       verified: false,
     })
     api.cancelDatabaseRestore.mockRejectedValue(
@@ -528,7 +517,6 @@ describe("取消恢复计划", () => {
   it("结果未知：页内提示重新读取核实，不报成功也不报失败", async () => {
     api.fetchDatabaseRestoreState.mockResolvedValue({
       plan: restorePlan("planned"),
-      currentSignature: null,
       verified: false,
     })
     api.cancelDatabaseRestore.mockRejectedValue(unknownError())

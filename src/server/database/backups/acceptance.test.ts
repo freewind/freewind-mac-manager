@@ -48,10 +48,8 @@ import {
   TaskHostError,
   type TaskOutcome,
 } from "@server/common/tasks/worker-host"
-import { computeContentSignature } from "@server/database/backups/catalog"
 import { runPendingRestore } from "@server/database/backups/restore"
 import {
-  appliedSignatureOf,
   hasPendingRestoreWork,
   readRestorePlan,
 } from "@server/database/backups/restore-plan"
@@ -476,12 +474,13 @@ describe("恢复计划、状态与取消", () => {
     // 201 不是「已恢复」：当前库数据在提交前后不变。
     expect(itemNames()).toEqual(["row-a", "row-b"])
 
-    // 状态三者分开：计划存在，但当前库签名不算、verified 不冒充。
+    // 计划与「已核实」分开：planned 不冒充已恢复；签名字段已随语义调整移除。
     const state = await send("GET", ApiPath.databaseBackupRestore)
     expect(state.status).toBe(200)
     expect(state.body).toHaveProperty("plan")
-    expect(state.body).toHaveProperty("currentSignature")
     expect(state.body).toHaveProperty("verified")
+    expect(state.body?.verified).toBe(false)
+    expect(state.body).not.toHaveProperty("currentSignature")
 
     const duplicate = await send("POST", ApiPath.databaseBackupRestore, {
       body: {
@@ -554,32 +553,28 @@ describe("启动前恢复端到端", () => {
       })
       expect(outcome?.status).toBe("applied")
 
-      // 5. 屏障结束、服务起来之前：applied 回执签名与当前库文件字节一致。
-      // 这正是状态端点 verified=true 分支的判定输入（同一比对函数），
-      // 且必须是非空的完整 sha256。
-      const direct = await computeContentSignature(DATABASE_FILE)
+      // 5. applied 回执记录恢复完成时的库字节指纹（finalSignature），仅作诊断。
       const planRecord = readRestorePlan({
         stateDir: process.env.MAC_MANAGER_BACKUP_STATE_DIR,
         backupDir: process.env.MAC_MANAGER_BACKUP_DIR,
       })
-      const receipt = appliedSignatureOf(planRecord.plan as never)
-      expect(receipt).toMatch(/^[0-9a-f]{64}$/)
-      expect(direct).toBe(receipt)
+      expect(String(planRecord.plan?.message)).toMatch(
+        /finalSignature=[0-9a-f]{64}/
+      )
 
       // 6. 恢复后先过启动迁移（与 main.ts 同一顺序：迁移成功才继续）。
       expect(() => initializeTraffic()).not.toThrow()
       expect(itemNames()).toEqual(["row-a", "row-b"])
 
-      // 7. 迁移通过后才起新服务：计划已应用、当前库签名非空。
-      // verified 此刻为 false 也是如实表达——启动迁移与协作域初始化会写库，
-      // 首次可查询时字节已不同于恢复完成瞬间；三者分开，不冒充已核实。
+      // 7. 迁移通过后才起新服务：计划已应用即已核实——恢复执行通过
+      // 完整性与结构复验、启动迁移已通过，核实不依赖与后续写入的字节比对。
       await startApp()
       const state = await send("GET", ApiPath.databaseBackupRestore)
       expect(state.status).toBe(200)
       const plan = state.body?.plan as { status?: string } | null
       expect(plan?.status).toBe("applied")
-      expect(String(state.body?.currentSignature)).toMatch(/^[0-9a-f]{64}$/)
-      expect(typeof state.body?.verified).toBe("boolean")
+      expect(state.body?.verified).toBe(true)
+      expect(state.body).not.toHaveProperty("currentSignature")
 
       // 恢复前的数据有 pre_restore 安全备份兜底。
       const list = await send("GET", `${ApiPath.databaseBackups}?pageSize=50`)
@@ -641,6 +636,60 @@ describe("启动前恢复端到端", () => {
       } | null
       expect(plan?.status).toBe("failed")
       expect(state.body?.verified).toBe(false)
+    },
+    RESTORE_CASE_TIMEOUT_MS
+  )
+
+  it(
+    "恢复后启动流程写库：服务可查询时 verified 仍为 true",
+    async () => {
+      const created = await createBackup()
+      setItems(["row-x"])
+      const planned = await send("POST", ApiPath.databaseBackupRestore, {
+        body: {
+          backupId: created.backup.id,
+          expectedSignature: created.backup.contentSignature,
+        },
+      })
+      expect(planned.status).toBe(201)
+
+      await closeApp()
+      const outcome = await runStartupMaintenanceBarrier({
+        hasPendingWork: () =>
+          hasPendingRestoreWork({
+            stateDir: process.env.MAC_MANAGER_BACKUP_STATE_DIR,
+          }),
+        executeRestore: () =>
+          runPendingRestore({
+            stateDir: process.env.MAC_MANAGER_BACKUP_STATE_DIR,
+            backupDir: process.env.MAC_MANAGER_BACKUP_DIR,
+            databaseFile: DATABASE_FILE,
+            waitTimeoutMs: 1_000,
+          }),
+      })
+      expect(outcome?.status).toBe("applied")
+
+      // 启动流程必然写库：迁移建表索引，再模拟一次采样写入。
+      expect(() => initializeTraffic()).not.toThrow()
+      const writer = openDatabase({ file: DATABASE_FILE })
+      try {
+        writer
+          .prepare(
+            "INSERT INTO traffic_samples (ts, name, label, parent, command, pid, bytes_in, bytes_out) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          )
+          .run(Date.now(), "smoke", "smoke", "", "acceptance", 1, 0, 0)
+      } finally {
+        closeDatabase(writer)
+      }
+
+      // 字节已经变了：核实依据是执行复验与迁移通过，verified 仍为 true。
+      await startApp()
+      const state = await send("GET", ApiPath.databaseBackupRestore)
+      expect(state.status).toBe(200)
+      const plan = state.body?.plan as { status?: string } | null
+      expect(plan?.status).toBe("applied")
+      expect(state.body?.verified).toBe(true)
+      expect(itemNames()).toEqual(["row-a", "row-b"])
     },
     RESTORE_CASE_TIMEOUT_MS
   )

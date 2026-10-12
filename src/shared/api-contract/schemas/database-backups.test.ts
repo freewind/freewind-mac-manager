@@ -369,35 +369,32 @@ describe("恢复计划与状态", () => {
     ).toBe(false)
   })
 
-  it("计划存在不等于数据库已经恢复", () => {
+  it("计划存在不等于数据库已经恢复；已核实只能跟在已应用之后", () => {
+    // planned + 未核实：计划只是等待重启。
     expect(
-      DatabaseRestoreStateSchema.safeParse({
-        plan,
-        currentSignature: "0123456789abcdef0123456789abcdef",
-        verified: false,
-      }).success
+      DatabaseRestoreStateSchema.safeParse({ plan, verified: false }).success
     ).toBe(true)
+    // 未应用就宣称核实：谎报，拒绝。
     expect(
-      DatabaseRestoreStateSchema.safeParse({
-        plan,
-        currentSignature: "0123456789abcdef0123456789abcdef",
-        verified: true,
-      }).success
-    ).toBe(true)
-    // 没有当前库签名就不能宣称已经核实恢复
-    expect(
-      DatabaseRestoreStateSchema.safeParse({
-        plan,
-        currentSignature: null,
-        verified: true,
-      }).success
+      DatabaseRestoreStateSchema.safeParse({ plan, verified: true }).success
     ).toBe(false)
+    // applied + 已核实：恢复执行通过复验、启动迁移通过。
     expect(
       DatabaseRestoreStateSchema.safeParse({
-        plan: null,
-        currentSignature: null,
+        plan: { ...plan, status: "applied" as const },
+        verified: true,
+      }).success
+    ).toBe(true)
+    // applied 但服务未确认核实：允许如实上报，不强制 true。
+    expect(
+      DatabaseRestoreStateSchema.safeParse({
+        plan: { ...plan, status: "applied" as const },
         verified: false,
       }).success
+    ).toBe(true)
+    expect(
+      DatabaseRestoreStateSchema.safeParse({ plan: null, verified: false })
+        .success
     ).toBe(true)
   })
 })

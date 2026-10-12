@@ -1,10 +1,8 @@
-import { existsSync } from "node:fs"
 import {
   PublicOperationError,
   publicSystemError,
 } from "@server/common/public-error"
 import { toTaskHttpResponse } from "@server/common/tasks/response"
-import { DATABASE_FILE } from "@server/env"
 import type { TaskRuntime } from "@server/tasks/runtime"
 import {
   contract,
@@ -18,10 +16,8 @@ import { ApiPath } from "@shared/api-path"
 import { formatBytes } from "@shared/format"
 import { initServer } from "@ts-rest/express"
 import type express from "express"
-import { computeContentSignature } from "./catalog"
 import { DatabaseBackupError } from "./files"
 import {
-  appliedSignatureOf,
   cancelRestorePlan,
   readRestorePlan,
   submitRestorePlan,
@@ -141,8 +137,10 @@ export const createDatabaseBackupsRouter = (runtime: TaskRuntime) =>
       }
     },
 
-    // 恢复状态：计划状态与「当前库是否已核实就是这份备份」分开表达。
-    // 只有计划已应用时才对当前库做 GB 级流式签名计算，常规查询零读盘。
+    // 恢复状态：已核实 = 恢复执行成功并通过复验（完整性、结构与应用必要
+    // 表）；服务能应答即表示启动迁移已通过，因此 applied 即已核实。
+    // 不与后续写入的库字节比对：运行中必然持续写库，字节比对永远不成立；
+    // 恢复完成时的字节指纹只记录在计划回执里作诊断，不参与判定。
     getDatabaseRestoreState: async () => {
       try {
         const read = readRestorePlan()
@@ -150,23 +148,11 @@ export const createDatabaseBackupsRouter = (runtime: TaskRuntime) =>
           throw new PublicOperationError(500, "恢复计划文件损坏，无法读取状态")
         }
         const plan = read.plan
-        let currentSignature: string | null = null
-        if (plan !== null && plan.status === "applied") {
-          currentSignature = existsSync(DATABASE_FILE)
-            ? await computeContentSignature(DATABASE_FILE)
-            : null
-        }
-        const verified =
-          plan !== null &&
-          plan.status === "applied" &&
-          currentSignature !== null &&
-          appliedSignatureOf(plan) === currentSignature
         return {
           status: 200 as const,
           body: {
             plan: plan === null ? null : toContractRestorePlan(plan),
-            currentSignature,
-            verified,
+            verified: plan !== null && plan.status === "applied",
           },
         }
       } catch (error) {

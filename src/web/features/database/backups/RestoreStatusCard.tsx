@@ -37,9 +37,9 @@ export const restoreStatusLabel = (status: DatabaseRestoreStatus): string =>
 /**
  * 恢复状态 → 可读结论。
  *
- * 四态区分，且「已恢复」只以 `verified` 为准：计划存在（planned/applying）
- * 不代表数据库已换；applied 但未核实必须说清是签名不一致还是读取失败；
- * unknown 必须带上服务端给的原因，不能含糊成「未知」两个字。
+ * 四态区分：计划存在（planned/applying）不代表数据库已换；applied 即
+ * 已恢复并核实——恢复执行通过复验、启动迁移已通过，这是服务端 verified
+ * 的语义；unknown 必须带上服务端给的原因，不能含糊成「未知」两个字。
  */
 export const describeRestoreState = (
   state: DatabaseRestoreState | null
@@ -72,20 +72,17 @@ export const describeRestoreState = (
         detail: `${target} · ${plan.message}`,
       }
     case "applied":
+      // verified 表示恢复执行通过复验且启动迁移已通过；计划未应用时为 false。
       return state?.verified
         ? {
             tone: "ok",
             title: "已恢复并核实：当前数据库就是这份备份",
-            detail: target,
+            detail: `${target} · 恢复执行已通过完整性与结构复验，启动迁移也已通过`,
           }
         : {
             tone: "danger",
-            title: "计划已应用，但当前数据库尚未核实为这份备份",
-            detail: `${target} · ${
-              state?.currentSignature === null
-                ? "当前库签名读取失败"
-                : "当前库签名与备份不一致"
-            }，请人工确认当前库内容`,
+            title: "计划显示已应用，但服务未确认核实结果",
+            detail: `${target} · 请重新读取状态；若持续如此请联系维护者检查恢复计划`,
           }
     case "failed":
       return {
@@ -147,9 +144,6 @@ export const RestoreStatusCard = (props: RestoreStatusCardProps) => {
         {plan === null ? null : (
           <span className="text-muted-foreground text-xs">
             最近更新 {formatTimestamp(plan.updatedAt / 1000)}
-            {state?.currentSignature === null
-              ? " · 当前库签名：读取失败"
-              : ` · 当前库签名：${state?.currentSignature?.slice(0, 16)}…`}
           </span>
         )}
       </AlertDescription>

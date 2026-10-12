@@ -637,12 +637,12 @@ export const runPendingRestore = async (
     const contentSignature = await computeContentSignature(paths.databaseFile)
     const applied = transitionRestorePlan("applied", {
       phase: "completed",
-      message: `恢复已完成并核实（finalSignature=${contentSignature}）：当前库与 ${plan.backupFileName} 一致${safetyBackupId !== null ? `，原库已备份为安全备份 ${safetyBackupId}` : ""}`,
+      message: `恢复已完成并复验通过（finalSignature=${contentSignature}）：当前库与 ${plan.backupFileName} 一致${safetyBackupId !== null ? `，原库已备份为安全备份 ${safetyBackupId}` : ""}`,
       context,
     })
     // 只报告数据层结果；整体成功由入口在启动迁移通过后宣布。
     console.warn(
-      `[mac-manager] 恢复数据已应用并核实：计划 ${applied.id}，当前库签名 ${contentSignature.slice(0, 16)}；启动迁移通过后才算整体完成`
+      `[mac-manager] 恢复数据已应用并复验通过：计划 ${applied.id}，当前库签名 ${contentSignature.slice(0, 16)}；启动迁移通过后才算整体完成`
     )
     return {
       status: "applied",

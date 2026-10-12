@@ -26,7 +26,6 @@ import {
   TaskHostError,
   type TaskOutcome,
 } from "@server/common/tasks/worker-host"
-import { computeContentSignature } from "@server/database/backups/catalog"
 import {
   submitRestorePlan,
   transitionRestorePlan,
@@ -319,12 +318,13 @@ describe("恢复计划", () => {
     expect(again.body.code).toBe("restore_not_cancellable")
   })
 
-  it("恢复状态：无计划 200 且不冒充已恢复；已应用时按签名核实 verified", async () => {
+  it("恢复状态：无计划 200 且不冒充已恢复；已应用即已核实", async () => {
     const empty = await get(ApiPath.databaseBackupRestore)
     expect(empty.status).toBe(200)
     expect(empty.body.plan).toBeNull()
-    expect(empty.body.currentSignature).toBeNull()
     expect(empty.body.verified).toBe(false)
+    // 核实不再依赖当前库字节比对：签名字段已随语义调整移除。
+    expect(empty.body.currentSignature).toBeUndefined()
 
     const backup = await makeBackup()
     submitRestorePlan({
@@ -334,25 +334,25 @@ describe("恢复计划", () => {
     const pending = await get(ApiPath.databaseBackupRestore)
     expect(pending.status).toBe(200)
     expect(pending.body.plan.status).toBe("planned")
-    // 未应用时不对 GB 级当前库做签名计算：不拿 null 冒充核实结果。
-    expect(pending.body.currentSignature).toBeNull()
     expect(pending.body.verified).toBe(false)
 
-    // 模拟恢复完成：把最终库签名写进 applied 回执，接口据此核实。
-    const finalSignature = await computeContentSignature(DATABASE_FILE)
+    // 模拟恢复执行完成：计划进入 applied，即已通过复验、可判已核实。
     transitionRestorePlan("applying", {
       phase: "switching",
       message: "切换准备（测试模拟）",
     })
     transitionRestorePlan("applied", {
       phase: "completed",
-      message: `恢复已完成并核实（finalSignature=${finalSignature}）：测试模拟`,
+      message:
+        "恢复已完成并复验通过（finalSignature=" +
+        "a".repeat(64) +
+        "）：测试模拟",
     })
     const applied = await get(ApiPath.databaseBackupRestore)
     expect(applied.status).toBe(200)
     expect(applied.body.plan.status).toBe("applied")
-    expect(applied.body.currentSignature).toBe(finalSignature)
     expect(applied.body.verified).toBe(true)
+    expect(applied.body.currentSignature).toBeUndefined()
   })
 })
 

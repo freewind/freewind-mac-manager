@@ -18,19 +18,6 @@ import { Copy } from "lucide-react"
 import { toast } from "sonner"
 import { SOURCE_LABELS, shortSignature } from "./labels"
 
-/** 签名比对结论：当前库读不到签名时不能假装比过。 */
-export const signatureConclusion = (
-  backupSignature: string,
-  currentSignature: string | null
-): string => {
-  if (currentSignature === null) {
-    return "无法读取当前库签名，恢复前无法比对"
-  }
-  return currentSignature === backupSignature
-    ? "当前数据库与这份备份的内容一致"
-    : "当前数据库与这份备份不同：恢复会用这份备份整份替换当前数据库"
-}
-
 const copySignature = async (signature: string): Promise<void> => {
   try {
     await navigator.clipboard.writeText(signature)
@@ -45,8 +32,6 @@ export type RestorePlanDialogProps = {
   onOpenChange: (open: boolean) => void
   /** 选中的备份；带列表当时读到的内容签名。 */
   backup: DatabaseBackup | null
-  /** 当前库内容签名；读取失败时是 null。 */
-  currentSignature: string | null
   busy: boolean
   failure: string | null
   unknownNotice: string | null
@@ -58,8 +43,9 @@ export type RestorePlanDialogProps = {
 }
 
 /**
- * 恢复确认：写清目标备份的事实、签名三方比对与「提交 ≠ 已恢复」，
- * 让用户在按下去之前就知道重启后会发生什么。
+ * 恢复确认：写清目标备份的事实与「提交 ≠ 已恢复」，让用户在按下去之前
+ * 就知道重启后会发生什么。当前库签名不在此展示：核实由服务端在恢复
+ * 执行时完成（完整性与结构复验），确认阶段不做 GB 级字节比对。
  */
 export const RestorePlanDialog = (props: RestorePlanDialogProps) => {
   const backup = props.backup
@@ -110,20 +96,6 @@ export const RestorePlanDialog = (props: RestorePlanDialogProps) => {
               复制完整签名
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-muted-foreground">当前数据库的签名</span>
-            <span className="font-mono">
-              {props.currentSignature === null
-                ? "读取失败"
-                : shortSignature(props.currentSignature)}
-            </span>
-          </div>
-          <p className="text-foreground">
-            {signatureConclusion(
-              backup.contentSignature,
-              props.currentSignature
-            )}
-          </p>
         </div>
 
         {blocked === null ? null : (

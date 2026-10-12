@@ -470,7 +470,6 @@ export const BackupsPanel = () => {
           if (!open) actions.closeRestore()
         }}
         backup={actions.restoreTarget}
-        currentSignature={model.restore?.currentSignature ?? null}
         busy={actions.busy === "restore"}
         failure={actions.restoreFailure}
         unknownNotice={actions.restoreUnknown}

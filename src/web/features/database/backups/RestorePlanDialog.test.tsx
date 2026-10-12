@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { toast } from "sonner"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { RestorePlanDialog, signatureConclusion } from "./RestorePlanDialog"
+import { RestorePlanDialog } from "./RestorePlanDialog"
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), {
@@ -39,7 +39,6 @@ const renderDialog = (
     open: true,
     onOpenChange: vi.fn(),
     backup: backup(),
-    currentSignature: `ffffffff${"0".repeat(24)}`,
     busy: false,
     failure: null,
     unknownNotice: null,
@@ -67,25 +66,8 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe("签名比对结论", () => {
-  it("读不到当前库签名时不说「一致」也不说「不一致」", () => {
-    expect(signatureConclusion(SIGNATURE, null)).toBe(
-      "无法读取当前库签名，恢复前无法比对"
-    )
-  })
-
-  it("一致与不一致分开说清后果", () => {
-    expect(signatureConclusion(SIGNATURE, SIGNATURE)).toBe(
-      "当前数据库与这份备份的内容一致"
-    )
-    expect(signatureConclusion(SIGNATURE, "9".repeat(32))).toContain(
-      "恢复会用这份备份整份替换当前数据库"
-    )
-  })
-})
-
 describe("恢复确认框", () => {
-  it("写清目标备份的事实、签名前 8 位与三方比对", () => {
+  it("写清目标备份的事实与备份签名前 8 位", () => {
     renderDialog()
     expect(
       screen.getByText("snapshots-1791700000000-aaa111.sqlite3")
@@ -93,14 +75,9 @@ describe("恢复确认框", () => {
     expect(screen.getByText(/1\.0 GB · 手工创建 · 创建于/)).toBeTruthy()
     expect(screen.getByText("规模：12 表 / 340 行")).toBeTruthy()
     expect(screen.getByText("文件完整性：完整")).toBeTruthy()
-    // 备份签名与当前库签名都只显示前 8 位
+    // 只展示备份签名前 8 位；当前库签名不在确认阶段比对
     expect(screen.getByText("1234abcd…")).toBeTruthy()
-    expect(screen.getByText("ffffffff…")).toBeTruthy()
-    expect(
-      screen.getByText(
-        "当前数据库与这份备份不同：恢复会用这份备份整份替换当前数据库"
-      )
-    ).toBeTruthy()
+    expect(screen.queryByText("当前数据库的签名")).toBeNull()
   })
 
   it("复制按钮复制完整签名，不是截断后的 8 位", async () => {
@@ -115,12 +92,6 @@ describe("恢复确认框", () => {
     renderDialog()
     await user.click(screen.getByRole("button", { name: /复制完整签名/ }))
     expect(writeText).toHaveBeenCalledWith(SIGNATURE)
-  })
-
-  it("当前库签名读不到时如实说明无法比对", () => {
-    renderDialog({ currentSignature: null })
-    expect(screen.getByText("读取失败")).toBeTruthy()
-    expect(screen.getByText("无法读取当前库签名，恢复前无法比对")).toBeTruthy()
   })
 
   it("关键影响用大字说明：提交不等于已恢复", () => {

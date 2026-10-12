@@ -22,7 +22,6 @@ vi.mock("@shared/client-api", async (importOriginal) => ({
 
 const state = (over: Partial<DatabaseRestoreState>): DatabaseRestoreState => ({
   plan: null,
-  currentSignature: null,
   verified: false,
   ...over,
 })
@@ -93,7 +92,6 @@ describe("恢复状态的轮询规则", () => {
       restoreStatePollMs(
         state({
           plan: plan("applied"),
-          currentSignature: "b".repeat(32),
           verified: true,
         })
       )
@@ -113,7 +111,6 @@ describe("恢复状态查询", () => {
       .mockResolvedValue(
         state({
           plan: plan("applied"),
-          currentSignature: "b".repeat(32),
           verified: true,
         })
       )

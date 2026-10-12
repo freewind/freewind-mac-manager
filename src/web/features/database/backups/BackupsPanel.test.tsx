@@ -77,7 +77,6 @@ const listBody = (
 
 const idleRestore: DatabaseRestoreState = {
   plan: null,
-  currentSignature: null,
   verified: false,
 }
 

@@ -193,12 +193,18 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 | 导入已有的 SQLite 备份：流式接收、子进程校验（完整性 + 应用必要表）、原子发布 | 导入未经校验的文件、WAL/SHM 旁置文件或非 SQLite 内容 |
 | 下载备份原文（octet-stream + 服务端附件名 + 明确长度） | 把路径或任意 URL 当下载目标（只按备份 ID 定位） |
 | 删除备份：逐项结果与内容签名核对，失败项如实列出，不整批回滚 | 无签名的盲删、删除仍被恢复计划引用的备份 |
-| 提交/取消恢复计划与查询状态：`plan`、`currentSignature`、`verified` 三者分开 | 用计划存在就宣称「已恢复」；已应用或执行中的计划再取消 |
+| 提交/取消恢复计划与查询状态：`plan` 与 `verified` 分开；已核实 = 恢复执行通过复验（完整性、结构与应用必要表）且启动迁移已通过 | 用计划存在就宣称「已恢复」；已应用或执行中的计划再取消 |
 | 恢复执行前自动生成 `pre_restore` 安全备份 | 恢复期间执行写入（新请求按 `409` 拒绝，结果未知须重新读取） |
 
 **`201` 不等于已恢复**：提交计划的 `201` 只代表计划创建成功；恢复由启动维护
 屏障在**下次启动**执行（先等待已登记的数据库使用者退出，绝不杀进程），
 迁移通过后应用才继续启动。
+
+**已核实的语义**：`verified=true` 表示恢复执行成功并通过复验（完整性、结构
+与应用必要表），且服务能应答状态即意味着启动迁移已通过。它不与后续写入的
+库字节比对——运行中流量采样与业务操作必然持续写库，字节比对在生产上永远
+不成立。恢复完成时的库字节指纹记录在计划回执（`finalSignature`）里，仅作
+诊断，不参与判定。
 
 ### 配置项
 
@@ -219,7 +225,7 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 | `POST /api/database/backups`（创建） | `201` 已发布 / `202` 受理回执 | 任务提交错误走公共 `ApiError`：`409`（已有创建任务未跑完，`executionStatus: not_started`）；缺 `x-task-request-id` → `400` |
 | `POST /api/database/backups/delete` | `200` + `{deleted, failed}` 逐项结果 | 入参不合约 `400`（超 100 条在契约层拒绝） |
 | `POST /api/database/backups/restore`（提交计划） | `201` 计划已创建（**非已恢复**） | `404 backup_not_found`、`409 signature_mismatch`、`409 restore_plan_pending` |
-| `GET /api/database/backups/restore` | `200` + `{plan, currentSignature, verified}` | 计划文件损坏 → `500` |
+| `GET /api/database/backups/restore` | `200` + `{plan, verified}`（已核实 = 计划 applied） | 计划文件损坏 → `500` |
 | `DELETE /api/database/backups/restore` | `200` 已取消 | `404` 无计划、`409 restore_not_cancellable` |
 | `POST /api/database/backups/upload`（传输例外） | `201` 导入完成 | `413 too_large` 超 8 GiB、`400 unsupported_format` 非 SQLite、`400 backup_invalid` 空内容或形态不合格 |
 | `GET /api/database/backups/:backupId/download`（传输例外） | `200` 文件流 | `404 backup_not_found`、`400` 发布后被改动 |
@@ -246,11 +252,6 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
   规避写法：验收测试每条用例重建临时库（新源），单用例真实备份不超过两次；
   需要多份备份的 `service.test.ts` 删除用例改为「一次真备份 + 两份同内容
   克隆手工登记」，逐项删除断言不变。
-- **`verified=true` 只在恢复完成瞬间成立**：回执签名是屏障结束时的库文件
-  字节，而启动迁移与协作域初始化会写库，服务首次可查询时字节已不同于回执，
-  端点上的 `verified` 会是 `false`。验收在屏障结束、服务起来之前用状态端点
-  同一比对逻辑断言「回执签名 == 文件签名」（即 `verified=true` 分支的判定
-  输入一致且非空）。此差异属任务 14 的设计问题，待另立任务处理。
 - **恢复计划旁置存储**：计划文件损坏时启动报 `unknown` 并保留文件，不猜测、
   不自动清理；`GET /restore` 对损坏计划返回 `500`。
 - 上传下载是传输例外，不在 JSON 契约内；路径、上限与认证语义在
@@ -281,9 +282,10 @@ pnpm test                                                        # 全量
 | 8 | 超过 100 条时契约 400，一条也不执行 | 101 条 → `400` |
 | 9 | 提交计划 201 只代表计划创建：404、409 签名不符、409 计划待执行 | 缺失 `404`、错签名 `409 signature_mismatch`、`201` 后当前数据不变、重复 `409 restore_plan_pending`、状态三字段分开 |
 | 10 | 取消：无计划 404、取消 200、再取消 409 restore_not_cancellable | 状态迁移与不可取消语义 |
-| 11 | 屏障执行恢复：数据回到备份、迁移通过才起服务、回执与文件签名一致 | 提交不改数据 → 屏障执行 `applied` → 屏障后回执签名 == 文件 sha256（`verified=true` 分支判定）→ 迁移通过 → 新服务查询 `plan=applied` 且 `currentSignature` 非空；`pre_restore` 安全备份在列表中 |
+| 11 | 屏障执行恢复：数据回到备份、迁移通过才起服务、已应用即已核实 | 提交不改数据 → 屏障执行 `applied` → 回执记录 `finalSignature`（诊断用）→ 迁移通过 → 新服务查询 `plan=applied` 且 `verified=true`（无签名字段）；`pre_restore` 安全备份在列表中 |
 | 12 | 来源在提交后被改动：恢复明确失败，计划报 failed，当前库不动 | 篡改备份文件后执行 → `failed`，当前库保持原数据，端点如实报 `failed` |
 | 13 | 全部备份端点未带凭据都 401，不返回任何数据 | 7 个 JSON 端点 + 下载 + 上传全部 `401` |
+| 14 | 恢复后启动流程写库：服务可查询时 verified 仍为 true | 迁移 + 模拟采样写入后查询：`plan=applied` 且 `verified=true`（核实不依赖字节比对）；数据仍是恢复内容 |
 
 模块级测试（不在本节重复断言）：`backups/` 下 `service.test.ts`、
 `restore.test.ts`、`restore-plan.test.ts`、`handlers.test.ts`、

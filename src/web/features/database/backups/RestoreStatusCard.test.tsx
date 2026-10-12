@@ -21,7 +21,6 @@ const plan = (
 
 const state = (over: Partial<DatabaseRestoreState>): DatabaseRestoreState => ({
   plan: null,
-  currentSignature: null,
   verified: false,
   ...over,
 })
@@ -41,30 +40,21 @@ describe("恢复状态的四种说法", () => {
     expect(summary.tone).toBe("pending")
   })
 
-  it("已恢复只以 verified 为准，并给出可核实的依据", () => {
+  it("已应用且已核实：恢复执行通过复验、启动迁移通过", () => {
     const summary = describeRestoreState(
-      state({
-        plan: plan("applied"),
-        currentSignature: "b".repeat(32),
-        verified: true,
-      })
+      state({ plan: plan("applied"), verified: true })
     )
     expect(summary.title).toBe("已恢复并核实：当前数据库就是这份备份")
+    expect(summary.detail).toContain("复验")
     expect(summary.tone).toBe("ok")
   })
 
-  it("applied 但未核实：区分签名不一致与签名读取失败", () => {
-    const mismatch = describeRestoreState(
-      state({ plan: plan("applied"), currentSignature: "c".repeat(32) })
+  it("已应用但服务未确认核实：如实上报，不冒充已核实", () => {
+    const summary = describeRestoreState(
+      state({ plan: plan("applied"), verified: false })
     )
-    expect(mismatch.title).toBe("计划已应用，但当前数据库尚未核实为这份备份")
-    expect(mismatch.detail).toContain("当前库签名与备份不一致")
-    expect(mismatch.tone).toBe("danger")
-
-    const unreadable = describeRestoreState(
-      state({ plan: plan("applied"), currentSignature: null })
-    )
-    expect(unreadable.detail).toContain("当前库签名读取失败")
+    expect(summary.title).toBe("计划显示已应用，但服务未确认核实结果")
+    expect(summary.tone).toBe("danger")
   })
 
   it("失败、取消、结果未知各自说清后果", () => {

@@ -36,9 +36,9 @@ export const RESTORE_STATE_POLL_MS = 5000
 /**
  * 恢复状态要不要继续轮询。
  *
- * `verified=true` 必须立刻停：计划进入 applied 之后，服务端每轮都会流式重算
- * 整库内容签名（本机库 1.8GB，单次 1–2 秒 CPU 与磁盘 IO），已经核实过就不该
- * 再算一次。没有计划、以及 applied / failed / cancelled 这些终态同样不轮询，
+ * `verified=true` 立刻停：核实由服务端在恢复执行时完成（完整性与结构
+ * 复验 + 启动迁移通过），计划进入 applied 后不再有需要等待的变化。
+ * 没有计划、以及 applied / failed / cancelled 这些终态同样不轮询，
  * 只有等待重启生效（planned）与正在应用（applying）才需要盯着。
  */
 export const restoreStatePollMs = (
