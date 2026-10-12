@@ -1,5 +1,3 @@
-import { Add01Icon, PencilEdit02Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type {
   DatabaseColumn,
   DatabaseRecord,
@@ -35,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@web/components/ui/select"
+import { Pencil, Plus } from "lucide-react"
 import { useState } from "react"
 import {
   buildInsertValues,
@@ -320,10 +319,11 @@ export const RecordFormDialog = (props: RecordFormDialogProps) => {
             disabled={blockedByUnknown}
             onClick={submit}
           >
-            <HugeiconsIcon
-              icon={isInsert ? Add01Icon : PencilEdit02Icon}
-              aria-hidden="true"
-            />
+            {isInsert ? (
+              <Plus aria-hidden="true" />
+            ) : (
+              <Pencil aria-hidden="true" />
+            )}
             {isInsert ? "新增记录" : "保存修改"}
           </ActionButton>
         </DialogFooter>

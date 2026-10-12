@@ -1,9 +1,3 @@
-import {
-  Folder01Icon,
-  MoreHorizontalIcon,
-  RefreshIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
 import {
   DropdownMenu,
@@ -22,6 +16,7 @@ import {
   SEARCH_SUBTREE_DEPTH,
 } from "@web/features/files/queries"
 import type { FilesModel } from "@web/features/files/useFiles"
+import { Folder, MoreHorizontal, RefreshCw } from "lucide-react"
 import { Fragment } from "react"
 
 type FilesToolbarProps = {
@@ -60,7 +55,7 @@ export const FilesToolbar = ({
         variant="outline"
         onClick={onOpenTree}
       >
-        <HugeiconsIcon icon={Folder01Icon} />
+        <Folder />
         目录
       </Button>
     ) : null}
@@ -74,7 +69,7 @@ export const FilesToolbar = ({
         disabled={action.disabled}
         onClick={action.run}
       >
-        <HugeiconsIcon icon={action.icon} />
+        <action.icon />
         {action.label}
       </Button>
     ))}
@@ -90,7 +85,7 @@ export const FilesToolbar = ({
           />
         }
       >
-        <HugeiconsIcon icon={MoreHorizontalIcon} />
+        <MoreHorizontal />
         操作
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -104,7 +99,7 @@ export const FilesToolbar = ({
               disabled={action.disabled}
               onClick={action.run}
             >
-              <HugeiconsIcon icon={action.icon} />
+              <action.icon />
               {action.label}
             </DropdownMenuItem>
           </Fragment>
@@ -118,7 +113,7 @@ export const FilesToolbar = ({
       variant="outline"
       onClick={model.refresh}
     >
-      <HugeiconsIcon icon={RefreshIcon} />
+      <RefreshCw />
       刷新
     </Button>
 

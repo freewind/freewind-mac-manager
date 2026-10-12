@@ -1,5 +1,3 @@
-import { Delete02Icon, PencilEdit02Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { DatabaseRecord, DatabaseTable } from "@shared/api-contract"
 import { describeError } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -12,6 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@web/components/ui/tooltip"
+import { Pencil, Trash2 } from "lucide-react"
 import { formatRecordKey, sqliteValueTypeLabel } from "./format"
 import { SqliteValueView } from "./RecordList"
 
@@ -75,7 +74,7 @@ export const RecordDetails = (props: RecordDetailsProps) => {
           disabled={!props.canEdit || props.busy}
           onClick={props.onEdit}
         >
-          <HugeiconsIcon icon={PencilEdit02Icon} aria-hidden="true" />
+          <Pencil aria-hidden="true" />
           修改记录
         </Button>
         <Button
@@ -84,7 +83,7 @@ export const RecordDetails = (props: RecordDetailsProps) => {
           disabled={!props.canDelete || props.busy}
           onClick={props.onDelete}
         >
-          <HugeiconsIcon icon={Delete02Icon} aria-hidden="true" />
+          <Trash2 aria-hidden="true" />
           删除记录
         </Button>
       </div>

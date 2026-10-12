@@ -1,11 +1,20 @@
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-  ArrowUp01Icon,
-  File01Icon,
-  Folder01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { ArrowDown, ArrowRight, ArrowUp, Folder } from "lucide-react"
+import { fileTypeIcon } from "../file-icon"
+
+/** 行内类型图标：目录与文件共用同一份扩展名映射。 */
+const EntryTypeIcon = ({
+  kind,
+  name,
+  className,
+}: {
+  kind: "dir" | "file"
+  name: string
+  className?: string
+}) => {
+  const Icon = fileTypeIcon(kind, name)
+  return <Icon className={className} />
+}
+
 import type { FileEntry } from "@shared/api-contract"
 import { formatBytes, formatTimestamp } from "@shared/format"
 import { Button } from "@web/components/ui/button"
@@ -97,7 +106,7 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
         <Empty className="flex-1">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={Folder01Icon} />
+              <Folder />
             </EmptyMedia>
             <EmptyTitle>这个目录是空的</EmptyTitle>
             <EmptyDescription>{model.currentPath}</EmptyDescription>
@@ -160,7 +169,7 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
                       variant="ghost"
                       onClick={model.goToParent}
                     >
-                      <HugeiconsIcon icon={ArrowUp01Icon} />
+                      <ArrowUp />
                       返回上一层
                     </Button>
                   </TableCell>
@@ -213,9 +222,7 @@ const SortHeader = ({
       onClick={() => onSort(sortKey)}
     >
       {label}
-      {activeKey === sortKey ? (
-        <HugeiconsIcon icon={descending ? ArrowDown01Icon : ArrowUp01Icon} />
-      ) : null}
+      {activeKey === sortKey ? descending ? <ArrowDown /> : <ArrowUp /> : null}
     </Button>
   </TableHead>
 )
@@ -264,8 +271,9 @@ const FileRow = ({ model, entry, actions }: FileRowProps) => {
         </TableCell>
         <TableCell className="max-w-0">
           <div className="flex items-center gap-2">
-            <HugeiconsIcon
-              icon={entry.kind === "dir" ? Folder01Icon : File01Icon}
+            <EntryTypeIcon
+              kind={entry.kind}
+              name={entry.name}
               className="shrink-0 text-muted-foreground"
             />
             <Tooltip>
@@ -288,7 +296,7 @@ const FileRow = ({ model, entry, actions }: FileRowProps) => {
                   model.enterDirectory(entry.path)
                 }}
               >
-                <HugeiconsIcon icon={ArrowRight01Icon} />
+                <ArrowRight />
               </Button>
             ) : null}
           </div>
@@ -313,7 +321,7 @@ const FileRow = ({ model, entry, actions }: FileRowProps) => {
               disabled={action.disabled}
               onClick={action.run}
             >
-              <HugeiconsIcon icon={action.icon} />
+              <action.icon />
               {action.label}
             </ContextMenuItem>
           </Fragment>

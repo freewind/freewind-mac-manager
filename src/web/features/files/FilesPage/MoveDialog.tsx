@@ -1,5 +1,3 @@
-import { ArrowUp01Icon, Folder01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { ActionButton } from "@web/components/ActionButton"
 import { Button } from "@web/components/ui/button"
 import {
@@ -21,6 +19,7 @@ import { Skeleton } from "@web/components/ui/skeleton"
 import { buildCrumbs, dirnameOf } from "@web/features/files/domain"
 import { useDirectoryQuery } from "@web/features/files/queries"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
+import { ArrowUp, Folder } from "lucide-react"
 import { useState } from "react"
 import { PathBreadcrumb } from "./PathBreadcrumb"
 
@@ -140,7 +139,7 @@ const MovePicker = ({
                 disabled={submission.busy}
                 onClick={() => setTargetPath(dir.path)}
               >
-                <HugeiconsIcon icon={Folder01Icon} />
+                <Folder />
                 <span className="truncate">{dir.name}</span>
               </Button>
             ))}
@@ -155,7 +154,7 @@ const MovePicker = ({
           disabled={resolved === rootPath || submission.busy}
           onClick={() => setTargetPath(dirnameOf(resolved))}
         >
-          <HugeiconsIcon icon={ArrowUp01Icon} />
+          <ArrowUp />
           上一层
         </Button>
         <Button

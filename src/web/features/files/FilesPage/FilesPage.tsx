@@ -1,15 +1,3 @@
-import {
-  Alert02Icon,
-  Copy01Icon,
-  Download01Icon,
-  FileAddIcon,
-  FolderAddIcon,
-  FolderShared01Icon,
-  FolderTransferIcon,
-  PencilEdit01Icon,
-  TrashIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { FileEntry } from "@shared/api-contract"
 import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -28,6 +16,17 @@ import type { EntryAction } from "@web/features/files/actions"
 import { useFiles } from "@web/features/files/useFiles"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import {
+  AlertTriangle,
+  Copy,
+  Download,
+  FilePlus,
+  FolderInput,
+  FolderPlus,
+  FolderTree,
+  Pencil,
+  Trash2,
+} from "lucide-react"
 import { useState } from "react"
 import { DeleteDialog } from "./DeleteDialog"
 import { DirectoryTree } from "./DirectoryTree"
@@ -86,42 +85,42 @@ export const FilesPage = () => {
     {
       key: "mkdir",
       label: "新建文件夹",
-      icon: FolderAddIcon,
+      icon: FolderPlus,
       disabled: busy,
       run: () => setCreateKind("mkdir"),
     },
     {
       key: "newfile",
       label: "新建文件",
-      icon: FileAddIcon,
+      icon: FilePlus,
       disabled: busy,
       run: () => setCreateKind("newfile"),
     },
     {
       key: "rename",
       label: "重命名",
-      icon: PencilEdit01Icon,
+      icon: Pencil,
       disabled: busy || singleEntry === null,
       run: () => setRenameTarget(singleEntry),
     },
     {
       key: "copy",
       label: "复制到…",
-      icon: Copy01Icon,
+      icon: Copy,
       disabled: busy || noSelection,
       run: () => setTransfer({ mode: "copy", paths: selectedPaths }),
     },
     {
       key: "move",
       label: "移动到…",
-      icon: FolderTransferIcon,
+      icon: FolderInput,
       disabled: busy || noSelection,
       run: () => setTransfer({ mode: "move", paths: selectedPaths }),
     },
     {
       key: "download",
       label: "下载",
-      icon: Download01Icon,
+      icon: Download,
       disabled: downloadable === null,
       run: () => {
         if (downloadable !== null) model.downloadEntry(downloadable)
@@ -130,7 +129,7 @@ export const FilesPage = () => {
     {
       key: "delete",
       label: "删除",
-      icon: TrashIcon,
+      icon: Trash2,
       destructive: true,
       disabled: busy || noSelection,
       run: () => setDeletePaths(selectedPaths),
@@ -162,7 +161,7 @@ export const FilesPage = () => {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-col gap-3 border-b px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <HugeiconsIcon icon={FolderShared01Icon} className="size-4" />
+          <FolderTree className="size-4" />
           <PageHeader title="文件管理" loading={model.isLoading} />
           <div className="ml-auto">
             <FilesToolbar
@@ -186,7 +185,7 @@ export const FilesPage = () => {
       {model.error ? (
         <div className="px-4 py-3">
           <Alert variant="destructive">
-            <HugeiconsIcon icon={Alert02Icon} />
+            <AlertTriangle />
             <AlertTitle>读取目录失败</AlertTitle>
             <AlertDescription>
               {model.error instanceof Error

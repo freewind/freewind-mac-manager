@@ -1,21 +1,4 @@
 import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-  CheckmarkSquare01Icon,
-  ClockIcon,
-  Copy01Icon,
-  File01Icon,
-  Folder01Icon,
-  FolderOpenIcon,
-  Loading03Icon,
-  MergeIcon,
-  MoreHorizontalIcon,
-  RefreshIcon,
-  Search01Icon,
-  TrashIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
-import {
   type GrowthEntry,
   type ScanTaskResult,
   TASK_KINDS,
@@ -108,6 +91,23 @@ import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { useTaskAction } from "@web/hooks/use-task-action"
 import { cn } from "@web/lib/utils"
+import {
+  ArrowDown,
+  ArrowRight,
+  Clock,
+  Copy,
+  File,
+  Folder,
+  FolderOpen,
+  GitMerge,
+  LoaderCircle,
+  type LucideIcon,
+  MoreHorizontal,
+  RefreshCw,
+  Search,
+  SquareCheck,
+  Trash2,
+} from "lucide-react"
 import {
   type ComponentType,
   type ReactNode,
@@ -212,10 +212,7 @@ export const DiskGrowthPage = () => {
             </ToggleGroupItem>
           </ToggleGroup>
           <div className="relative ml-auto w-full md:w-64">
-            <HugeiconsIcon
-              icon={Search01Icon}
-              className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
+            <Search className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
@@ -229,7 +226,7 @@ export const DiskGrowthPage = () => {
               <SheetTrigger
                 render={
                   <Button variant="outline" size="sm" className="min-h-11">
-                    <HugeiconsIcon icon={ClockIcon} aria-hidden="true" />
+                    <Clock aria-hidden="true" />
                     快照
                   </Button>
                 }
@@ -260,7 +257,7 @@ export const DiskGrowthPage = () => {
                   className="min-h-11"
                   aria-label="更多操作"
                 >
-                  <HugeiconsIcon icon={MoreHorizontalIcon} aria-hidden="true" />
+                  <MoreHorizontal aria-hidden="true" />
                 </Button>
               }
             />
@@ -277,7 +274,7 @@ export const DiskGrowthPage = () => {
             busyLabel="扫描中…"
             onClick={() => void scan.run(undefined)}
           >
-            <HugeiconsIcon icon={RefreshIcon} />
+            <RefreshCw />
             立即扫描
           </ActionButton>
         </div>
@@ -290,8 +287,7 @@ export const DiskGrowthPage = () => {
         {scan.task ? (
           <div className="flex flex-wrap items-center gap-2 text-[0.6875rem] text-muted-foreground">
             {scan.task.status === "running" ? (
-              <HugeiconsIcon
-                icon={Loading03Icon}
+              <LoaderCircle
                 className="size-3.5 animate-spin motion-reduce:animate-none"
                 aria-hidden="true"
               />
@@ -592,17 +588,19 @@ const BranchRow = ({
             style={{ paddingLeft: depth * INDENT }}
           >
             {isExpandable ? (
-              <HugeiconsIcon
-                icon={open ? ArrowDown01Icon : ArrowRight01Icon}
-                className="size-3 text-muted-foreground"
-              />
+              open ? (
+                <ArrowDown className="size-3 text-muted-foreground" />
+              ) : (
+                <ArrowRight className="size-3 text-muted-foreground" />
+              )
             ) : (
               <span className="w-3" />
             )}
-            <HugeiconsIcon
-              icon={entry.kind === "dir" ? Folder01Icon : File01Icon}
-              className="size-3.5 text-muted-foreground"
-            />
+            {entry.kind === "dir" ? (
+              <Folder className="size-3.5 text-muted-foreground" />
+            ) : (
+              <File className="size-3.5 text-muted-foreground" />
+            )}
             {/* 名称可能很长：外层格子继续省略，悬停看全文。 */}
             <span className="min-w-0 truncate">
               <Tooltip>
@@ -655,20 +653,20 @@ const BranchRow = ({
             <DropdownMenuTrigger
               render={
                 <Button variant="ghost" size="icon-xs" aria-label="更多操作">
-                  <HugeiconsIcon icon={MoreHorizontalIcon} />
+                  <MoreHorizontal />
                 </Button>
               }
             />
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => void copyRow()}>
-                <HugeiconsIcon icon={Copy01Icon} />
+                <Copy />
                 复制本行信息
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={reveal.busy}
                 onClick={() => void reveal.run(entry.path)}
               >
-                <HugeiconsIcon icon={FolderOpenIcon} />
+                <FolderOpen />
                 在访达中打开
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -676,7 +674,7 @@ const BranchRow = ({
                 variant="destructive"
                 onClick={() => setConfirmOpen(true)}
               >
-                <HugeiconsIcon icon={TrashIcon} />
+                <Trash2 />
                 移到废纸篓
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -736,7 +734,7 @@ const SortableHead = (props: {
 type SnapshotAction = {
   key: string
   label: string
-  icon: typeof TrashIcon
+  icon: LucideIcon
   run: () => void
   destructive?: boolean
   disabled?: boolean
@@ -761,7 +759,7 @@ const renderActions = (actions: SnapshotAction[]): ReactNode => (
         variant={action.destructive ? "destructive" : "default"}
         disabled={action.disabled}
       >
-        <HugeiconsIcon icon={action.icon} />
+        <action.icon />
         {action.label}
       </SnapshotDropdownItem>
     ))}
@@ -777,7 +775,7 @@ const renderContextActions = (actions: SnapshotAction[]): ReactNode => (
         variant={action.destructive ? "destructive" : "default"}
         disabled={action.disabled}
       >
-        <HugeiconsIcon icon={action.icon} />
+        <action.icon />
         {action.label}
       </SnapshotContextItem>
     ))}
@@ -870,7 +868,7 @@ const SnapshotSidebar = ({ snapshots, isLoading, busiest }: SidebarProps) => {
                   {
                     key: "multi",
                     label: store.multiSelect ? "退出多选" : "选择",
-                    icon: CheckmarkSquare01Icon,
+                    icon: SquareCheck,
                     run: () => {
                       if (store.multiSelect) {
                         store.setMultiSelect(false)
@@ -885,14 +883,14 @@ const SnapshotSidebar = ({ snapshots, isLoading, busiest }: SidebarProps) => {
                   {
                     key: "merge",
                     label: "合并所选",
-                    icon: MergeIcon,
+                    icon: GitMerge,
                     disabled: store.checked.length < 2,
                     run: () => setPending({ kind: "merge" }),
                   },
                   {
                     key: "delete",
                     label: "删除这份",
-                    icon: TrashIcon,
+                    icon: Trash2,
                     destructive: true,
                     run: () =>
                       setPending({
@@ -957,7 +955,7 @@ const SnapshotSidebar = ({ snapshots, isLoading, busiest }: SidebarProps) => {
                               aria-label="快照操作"
                               onClick={(event) => event.stopPropagation()}
                             >
-                              <HugeiconsIcon icon={MoreHorizontalIcon} />
+                              <MoreHorizontal />
                             </Button>
                           }
                         />

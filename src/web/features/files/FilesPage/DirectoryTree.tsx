@@ -1,17 +1,16 @@
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-  Folder01Icon,
-  FolderOpenIcon,
-  ShrinkDotIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
 import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { useDirectoryQuery } from "@web/features/files/queries"
 import type { FilesModel } from "@web/features/files/useFiles"
 import { cn } from "@web/lib/utils"
+import {
+  ArrowDown,
+  ArrowRight,
+  CircleDot,
+  Folder,
+  FolderOpen,
+} from "lucide-react"
 
 type DirectoryTreeProps = {
   model: FilesModel
@@ -41,7 +40,7 @@ export const DirectoryTree = ({ model, onNavigate }: DirectoryTreeProps) => {
           className="ml-auto"
           onClick={model.collapseAll}
         >
-          <HugeiconsIcon icon={ShrinkDotIcon} />
+          <CircleDot />
           全部收起
         </Button>
       </div>
@@ -104,9 +103,7 @@ const TreeBranch = ({
             aria-expanded={expanded}
             onClick={() => model.toggleExpanded(path)}
           >
-            <HugeiconsIcon
-              icon={expanded ? ArrowDown01Icon : ArrowRight01Icon}
-            />
+            {expanded ? <ArrowDown /> : <ArrowRight />}
           </Button>
         )}
         <Button
@@ -118,7 +115,7 @@ const TreeBranch = ({
           )}
           onClick={() => onNavigate(path)}
         >
-          <HugeiconsIcon icon={expanded ? FolderOpenIcon : Folder01Icon} />
+          {expanded ? <FolderOpen /> : <Folder />}
           <span className="truncate">{name}</span>
         </Button>
       </div>

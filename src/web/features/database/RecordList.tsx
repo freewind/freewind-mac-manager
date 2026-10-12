@@ -1,5 +1,3 @@
-import { Add01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type {
   DatabaseColumn,
   DatabaseFilter,
@@ -48,6 +46,7 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { Plus, X } from "lucide-react"
 import { useState } from "react"
 import {
   FILTER_OPERATOR_LABELS,
@@ -179,7 +178,7 @@ const FilterEditor = (props: {
         disabled={!column}
         onClick={add}
       >
-        <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+        <Plus aria-hidden="true" />
         添加筛选
       </Button>
     </div>
@@ -379,7 +378,7 @@ export const RecordList = (props: RecordListProps) => {
                     )
                   }
                 >
-                  <HugeiconsIcon icon={Cancel01Icon} aria-hidden="true" />
+                  <X aria-hidden="true" />
                 </button>
               </Badge>
             ))}
