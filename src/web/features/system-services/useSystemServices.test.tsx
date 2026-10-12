@@ -54,12 +54,24 @@ const service: SystemService = {
   plist: "<plist />",
 }
 beforeEach(() => {
+  // 页面用 useIsDesktop 决定桌面/手机布局，这里按桌面渲染
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: true,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }))
   clearPendingRequests()
   stopService.mockReset()
 })
 afterEach(() => {
   cleanup()
   clearPendingRequests()
+  vi.unstubAllGlobals()
 })
 
 describe("system service confirmation", () => {
@@ -124,7 +136,7 @@ describe("system service confirmation", () => {
     client.clear()
   })
 
-  it("plist 原文的长行收在区块内：限高局部滚动、保持等宽不换行、内容不丢", () => {
+  it("plist 原文的长行收在区块内：限高局部滚动、保持等宽不换行、内容不丢", async () => {
     const longLine =
       "<key>ThrottleInterval</key><string>用来验证横向滚动不会把页面撑宽的超长一行</string>"
     const client = new QueryClient({
@@ -142,6 +154,9 @@ describe("system service confirmation", () => {
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
       ),
     })
+
+    // 原文默认收起，先展开面板
+    await userEvent.click(screen.getByRole("button", { name: "查看原文" }))
 
     // 预览容器限高并在自己内部滚动，长行不将页面撑宽
     const scroller = document.querySelector(".max-h-80.overflow-auto")

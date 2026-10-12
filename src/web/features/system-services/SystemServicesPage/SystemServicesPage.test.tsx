@@ -2,7 +2,7 @@
 
 import type { SystemService } from "@shared/api-contract"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, render, screen, within } from "@testing-library/react"
+import { act, cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { TooltipProvider } from "@web/components/ui/tooltip"
 import { clearPendingRequests } from "@web/features/tasks/pending-requests"
@@ -11,9 +11,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { systemServiceKeys } from "../queries"
 import { SystemServicesPage } from "./SystemServicesPage"
 
-const { stopService, toastMock } = vi.hoisted(() => ({
+const { stopService, toastMock, overlayCalls } = vi.hoisted(() => ({
   stopService: vi.fn(),
   toastMock: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+  /** 记录浮层开关回调，用来断言「返回先关详情」而不是离开页面。 */
+  overlayCalls: [] as { open: boolean; close: () => void }[],
 }))
 vi.mock("@shared/client-api", async (original) => ({
   ...(await original<typeof import("@shared/client-api")>()),
@@ -21,7 +23,9 @@ vi.mock("@shared/client-api", async (original) => ({
 }))
 vi.mock("sonner", () => ({ toast: toastMock }))
 vi.mock("@web/hooks/use-history-overlay", () => ({
-  useHistoryOverlay: () => {},
+  useHistoryOverlay: (open: boolean, close: () => void) => {
+    overlayCalls.push({ open, close })
+  },
 }))
 
 /** 复现线上宽度问题：极长的 plist 路径、多参数、长日志路径与环境变量。 */
@@ -86,7 +90,26 @@ const renderPage = () => {
   })
 }
 
+let desktop = true
+
+/** 与 useIsDesktop 一致的匹配媒体查询替身：改 desktop 就切换断点。 */
+const setDesktop = (value: boolean) => {
+  desktop = value
+}
+
 beforeEach(() => {
+  desktop = true
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: desktop,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }))
+  overlayCalls.length = 0
   clearPendingRequests()
   stopService.mockReset()
   toastMock.success.mockClear()
@@ -96,6 +119,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   clearPendingRequests()
+  vi.unstubAllGlobals()
 })
 
 describe("系统服务页", () => {
@@ -189,6 +213,90 @@ describe("系统服务页", () => {
       )
     })
     expect(toastMock.success).toHaveBeenCalledWith("已复制启动命令")
+  })
+
+  it("状态与域筛选默认收起，需要时才展开", async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    // 收起时只留搜索与筛选摘要
+    expect(screen.queryByRole("button", { name: "全部状态" })).toBeNull()
+    expect(screen.getByText(/状态 全部 · 域 全部 · 显示 1 个/)).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: /详细筛选/ }))
+    expect(screen.getByRole("button", { name: "全部状态" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "全部域" })).toBeTruthy()
+  })
+
+  it("详情里能读到启动命令，plist 原文按需展开且滚动留在面板内", async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    // 身份与主要操作固定，元数据里的启动命令始终可达
+    expect(screen.getByText("启动命令")).toBeTruthy()
+    // 原文默认收起，不再常驻占高
+    expect(document.querySelector(".max-h-80.overflow-auto")).toBeNull()
+
+    await user.click(screen.getByRole("button", { name: "查看原文" }))
+    const scroller = document.querySelector(".max-h-80.overflow-auto")
+    expect(scroller).not.toBeNull()
+    const pre = scroller?.querySelector("pre")
+    // 面板自己的滚动与等宽不换行保持不变
+    expect(pre?.className).toContain("whitespace-pre")
+    expect(pre?.className).toContain("w-max")
+  })
+
+  it("手机点选服务后用 Sheet 显示详情，返回先关它而不是离开页面", async () => {
+    setDesktop(false)
+    const user = userEvent.setup()
+    renderPage()
+
+    // 默认只显示列表，不预先打开详情
+    expect(screen.queryByRole("dialog")).toBeNull()
+
+    await user.click(
+      screen.getByRole("button", { name: /ai\.openclaw\.gateway/ })
+    )
+    const sheet = await screen.findByRole("dialog")
+    expect(within(sheet).getByText("服务元数据")).toBeTruthy()
+
+    // 系统返回：调用浮层自己的关闭回调，随后浮层消失
+    const call = overlayCalls.filter((item) => item.open).at(-1)
+    expect(call).toBeDefined()
+    await act(async () => call?.close())
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
+  it("桌面切换服务后详情滚动容器重建，回到顶部", async () => {
+    const user = userEvent.setup()
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { enabled: false, retry: false },
+        mutations: { retry: false },
+      },
+    })
+    client.setQueryData(systemServiceKeys.list, {
+      services: [service, { ...service, label: "second.service", pid: 99 }],
+      skipped: [],
+    })
+    render(<SystemServicesPage />, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    })
+
+    const selector = ".min-h-0.min-w-0.flex-1.overflow-auto"
+    const before = document.querySelector(selector)
+    expect(before).not.toBeNull()
+    expect(before?.textContent).toContain("ai.openclaw.gateway")
+
+    await user.click(screen.getByRole("button", { name: /second\.service/ }))
+    // 固定的身份区已切到新服务（列表项与身份区各一次）
+    expect(screen.getAllByText("second.service").length).toBeGreaterThan(1)
+    const after = document.querySelector(selector)
+    // key 变化重建滚动容器，滚动位置自然回到顶部
+    expect(after).not.toBeNull()
+    expect(after).not.toBe(before)
   })
 
   it("需 root 的服务启停入口为禁用态，且标明原因、点击不触发动作", async () => {
