@@ -200,7 +200,8 @@ export const TableStructure = (props: { table: DatabaseTable }) => {
         </div>
 
         <dl className="grid gap-2 sm:grid-cols-2">
-          <div className="space-y-1">
+          {/* 短值：标签与值并排，不白占一行 */}
+          <div className="flex gap-2">
             <dt className="text-muted-foreground">唯一约束</dt>
             <dd>
               {table.constraints.unique.length === 0
@@ -210,6 +211,7 @@ export const TableStructure = (props: { table: DatabaseTable }) => {
                     .join("；")}
             </dd>
           </div>
+          {/* 值是长 SQL 片段（含 ON DELETE/ON UPDATE），保持标签在上、值换行 */}
           <div className="space-y-1">
             <dt className="text-muted-foreground">外键</dt>
             <dd>
@@ -236,7 +238,7 @@ export const TableStructure = (props: { table: DatabaseTable }) => {
                     .join("；")}
             </dd>
           </div>
-          <div className="space-y-1">
+          <div className="flex gap-2">
             <dt className="text-muted-foreground">触发器</dt>
             <dd>
               {table.triggers.length === 0 ? "无" : table.triggers.join("，")}

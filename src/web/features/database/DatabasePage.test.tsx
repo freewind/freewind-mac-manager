@@ -334,6 +334,37 @@ describe("DatabasePage 浏览", () => {
     }
   })
 
+  it("表结构短标签对与记录主键、签名都改成横排", async () => {
+    stubMatchMedia(true)
+    setUrl("?feature=database&dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /表结构/ })).toBeTruthy()
+    )
+    // 详情只在选中记录后才渲染
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: "查看" }))
+    // 详情固定区：主键与记录签名都是标签在左、值在右
+    const keyLabel = screen
+      .getAllByText("主键")
+      .find((element) => element.tagName === "P")
+    expect(keyLabel?.parentElement?.className).toContain("flex")
+    expect(screen.getByText("记录签名").parentElement?.className).toContain(
+      "flex"
+    )
+    await user.click(screen.getByRole("button", { name: /表结构/ }))
+    // 短值的两对并排；长 SQL 片段的两对保持标签在上、值在下面换行
+    for (const name of ["唯一约束", "触发器"]) {
+      expect(screen.getByText(name).parentElement?.className).toContain("flex")
+    }
+    for (const name of ["外键", "被引用（级联影响）"]) {
+      expect(screen.getByText(name).parentElement?.className).toContain(
+        "space-y-1"
+      )
+    }
+  })
+
   it("表列表为空时给出明确空状态", async () => {
     api.fetchDatabaseTables.mockResolvedValue({ tables: [] })
     renderPage()

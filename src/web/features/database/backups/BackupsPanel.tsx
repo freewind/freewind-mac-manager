@@ -85,7 +85,7 @@ const BackupRow = (props: {
   const otherDownloading = downloadingId !== null && !downloading
 
   return (
-    <TableRow data-selected={selected ? "true" : undefined}>
+    <TableRow className="group" data-selected={selected ? "true" : undefined}>
       <TableCell className="align-top">
         <Checkbox
           aria-label={`选中 ${backup.fileName}`}
@@ -139,8 +139,8 @@ const BackupRow = (props: {
       <TableCell className="align-top whitespace-nowrap text-xs">
         {formatScale(backup)}
       </TableCell>
-      <TableCell className="align-top">
-        <div className="flex flex-col items-start gap-2">
+      <TableCell className="sticky right-0 z-10 bg-background align-top group-hover:bg-muted/50">
+        <div className="flex min-w-max flex-col items-start gap-2">
           {downloading ? (
             <div className="flex flex-col items-start gap-1">
               <Button variant="outline" size="sm" onClick={onCancelDownload}>
@@ -372,7 +372,8 @@ export const BackupsPanel = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10">
+                {/* 选择与短标记列给宽度基准；文件名、创建时间内容不固定，不给 nowrap */}
+                <TableHead className="w-[1%] whitespace-nowrap">
                   <Checkbox
                     aria-label="选中当前页全部备份"
                     checked={allSelected}
@@ -385,11 +386,13 @@ export const BackupsPanel = () => {
                 </TableHead>
                 <TableHead>文件名</TableHead>
                 <TableHead>创建时间</TableHead>
-                <TableHead>大小</TableHead>
-                <TableHead>来源</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>规模</TableHead>
-                <TableHead>操作</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">大小</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">来源</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">状态</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">规模</TableHead>
+                <TableHead className="sticky right-0 z-10 w-[1%] whitespace-nowrap bg-background">
+                  操作
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

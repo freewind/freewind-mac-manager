@@ -191,6 +191,53 @@ describe("备份列表", () => {
   })
 })
 
+describe("备份表列宽", () => {
+  it("选择列与短标记列有宽度基准，文件名与创建时间没有", async () => {
+    mount()
+    await screen.findByText("snapshots-1791700000000-aaa111.sqlite3")
+    for (const name of ["大小", "来源", "状态", "规模"]) {
+      const header = screen.getByRole("columnheader", { name })
+      expect(header.className).toContain("w-[1%]")
+      expect(header.className).toContain("whitespace-nowrap")
+    }
+    const select = screen
+      .getByRole("checkbox", { name: "选中当前页全部备份" })
+      .closest("th")
+    expect(select?.className).toContain("w-[1%]")
+    // 文件名是内容列、创建时间是固定格式时间，都不给 nowrap
+    for (const name of ["文件名", "创建时间"]) {
+      expect(
+        screen.getByRole("columnheader", { name }).className
+      ).not.toContain("w-[1%]")
+    }
+  })
+
+  it("操作列固定在右侧，按钮容器按整排按钮计算列宽", async () => {
+    mount()
+    const fileName = "snapshots-1791700000000-aaa111.sqlite3"
+    await screen.findByText(fileName)
+    const header = screen.getByRole("columnheader", { name: "操作" })
+    for (const className of [
+      "sticky",
+      "right-0",
+      "z-10",
+      "w-[1%]",
+      "whitespace-nowrap",
+      "bg-background",
+    ]) {
+      expect(header.className).toContain(className)
+    }
+    const download = within(rowOf(fileName)).getByRole("button", {
+      name: /下载/,
+    })
+    const cell = download.closest("td")
+    for (const className of ["sticky", "right-0", "bg-background"]) {
+      expect(cell?.className).toContain(className)
+    }
+    expect(download.parentElement?.className).toContain("min-w-max")
+  })
+})
+
 describe("创建备份", () => {
   it("202 受理只提示已交给后台，不谎报已创建", async () => {
     api.createDatabaseBackup.mockResolvedValue({

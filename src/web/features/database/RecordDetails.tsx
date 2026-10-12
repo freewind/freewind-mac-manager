@@ -102,18 +102,19 @@ export const RecordDetails = (props: RecordDetailsProps) => {
           <p className="text-muted-foreground">不能删除：{deleteHint}</p>
         )}
         <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
-          <div className="space-y-1">
-            <p className="text-muted-foreground">主键</p>
-            <p className="font-mono text-xs">
+          {/* 主键与签名都是短值（签名已截断），标签与值并排，不白占一行 */}
+          <div className="flex items-center gap-2">
+            <p className="shrink-0 text-muted-foreground">主键</p>
+            <p className="font-mono text-xs break-all">
               {formatRecordKey(props.record.key)}
             </p>
           </div>
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-muted-foreground">记录签名</p>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <p className="shrink-0 text-muted-foreground">记录签名</p>
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <p className="truncate font-mono text-xs">
+                  <p className="min-w-0 truncate font-mono text-xs">
                     {props.record.signature}
                   </p>
                 }
