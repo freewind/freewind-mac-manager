@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { GroupsTab } from "./GroupsTab"
@@ -86,6 +87,19 @@ const renderTab = () => {
   )
 }
 
+/** 打开成员行的下拉并点选一项；与 PiPage 的 Combobox 交互方式一致。 */
+const pickOption = async (
+  fieldName: RegExp,
+  optionName: string
+): Promise<void> => {
+  const input = screen.getByRole("combobox", { name: fieldName })
+  fireEvent.focus(input)
+  fireEvent.keyDown(input, { key: "ArrowDown" })
+  fireEvent.click(
+    await within(document.body).findByRole("option", { name: optionName })
+  )
+}
+
 beforeEach(() => {
   fetchGroups.mockReset().mockResolvedValue(groupsResponse)
   fetchModels.mockReset().mockResolvedValue(modelsResponse)
@@ -113,12 +127,8 @@ describe("Pi model groups tab", () => {
     fireEvent.change(await screen.findByLabelText("分组 id"), {
       target: { value: "g-new" },
     })
-    fireEvent.change(screen.getByLabelText(/成员 1 Provider/), {
-      target: { value: "alpha" },
-    })
-    fireEvent.change(await screen.findByLabelText(/成员 1 模型/), {
-      target: { value: "model-a" },
-    })
+    await pickOption(/成员 1 Provider/, "alpha")
+    await pickOption(/成员 1 模型/, "model-a")
     fireEvent.click(screen.getByRole("button", { name: "保存" }))
     await waitFor(() => expect(addGroup).toHaveBeenCalledTimes(1))
     expect(addGroup.mock.calls[0][0]).toMatchInlineSnapshot(`
@@ -140,15 +150,30 @@ describe("Pi model groups tab", () => {
     `)
   })
 
+  it("filters provider options by typed text", async () => {
+    renderTab()
+    fireEvent.click(await screen.findByRole("button", { name: "添加分组" }))
+    const input = screen.getByRole("combobox", {
+      name: /成员 1 Provider/,
+    })
+    fireEvent.focus(input)
+    fireEvent.keyDown(input, { key: "ArrowDown" })
+    fireEvent.change(input, { target: { value: "bet" } })
+    expect(
+      await within(document.body).findByRole("option", { name: "beta" })
+    ).toBeTruthy()
+    expect(
+      within(document.body).queryByRole("option", { name: "alpha" })
+    ).toBeNull()
+  })
+
   it("blocks save when a member is incomplete", async () => {
     renderTab()
     fireEvent.click(await screen.findByRole("button", { name: "添加分组" }))
     fireEvent.change(await screen.findByLabelText("分组 id"), {
       target: { value: "g-half" },
     })
-    fireEvent.change(screen.getByLabelText(/成员 1 Provider/), {
-      target: { value: "alpha" },
-    })
+    await pickOption(/成员 1 Provider/, "alpha")
     fireEvent.click(screen.getByRole("button", { name: "保存" }))
     expect(
       await screen.findByText("成员必须同时选择 Provider 和模型")

@@ -32,6 +32,14 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -46,7 +54,6 @@ import {
   FieldLabel,
 } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
-import { Label } from "@web/components/ui/label"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -197,6 +204,18 @@ export const GroupsTab = () => {
     onError: (error) =>
       toast.error(error.message || "删除失败，请刷新配置核实"),
   })
+
+  /** 已配置的 Provider id，供成员行下拉搜索。 */
+  const providerIds = (models.data?.providers ?? []).map(
+    (provider) => provider.id
+  )
+
+  /** 某 Provider 下的模型 id；成员行未选 Provider 时为空。 */
+  const modelIdsFor = (providerId: string): string[] =>
+    (
+      models.data?.providers.find((provider) => provider.id === providerId)
+        ?.provider.models ?? []
+    ).map((model) => model.id)
 
   const updateMember = (index: number, patch: Partial<MemberDraft>): void => {
     if (!draft) return
@@ -400,57 +419,73 @@ export const GroupsTab = () => {
                   {draft.members.map((member, index) => (
                     <div key={member.key} className="flex items-center gap-2">
                       <div className="grid flex-1 grid-cols-2 gap-2">
-                        <Label
-                          className="sr-only"
-                          htmlFor={`member-provider-${index}`}
-                        >
-                          成员 {index + 1} Provider
-                        </Label>
-                        <select
-                          id={`member-provider-${index}`}
-                          className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                        <Combobox
+                          items={providerIds}
                           value={member.provider}
-                          onChange={(event) =>
+                          onValueChange={(value) =>
                             updateMember(index, {
-                              provider: event.target.value,
+                              provider: value ?? "",
                               modelId: "",
                             })
                           }
                         >
-                          <option value="">选择 Provider</option>
-                          {(models.data?.providers ?? []).map((provider) => (
-                            <option key={provider.id} value={provider.id}>
-                              {provider.id}
-                            </option>
-                          ))}
-                        </select>
-                        <Label
-                          className="sr-only"
-                          htmlFor={`member-model-${index}`}
-                        >
-                          成员 {index + 1} 模型
-                        </Label>
-                        <select
-                          id={`member-model-${index}`}
-                          className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                          <ComboboxInput
+                            aria-label={`成员 ${index + 1} Provider`}
+                            className="min-h-11 w-full"
+                            placeholder="选择 Provider"
+                          />
+                          <ComboboxContent>
+                            <ComboboxEmpty>
+                              {providerIds.length === 0
+                                ? "Pi 还没有配置 Provider"
+                                : "无匹配的 Provider"}
+                            </ComboboxEmpty>
+                            <ComboboxList>
+                              {(item) => (
+                                <ComboboxItem
+                                  key={item}
+                                  value={item}
+                                  className="min-h-11"
+                                >
+                                  {item}
+                                </ComboboxItem>
+                              )}
+                            </ComboboxList>
+                          </ComboboxContent>
+                        </Combobox>
+                        <Combobox
+                          items={modelIdsFor(member.provider)}
                           value={member.modelId}
-                          onChange={(event) =>
-                            updateMember(index, {
-                              modelId: event.target.value,
-                            })
+                          onValueChange={(value) =>
+                            updateMember(index, { modelId: value ?? "" })
                           }
                         >
-                          <option value="">选择模型</option>
-                          {(
-                            models.data?.providers.find(
-                              (provider) => provider.id === member.provider
-                            )?.provider.models ?? []
-                          ).map((model) => (
-                            <option key={model.id} value={model.id}>
-                              {model.id}
-                            </option>
-                          ))}
-                        </select>
+                          <ComboboxInput
+                            aria-label={`成员 ${index + 1} 模型`}
+                            className="min-h-11 w-full"
+                            placeholder="选择模型"
+                          />
+                          <ComboboxContent>
+                            <ComboboxEmpty>
+                              {member.provider === ""
+                                ? "请先选择 Provider"
+                                : modelIdsFor(member.provider).length === 0
+                                  ? "该 Provider 没有模型"
+                                  : "无匹配的模型"}
+                            </ComboboxEmpty>
+                            <ComboboxList>
+                              {(item) => (
+                                <ComboboxItem
+                                  key={item}
+                                  value={item}
+                                  className="min-h-11"
+                                >
+                                  {item}
+                                </ComboboxItem>
+                              )}
+                            </ComboboxList>
+                          </ComboboxContent>
+                        </Combobox>
                       </div>
                       <Button
                         type="button"
