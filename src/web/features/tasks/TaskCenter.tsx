@@ -1,5 +1,3 @@
-import { ClockIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { describeError } from "@shared/format"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -20,6 +18,7 @@ import {
 import { Skeleton } from "@web/components/ui/skeleton"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { usePwaStatus } from "@web/hooks/use-pwa-status"
+import { Clock } from "lucide-react"
 import { useState } from "react"
 import { useActiveTasks, useRecentTasks } from "./queries"
 import { TaskCard } from "./TaskCard"
@@ -52,7 +51,7 @@ export const TaskCenter = ({ authenticated }: { authenticated: boolean }) => {
             className="min-h-11"
             aria-label={`任务，进行中 ${count} 个`}
           >
-            <HugeiconsIcon icon={ClockIcon} />
+            <Clock />
             任务
             {count > 0 ? <Badge variant="secondary">{count}</Badge> : null}
           </Button>

@@ -1,5 +1,3 @@
-import { Add01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { AgentChat } from "@web/components/agent-elements/agent-chat"
 import {
   InputBar,
@@ -16,6 +14,7 @@ import {
 } from "@web/components/ui/sheet"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { ArrowRight, Plus } from "lucide-react"
 import { useEffect } from "react"
 import { AiAssistantToolCard } from "./AiAssistantToolCard"
 import { useAiAssistantSettings } from "./queries"
@@ -95,7 +94,7 @@ export const AiAssistantDialog = (props: AiAssistantDialogProps) => {
               disabled={chatRunning}
               onClick={() => chat.reset()}
             >
-              <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+              <Plus aria-hidden="true" />
               新建对话
             </Button>
             {chatRunning ? (
@@ -135,7 +134,7 @@ export const AiAssistantDialog = (props: AiAssistantDialogProps) => {
                       props.onOpenModelSettings?.()
                     }}
                   >
-                    <HugeiconsIcon icon={ArrowRight01Icon} aria-hidden="true" />
+                    <ArrowRight aria-hidden="true" />
                     去设置模型
                   </Button>
                 </AlertDescription>

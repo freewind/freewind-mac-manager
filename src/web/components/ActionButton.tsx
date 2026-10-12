@@ -1,6 +1,5 @@
-import { Loading03Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
+import { LoaderCircle } from "lucide-react"
 import type { ComponentProps, ReactNode } from "react"
 
 type ActionButtonProps = ComponentProps<typeof Button> & {
@@ -25,8 +24,7 @@ export const ActionButton = ({
 }: ActionButtonProps) => (
   <Button {...props} disabled={disabled || busy} aria-busy={busy || undefined}>
     {busy ? (
-      <HugeiconsIcon
-        icon={Loading03Icon}
+      <LoaderCircle
         className="animate-spin motion-reduce:animate-none"
         aria-hidden
       />

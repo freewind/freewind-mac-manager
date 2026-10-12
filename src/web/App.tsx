@@ -1,5 +1,3 @@
-import { ArrowLeft01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { clearAccessPasswordCookie } from "@shared/client-api"
 import { useQueryClient } from "@tanstack/react-query"
 import { AppSidebar, type FeatureKey } from "@web/components/app-sidebar"
@@ -33,6 +31,7 @@ import {
   refreshAuthStatus,
   useAuthStatus,
 } from "@web/hooks/use-auth-status"
+import { ArrowLeft } from "lucide-react"
 import { useEffect, useSyncExternalStore } from "react"
 
 const FEATURE_KEYS: readonly FeatureKey[] = [
@@ -188,7 +187,7 @@ export const App = () => {
               title="返回"
               onClick={goBack}
             >
-              <HugeiconsIcon icon={ArrowLeft01Icon} />
+              <ArrowLeft />
             </Button>
           ) : null}
           <div className="ml-auto flex items-center gap-2">

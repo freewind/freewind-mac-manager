@@ -1,24 +1,4 @@
 import {
-  Activity01Icon,
-  AnalyticsUpIcon,
-  ArrowRight01Icon,
-  ChipIcon,
-  CircleGaugeIcon,
-  ContainerIcon,
-  CpuIcon,
-  DashboardSpeed02Icon,
-  Database01Icon,
-  EthernetPortIcon,
-  FolderShared01Icon,
-  Globe02Icon,
-  Robot01Icon,
-  Router01Icon,
-  ServerStack01Icon,
-  Settings01Icon,
-  Wifi01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -37,6 +17,26 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from "@web/components/ui/sidebar"
+import {
+  Activity,
+  ArrowRight,
+  Bot,
+  ChartLine,
+  CircuitBoard,
+  Container,
+  Cpu,
+  Database,
+  EthernetPort,
+  FolderTree,
+  Gauge,
+  Globe,
+  type LucideIcon,
+  Router,
+  Server,
+  Settings,
+  TrendingUp,
+  Wifi,
+} from "lucide-react"
 
 /** 功能菜单的唯一清单；新增功能只在这里加一项。 */
 export type FeatureKey =
@@ -58,29 +58,29 @@ export type FeatureKey =
 type FeatureItem = {
   key: FeatureKey
   label: string
-  icon: typeof AnalyticsUpIcon
+  icon: LucideIcon
 }
 
 /** 顶层功能，直接平铺。 */
 const FEATURES: FeatureItem[] = [
-  { key: "overview", label: "概览", icon: CircleGaugeIcon },
-  { key: "files", label: "文件管理", icon: FolderShared01Icon },
-  { key: "disk-growth", label: "磁盘增长", icon: AnalyticsUpIcon },
-  { key: "processes", label: "进程管理", icon: CpuIcon },
-  { key: "traffic", label: "流量监控", icon: DashboardSpeed02Icon },
-  { key: "ports", label: "端口管理", icon: EthernetPortIcon },
-  { key: "docker", label: "Docker", icon: ContainerIcon },
-  { key: "database", label: "数据库", icon: Database01Icon },
-  { key: "pi", label: "Pi Agent", icon: Robot01Icon },
-  { key: "hardware", label: "硬件", icon: ChipIcon },
+  { key: "overview", label: "概览", icon: Gauge },
+  { key: "files", label: "文件管理", icon: FolderTree },
+  { key: "disk-growth", label: "磁盘增长", icon: TrendingUp },
+  { key: "processes", label: "进程管理", icon: Cpu },
+  { key: "traffic", label: "流量监控", icon: ChartLine },
+  { key: "ports", label: "端口管理", icon: EthernetPort },
+  { key: "docker", label: "Docker", icon: Container },
+  { key: "database", label: "数据库", icon: Database },
+  { key: "pi", label: "Pi Agent", icon: Bot },
+  { key: "hardware", label: "硬件", icon: CircuitBoard },
 ]
 
 /** 可折叠「服务」组下的子项。 */
 const SERVICES: FeatureItem[] = [
-  { key: "frp", label: "FRP 内网穿透", icon: Globe02Icon },
-  { key: "caddy", label: "Caddy 网关", icon: Router01Icon },
-  { key: "system-services", label: "系统服务", icon: Activity01Icon },
-  { key: "clash-verge", label: "Clash Verge", icon: Wifi01Icon },
+  { key: "frp", label: "FRP 内网穿透", icon: Globe },
+  { key: "caddy", label: "Caddy 网关", icon: Router },
+  { key: "system-services", label: "系统服务", icon: Activity },
+  { key: "clash-verge", label: "Clash Verge", icon: Wifi },
 ]
 
 const SERVICE_KEYS = SERVICES.map((item) => item.key)
@@ -98,7 +98,7 @@ export const AppSidebar = (props: AppSidebarProps) => {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <HugeiconsIcon icon={Settings01Icon} className="size-4" />
+          <Settings className="size-4" />
           <span className="text-sm font-medium group-data-[collapsible=icon]:hidden">
             Mac Manager
           </span>
@@ -115,7 +115,7 @@ export const AppSidebar = (props: AppSidebarProps) => {
                   tooltip={feature.label}
                   onClick={() => onSelect(feature.key)}
                 >
-                  <HugeiconsIcon icon={feature.icon} />
+                  <feature.icon />
                   <span>{feature.label}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -127,12 +127,9 @@ export const AppSidebar = (props: AppSidebarProps) => {
                   isActive={serviceActive}
                   render={<CollapsibleTrigger />}
                 >
-                  <HugeiconsIcon icon={ServerStack01Icon} />
+                  <Server />
                   <span>服务</span>
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    className="ml-auto transition-transform group-data-open/collapsible:rotate-90"
-                  />
+                  <ArrowRight className="ml-auto transition-transform group-data-open/collapsible:rotate-90" />
                 </SidebarMenuButton>
                 <CollapsibleContent>
                   <SidebarMenuSub>
@@ -142,7 +139,7 @@ export const AppSidebar = (props: AppSidebarProps) => {
                           isActive={active === service.key}
                           onClick={() => onSelect(service.key)}
                         >
-                          <HugeiconsIcon icon={service.icon} />
+                          <service.icon />
                           <span>{service.label}</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>

@@ -1,5 +1,3 @@
-import { RefreshIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { activeWriteCount, subscribeWrites } from "@shared/client-api"
 import { useIsMutating } from "@tanstack/react-query"
 import { Button } from "@web/components/ui/button"
@@ -7,6 +5,7 @@ import { usePendingRequests } from "@web/features/tasks/pending-requests"
 import { useActiveTasks } from "@web/features/tasks/queries"
 import { useHasProtectedEdits } from "@web/hooks/use-edit-protection"
 import { usePwaStatus } from "@web/hooks/use-pwa-status"
+import { RefreshCw } from "lucide-react"
 import { useSyncExternalStore } from "react"
 
 export const PwaStatus = () => {
@@ -58,7 +57,7 @@ export const PwaStatus = () => {
             disabled={blocked || !online}
             onClick={applyUpdate}
           >
-            <HugeiconsIcon icon={RefreshIcon} />
+            <RefreshCw />
             更新
           </Button>
         </div>

@@ -1,5 +1,3 @@
-import { RefreshIcon, RotateLeft01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { AiAssistantSettingsInput } from "@shared/api-contract"
 import type { AiAssistantSettingsMutationSchema } from "@shared/api-contract/schemas/ai-assistant"
 import { AI_ASSISTANT_THINKING_LEVELS } from "@shared/api-contract/schemas/ai-assistant"
@@ -25,6 +23,7 @@ import {
 import { Label } from "@web/components/ui/label"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { Textarea } from "@web/components/ui/textarea"
+import { RefreshCw, RotateCcw } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import type { z } from "zod"
@@ -237,7 +236,7 @@ export const SettingsCard = () => {
                 onClick={() => void models.refetch()}
                 disabled={models.isFetching}
               >
-                <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+                <RefreshCw aria-hidden="true" />
                 {models.isFetching ? "正在读取…" : "刷新模型列表"}
               </Button>
               <p className="text-xs text-muted-foreground">
@@ -370,7 +369,7 @@ export const SettingsCard = () => {
                   })
                 }
               >
-                <HugeiconsIcon icon={RotateLeft01Icon} aria-hidden="true" />
+                <RotateCcw aria-hidden="true" />
                 恢复默认提示词
               </Button>
               <p className="text-xs text-muted-foreground">
@@ -400,7 +399,7 @@ export const SettingsCard = () => {
                 onClick={() => void rereadSettings()}
                 disabled={settings.isFetching}
               >
-                <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+                <RefreshCw aria-hidden="true" />
                 {settings.isFetching ? "正在读取…" : "重新读取设置"}
               </Button>
               {!selectionValid ? (

@@ -25,7 +25,7 @@
 - Express 5；开发与生产复用 `createApp()`，前端与 API 同端口，客户端使用相对地址。
 - ts-rest（`@ts-rest/core` / `@ts-rest/express`）+ zod；契约是请求、响应与类型的唯一来源。
 - `node:sqlite`；只使用 `env.ts` 的 `DATABASE_FILE`。
-- shadcn `base-mira` + Tailwind CSS 4；图标用 hugeicons。
+- shadcn `base-mira` + Tailwind CSS 4；业务代码图标用 lucide-react；shadcn 官方组件与 Agent Elements 源码内的图标不改。
 - TanStack Query 管理远程状态，Zustand 管理必要的共享本地状态，`useState` 管理组件内部状态。
 - Biome 统一代码检查、格式化与 import 整理，替代 ESLint + Prettier，不再保留并行工具链。
 - 测试采用 Vitest，组件测试采用 Testing Library；适合快照的稳定输出优先使用 `toMatchInlineSnapshot()`。

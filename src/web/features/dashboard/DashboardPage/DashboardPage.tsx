@@ -1,14 +1,3 @@
-import {
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  CircleGaugeIcon,
-  CpuIcon,
-  HardDriveIcon,
-  MemoryStickIcon,
-  NetworkIcon,
-  RefreshIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { DiskVolume } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
 import { PageHeader } from "@web/components/PageHeader"
@@ -50,6 +39,17 @@ import { AiAssistantButton } from "@web/features/ai-assistant/AiAssistantButton"
 import { buildAiAssistantContext } from "@web/features/ai-assistant/context"
 import { useDashboard } from "@web/features/dashboard/useDashboard"
 import { cn } from "@web/lib/utils"
+import {
+  ArrowDown,
+  ArrowUp,
+  Cpu,
+  Gauge,
+  HardDrive,
+  type LucideIcon,
+  MemoryStick,
+  Network,
+  RefreshCw,
+} from "lucide-react"
 import type { ReactNode } from "react"
 
 /** 端口卡只做摘要：完整列表在「端口管理」页，卡片里不再自己滚。 */
@@ -141,7 +141,7 @@ export const DashboardPage = () => {
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 标题区只留导航与动作：主机信息移进主体滚动区，不常驻占高。 */}
       <header className="flex flex-wrap items-center gap-2 px-4 py-3">
-        <HugeiconsIcon icon={CircleGaugeIcon} className="size-4" />
+        <Gauge className="size-4" />
         <PageHeader title="概览" loading={model.loading} />
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
@@ -156,7 +156,7 @@ export const DashboardPage = () => {
             {model.paused ? "继续刷新" : "暂停刷新"}
           </Button>
           <Button size="sm" variant="outline" onClick={model.refresh}>
-            <HugeiconsIcon icon={RefreshIcon} />
+            <RefreshCw />
             刷新
           </Button>
         </div>
@@ -194,7 +194,7 @@ export const DashboardPage = () => {
         {overview ? (
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
             <MetricCard
-              icon={CpuIcon}
+              icon={Cpu}
               title="CPU 负载"
               value={(overview.cpu.loadAverage[0] ?? 0).toFixed(2)}
               description={`${overview.cpu.coreCount} 核 · 1/5/15 分钟：${overview.cpu.loadAverage
@@ -218,7 +218,7 @@ export const DashboardPage = () => {
             </MetricCard>
 
             <MetricCard
-              icon={MemoryStickIcon}
+              icon={MemoryStick}
               title="内存"
               value={`${formatBytes(overview.memory.used)} / ${formatBytes(overview.memory.total)}`}
               description={
@@ -280,7 +280,7 @@ export const DashboardPage = () => {
             </MetricCard>
 
             <MetricCard
-              icon={HardDriveIcon}
+              icon={HardDrive}
               title="磁盘"
               value={formatBytes(overview.disk[0]?.used ?? 0)}
               description={`系统盘已用 ${formatPercent(
@@ -295,14 +295,14 @@ export const DashboardPage = () => {
             </MetricCard>
 
             <MetricCard
-              icon={NetworkIcon}
+              icon={Network}
               title="网络"
               value={`${formatBytes(overview.network.downloadRate)}/s`}
               description={`${overview.network.interfaceName} · ${overview.network.address}`}
             >
               <div className="flex flex-col gap-2 text-[0.6875rem]">
                 <span className="flex items-center gap-1 text-muted-foreground">
-                  <HugeiconsIcon icon={ArrowDown01Icon} className="size-3" />
+                  <ArrowDown className="size-3" />
                   下载
                   <span className="text-foreground tabular-nums">
                     {formatBytes(overview.network.downloadRate)}/s
@@ -312,7 +312,7 @@ export const DashboardPage = () => {
                   </span>
                 </span>
                 <span className="flex items-center gap-1 text-muted-foreground">
-                  <HugeiconsIcon icon={ArrowUp01Icon} className="size-3" />
+                  <ArrowUp className="size-3" />
                   上传
                   <span className="text-foreground tabular-nums">
                     {formatBytes(overview.network.uploadRate)}/s
@@ -425,7 +425,7 @@ export const DashboardPage = () => {
                 <Empty>
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
-                      <HugeiconsIcon icon={CpuIcon} />
+                      <Cpu />
                     </EmptyMedia>
                     <EmptyTitle>暂无进程数据</EmptyTitle>
                     <EmptyDescription>
@@ -494,7 +494,7 @@ export const DashboardPage = () => {
                 <Empty>
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
-                      <HugeiconsIcon icon={NetworkIcon} />
+                      <Network />
                     </EmptyMedia>
                     <EmptyTitle>没有端口在监听</EmptyTitle>
                     <EmptyDescription>
@@ -512,7 +512,7 @@ export const DashboardPage = () => {
 }
 
 type MetricCardProps = {
-  icon: typeof CpuIcon
+  icon: LucideIcon
   title: string
   value: string
   description: ReactNode
@@ -521,11 +521,12 @@ type MetricCardProps = {
 
 const MetricCard = (props: MetricCardProps) => {
   const { icon, title, value, description, children } = props
+  const Icon = icon
   return (
     <Card className="gap-3 py-4">
       <CardHeader className="px-4">
         <CardDescription className="flex items-center gap-1.5">
-          <HugeiconsIcon icon={icon} className="size-3.5" />
+          <Icon className="size-3.5" />
           {title}
         </CardDescription>
         <CardTitle className="text-lg tabular-nums">{value}</CardTitle>

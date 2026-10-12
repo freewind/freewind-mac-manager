@@ -1,7 +1,6 @@
-import { Link04Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import type { CustomToolRendererProps } from "@web/components/agent-elements/types"
 import { Badge } from "@web/components/ui/badge"
+import { Link2 } from "lucide-react"
 
 /** 后端工具结果是 pi 的 `{ content: [{ type, text }], details }` 形状。 */
 const unwrapToolOutput = (output: unknown): unknown => {
@@ -67,8 +66,7 @@ export const AiAssistantToolCard = (props: CustomToolRendererProps) => {
   return (
     <div className="rounded-md border bg-muted/30 p-2 text-xs">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <HugeiconsIcon
-          icon={Link04Icon}
+        <Link2
           className="size-3.5 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />

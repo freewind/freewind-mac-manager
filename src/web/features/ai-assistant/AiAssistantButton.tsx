@@ -1,6 +1,5 @@
-import { AiBrain01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@web/components/ui/button"
+import { Brain } from "lucide-react"
 import { useAiAssistantLocalStore } from "./store"
 
 type AiAssistantButtonProps = {
@@ -23,7 +22,7 @@ export const AiAssistantButton = (props: AiAssistantButtonProps) => {
       title="AI 助手"
       onClick={() => openWith(props.context)}
     >
-      <HugeiconsIcon icon={AiBrain01Icon} aria-hidden="true" />
+      <Brain aria-hidden="true" />
       AI
     </Button>
   )

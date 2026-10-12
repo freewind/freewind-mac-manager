@@ -1,6 +1,5 @@
-import { Loading03Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { cn } from "cn"
+import { LoaderCircle } from "lucide-react"
 import type { ReactNode } from "react"
 
 type PageHeaderProps = {
@@ -36,8 +35,7 @@ export const PageHeader = ({
           aria-label={`${title} 加载中`}
           className="flex shrink-0 items-center"
         >
-          <HugeiconsIcon
-            icon={Loading03Icon}
+          <LoaderCircle
             className="size-3.5 animate-spin text-muted-foreground motion-reduce:animate-none"
             aria-hidden
           />
