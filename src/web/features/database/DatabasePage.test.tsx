@@ -689,3 +689,160 @@ describe("DatabasePage 删除记录", () => {
     expect(screen.getByText(/不能删除：/)).toBeTruthy()
   })
 })
+
+describe("DatabasePage 主从工作区", () => {
+  const secondRecord: DatabaseRecord = {
+    key: [{ column: "id", value: { type: "integer", value: "8" } }],
+    values: {
+      id: { type: "integer", value: "8" },
+      name: { type: "text", value: "banana" },
+      total: { type: "integer", value: "21" },
+    },
+    signature: "row-signature-8",
+  }
+
+  it("页面有自己的指定高度滚动区，不靠整页兜底", async () => {
+    setUrl("?dbTable=items")
+    renderPage()
+
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    // 记录列表所在列是唯一的列表滚动区
+    const listScroller = document.querySelector(
+      ".min-h-0.min-w-0.flex-1.overflow-auto"
+    )
+    expect(listScroller).not.toBeNull()
+    expect(listScroller?.textContent).toContain("apple")
+  })
+
+  it("桌面左右两列各自滚动：字段滚动、写操作固定在滚动区外", async () => {
+    stubMatchMedia(true)
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+
+    // 未选中时右列给占位，而不是把详情上下堆到列表后面
+    expect(screen.getByText("还没有选中记录")).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "查看" }))
+    await waitFor(() => expect(screen.getByText("记录签名")).toBeTruthy())
+
+    const detailScroller = document.querySelector(
+      ".min-h-0.flex-1.overflow-auto.p-4"
+    )
+    expect(detailScroller).not.toBeNull()
+    expect(detailScroller?.querySelector("dl")).not.toBeNull()
+    // 写操作必须留在滚动区之外，字段再多也点得到
+    expect(
+      detailScroller?.contains(screen.getByRole("button", { name: /修改记录/ }))
+    ).toBe(false)
+    expect(
+      detailScroller?.contains(screen.getByRole("button", { name: /删除记录/ }))
+    ).toBe(false)
+  })
+
+  it("切换记录时详情滚动容器重建，滚动位置回到顶部", async () => {
+    stubMatchMedia(true)
+    setUrl("?dbTable=items")
+    api.fetchDatabaseRecords.mockResolvedValue({
+      ...recordsBody(1),
+      records: [record, secondRecord],
+    })
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+
+    const selector = ".min-h-0.flex-1.overflow-auto.p-4"
+    await user.click(
+      screen.getAllByRole("button", { name: "查看" })[0] as HTMLElement
+    )
+    await waitFor(() => expect(screen.getByText("记录签名")).toBeTruthy())
+    const first = document.querySelector(selector)
+    expect(first).not.toBeNull()
+
+    await user.click(
+      screen.getAllByRole("button", { name: "查看" })[1] as HTMLElement
+    )
+    // 选中记录变了就重建容器，滚动位置自然回到顶部
+    await waitFor(() =>
+      expect(document.querySelector(selector)).not.toBe(first)
+    )
+  })
+
+  it("桌面详情常驻右列，不往历史栈里压条目", async () => {
+    stubMatchMedia(true)
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+
+    const before = window.history.length
+    await user.click(screen.getByRole("button", { name: "查看" }))
+    await waitFor(() => expect(screen.getByText("记录签名")).toBeTruthy())
+
+    // 按返回不该清掉桌面上的选中记录
+    expect(window.history.length).toBe(before)
+  })
+
+  it("表结构默认收起，展开后自己限高滚动", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+
+    expect(
+      document.querySelector('[data-slot="collapsible-content"]')
+    ).toBeNull()
+    await user.click(screen.getByRole("button", { name: /表结构/ }))
+    const content = document.querySelector('[data-slot="collapsible-content"]')
+    expect(content).not.toBeNull()
+    expect(content?.className).toContain("max-h-64")
+    expect(content?.className).toContain("overflow-auto")
+  })
+
+  it("分页与批量删除钉在列表底部，不随记录滚动", async () => {
+    setUrl("?dbTable=items")
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+
+    const pager = screen.getByRole("button", { name: "上一页" }).parentElement
+    expect(pager?.className).toContain("shrink-0")
+    expect(pager?.className).toContain("border-t")
+    // 分页条在滚动容器之外，窄屏单行横向滚动，不换行顶掉列表
+    expect(pager?.closest(".overflow-auto")).toBeNull()
+    expect(pager?.className).toContain("overflow-x-auto")
+  })
+})
+
+describe("DatabasePage 视图标签栏", () => {
+  it("标签栏在页面上，切换写入 URL 参数，未实现的视图给空态而不崩", async () => {
+    setUrl("?dbTable=items")
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+
+    expect(screen.getByRole("button", { name: "数据" })).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "备份" }))
+    await waitFor(() =>
+      expect(new URL(window.location.href).searchParams.get("tab")).toBe(
+        "backups"
+      )
+    )
+    expect(screen.getByText("备份管理还没实现")).toBeTruthy()
+    // 数据视图的内容被整体替换掉，不是塞进某一栏
+    expect(screen.queryByText("apple")).toBeNull()
+
+    await user.click(screen.getByRole("button", { name: "数据" }))
+    await waitFor(() =>
+      expect(new URL(window.location.href).searchParams.get("tab")).toBeNull()
+    )
+    expect(await screen.findByText("apple")).toBeTruthy()
+  })
+
+  it("URL 里的未知视图值安全回退到数据视图", async () => {
+    setUrl("?tab=containers&dbTable=items")
+    renderPage()
+    await waitFor(() => expect(screen.getByText("apple")).toBeTruthy())
+    expect(screen.queryByText("备份管理还没实现")).toBeNull()
+  })
+})

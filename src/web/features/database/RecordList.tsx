@@ -265,51 +265,49 @@ export const RecordList = (props: RecordListProps) => {
         </EmptyHeader>
       </Empty>
     ) : isDesktop ? (
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12">选择</TableHead>
-              {columns.map((column) => (
-                <TableHead key={column.name}>{column.name}</TableHead>
-              ))}
-              <TableHead className="w-24">详情</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {props.records.map((record) => {
-              const fingerprint = recordKeyFingerprint(record.key)
-              return (
-                <TableRow key={fingerprint}>
-                  <TableCell>
-                    <Checkbox
-                      aria-label={`选择记录 ${formatRecordKey(record.key)}`}
-                      checked={checked.has(fingerprint)}
-                      onCheckedChange={(next) =>
-                        props.onToggleChecked(record, next === true)
-                      }
-                    />
+      <Table>
+        <TableHeader className="sticky top-0 z-10 bg-background">
+          <TableRow>
+            <TableHead className="w-12">选择</TableHead>
+            {columns.map((column) => (
+              <TableHead key={column.name}>{column.name}</TableHead>
+            ))}
+            <TableHead className="w-24">详情</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {props.records.map((record) => {
+            const fingerprint = recordKeyFingerprint(record.key)
+            return (
+              <TableRow key={fingerprint}>
+                <TableCell>
+                  <Checkbox
+                    aria-label={`选择记录 ${formatRecordKey(record.key)}`}
+                    checked={checked.has(fingerprint)}
+                    onCheckedChange={(next) =>
+                      props.onToggleChecked(record, next === true)
+                    }
+                  />
+                </TableCell>
+                {columns.map((column) => (
+                  <TableCell key={column.name} className="align-top">
+                    <SqliteValueView value={record.values[column.name]} />
                   </TableCell>
-                  {columns.map((column) => (
-                    <TableCell key={column.name} className="align-top">
-                      <SqliteValueView value={record.values[column.name]} />
-                    </TableCell>
-                  ))}
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      className="min-h-11"
-                      onClick={() => props.onSelectRecord(record.key)}
-                    >
-                      查看
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </div>
+                ))}
+                <TableCell>
+                  <Button
+                    variant="outline"
+                    className="min-h-11"
+                    onClick={() => props.onSelectRecord(record.key)}
+                  >
+                    查看
+                  </Button>
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
     ) : (
       <ItemGroup>
         {props.records.map((record) => {
@@ -354,8 +352,9 @@ export const RecordList = (props: RecordListProps) => {
     )
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+      {/* 筛选与排序固定在列表顶部：它们属于列表级控件，不随记录滚走 */}
+      <div className="shrink-0 space-y-2">
         <FilterEditor
           columns={columns}
           onAdd={(filter) => props.onFiltersChange([...props.filters, filter])}
@@ -393,7 +392,7 @@ export const RecordList = (props: RecordListProps) => {
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="flex shrink-0 flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
           <Label htmlFor="database-sort-column">排序字段</Label>
           <Select
@@ -437,27 +436,29 @@ export const RecordList = (props: RecordListProps) => {
         </div>
       </div>
 
-      {body}
+      {/* 列表是这一列唯一的滚动区：记录多、表宽都只在这里滚 */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto">{body}</div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      {/* 分页与批量删除钉在底部；窄屏不换行而是横向滚动，避免顶掉列表 */}
+      <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-t pt-3">
         <Button
           variant="outline"
-          className="min-h-11"
+          className="min-h-11 shrink-0"
           disabled={props.page <= 1}
           onClick={() => props.onPageChange(props.page - 1)}
         >
           上一页
         </Button>
-        <span>第 {props.page} 页</span>
+        <span className="shrink-0">第 {props.page} 页</span>
         <Button
           variant="outline"
-          className="min-h-11"
+          className="min-h-11 shrink-0"
           disabled={!hasNext}
           onClick={() => props.onPageChange(props.page + 1)}
         >
           下一页
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Label htmlFor="database-page-size">每页</Label>
           <Select
             value={String(props.pageSize)}
@@ -475,13 +476,13 @@ export const RecordList = (props: RecordListProps) => {
             </SelectContent>
           </Select>
         </div>
-        <span className="text-muted-foreground">
+        <span className="shrink-0 text-muted-foreground">
           {props.total === null
             ? "数量未知（有界计数未完成）"
             : `共 ${props.total} 条`}
         </span>
         {checked.size > 0 ? (
-          <span className="flex flex-wrap items-center gap-2">
+          <span className="flex shrink-0 items-center gap-2">
             已选 {checked.size} 条（仅当前页）
             <Button
               variant="ghost"

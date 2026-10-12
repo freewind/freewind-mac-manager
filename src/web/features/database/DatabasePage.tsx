@@ -42,6 +42,7 @@ import {
   SheetTitle,
 } from "@web/components/ui/sheet"
 import { Skeleton } from "@web/components/ui/skeleton"
+import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { useEditProtection } from "@web/hooks/use-edit-protection"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
@@ -60,6 +61,11 @@ import { RecordFormDialog } from "./RecordFormDialog"
 import { RecordList, type RecordListProps } from "./RecordList"
 import { TableStructure } from "./TableStructure"
 import { DATABASE_OFFLINE_NOTICE, useDatabase } from "./useDatabase"
+import {
+  DATABASE_TABS,
+  type DatabaseTab,
+  useDatabaseTab,
+} from "./useDatabaseTab"
 
 /** 记录列表需要的数据与动作；表本身由外层按当前选中表传入。 */
 type ListModel = Omit<RecordListProps, "table">
@@ -83,8 +89,9 @@ export const DatabasePage = () => {
   const model = useDatabase()
   const queryClient = useQueryClient()
   const isDesktop = useIsDesktop()
-  // 结构在桌面默认展开；手机先收起，避免把记录列表挤出首屏
-  const [structureOpen, setStructureOpen] = useState(isDesktop)
+  const { tab, selectTab } = useDatabaseTab()
+  // 表结构默认收起：记录列表才是主体，展开后也不超过固定高度
+  const [structureOpen, setStructureOpen] = useState(false)
   const [dialog, setDialog] = useState<DialogState>(null)
   const [draft, setDraft] = useState<FormDraft | null>(null)
   const [checked, setChecked] = useState<Map<string, DeleteTarget>>(new Map())
@@ -101,8 +108,9 @@ export const DatabasePage = () => {
   }
 
   const detailsOpen = model.selectedKey !== null
-  // 窄屏用 Sheet 展示详情，返回键先关浮层（统一走 useHistoryOverlay）
-  useHistoryOverlay(detailsOpen, () => model.selectRecord(null))
+  // 窄屏用 Sheet 展示详情，返回键先关浮层（统一走 useHistoryOverlay）；
+  // 桌面详情常驻右列，不占历史栈，否则按返回会莫名清掉选中。
+  useHistoryOverlay(!isDesktop && detailsOpen, () => model.selectRecord(null))
   useHistoryOverlay(dialog !== null, closeDialog)
 
   const capabilityHint = (
@@ -276,6 +284,12 @@ export const DatabasePage = () => {
       canEdit={model.online && capabilityHint("update") === null}
       canDelete={model.online && capabilityHint("delete") === null}
       busy={model.busy}
+      // 切换记录时重建字段滚动容器，滚动位置回到顶部
+      resetKey={
+        model.selectedKey === null
+          ? "none"
+          : `${model.table ?? ""}:${formatRecordKey(model.selectedKey)}`
+      }
       onEdit={() => {
         if (model.recordDetail !== null) openEdit(model.recordDetail)
       }}
@@ -324,16 +338,18 @@ export const DatabasePage = () => {
             {structureOpen ? "收起" : "展开"}
           </span>
         </CollapsibleTrigger>
-        <CollapsibleContent className="pt-2">
+        {/* 展开后自己滚，不把记录列表挤没 */}
+        <CollapsibleContent className="max-h-64 overflow-auto pt-2">
           <TableStructure table={table} />
         </CollapsibleContent>
       </Collapsible>
 
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <CardTitle className="text-base">记录</CardTitle>
         </CardHeader>
-        <CardContent>
+        {/* 记录卡要能填满列高，列表才拿得到自己的滚动区 */}
+        <CardContent className="flex min-h-0 flex-1 flex-col">
           {/* 换表时重挂载：当前页勾选这类本地状态不跨表保留 */}
           <RecordList key={table.name} table={table} {...list} />
         </CardContent>
@@ -345,186 +361,228 @@ export const DatabasePage = () => {
   const failureNotice = dialog === null ? model.actionFailure : null
 
   return (
-    <div className="space-y-4 p-4">
-      <Alert>
-        <AlertTitle>直接操作底层数据</AlertTitle>
-        <AlertDescription>
-          这里显示的是应用自身 SQLite
-          的真实内容：不会做业务校验，也不会自动维护其他域的签名或时间戳。
-          外键级联与写触发器可能带来额外影响，改动前请先看清表结构里的标注。
-        </AlertDescription>
-      </Alert>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* 视图标签栏：状态放 URL，刷新与返回都能恢复 */}
+      <header className="flex shrink-0 items-center gap-2 border-b px-4 py-3">
+        <DatabaseTabNav tab={tab} selectTab={selectTab} />
+      </header>
 
-      {pageNotice === null ? null : (
-        <Alert variant="destructive">
-          <AlertTitle>操作被拦住</AlertTitle>
-          <AlertDescription>{pageNotice}</AlertDescription>
-        </Alert>
-      )}
+      {tab === "backups" ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>备份管理还没实现</EmptyTitle>
+              <EmptyDescription>
+                这个视图留给备份管理；现在可以先在「数据」里浏览与编辑表。
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </div>
+      ) : (
+        <>
+          {/* 固定区：风险提示与表级状态在任何滚动位置都看得见，不折叠隐藏 */}
+          <div className="flex shrink-0 flex-col gap-3 px-4 py-3">
+            <Alert>
+              <AlertTitle>直接操作底层数据</AlertTitle>
+              <AlertDescription>
+                这里显示的是应用自身 SQLite
+                的真实内容：不会做业务校验，也不会自动维护其他域的签名或时间戳。
+                外键级联与写触发器可能带来额外影响，改动前请先看清表结构里的标注。
+              </AlertDescription>
+            </Alert>
 
-      {failureNotice === null ? null : (
-        <Alert variant="destructive">
-          <AlertTitle>上一次操作没有完成</AlertTitle>
-          <AlertDescription>{failureNotice}</AlertDescription>
-        </Alert>
-      )}
+            {pageNotice === null ? null : (
+              <Alert variant="destructive">
+                <AlertTitle>操作被拦住</AlertTitle>
+                <AlertDescription>{pageNotice}</AlertDescription>
+              </Alert>
+            )}
 
-      {model.unknownNotice === null || dialog !== null ? null : (
-        <Alert>
-          <AlertTitle>结果未知</AlertTitle>
-          <AlertDescription className="space-y-2">
-            <span>{model.unknownNotice}</span>
-            <span className="flex flex-wrap gap-2">
+            {failureNotice === null ? null : (
+              <Alert variant="destructive">
+                <AlertTitle>上一次操作没有完成</AlertTitle>
+                <AlertDescription>{failureNotice}</AlertDescription>
+              </Alert>
+            )}
+
+            {model.unknownNotice === null || dialog !== null ? null : (
+              <Alert>
+                <AlertTitle>结果未知</AlertTitle>
+                <AlertDescription className="space-y-2">
+                  <span>{model.unknownNotice}</span>
+                  <span className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      className="min-h-11"
+                      onClick={verifyAfterUnknown}
+                    >
+                      重新读取核实
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="min-h-11"
+                      onClick={model.dismissUnknownResult}
+                    >
+                      已核对，继续
+                    </Button>
+                  </span>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="database-table">表</Label>
+                <Select
+                  value={model.table ?? ""}
+                  onValueChange={(next) => selectTable(next)}
+                >
+                  <SelectTrigger
+                    id="database-table"
+                    className="min-h-11 min-w-56"
+                    disabled={model.tables.length === 0 || dirty}
+                  >
+                    <SelectValue placeholder="选择表" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {model.tables.map((table) => (
+                      <SelectItem key={table.name} value={table.name}>
+                        {table.name}（{table.kind === "view" ? "视图" : "表"}）
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Button
                 variant="outline"
                 className="min-h-11"
-                onClick={verifyAfterUnknown}
+                onClick={refreshAll}
+                disabled={model.tablesPending}
               >
-                重新读取核实
+                <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
+                刷新
               </Button>
               <Button
-                variant="ghost"
                 className="min-h-11"
-                onClick={model.dismissUnknownResult}
+                onClick={openInsert}
+                disabled={
+                  tableDetail === null || insertHint !== null || !model.online
+                }
               >
-                已核对，继续
+                <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+                新增记录
               </Button>
-            </span>
-          </AlertDescription>
-        </Alert>
-      )}
+              <span className="text-sm text-muted-foreground">
+                {model.updatedAt === null
+                  ? "尚未读取"
+                  : `最后读取 ${formatReadAt(model.updatedAt)}`}
+              </span>
+            </div>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="database-table">表</Label>
-          <Select
-            value={model.table ?? ""}
-            onValueChange={(next) => selectTable(next)}
-          >
-            <SelectTrigger
-              id="database-table"
-              className="min-h-11 min-w-56"
-              disabled={model.tables.length === 0 || dirty}
-            >
-              <SelectValue placeholder="选择表" />
-            </SelectTrigger>
-            <SelectContent>
-              {model.tables.map((table) => (
-                <SelectItem key={table.name} value={table.name}>
-                  {table.name}（{table.kind === "view" ? "视图" : "表"}）
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          variant="outline"
-          className="min-h-11"
-          onClick={refreshAll}
-          disabled={model.tablesPending}
-        >
-          <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
-          刷新
-        </Button>
-        <Button
-          className="min-h-11"
-          onClick={openInsert}
-          disabled={
-            tableDetail === null || insertHint !== null || !model.online
-          }
-        >
-          <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
-          新增记录
-        </Button>
-        <span className="text-sm text-muted-foreground">
-          {model.updatedAt === null
-            ? "尚未读取"
-            : `最后读取 ${formatReadAt(model.updatedAt)}`}
-        </span>
-      </div>
+            {insertHint === null ? null : (
+              <p className="text-sm text-muted-foreground">
+                不能新增：{insertHint}
+              </p>
+            )}
+            {dirty ? (
+              <p className="text-sm text-muted-foreground">
+                有未保存的草稿：请先保存或取消，再切换表。
+              </p>
+            ) : null}
 
-      {insertHint === null ? null : (
-        <p className="text-sm text-muted-foreground">不能新增：{insertHint}</p>
-      )}
-      {dirty ? (
-        <p className="text-sm text-muted-foreground">
-          有未保存的草稿：请先保存或取消，再切换表。
-        </p>
-      ) : null}
+            {model.tablesError !== null && model.tablesError !== undefined ? (
+              <Alert variant="destructive">
+                <AlertTitle>表列表读取失败</AlertTitle>
+                <AlertDescription>
+                  {describeError(model.tablesError)}
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
-      {model.tablesError !== null && model.tablesError !== undefined ? (
-        <Alert variant="destructive">
-          <AlertTitle>表列表读取失败</AlertTitle>
-          <AlertDescription>
-            {describeError(model.tablesError)}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {model.tablesPending ? (
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      ) : model.tables.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>还没有可管理的表</EmptyTitle>
-            <EmptyDescription>
-              库里目前没有普通表；新建业务表后点「刷新」即可看到。
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : null}
-
-      {model.table !== null &&
-      model.tableError !== null &&
-      model.tableError !== undefined ? (
-        <Alert variant="destructive">
-          <AlertTitle>表结构读取失败</AlertTitle>
-          <AlertDescription>{describeError(model.tableError)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {tableDetail === null ? null : isDesktop ? (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="min-w-0 space-y-4">{sections(tableDetail)}</div>
-          {detailsOpen ? (
-            <aside className="min-w-0">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">记录详情</CardTitle>
-                </CardHeader>
-                <CardContent>{detailsFor(tableDetail)}</CardContent>
-              </Card>
-            </aside>
-          ) : null}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {sections(tableDetail)}
-          <Sheet
-            open={detailsOpen}
-            onOpenChange={(open) => {
-              if (!open) model.selectRecord(null)
-            }}
-          >
-            <SheetContent side="right" className="gap-0 p-0 sm:max-w-md">
-              <SheetHeader className="gap-1 border-b p-4">
-                <SheetTitle>记录详情</SheetTitle>
-                <SheetDescription className="break-all font-mono text-xs">
-                  {model.table ?? ""}
-                  {model.selectedKey === null
-                    ? ""
-                    : ` ${formatRecordKey(model.selectedKey)}`}
-                </SheetDescription>
-              </SheetHeader>
-              <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                {detailsFor(tableDetail)}
+            {model.tablesPending ? (
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
               </div>
-            </SheetContent>
-          </Sheet>
-        </div>
+            ) : model.tables.length === 0 ? (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>还没有可管理的表</EmptyTitle>
+                  <EmptyDescription>
+                    库里目前没有普通表；新建业务表后点「刷新」即可看到。
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            ) : null}
+
+            {model.table !== null &&
+            model.tableError !== null &&
+            model.tableError !== undefined ? (
+              <Alert variant="destructive">
+                <AlertTitle>表结构读取失败</AlertTitle>
+                <AlertDescription>
+                  {describeError(model.tableError)}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+          </div>
+
+          {tableDetail === null ? null : isDesktop ? (
+            /* 桌面：左记录列表、右详情两列等高，各自滚动；断点与 useIsDesktop 对齐 */
+            <div className="grid min-h-0 min-w-0 flex-1 gap-4 px-4 pb-3 md:grid-cols-[minmax(0,1fr)_22rem]">
+              <div className="flex min-h-0 min-w-0 flex-col gap-4">
+                {sections(tableDetail)}
+              </div>
+              <aside className="flex min-h-0 min-w-0 flex-col">
+                <Card className="flex min-h-0 flex-1 flex-col gap-0 py-0">
+                  <CardHeader className="shrink-0 border-b px-4 py-3">
+                    <CardTitle className="text-base">记录详情</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+                    {detailsOpen ? (
+                      detailsFor(tableDetail)
+                    ) : (
+                      <Empty className="p-4">
+                        <EmptyHeader>
+                          <EmptyTitle>还没有选中记录</EmptyTitle>
+                          <EmptyDescription>
+                            在左侧点某条记录的「详情」，这里显示字段与值。
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    )}
+                  </CardContent>
+                </Card>
+              </aside>
+            </div>
+          ) : (
+            /* 手机：列表占满剩余高度，详情走 Sheet，不上下堆叠 */
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 px-4 pb-3">
+              {sections(tableDetail)}
+              <Sheet
+                open={detailsOpen}
+                onOpenChange={(open) => {
+                  if (!open) model.selectRecord(null)
+                }}
+              >
+                <SheetContent side="right" className="gap-0 p-0 sm:max-w-md">
+                  <SheetHeader className="gap-1 border-b p-4">
+                    <SheetTitle>记录详情</SheetTitle>
+                    <SheetDescription className="break-all font-mono text-xs">
+                      {model.table ?? ""}
+                      {model.selectedKey === null
+                        ? ""
+                        : ` ${formatRecordKey(model.selectedKey)}`}
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    {detailsFor(tableDetail)}
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+          )}
+        </>
       )}
 
       {/* 同一时刻只挂载一套表单 */}
@@ -607,3 +665,33 @@ export const DatabasePage = () => {
     </div>
   )
 }
+
+/**
+ * 视图导航。
+ * 状态放 URL（?tab=backups），刷新、分享与浏览器返回都能恢复；
+ * 只认 data/backups，未知值（如 Docker 的分区名）安全回退到数据视图。
+ */
+const DatabaseTabNav = (props: {
+  tab: DatabaseTab
+  selectTab: (tab: DatabaseTab) => void
+}) => (
+  <ToggleGroup
+    variant="outline"
+    className="flex-wrap"
+    value={[props.tab]}
+    onValueChange={(values) => {
+      const next = values[0]
+      if (next) props.selectTab(next as DatabaseTab)
+    }}
+  >
+    {DATABASE_TABS.map((item) => (
+      <ToggleGroupItem
+        key={item.key}
+        value={item.key}
+        className="min-h-11 px-3"
+      >
+        {item.label}
+      </ToggleGroupItem>
+    ))}
+  </ToggleGroup>
+)
