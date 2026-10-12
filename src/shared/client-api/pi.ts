@@ -55,8 +55,12 @@ export const startPiBenchmark = async (
   }
 }
 
-export const fetchPiBenchmarks = async (): Promise<PiBenchmarkList> =>
-  unwrap<PiBenchmarkList>(await apiClient.listPiBenchmarks())
+export const fetchPiBenchmarks = async (
+  signal?: AbortSignal
+): Promise<PiBenchmarkList> =>
+  unwrap<PiBenchmarkList>(
+    await apiClient.listPiBenchmarks({ fetchOptions: { signal } })
+  )
 
 export const deletePiBenchmarks = (ids: string[]) =>
   apiClient.deletePiBenchmarks({ body: { ids } })
@@ -68,8 +72,13 @@ export const startPiLab = async (input: PiLabInput, requestId: string) =>
       headers: taskRequestHeaders(requestId),
     })
   )
-export const fetchPiLab = async (id: string): Promise<PiLabResult> =>
-  unwrap<PiLabResult>(await apiClient.readPiLab({ params: { id } }))
+export const fetchPiLab = async (
+  id: string,
+  signal?: AbortSignal
+): Promise<PiLabResult> =>
+  unwrap<PiLabResult>(
+    await apiClient.readPiLab({ params: { id }, fetchOptions: { signal } })
+  )
 export const fetchPiLabRuns = async (): Promise<PiLabResult[]> =>
   unwrap<{ runs: PiLabResult[] }>(await apiClient.listPiLab()).runs
 export const cancelPiLab = async (id: string) =>

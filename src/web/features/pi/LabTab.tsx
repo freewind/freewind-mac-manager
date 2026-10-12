@@ -13,9 +13,16 @@ import { Button } from "@web/components/ui/button"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
 import { Textarea } from "@web/components/ui/textarea"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { usePiModels } from "./queries"
+
+/**
+ * 服务端按 70 秒没有新进度就把 running 判为 unknown（server/pi/lab.ts），
+ * 客户端用同一判据停止轮询，页面则按「结果未知」如实展示。
+ */
+const PI_LAB_STALE_LIMIT_MS = 70_000
+const PI_LAB_STALE_LIMIT_SECONDS = PI_LAB_STALE_LIMIT_MS / 1000
 
 export const LabTab = ({
   mode,
@@ -49,13 +56,40 @@ export const LabTab = ({
   })
   const run = useQuery({
     queryKey: ["pi", "lab", id],
-    queryFn: () => fetchPiLab(id ?? ""),
+    queryFn: ({ signal }) => fetchPiLab(id ?? "", signal),
     enabled: id !== null,
     retry: false,
-    refetchInterval: (query) =>
-      !query.state.data || query.state.data.status === "running" ? 500 : false,
+    // 失败就停：继续 500ms 重试只会让页面永远停在「正在检测」，却什么也查不到。
+    refetchInterval: (query) => {
+      if (query.state.error) return false
+      const data = query.state.data
+      if (!data) return 500
+      if (data.status !== "running") return false
+      // 与服务端的陈旧判据对齐：到点后服务端会返回 unknown，这里先停住
+      return Date.now() - data.updatedAt > PI_LAB_STALE_LIMIT_MS ? false : 500
+    },
   })
   const busy = id !== null && (!run.data || run.data.status === "running")
+
+  // 切页或关闭组件时取消仍在进行的读取，不留下悬挂的「正在检测」
+  useEffect(
+    () => () => {
+      if (id !== null) {
+        void client.cancelQueries({ queryKey: ["pi", "lab", id] })
+      }
+    },
+    [client, id]
+  )
+
+  // 进度里的「距上次更新 / 剩余」随每次轮询的重渲染刷新，不用本地定时器
+  const staleMs = run.data ? Date.now() - run.data.updatedAt : 0
+  const runTimedOut = busy && staleMs > PI_LAB_STALE_LIMIT_MS
+  const completed = run.data?.samples.length ?? 0
+  const totalSamples = mode === "probe" ? 4 : 1
+  const remainSeconds = Math.max(
+    0,
+    Math.ceil((PI_LAB_STALE_LIMIT_MS - staleMs) / 1000)
+  )
   const send = useMutation({
     retry: false,
     mutationFn: async () => {
@@ -109,7 +143,11 @@ export const LabTab = ({
     },
   })
   const cancel = useMutation({
-    mutationFn: () => cancelPiLab(id ?? ""),
+    mutationFn: async () => {
+      // 先取消本地仍在进行的读取，再让服务端停下这次运行
+      await client.cancelQueries({ queryKey: ["pi", "lab", id] })
+      return cancelPiLab(id ?? "")
+    },
     onSuccess: () => run.refetch(),
     onError: (error) => toast.error(error.message),
   })
@@ -264,6 +302,35 @@ export const LabTab = ({
           清空此会话
         </Button>
       </div>
+      {busy ? (
+        <div
+          role="status"
+          aria-label="探测进度"
+          className="grid gap-1 rounded border p-3 text-sm"
+        >
+          {runTimedOut ? (
+            <p>
+              已经 {PI_LAB_STALE_LIMIT_SECONDS} 秒没有新进度，按结果未知处理：
+              不再自动轮询，可中止当前请求或刷新核实。
+            </p>
+          ) : (
+            <>
+              <p>
+                {mode === "chat"
+                  ? "正在等待模型回复"
+                  : `正在探测第 ${completed + 1} 轮`}
+                {run.data
+                  ? ` · 已完成 ${completed}/${totalSamples} 项`
+                  : " · 已提交请求，等待首次进度"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                距上次更新 {Math.floor(staleMs / 1000)} 秒 · 剩余{" "}
+                {remainSeconds} 秒
+              </p>
+            </>
+          )}
+        </div>
+      ) : null}
       {run.isError ? (
         <p role="alert">{run.error.message}；可刷新核实，勿重复发送。</p>
       ) : null}
