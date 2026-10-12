@@ -32,7 +32,7 @@ vi.mock("sonner", () => ({ toast: toastMock }))
 
 const status: TrafficStatus = {
   running: true,
-  intervalSeconds: 5,
+  intervalSeconds: 1,
   sampledAt: 1_791_700_000,
   downloadRate: 1_048_576,
   uploadRate: 1_024,
@@ -77,7 +77,7 @@ beforeEach(() => {
   api.fetchTrafficStatus.mockResolvedValue(status)
   api.fetchTrafficSnapshots.mockResolvedValue({ snapshots: [] })
   api.fetchTrafficGroups.mockResolvedValue({
-    scope: "实时（最近 5 秒）",
+    scope: "实时（最近 1 秒）",
     groups: [group(), group({ name: "webkit", bytesIn: 1_024, bytesOut: 0 })],
   })
 })
@@ -117,8 +117,12 @@ describe("流量页", () => {
     expect(screen.queryByText(/共 0 个进程/)).toBeNull()
   })
 
-  it("正常数据下累计与进程数如实显示", async () => {
+  it("正常数据下累计与进程数如实显示，采样间隔文案跟随状态", async () => {
     renderPage()
+
+    // 采样间隔来自状态，不再硬编码 5 秒（下载、上传两张卡片各一处）
+    const intervalLabels = await screen.findAllByText("每 1 秒采样一次")
+    expect(intervalLabels.length).toBe(2)
 
     // 两个分组合计 7168 B（vite-dev 2048入/4096出 + webkit 1024入）
     expect(await screen.findByText("7.0 KB")).toBeTruthy()

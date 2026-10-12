@@ -20,7 +20,7 @@ import {
   TrafficStore,
 } from "./store"
 
-export const SAMPLE_INTERVAL_SECONDS = 5
+export const SAMPLE_INTERVAL_SECONDS = 1
 
 const LEGACY_DATABASE_FILE = path.join(DATA_DIR, "traffic.sqlite3")
 
