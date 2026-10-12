@@ -4,6 +4,7 @@ import { aiAssistantRoutes } from "./routes/ai-assistant"
 import { authRoutes } from "./routes/auth"
 import { caddyRoutes } from "./routes/caddy"
 import { clashVergeRoutes } from "./routes/clash-verge"
+import { collaborationRoutes } from "./routes/collaboration"
 import { dashboardRoutes } from "./routes/dashboard"
 import { databaseRoutes } from "./routes/database"
 import { diskGrowthRoutes } from "./routes/disk-growth"
@@ -40,6 +41,7 @@ export const contract = c.router(
     ...caddyRoutes,
     ...tasksRoutes,
     ...databaseRoutes,
+    ...collaborationRoutes,
   },
   { pathPrefix: API_BASE }
 )

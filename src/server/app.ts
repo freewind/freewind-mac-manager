@@ -8,6 +8,12 @@ import {
 import { authContract, createAuthManager, createAuthRouter } from "./auth"
 import { caddyContract, createCaddyRouter } from "./caddy/handlers"
 import { clashVergeContract, clashVergeRouter } from "./clash-verge/handlers"
+import { registerCollaborationEventEndpoint } from "./collaboration/events"
+import {
+  collaborationContract,
+  createCollaborationRouter,
+} from "./collaboration/handlers"
+import { CollaborationStore } from "./collaboration/store"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
 import {
   createDatabaseRouter,
@@ -57,6 +63,10 @@ export const createApp = (injected?: {
    * 不注入时也不会在启动阶段碰真实业务库：子进程只在请求到来时才启动。
    */
   database?: DatabaseService
+  /**
+   * 仅测试使用：替换协作数据存储。缺省时使用 env.DATABASE_FILE 指向的库。
+   */
+  collaboration?: CollaborationStore
 }): express.Express => {
   const app = express()
   // 文件管理的删除接口用数组 query，ts-rest client 发的是 paths[0]=… ，
@@ -148,6 +158,18 @@ export const createApp = (injected?: {
     app,
     options
   )
+
+  // 协作数据与任务库同库，访问一律经 CollaborationStore，不在路由里写 SQL。
+  createExpressEndpoints(
+    collaborationContract,
+    createCollaborationRouter(
+      injected?.collaboration ?? new CollaborationStore()
+    ),
+    app,
+    options
+  )
+  // SSE 是传输例外：事件不是真相来源，客户端必须重新读取真实数据。
+  registerCollaborationEventEndpoint(app)
 
   // /api 未命中任何端点时必须回 JSON 404。dev 下它会接着交给 Vite
   // 兜底返回 index.html，生产下会回 Express 默认的 HTML 404；两种情况

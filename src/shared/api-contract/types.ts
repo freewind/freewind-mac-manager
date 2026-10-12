@@ -447,3 +447,27 @@ export type DatabaseDeleteResult = z.infer<typeof DatabaseDeleteResultSchema>
 export type DatabaseTablePathParams = z.infer<
   typeof DatabaseTablePathParamsSchema
 >
+
+export type {
+  CollaborationComment,
+  CollaborationCommentList,
+  CollaborationCommentPath,
+  CollaborationCommentResponse,
+  CollaborationCreateThread,
+  CollaborationCreateTopic,
+  CollaborationEditComment,
+  CollaborationEvent,
+  CollaborationReorder,
+  CollaborationSearchComment,
+  CollaborationSearchQuery,
+  CollaborationSearchResult,
+  CollaborationSendComment,
+  CollaborationThreadDetail,
+  CollaborationThreadList,
+  CollaborationThreadPath,
+  CollaborationTopicDetail,
+  CollaborationTopicList,
+  CollaborationTopicPath,
+  CollaborationUpdateThread,
+  CollaborationUpdateTopic,
+} from "./schemas/collaboration"

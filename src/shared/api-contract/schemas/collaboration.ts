@@ -118,3 +118,207 @@ export type CollaborationTopicRecord = z.infer<
 >
 export type CollaborationThread = z.infer<typeof CollaborationThreadSchema>
 export type CollaborationTopic = z.infer<typeof CollaborationTopicSchema>
+
+/** 路径参数：Thread / Comment 一律挂在 Topic 之下，便于校验归属。 */
+export const CollaborationTopicPathSchema = z.object({
+  topicId: z.string().min(1).max(200),
+})
+
+export const CollaborationThreadPathSchema = z.object({
+  topicId: z.string().min(1).max(200),
+  threadId: z.string().min(1).max(200),
+})
+
+export const CollaborationCommentPathSchema = z.object({
+  topicId: z.string().min(1).max(200),
+  threadId: z.string().min(1).max(200),
+  commentId: z.string().min(1).max(200),
+})
+
+/** 读取响应。 */
+export const CollaborationTopicListSchema = z.object({
+  topics: z.array(CollaborationTopicSchema),
+})
+
+export const CollaborationTopicDetailSchema = z.object({
+  topic: CollaborationTopicSchema,
+  threads: z.array(CollaborationThreadSchema),
+})
+
+export const CollaborationThreadListSchema = z.object({
+  threads: z.array(CollaborationThreadSchema),
+})
+
+export const CollaborationThreadDetailSchema = z.object({
+  thread: CollaborationThreadSchema,
+  comments: z.array(CollaborationCommentSchema),
+})
+
+export const CollaborationCommentListSchema = z.object({
+  comments: z.array(CollaborationCommentSchema),
+})
+
+export const CollaborationCommentResponseSchema = z.object({
+  comment: CollaborationCommentSchema,
+})
+
+const TITLE_MAX = 500
+const BODY_MAX = 20_000
+const AUTHOR_MAX = 200
+
+/** 写入请求。是否至少提供一个字段由 handler 校验，schema 只做形状与长度。 */
+export const CollaborationCreateTopicSchema = z.object({
+  title: z.string().min(1).max(TITLE_MAX),
+  createdByAgent: z.string().min(1).max(AUTHOR_MAX).optional(),
+})
+
+export const CollaborationUpdateTopicSchema = z.object({
+  title: z.string().min(1).max(TITLE_MAX).optional(),
+  completed: z.boolean().optional(),
+})
+
+export const CollaborationCreateThreadSchema = z.object({
+  title: z.string().min(1).max(TITLE_MAX),
+  createdByAgent: z.string().min(1).max(AUTHOR_MAX).optional(),
+})
+
+export const CollaborationUpdateThreadSchema = z.object({
+  title: z.string().min(1).max(TITLE_MAX).optional(),
+  completed: z.boolean().optional(),
+  userLastReadCommentId: z.string().min(1).max(200).nullable().optional(),
+})
+
+/** 排序：显式给出目标顺序的 id 列表；未列出的记录按原相对顺序排在后面。 */
+export const CollaborationReorderSchema = z.object({
+  orderedIds: z.array(z.string().min(1).max(200)).max(5000),
+})
+
+export const CollaborationSendCommentSchema = z.object({
+  body: z.string().min(1).max(BODY_MAX),
+  role: z.enum(["user", "agent"]).default("user"),
+  authorAgent: z.string().min(1).max(AUTHOR_MAX).optional(),
+  readByAgent: z.boolean().optional(),
+})
+
+export const CollaborationEditCommentSchema = z.object({
+  body: z.string().min(1).max(BODY_MAX),
+})
+
+/** 搜索：标题与正文的关键词匹配；只读。 */
+export const CollaborationSearchQuerySchema = z.object({
+  q: z.string().min(1).max(200),
+})
+
+/** 搜索命中的 Comment 额外带 topicId，前端才能定位到所属 Topic。 */
+export const CollaborationSearchCommentSchema =
+  CollaborationCommentSchema.extend({
+    topicId: z.string().min(1),
+  })
+
+export const CollaborationSearchResultSchema = z.object({
+  topics: z.array(CollaborationTopicSchema),
+  threads: z.array(CollaborationThreadSchema),
+  comments: z.array(CollaborationSearchCommentSchema),
+})
+
+/**
+ * 变更事件：只说明「哪里变了」，不携带业务数据。
+ * 事件不是真相来源，客户端收到后必须重新读取真实数据。
+ */
+export const CollaborationEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("topic_created"), topicId: z.string() }),
+  z.object({ type: z.literal("topic_updated"), topicId: z.string() }),
+  z.object({ type: z.literal("topic_deleted"), topicId: z.string() }),
+  z.object({ type: z.literal("topics_reordered") }),
+  z.object({
+    type: z.literal("thread_created"),
+    topicId: z.string(),
+    threadId: z.string(),
+  }),
+  z.object({
+    type: z.literal("thread_updated"),
+    topicId: z.string(),
+    threadId: z.string(),
+  }),
+  z.object({
+    type: z.literal("thread_deleted"),
+    topicId: z.string(),
+    threadId: z.string(),
+  }),
+  z.object({ type: z.literal("threads_reordered"), topicId: z.string() }),
+  z.object({
+    type: z.literal("comment_created"),
+    topicId: z.string(),
+    threadId: z.string(),
+    commentId: z.string(),
+  }),
+  z.object({
+    type: z.literal("comment_updated"),
+    topicId: z.string(),
+    threadId: z.string(),
+    commentId: z.string(),
+  }),
+  z.object({
+    type: z.literal("comment_deleted"),
+    topicId: z.string(),
+    threadId: z.string(),
+    commentId: z.string(),
+  }),
+])
+
+export type CollaborationTopicPath = z.infer<
+  typeof CollaborationTopicPathSchema
+>
+export type CollaborationThreadPath = z.infer<
+  typeof CollaborationThreadPathSchema
+>
+export type CollaborationCommentPath = z.infer<
+  typeof CollaborationCommentPathSchema
+>
+export type CollaborationTopicList = z.infer<
+  typeof CollaborationTopicListSchema
+>
+export type CollaborationTopicDetail = z.infer<
+  typeof CollaborationTopicDetailSchema
+>
+export type CollaborationThreadList = z.infer<
+  typeof CollaborationThreadListSchema
+>
+export type CollaborationThreadDetail = z.infer<
+  typeof CollaborationThreadDetailSchema
+>
+export type CollaborationCommentList = z.infer<
+  typeof CollaborationCommentListSchema
+>
+export type CollaborationCommentResponse = z.infer<
+  typeof CollaborationCommentResponseSchema
+>
+export type CollaborationCreateTopic = z.input<
+  typeof CollaborationCreateTopicSchema
+>
+export type CollaborationUpdateTopic = z.input<
+  typeof CollaborationUpdateTopicSchema
+>
+export type CollaborationCreateThread = z.input<
+  typeof CollaborationCreateThreadSchema
+>
+export type CollaborationUpdateThread = z.input<
+  typeof CollaborationUpdateThreadSchema
+>
+export type CollaborationReorder = z.input<typeof CollaborationReorderSchema>
+export type CollaborationSendComment = z.input<
+  typeof CollaborationSendCommentSchema
+>
+export type CollaborationEditComment = z.input<
+  typeof CollaborationEditCommentSchema
+>
+export type CollaborationSearchQuery = z.input<
+  typeof CollaborationSearchQuerySchema
+>
+export type CollaborationSearchComment = z.infer<
+  typeof CollaborationSearchCommentSchema
+>
+export type CollaborationSearchResult = z.infer<
+  typeof CollaborationSearchResultSchema
+>
+export type CollaborationEvent = z.infer<typeof CollaborationEventSchema>

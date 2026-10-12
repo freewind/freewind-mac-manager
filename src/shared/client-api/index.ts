@@ -20,6 +20,7 @@ export {
   taskRequestHeaders,
   unwrap,
 } from "./client"
+export * from "./collaboration"
 export * from "./dashboard"
 export * from "./database"
 export * from "./disk-growth"

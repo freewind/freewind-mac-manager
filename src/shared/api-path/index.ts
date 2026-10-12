@@ -86,6 +86,14 @@ export const ApiPath = {
   databaseRecords: `${API_BASE}/database/tables/:table/records`,
   databaseRecord: `${API_BASE}/database/tables/:table/record`,
   databaseRecordDelete: `${API_BASE}/database/tables/:table/records/delete`,
+  collaborationTopics: `${API_BASE}/collaboration/topics`,
+  collaborationTopic: `${API_BASE}/collaboration/topics/:topicId`,
+  collaborationThreads: `${API_BASE}/collaboration/topics/:topicId/threads`,
+  collaborationThread: `${API_BASE}/collaboration/topics/:topicId/threads/:threadId`,
+  collaborationComments: `${API_BASE}/collaboration/topics/:topicId/threads/:threadId/comments`,
+  collaborationComment: `${API_BASE}/collaboration/topics/:topicId/threads/:threadId/comments/:commentId`,
+  collaborationSearch: `${API_BASE}/collaboration/search`,
+  collaborationEvents: `${API_BASE}/collaboration/events`,
 } as const
 
 export type ApiPathKey = keyof typeof ApiPath

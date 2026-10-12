@@ -46,7 +46,8 @@ const SCHEMA = `
     updated_at TEXT,
     read_by_agent INTEGER,
     author_agent TEXT,
-    position INTEGER NOT NULL
+    position INTEGER NOT NULL,
+    request_id TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_collaboration_thread_topic
     ON collaboration_thread (topic_id, position, id);
@@ -153,6 +154,25 @@ export const formatThreadLink = (title: string, threadId: string): string =>
   `[${title}](#thread:${threadId})`
 
 /**
+ * 把目标顺序落到实际存在的 id 上：先按给定顺序，未列出的保持原相对顺序。
+ * 与源项目 reorder 的语义一致（列出的在前，其余补在后面）。
+ */
+const orderIds = (current: string[], orderedIds: string[]): string[] => {
+  const known = new Set(current)
+  const seen = new Set<string>()
+  const next: string[] = []
+  for (const id of orderedIds) {
+    if (!known.has(id) || seen.has(id)) continue
+    seen.add(id)
+    next.push(id)
+  }
+  for (const id of current) {
+    if (!seen.has(id)) next.push(id)
+  }
+  return next
+}
+
+/**
  * 协作存储。默认使用项目统一数据库（env.DATABASE_FILE）；
  * CLI 与测试可以显式传入别的库文件，但不能自行拼业务库路径。
  */
@@ -165,6 +185,26 @@ export class CollaborationStore {
     this.db.exec("PRAGMA journal_mode = WAL")
     this.db.exec("PRAGMA synchronous = NORMAL")
     this.db.exec(SCHEMA)
+    this.ensureRequestIdColumn()
+  }
+
+  /**
+   * 幂等列迁移：早期版本的表没有 request_id。老库补列而不是重建，
+   * 已有记录保持不动；唯一索引只对非空值生效，历史数据不受影响。
+   */
+  private ensureRequestIdColumn(): void {
+    const columns = this.db
+      .prepare("PRAGMA table_info(collaboration_comment)")
+      .all() as { name: string }[]
+    if (!columns.some((column) => column.name === "request_id")) {
+      this.db.exec(
+        "ALTER TABLE collaboration_comment ADD COLUMN request_id TEXT"
+      )
+    }
+    this.db.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_collaboration_comment_request
+       ON collaboration_comment (request_id) WHERE request_id IS NOT NULL`
+    )
   }
 
   /** 整批导入用的事务：任一步失败整体回滚，不留下半批数据。 */
@@ -220,13 +260,16 @@ export class CollaborationStore {
       )
   }
 
-  insertComment(record: CollaborationComment): void {
+  insertComment(
+    record: CollaborationComment,
+    requestId: string | null = null
+  ): void {
     this.db
       .prepare(
         `INSERT INTO collaboration_comment (
            id, thread_id, role, body, created_at, updated_at, read_by_agent,
-           author_agent, position
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           author_agent, position, request_id
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         record.id,
@@ -237,7 +280,8 @@ export class CollaborationStore {
         record.updatedAt,
         fromBoolean(record.readByAgent),
         record.authorAgent,
-        record.position
+        record.position,
+        requestId
       )
   }
 
@@ -311,6 +355,347 @@ export class CollaborationStore {
         ),
       }
     })
+  }
+
+  /** 单个 Topic 读取形：记录 + 派生字段；不存在返回 null。 */
+  getTopic(id: string): CollaborationTopic | null {
+    const record = this.findTopic(id)
+    if (!record) return null
+    const threads = this.listThreads(id)
+    return {
+      ...record,
+      threadCount: threads.length,
+      userUnreadCount: threads.reduce(
+        (total, thread) => total + thread.userUnreadCount,
+        0
+      ),
+    }
+  }
+
+  /** 单个 Thread 读取形；必须同时匹配 topicId，跨 Topic 的 id 一律当作不存在。 */
+  getThread(topicId: string, id: string): CollaborationThread | null {
+    return this.listThreads(topicId).find((thread) => thread.id === id) ?? null
+  }
+
+  /**
+   * 新建 Topic：源项目把新 Topic 放在最前（数组 unshift），
+   * 这里用「既有 position 整体 +1、新记录占 0」保持同样的显示顺序。
+   */
+  createTopic(input: {
+    id: string
+    title: string
+    createdByAgent: string | null
+    createdAt: string
+  }): CollaborationTopicRecord {
+    return this.transaction(() => {
+      this.db.exec("UPDATE collaboration_topic SET position = position + 1")
+      this.insertTopic({
+        id: input.id,
+        title: input.title,
+        createdAt: input.createdAt,
+        completedAt: null,
+        createdByAgent: input.createdByAgent,
+        agentNotifyUrl: null,
+        agentNotifyEnabled: null,
+        position: 0,
+      })
+      const created = this.findTopic(input.id)
+      if (!created) throw new Error("Topic 创建后无法读回")
+      return created
+    })
+  }
+
+  updateTopicTitle(id: string, title: string): CollaborationTopicRecord | null {
+    const result = this.db
+      .prepare("UPDATE collaboration_topic SET title = ? WHERE id = ?")
+      .run(title, id)
+    if (Number(result.changes ?? 0) === 0) return null
+    return this.findTopic(id)
+  }
+
+  setTopicCompleted(
+    id: string,
+    completedAt: string | null
+  ): CollaborationTopicRecord | null {
+    const result = this.db
+      .prepare("UPDATE collaboration_topic SET completed_at = ? WHERE id = ?")
+      .run(completedAt, id)
+    if (Number(result.changes ?? 0) === 0) return null
+    return this.findTopic(id)
+  }
+
+  /** 删除 Topic 连同它的 Thread 与 Comment：源项目删除子树是同一个动作。 */
+  deleteTopic(id: string): boolean {
+    return this.transaction(() => {
+      if (this.findTopic(id) === null) return false
+      this.db
+        .prepare(
+          `DELETE FROM collaboration_comment WHERE thread_id IN (
+             SELECT id FROM collaboration_thread WHERE topic_id = ?
+           )`
+        )
+        .run(id)
+      this.db
+        .prepare("DELETE FROM collaboration_thread WHERE topic_id = ?")
+        .run(id)
+      this.db.prepare("DELETE FROM collaboration_topic WHERE id = ?").run(id)
+      return true
+    })
+  }
+
+  /** 按给定顺序重排 Topic；未列出的按原相对顺序排在后面。 */
+  reorderTopics(orderedIds: string[]): void {
+    this.transaction(() => {
+      const current = (
+        this.db
+          .prepare("SELECT id FROM collaboration_topic ORDER BY position, id")
+          .all() as { id: string }[]
+      ).map((row) => row.id)
+      const next = orderIds(current, orderedIds)
+      const statement = this.db.prepare(
+        "UPDATE collaboration_topic SET position = ? WHERE id = ?"
+      )
+      next.forEach((id, index) => {
+        statement.run(index, id)
+      })
+    })
+  }
+
+  createThread(input: {
+    id: string
+    topicId: string
+    title: string
+    createdByAgent: string | null
+    createdAt: string
+  }): CollaborationThreadRecord {
+    return this.transaction(() => {
+      this.db
+        .prepare(
+          `UPDATE collaboration_thread SET position = position + 1
+           WHERE topic_id = ?`
+        )
+        .run(input.topicId)
+      this.insertThread({
+        id: input.id,
+        topicId: input.topicId,
+        title: input.title,
+        createdAt: input.createdAt,
+        completedAt: null,
+        createdByAgent: input.createdByAgent,
+        userLastReadCommentId: null,
+        position: 0,
+      })
+      const created = this.findThread(input.id)
+      if (!created) throw new Error("Thread 创建后无法读回")
+      return created
+    })
+  }
+
+  updateThreadTitle(
+    topicId: string,
+    id: string,
+    title: string
+  ): CollaborationThreadRecord | null {
+    const result = this.db
+      .prepare(
+        "UPDATE collaboration_thread SET title = ? WHERE id = ? AND topic_id = ?"
+      )
+      .run(title, id, topicId)
+    if (Number(result.changes ?? 0) === 0) return null
+    return this.findThread(id)
+  }
+
+  setThreadCompleted(
+    topicId: string,
+    id: string,
+    completedAt: string | null
+  ): CollaborationThreadRecord | null {
+    const result = this.db
+      .prepare(
+        `UPDATE collaboration_thread SET completed_at = ?
+         WHERE id = ? AND topic_id = ?`
+      )
+      .run(completedAt, id, topicId)
+    if (Number(result.changes ?? 0) === 0) return null
+    return this.findThread(id)
+  }
+
+  /** 设置已读位置（上次读到的最后一条 comment id；null = 从未读过）。 */
+  setThreadReadPosition(
+    topicId: string,
+    id: string,
+    commentId: string | null
+  ): CollaborationThreadRecord | null {
+    const result = this.db
+      .prepare(
+        `UPDATE collaboration_thread SET user_last_read_comment_id = ?
+         WHERE id = ? AND topic_id = ?`
+      )
+      .run(commentId, id, topicId)
+    if (Number(result.changes ?? 0) === 0) return null
+    return this.findThread(id)
+  }
+
+  /** 删除 Thread 连同它的 Comment。 */
+  deleteThread(topicId: string, id: string): boolean {
+    return this.transaction(() => {
+      const thread = this.findThread(id)
+      if (!thread || thread.topicId !== topicId) return false
+      this.db
+        .prepare("DELETE FROM collaboration_comment WHERE thread_id = ?")
+        .run(id)
+      this.db
+        .prepare(
+          "DELETE FROM collaboration_thread WHERE id = ? AND topic_id = ?"
+        )
+        .run(id, topicId)
+      return true
+    })
+  }
+
+  reorderThreads(topicId: string, orderedIds: string[]): void {
+    this.transaction(() => {
+      const current = (
+        this.db
+          .prepare(
+            `SELECT id FROM collaboration_thread WHERE topic_id = ?
+             ORDER BY position, id`
+          )
+          .all(topicId) as { id: string }[]
+      ).map((row) => row.id)
+      const next = orderIds(current, orderedIds)
+      const statement = this.db.prepare(
+        "UPDATE collaboration_thread SET position = ? WHERE id = ?"
+      )
+      next.forEach((id, index) => {
+        statement.run(index, id)
+      })
+    })
+  }
+
+  /**
+   * 追加一条消息（排在最后，与源项目一致）。requestId 非空时写入幂等列：
+   * 同一请求标识重复提交会被唯一索引拦下，调用方据 findCommentByRequestId 复用结果。
+   */
+  appendComment(
+    input: {
+      id: string
+      threadId: string
+      role: "user" | "agent"
+      body: string
+      createdAt: string
+      authorAgent: string | null
+      readByAgent: boolean | null
+    },
+    requestId: string | null
+  ): CollaborationComment {
+    return this.transaction(() => {
+      const row = this.db
+        .prepare(
+          `SELECT COALESCE(MAX(position), -1) AS max FROM collaboration_comment
+           WHERE thread_id = ?`
+        )
+        .get(input.threadId) as { max: number }
+      this.insertComment(
+        {
+          id: input.id,
+          threadId: input.threadId,
+          role: input.role,
+          body: input.body,
+          createdAt: input.createdAt,
+          updatedAt: null,
+          readByAgent: input.readByAgent,
+          authorAgent: input.authorAgent,
+          position: Number(row.max) + 1,
+        },
+        requestId
+      )
+      const created = this.findComment(input.id)
+      if (!created) throw new Error("消息保存后无法读回")
+      return created
+    })
+  }
+
+  findCommentByRequestId(requestId: string): CollaborationComment | null {
+    const row = this.db
+      .prepare("SELECT * FROM collaboration_comment WHERE request_id = ?")
+      .get(requestId) as CommentRow | undefined
+    return row ? toComment(row) : null
+  }
+
+  updateCommentBody(
+    threadId: string,
+    id: string,
+    input: { body: string; updatedAt: string; readByAgent: boolean | null }
+  ): CollaborationComment | null {
+    const result = this.db
+      .prepare(
+        `UPDATE collaboration_comment
+         SET body = ?, updated_at = ?, read_by_agent = ?
+         WHERE id = ? AND thread_id = ?`
+      )
+      .run(
+        input.body,
+        input.updatedAt,
+        fromBoolean(input.readByAgent),
+        id,
+        threadId
+      )
+    if (Number(result.changes ?? 0) === 0) return null
+    return this.findComment(id)
+  }
+
+  deleteComment(threadId: string, id: string): boolean {
+    const result = this.db
+      .prepare(
+        "DELETE FROM collaboration_comment WHERE id = ? AND thread_id = ?"
+      )
+      .run(id, threadId)
+    return Number(result.changes ?? 0) > 0
+  }
+
+  /**
+   * 关键词搜索：标题与正文做大小写不敏感的子串匹配。
+   * 命中 Comment 额外补 topicId，供前端定位到所属 Topic。
+   */
+  search(query: string): {
+    topics: CollaborationTopic[]
+    threads: CollaborationThread[]
+    comments: (CollaborationComment & { topicId: string })[]
+  } {
+    const pattern = `%${query.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
+    const topicRows = this.db
+      .prepare(
+        `SELECT * FROM collaboration_topic WHERE title LIKE ? ESCAPE '\\'
+         ORDER BY position, id`
+      )
+      .all(pattern) as TopicRow[]
+    const threadRows = this.db
+      .prepare(
+        `SELECT * FROM collaboration_thread WHERE title LIKE ? ESCAPE '\\'
+         ORDER BY topic_id, position, id`
+      )
+      .all(pattern) as ThreadRow[]
+    const commentRows = this.db
+      .prepare(
+        `SELECT * FROM collaboration_comment WHERE body LIKE ? ESCAPE '\\'
+         ORDER BY thread_id, position, id`
+      )
+      .all(pattern) as CommentRow[]
+
+    const topics = topicRows
+      .map((row) => this.getTopic(row.id))
+      .filter((topic): topic is CollaborationTopic => topic !== null)
+    const threads = threadRows
+      .map((row) => this.getThread(row.topic_id, row.id))
+      .filter((thread): thread is CollaborationThread => thread !== null)
+    const comments: (CollaborationComment & { topicId: string })[] = []
+    for (const row of commentRows) {
+      const comment = toComment(row)
+      const thread = this.findThread(comment.threadId)
+      if (thread) comments.push({ ...comment, topicId: thread.topicId })
+    }
+    return { topics, threads, comments }
   }
 
   counts(): { topics: number; threads: number; comments: number } {
