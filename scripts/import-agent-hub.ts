@@ -102,6 +102,12 @@ const main = (): void => {
     line("Topic", result.topics)
     line("Thread", result.threads)
     line("Comment", result.comments)
+    console.log(`  改 id 记录：${result.renames.length}`)
+    for (const rename of result.renames) {
+      console.log(
+        `    改 id ${rename.kind} ${rename.originalId} → ${rename.newId}`
+      )
+    }
     for (const conflict of result.conflicts) {
       console.log(`  冲突 ${conflict.kind} ${conflict.id}：${conflict.reason}`)
     }

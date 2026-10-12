@@ -132,6 +132,7 @@ describe("importAgentHubData", () => {
     expect(result.threads).toEqual({ inserted: 3, skipped: 0, conflicted: 0 })
     expect(result.comments).toEqual({ inserted: 7, skipped: 0, conflicted: 0 })
     expect(result.conflicts).toEqual([])
+    expect(result.renames).toEqual([])
 
     // 顺序：数组顺序即显示顺序，position 显式保存
     expect(store.listTopics().map((item) => item.id)).toEqual([
@@ -276,7 +277,103 @@ describe("importAgentHubData", () => {
     expect(second.threads).toEqual({ inserted: 0, skipped: 3, conflicted: 0 })
     expect(second.comments).toEqual({ inserted: 0, skipped: 7, conflicted: 0 })
     expect(second.conflicts).toEqual([])
+    expect(second.renames).toEqual([])
     expect(store.counts()).toEqual({ topics: 2, threads: 3, comments: 7 })
+  })
+
+  it("同批内重复 id 改名保留，两条正文都在且重复导入幂等", () => {
+    // 源数据里真实出现过：未展开的 shell 替换被当成 id，
+    // 同一个 Thread 里有两条 id 相同、正文不同的消息。
+    const dupId = "tm-$(date +%s)"
+    const fixture: AgentHubData = {
+      topics: [
+        {
+          id: "topic-dup",
+          title: "重复 id",
+          createdAt: "2026-07-25T00:00:00.000Z",
+          threads: [
+            {
+              id: "thread-dup",
+              title: "自由讨论",
+              createdAt: "2026-07-25T00:00:01.000Z",
+              comments: [
+                {
+                  id: dupId,
+                  role: "agent",
+                  body: "第一条正文",
+                  createdAt: "2026-07-25T00:00:02.000Z",
+                },
+                {
+                  id: dupId,
+                  role: "agent",
+                  body: "第二条正文",
+                  createdAt: "2026-07-25T00:00:03.000Z",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+
+    const first = importAgentHubData(store, fixture)
+    expect(first.comments).toEqual({ inserted: 2, skipped: 0, conflicted: 0 })
+    expect(first.conflicts).toEqual([])
+    expect(first.renames).toEqual([
+      { kind: "comment", originalId: dupId, newId: `${dupId}#dup2` },
+    ])
+
+    // 两条正文都保留，id 确定可复现，位置仍是原顺序
+    const comments = store.listComments("thread-dup")
+    expect(comments.map((item) => item.id)).toEqual([dupId, `${dupId}#dup2`])
+    expect(comments.map((item) => item.body)).toEqual([
+      "第一条正文",
+      "第二条正文",
+    ])
+    expect(comments.map((item) => item.position)).toEqual([0, 1])
+
+    // 规则只看输入本身：再次导入算出同样的 id，全部命中「已存在且内容相同」
+    const second = importAgentHubData(store, fixture)
+    expect(second.comments).toEqual({ inserted: 0, skipped: 2, conflicted: 0 })
+    expect(second.conflicts).toEqual([])
+    expect(second.renames).toEqual([])
+    expect(store.counts().comments).toBe(2)
+  })
+
+  it("重复 id 且内容完全相同只落一条", () => {
+    const dupId = "c-same"
+    const comment = {
+      id: dupId,
+      role: "user" as const,
+      body: "同一条消息",
+      createdAt: "2026-07-25T00:00:02.000Z",
+    }
+    const fixture: AgentHubData = {
+      topics: [
+        {
+          id: "topic-same",
+          title: "重复 id 同内容",
+          createdAt: "2026-07-25T00:00:00.000Z",
+          threads: [
+            {
+              id: "thread-same",
+              title: "线程",
+              createdAt: "2026-07-25T00:00:01.000Z",
+              // 位置不同、其余字段全等：属于同一条记录被写了两遍
+              comments: [comment, { ...comment }],
+            },
+          ],
+        },
+      ],
+    }
+
+    const result = importAgentHubData(store, fixture)
+    expect(result.comments).toEqual({ inserted: 1, skipped: 1, conflicted: 0 })
+    expect(result.conflicts).toEqual([])
+    expect(result.renames).toEqual([])
+    expect(store.listComments("thread-same").map((item) => item.id)).toEqual([
+      dupId,
+    ])
   })
 
   it("已有数据不被静默覆盖或清空，冲突逐条回报", () => {

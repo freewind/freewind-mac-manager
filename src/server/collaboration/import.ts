@@ -24,11 +24,29 @@ export type ImportConflict = {
   reason: string
 }
 
+/**
+ * 同批输入内 id 重复、被确定性改名后真正写入的记录。
+ *
+ * 源数据里出现过把未展开的 shell 替换当成 id 的情况
+ * （`tm-$(date +%s)` 在同一 Thread 里出现两次，正文不同），
+ * 这类记录不能当冲突丢掉，也不能覆盖，只能改名后各自保留。
+ */
+export type ImportRename = {
+  kind: ImportConflictKind
+  originalId: string
+  newId: string
+}
+
 export type ImportResult = {
   topics: ImportCounts
   threads: ImportCounts
   comments: ImportCounts
   conflicts: ImportConflict[]
+  /**
+   * 因同批内 id 重复而改名的记录明细；计数即 `renames.length`。
+   * 只列本次真正写入的改名：重复导入全部跳过时为空，便于确认幂等。
+   */
+  renames: ImportRename[]
 }
 
 const emptyCounts = (): ImportCounts => ({
@@ -93,6 +111,76 @@ const isIdentical = (
   Object.keys(existing).length === Object.keys(next).length &&
   Object.entries(existing).every(([key, value]) => next[key] === value)
 
+/**
+ * 批内重复判定用的内容签名。
+ *
+ * position 由数组下标派生、只是存储细节，不参与内容比较；其余字段全等
+ * 才算「同一条记录被写了两遍」，此时按既有幂等规则跳过。
+ */
+const contentSignature = (record: object): string =>
+  JSON.stringify(
+    Object.fromEntries(
+      Object.entries(record).filter(([key]) => key !== "position")
+    )
+  )
+
+type ResolvedId = {
+  /** 本条记录实际使用的 id（可能是改名后的）。 */
+  id: string
+  /** 发生改名时给出明细，否则为 null。 */
+  rename: ImportRename | null
+  /** 与批内已出现过的记录内容完全相同，应跳过。 */
+  duplicate: boolean
+}
+
+type BatchDedup = {
+  resolve: <T extends { id: string }>(
+    kind: ImportConflictKind,
+    record: T
+  ) => ResolvedId
+}
+
+/**
+ * 同批输入内重复 id 的确定性去重：
+ * - 第 1 次出现保持原 id；
+ * - 第 N 次出现（N≥2）内容与已出现过的某次完全相同 → 视为同一条记录，跳过；
+ * - 第 N 次出现（N≥2）内容不同 → 记为 `<原id>#dup<N>`，各自保留。
+ *
+ * 规则只看输入本身、与库内状态无关，所以可复现：重复导入会算出同样的 id，
+ * 依然全部命中「已存在且内容相同」而跳过。
+ */
+const createBatchDedup = (): BatchDedup => {
+  const occurrences = new Map<string, number>()
+  const signatures = new Map<string, Set<string>>()
+  return {
+    resolve: (kind, record) => {
+      const key = `${kind}:${record.id}`
+      const seen = (occurrences.get(key) ?? 0) + 1
+      occurrences.set(key, seen)
+      const known = signatures.get(key) ?? new Set<string>()
+      signatures.set(key, known)
+      const signature = contentSignature(record)
+
+      if (seen === 1) {
+        known.add(signature)
+        return { id: record.id, rename: null, duplicate: false }
+      }
+      if (known.has(signature)) {
+        return { id: record.id, rename: null, duplicate: true }
+      }
+      known.add(signature)
+      const newId = `${record.id}#dup${seen}`
+      return {
+        id: newId,
+        rename: { kind, originalId: record.id, newId },
+        duplicate: false,
+      }
+    },
+  }
+}
+
+type ApplyOutcome = "inserted" | "skipped" | "conflicted"
+
 type ApplyOptions<T extends { id: string }> = {
   kind: ImportConflictKind
   next: T
@@ -110,12 +198,12 @@ type ApplyOptions<T extends { id: string }> = {
  */
 const applyRecord = <T extends { id: string }>(
   options: ApplyOptions<T>
-): void => {
+): ApplyOutcome => {
   const { kind, next, existing, insert, counts, conflicts } = options
   if (!existing) {
     insert(next)
     counts.inserted += 1
-    return
+    return "inserted"
   }
   if (
     isIdentical(
@@ -124,7 +212,7 @@ const applyRecord = <T extends { id: string }>(
     )
   ) {
     counts.skipped += 1
-    return
+    return "skipped"
   }
   counts.conflicted += 1
   conflicts.push({
@@ -132,6 +220,45 @@ const applyRecord = <T extends { id: string }>(
     id: next.id,
     reason: "已存在同 id 但内容不同的记录，保留原有数据",
   })
+  return "conflicted"
+}
+
+type ApplyOneOptions<T extends { id: string }> = {
+  kind: ImportConflictKind
+  record: T
+  find: (id: string) => T | null
+  insert: (record: T) => void
+  counts: ImportCounts
+}
+
+/**
+ * 一条记录的完整落库路径：先做批内去重（必要时改名），再按 id 落库，
+ * 最后把「真正写入的改名」记进结果，供人工核对。
+ * 返回实际使用的 id，调用方据此修正子记录的归属 id。
+ */
+const applyOne = <T extends { id: string }>(
+  result: ImportResult,
+  dedup: BatchDedup,
+  options: ApplyOneOptions<T>
+): { id: string } => {
+  const resolved = dedup.resolve(options.kind, options.record)
+  if (resolved.duplicate) {
+    options.counts.skipped += 1
+    return { id: resolved.id }
+  }
+  const next = { ...options.record, id: resolved.id }
+  const outcome = applyRecord({
+    kind: options.kind,
+    next,
+    existing: options.find(resolved.id),
+    insert: options.insert,
+    counts: options.counts,
+    conflicts: result.conflicts,
+  })
+  if (resolved.rename && outcome === "inserted") {
+    result.renames.push(resolved.rename)
+  }
+  return { id: resolved.id }
 }
 
 /**
@@ -140,6 +267,7 @@ const applyRecord = <T extends { id: string }>(
  * - 先做 schema 校验，非法输入直接拒绝，不产生任何写入；
  * - 整批在一个事务里导入，任一步失败整体回滚；
  * - 已存在的数据不会被覆盖或清空，冲突逐条回报；
+ * - 同批内重复 id 按 `<原id>#dup<N>` 改名保留，正文一条不丢；
  * - 同一份数据重复导入不产生重复记录。
  */
 export const importAgentHubData = (
@@ -162,44 +290,36 @@ export const importAgentHubData = (
     threads: emptyCounts(),
     comments: emptyCounts(),
     conflicts: [],
+    renames: [],
   }
+  const dedup = createBatchDedup()
 
   store.transaction(() => {
     parsed.data.topics.forEach((topic, topicIndex) => {
-      const topicRecord = toTopicRecord(topic, topicIndex)
-      applyRecord({
+      const topicRef = applyOne(result, dedup, {
         kind: "topic",
-        next: topicRecord,
-        existing: store.findTopic(topicRecord.id),
+        record: toTopicRecord(topic, topicIndex),
+        find: (id) => store.findTopic(id),
         insert: (record) => store.insertTopic(record),
         counts: result.topics,
-        conflicts: result.conflicts,
       })
 
       topic.threads.forEach((thread, threadIndex) => {
-        const threadRecord = toThreadRecord(thread, topic.id, threadIndex)
-        applyRecord({
+        const threadRef = applyOne(result, dedup, {
           kind: "thread",
-          next: threadRecord,
-          existing: store.findThread(threadRecord.id),
+          record: toThreadRecord(thread, topicRef.id, threadIndex),
+          find: (id) => store.findThread(id),
           insert: (record) => store.insertThread(record),
           counts: result.threads,
-          conflicts: result.conflicts,
         })
 
         thread.comments.forEach((comment, commentIndex) => {
-          const commentRecord = toCommentRecord(
-            comment,
-            thread.id,
-            commentIndex
-          )
-          applyRecord({
+          applyOne(result, dedup, {
             kind: "comment",
-            next: commentRecord,
-            existing: store.findComment(commentRecord.id),
+            record: toCommentRecord(comment, threadRef.id, commentIndex),
+            find: (id) => store.findComment(id),
             insert: (record) => store.insertComment(record),
             counts: result.comments,
-            conflicts: result.conflicts,
           })
         })
       })
