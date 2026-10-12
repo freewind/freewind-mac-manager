@@ -1,6 +1,7 @@
 import {
   ArrowDown01Icon,
   ArrowUp01Icon,
+  ClockIcon,
   DashboardSpeed02Icon,
   Download01Icon,
   RefreshIcon,
@@ -10,6 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import type { TrafficSnapshot } from "@shared/api-contract"
 import { describeError, formatBytes } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
+import { PageHeader } from "@web/components/PageHeader"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -21,18 +23,20 @@ import {
 } from "@web/components/ui/alert-dialog"
 import { Button } from "@web/components/ui/button"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@web/components/ui/card"
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@web/components/ui/sheet"
 import { AiAssistantButton } from "@web/features/ai-assistant/AiAssistantButton"
 import { buildAiAssistantContext } from "@web/features/ai-assistant/context"
 import { useTraffic } from "@web/features/traffic/useTraffic"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
-import { type ReactNode, useState } from "react"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
+import { useState } from "react"
 import { toast } from "sonner"
 import { ProcessTable } from "./ProcessTable"
 import { SnapshotList } from "./SnapshotList"
@@ -46,6 +50,8 @@ type PendingConfirm = {
 
 export const TrafficPage = () => {
   const model = useTraffic()
+  const isDesktop = useIsDesktop()
+  const [snapshotListOpen, setSnapshotListOpen] = useState(false)
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
     null
   )
@@ -110,6 +116,7 @@ export const TrafficPage = () => {
     model.killBusy || model.snapshotWriteBusy
   )
   useHistoryOverlay(pendingConfirm !== null, () => setPendingConfirm(null))
+  useHistoryOverlay(snapshotListOpen, () => setSnapshotListOpen(false))
 
   const scopeText = model.isRealtime
     ? "实时（当前正在跑的进程）"
@@ -138,14 +145,65 @@ export const TrafficPage = () => {
       onConfirm: () => model.removeSnapshot(snapshot.id),
     })
 
+  const snapshotListProps = {
+    model,
+    onRequestDelete: requestDeleteSnapshot,
+    onRequestDeleteSelected: () =>
+      setPendingConfirm({
+        title: `删除选中的 ${model.selectedSnapshotCount} 份快照？`,
+        description: "这些快照的增量会依次并入各自后面一份，不会被丢掉。",
+        confirmText: "删除所选",
+        onConfirm: model.removeSelected,
+      }),
+    onRequestMergeSelected: () =>
+      setPendingConfirm({
+        title: `把选中的 ${model.selectedSnapshotCount} 份快照合并成一份？`,
+        description:
+          "合并后会把它们覆盖的整段变成一份，原来的分份记录不再保留。",
+        confirmText: "合并",
+        onConfirm: model.mergeSelected,
+      }),
+  }
+
+  // 切换实时/快照后明细要回到顶部，但左侧列表的位置保持不动。
+  const detailResetKey = model.isRealtime
+    ? "realtime"
+    : model.selectedIds.join(",")
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex flex-col gap-3 border-b px-4 py-3">
+      <header className="flex flex-col gap-2 border-b px-4 py-2">
         <div className="flex flex-wrap items-center gap-2">
-          <HugeiconsIcon icon={DashboardSpeed02Icon} className="size-4" />
-          <h1 className="text-sm font-medium">流量监控</h1>
+          <HugeiconsIcon
+            icon={DashboardSpeed02Icon}
+            className="size-4"
+            aria-hidden="true"
+          />
+          <PageHeader title="流量监控" loading={model.isLoading} />
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {/* 手机上快照列表收进抽屉，把宽度留给明细。 */}
+            {isDesktop ? null : (
+              <Sheet open={snapshotListOpen} onOpenChange={setSnapshotListOpen}>
+                <SheetTrigger
+                  render={
+                    <Button variant="outline" size="sm" className="min-h-11">
+                      <HugeiconsIcon icon={ClockIcon} aria-hidden="true" />
+                      快照
+                    </Button>
+                  }
+                />
+                <SheetContent side="left" className="gap-2">
+                  <SheetHeader>
+                    <SheetTitle>选择快照</SheetTitle>
+                    <SheetDescription>
+                      选一份看历史累计；多选后可以合并或删除。
+                    </SheetDescription>
+                  </SheetHeader>
+                  <SnapshotList {...snapshotListProps} />
+                </SheetContent>
+              </Sheet>
+            )}
             <AiAssistantButton context={assistantContext} />
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <input
@@ -162,83 +220,67 @@ export const TrafficPage = () => {
               variant="outline"
               onClick={model.refresh}
             >
-              <HugeiconsIcon icon={RefreshIcon} />
+              <HugeiconsIcon icon={RefreshIcon} aria-hidden="true" />
               刷新
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard
-            title={<IconLabel icon={ArrowDown01Icon} text="实时" />}
+        {/* 一行摘要：实时速率与当前累计分开标识，不再占三张统计卡片。 */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted-foreground">
+          <Metric
+            icon={ArrowDown01Icon}
+            label="实时下载"
             value={`${formatBytes(model.status?.downloadRate ?? 0)}/s`}
-            description={`每 ${model.samplingIntervalSeconds} 秒采样一次`}
           />
-          <StatCard
-            title={<IconLabel icon={ArrowUp01Icon} text="实时" />}
+          <Metric
+            icon={ArrowUp01Icon}
+            label="实时上传"
             value={`${formatBytes(model.status?.uploadRate ?? 0)}/s`}
-            description={`每 ${model.samplingIntervalSeconds} 秒采样一次`}
           />
-          <StatCard
-            title={
-              model.isRealtime
-                ? "当前累计"
-                : model.selectedSnapshotCount > 1
-                  ? `${model.selectedSnapshotCount} 份快照合计`
-                  : "本快照合计"
-            }
-            value={
-              model.groupsFailed
+          <span className="flex items-center gap-1">
+            {model.isRealtime
+              ? "当前累计"
+              : model.selectedSnapshotCount > 1
+                ? `${model.selectedSnapshotCount} 份快照合计`
+                : "本快照合计"}
+            <span className="font-medium text-foreground tabular-nums">
+              {model.groupsFailed
                 ? "读取失败"
                 : model.groupsLoading
                   ? "读取中…"
-                  : formatBytes(model.totals.total)
-            }
-            description={
-              model.groupsFailed ? (
-                "进程级数据不可用，不代表流量为 0"
-              ) : (
-                <span className="flex items-center gap-1">
-                  <HugeiconsIcon icon={Upload01Icon} className="size-3" />
-                  {formatBytes(model.totals.bytesIn)}
-                  <HugeiconsIcon
-                    icon={Download01Icon}
-                    className="ml-1 size-3"
-                  />
-                  {formatBytes(model.totals.bytesOut)}
-                </span>
-              )
-            }
-          />
+                  : formatBytes(model.totals.total)}
+            </span>
+            {model.groupsFailed ? (
+              <span>进程级数据不可用，不代表流量为 0</span>
+            ) : (
+              <span className="flex items-center gap-1 tabular-nums">
+                <HugeiconsIcon
+                  icon={Upload01Icon}
+                  className="size-3"
+                  aria-hidden="true"
+                />
+                入 {formatBytes(model.totals.bytesIn)}
+                <HugeiconsIcon
+                  icon={Download01Icon}
+                  className="ml-1 size-3"
+                  aria-hidden="true"
+                />
+                出 {formatBytes(model.totals.bytesOut)}
+              </span>
+            )}
+          </span>
+          <span className="ml-auto min-w-0 truncate">{scopeText}</span>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <SnapshotList
-          model={model}
-          onRequestDelete={requestDeleteSnapshot}
-          onRequestDeleteSelected={() =>
-            setPendingConfirm({
-              title: `删除选中的 ${model.selectedSnapshotCount} 份快照？`,
-              description: "这些快照的增量会依次并入各自后面一份，不会被丢掉。",
-              confirmText: "删除所选",
-              onConfirm: model.removeSelected,
-            })
-          }
-          onRequestMergeSelected={() =>
-            setPendingConfirm({
-              title: `把选中的 ${model.selectedSnapshotCount} 份快照合并成一份？`,
-              description:
-                "合并后会把它们覆盖的整段变成一份，原来的分份记录不再保留。",
-              confirmText: "合并",
-              onConfirm: model.mergeSelected,
-            })
-          }
-        />
+        {isDesktop ? <SnapshotList {...snapshotListProps} /> : null}
 
         <ProcessTable
           model={model}
           scopeText={scopeText}
+          resetKey={detailResetKey}
           onCopy={copyText}
           onRequestKill={(label, pids) =>
             setPendingConfirm({
@@ -309,30 +351,19 @@ export const TrafficPage = () => {
   )
 }
 
-type StatCardProps = {
-  title: ReactNode
+type MetricProps = {
+  icon: typeof RefreshIcon
+  label: string
   value: string
-  description: ReactNode
 }
 
-const StatCard = (props: StatCardProps) => {
-  const { title, value, description } = props
-  return (
-    <Card className="gap-1 py-3">
-      <CardHeader className="px-4">
-        <CardDescription>{title}</CardDescription>
-        <CardTitle className="text-lg tabular-nums">{value}</CardTitle>
-      </CardHeader>
-      <CardContent className="px-4">
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </CardContent>
-    </Card>
-  )
-}
-
-const IconLabel = (props: { icon: typeof RefreshIcon; text: string }) => (
+/** 摘要里的一项：图标 + 名称 + 数值，说明文字不再各占一张卡片。 */
+const Metric = (props: MetricProps) => (
   <span className="flex items-center gap-1">
-    <HugeiconsIcon icon={props.icon} className="size-3" />
-    {props.text}
+    <HugeiconsIcon icon={props.icon} className="size-3" aria-hidden="true" />
+    {props.label}
+    <span className="font-medium text-foreground tabular-nums">
+      {props.value}
+    </span>
   </span>
 )

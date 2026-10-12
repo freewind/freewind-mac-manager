@@ -2,10 +2,12 @@ import {
   ArrowDown01Icon,
   ArrowRight01Icon,
   CheckmarkSquare01Icon,
+  ClockIcon,
   Copy01Icon,
   File01Icon,
   Folder01Icon,
   FolderOpenIcon,
+  Loading03Icon,
   MergeIcon,
   MoreHorizontalIcon,
   RefreshIcon,
@@ -17,6 +19,7 @@ import {
   type GrowthEntry,
   type ScanTaskResult,
   TASK_KINDS,
+  type TaskRecord,
 } from "@shared/api-contract"
 import { triggerScan } from "@shared/client-api"
 import {
@@ -63,6 +66,14 @@ import {
 import { Input } from "@web/components/ui/input"
 import { Progress } from "@web/components/ui/progress"
 import { ScrollArea } from "@web/components/ui/scroll-area"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@web/components/ui/sheet"
 import { Skeleton } from "@web/components/ui/skeleton"
 import {
   Table,
@@ -86,7 +97,9 @@ import {
 } from "@web/features/disk-growth/queries"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
-import { TaskCard } from "@web/features/tasks/TaskCard"
+import { taskStatusLabel } from "@web/features/tasks/labels"
+import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { useTaskAction } from "@web/hooks/use-task-action"
 import { cn } from "@web/lib/utils"
 import {
@@ -101,8 +114,31 @@ import { toast } from "sonner"
 
 const INDENT = 14
 
+/** 顶部只报一句话扫描进度，完整任务详情在任务中心。 */
+const scanProgressText = (task: TaskRecord): string => {
+  const progress = task.progress
+  const parts = [taskStatusLabel(task.status)]
+  if (!progress) return parts.join(" · ")
+  if (progress.bytesDone !== null && progress.bytesDone > 0) {
+    parts.push(
+      progress.bytesTotal === null
+        ? `${progress.stage}：已统计 ${formatBytes(progress.bytesDone)}`
+        : `${progress.stage}：已统计 ${formatBytes(progress.bytesDone)} / ${formatBytes(progress.bytesTotal)}`
+    )
+    return parts.join(" · ")
+  }
+  parts.push(
+    progress.currentTarget
+      ? `${progress.stage}：${progress.currentTarget}`
+      : progress.stage
+  )
+  return parts.join(" · ")
+}
+
 export const DiskGrowthPage = () => {
   const { snapshots, isLoading } = useSnapshots()
+  const isDesktop = useIsDesktop()
+  const [snapshotPanelOpen, setSnapshotPanelOpen] = useState(false)
   const queryClient = useQueryClient()
   const resetForNewSnapshot = useDiskGrowthLocalStore(
     (state) => state.resetForNewSnapshot
@@ -136,6 +172,8 @@ export const DiskGrowthPage = () => {
   useEffect(() => {
     registerTaskCompletion(TASK_KINDS.diskScan, refreshAfterScan)
   }, [refreshAfterScan])
+
+  useHistoryOverlay(snapshotPanelOpen, () => setSnapshotPanelOpen(false))
 
   const scan = useTaskAction<ScanTaskResult, undefined>({
     kind: TASK_KINDS.diskScan,
@@ -179,14 +217,53 @@ export const DiskGrowthPage = () => {
               className="pl-7"
             />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="min-h-11"
-            onClick={collapseAll}
-          >
-            全部收起
-          </Button>
+          {/* 手机上快照与区间选择收进抽屉，空间留给结果。 */}
+          {isDesktop ? null : (
+            <Sheet open={snapshotPanelOpen} onOpenChange={setSnapshotPanelOpen}>
+              <SheetTrigger
+                render={
+                  <Button variant="outline" size="sm" className="min-h-11">
+                    <HugeiconsIcon icon={ClockIcon} aria-hidden="true" />
+                    快照
+                  </Button>
+                }
+              />
+              <SheetContent side="left" className="gap-2">
+                <SheetHeader>
+                  <SheetTitle>快照与区间</SheetTitle>
+                  <SheetDescription>
+                    选一份看当时的增减；多选后可合并或删除。
+                  </SheetDescription>
+                </SheetHeader>
+                <SnapshotSidebar
+                  snapshots={snapshots}
+                  isLoading={isLoading}
+                  onNotice={notify}
+                  busiest={scan.busy}
+                />
+              </SheetContent>
+            </Sheet>
+          )}
+          {/* 次要操作进菜单：搜索与视图切换留在外面。 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="min-h-11"
+                  aria-label="更多操作"
+                >
+                  <HugeiconsIcon icon={MoreHorizontalIcon} aria-hidden="true" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={collapseAll}>
+                全部收起
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ActionButton
             size="sm"
             className="min-h-11"
@@ -198,21 +275,38 @@ export const DiskGrowthPage = () => {
             立即扫描
           </ActionButton>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span>
             区间 {range.ids.length} 份 / {spanDays.toFixed(1)} 天
           </span>
         </div>
-        {scan.task ? <TaskCard task={scan.task} /> : null}
+        {/* 顶部只报一句话扫描进度，完整任务详情看任务中心。 */}
+        {scan.task ? (
+          <div className="flex flex-wrap items-center gap-2 text-[0.6875rem] text-muted-foreground">
+            {scan.task.status === "running" ? (
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                className="size-3.5 animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+            ) : null}
+            <span className="min-w-0 truncate">
+              {scanProgressText(scan.task)}
+            </span>
+            <span className="ml-auto">详细进度与结果见任务中心</span>
+          </div>
+        ) : null}
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <SnapshotSidebar
-          snapshots={snapshots}
-          isLoading={isLoading}
-          onNotice={notify}
-          busiest={scan.busy}
-        />
+        {isDesktop ? (
+          <SnapshotSidebar
+            snapshots={snapshots}
+            isLoading={isLoading}
+            onNotice={notify}
+            busiest={scan.busy}
+          />
+        ) : null}
 
         {view === "icicle" ? (
           <IcicleChart
@@ -708,7 +802,7 @@ const SnapshotSidebar = ({ snapshots, isLoading, busiest }: SidebarProps) => {
   }
 
   return (
-    <aside className="flex max-h-72 w-full shrink-0 flex-col border-b md:max-h-none md:w-56 md:border-r md:border-b-0">
+    <aside className="flex min-h-0 w-full flex-1 flex-col border-b md:w-56 md:flex-none md:border-r md:border-b-0">
       <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
         快照
       </div>

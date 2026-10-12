@@ -51,11 +51,13 @@ type ProcessTableProps = {
   scopeText: string
   onCopy: (text: string) => void
   onRequestKill: (label: string, pids: number[]) => void
+  /** 查看对象（实时 / 选中快照）的标识：变化时明细回到顶部。 */
+  resetKey: string
 }
 
 /** 右栏：选中快照（或实时）的进程明细表。 */
 export const ProcessTable = (props: ProcessTableProps) => {
-  const { model, scopeText, onCopy, onRequestKill } = props
+  const { model, scopeText, onCopy, onRequestKill, resetKey } = props
   const [sortKey, setSortKey] = useState<SortKey>("total")
   const [descending, setDescending] = useState(true)
 
@@ -91,7 +93,8 @@ export const ProcessTable = (props: ProcessTableProps) => {
   }
 
   return (
-    <ScrollArea className="min-h-0 flex-1">
+    // key 换成新的查看对象时重建滚动容器：明细从顶部看起，排序偏好留在上层。
+    <ScrollArea key={resetKey} className="min-h-0 flex-1">
       {model.groupsFailed ? (
         <Empty>
           <EmptyHeader>
