@@ -1,5 +1,9 @@
 import { CADDY_APPLY_KIND, runCaddyApplyTask } from "@server/caddy/task"
 import {
+  DATABASE_BACKUP_CREATE_KIND,
+  runDatabaseBackupCreateTask,
+} from "@server/database/backups/task"
+import {
   DeleteSnapshotsPayloadSchema,
   DISCARD_KIND,
   EntryPathPayloadSchema,
@@ -394,6 +398,17 @@ export const taskExecutors: TaskExecutor[] = [
       if (!parsed.success) throw new Error("删除快照载荷非法")
       const outcome = await runDeleteSnapshotsTask({
         ids: parsed.data.ids,
+        report: context.report,
+      })
+      return { result: outcome.result, message: outcome.message }
+    },
+  },
+  {
+    kind: DATABASE_BACKUP_CREATE_KIND,
+    run: async (payload, context) => {
+      // 载荷在这层校验：非法载荷不会打开源库、也不会往备份目录写任何东西。
+      const outcome = await runDatabaseBackupCreateTask({
+        payload,
         report: context.report,
       })
       return { result: outcome.result, message: outcome.message }

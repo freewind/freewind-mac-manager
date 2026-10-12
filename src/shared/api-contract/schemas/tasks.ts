@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { CaddyApplyResultSchema } from "./caddy"
 import { ActionResponseSchema } from "./common"
+import { DatabaseBackupCreatedSchema } from "./database-backups"
 import { ScanTaskResultSchema } from "./disk-growth"
 import { FileBatchResultSchema } from "./files"
 import { PiBenchmarkResultSchema } from "./pi"
@@ -64,6 +65,8 @@ export const TASK_KINDS = {
   trafficSnapshotMerge: "traffic_snapshot_merge",
   trafficSnapshotDelete: "traffic_snapshot_delete",
   caddyConfigApply: "caddy_config_apply",
+  // 数据库备份：读整库、耗时远超响应阈值，靠任务中心查询进度
+  databaseBackupCreate: "database_backup_create",
 } as const
 
 const taskBase = {
@@ -216,6 +219,13 @@ export const CaddyConfigApplyTaskSchema = z.object({
   result: CaddyApplyResultSchema.nullable(),
 })
 
+/** 数据库备份：结果带新备份的元信息，页面据此直接展示，不用再去猜文件名。 */
+export const DatabaseBackupCreateTaskSchema = z.object({
+  ...taskBase,
+  kind: z.literal(TASK_KINDS.databaseBackupCreate),
+  result: DatabaseBackupCreatedSchema.nullable(),
+})
+
 /** 每种任务的结果结构由 discriminated union 固定，禁止用任意 JSON 承载结果。 */
 export const TaskRecordSchema = z.discriminatedUnion("kind", [
   DiskScanTaskSchema,
@@ -238,6 +248,7 @@ export const TaskRecordSchema = z.discriminatedUnion("kind", [
   TrafficSnapshotMergeTaskSchema,
   TrafficSnapshotDeleteTaskSchema,
   CaddyConfigApplyTaskSchema,
+  DatabaseBackupCreateTaskSchema,
 ])
 
 export type TaskRecord = z.infer<typeof TaskRecordSchema>

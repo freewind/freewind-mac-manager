@@ -15,6 +15,7 @@ import {
 } from "./collaboration/handlers"
 import { CollaborationStore } from "./collaboration/store"
 import { dashboardContract, dashboardRouter } from "./dashboard/handlers"
+import { reconcileDatabaseBackupsAtStartup } from "./database/backups/service"
 import {
   createDatabaseRouter,
   createDatabaseService,
@@ -136,6 +137,9 @@ export const createApp = (injected?: {
   )
   // 迁库与采样只在应用进程里做；后台执行器不会重复执行它们。
   if (injected?.initializeBusiness !== false) initializeTraffic()
+  // 启动时保守核实备份目录：孤儿临时文件、未确认发布、被改坏的清单。
+  if (injected?.initializeBusiness !== false)
+    reconcileDatabaseBackupsAtStartup()
   createExpressEndpoints(
     trafficContract,
     createTrafficRouter(taskRuntime),

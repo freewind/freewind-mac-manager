@@ -52,3 +52,9 @@ export const dockerNetworkTaskTarget = (id: string): string =>
 
 /** Colima 虚拟机是全局资源，任何动作都相互排斥（任务 9 接入）。 */
 export const dockerColimaTaskTarget = (): string => "docker:colima"
+
+/**
+ * 数据库备份读取整库，因此共用一把域级锁：同一时间只跑一个备份，
+ * 避免两份备份重复读盘、互相抢磁盘空间。
+ */
+export const databaseBackupTaskTarget = (): string => "database:backup"

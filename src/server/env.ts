@@ -73,6 +73,23 @@ export const CADDY_LAUNCHD_LABEL = "com.freewind.caddy"
 export const CADDY_BACKUP_DIR = path.join(DATA_DIR, "caddy-backups")
 
 /**
+ * 应用库的备份目录：默认放项目 data 下，可用 MAC_MANAGER_BACKUP_DIR 覆盖
+ * （测试指向临时目录）。备份文件与清单都只在这里，不写回被备份的库。
+ */
+export const DATABASE_BACKUP_DIR = path.resolve(
+  process.env.MAC_MANAGER_BACKUP_DIR ?? path.join(DATA_DIR, "database-backups")
+)
+
+/**
+ * 备份维护状态目录：恢复计划、进行中标记等维护信息，与备份文件分开存放，
+ * 避免维护状态混进可下载的备份产物里。
+ */
+export const DATABASE_BACKUP_STATE_DIR = path.resolve(
+  process.env.MAC_MANAGER_BACKUP_STATE_DIR ??
+    path.join(DATA_DIR, "database-backup-state")
+)
+
+/**
  * 服务端口只由启动命令通过 APP_PORT 显式注入，代码里不留默认值：缺失或非法
  * 一律直接抛错，避免静默退化到别的端口。dev（vite strictPort）与生产（listen）
  * 都要求端口被占用时直接启动失败。
