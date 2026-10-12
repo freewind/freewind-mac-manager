@@ -36,6 +36,11 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
+import {
   formatDuration,
   PROCESS_KIND_LABEL,
   PROCESS_STATE_LABEL,
@@ -109,7 +114,7 @@ export const ProcessTable = (props: ProcessTableProps) => {
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
-            <TableHead className="w-8">
+            <TableHead className="w-[1%] whitespace-nowrap">
               <Checkbox
                 checked={allChecked}
                 onCheckedChange={(checked: boolean) =>
@@ -123,47 +128,53 @@ export const ProcessTable = (props: ProcessTableProps) => {
               active={sortKey === "name"}
               descending={descending}
               onClick={() => toggleSort("name")}
-              className="min-w-64"
+              className="w-full"
             />
             <SortableHead
               label="PID"
               active={sortKey === "pid"}
               descending={descending}
               onClick={() => toggleSort("pid")}
-              className="w-16"
+              className="w-[1%] whitespace-nowrap"
             />
-            <TableHead className="hidden w-20 md:table-cell">用户</TableHead>
-            <TableHead className="hidden w-20 md:table-cell">状态</TableHead>
+            <TableHead className="hidden w-[1%] whitespace-nowrap md:table-cell">
+              用户
+            </TableHead>
+            <TableHead className="hidden w-[1%] whitespace-nowrap md:table-cell">
+              状态
+            </TableHead>
             <SortableHead
               label="CPU"
               active={sortKey === "cpu"}
               descending={descending}
               onClick={() => toggleSort("cpu")}
-              className="w-36"
+              className="w-[1%] whitespace-nowrap"
             />
             <SortableHead
               label="内存"
               active={sortKey === "memory"}
               descending={descending}
               onClick={() => toggleSort("memory")}
-              className="w-36"
+              className="w-[1%] whitespace-nowrap"
             />
             <SortableHead
               label="线程"
               active={sortKey === "threads"}
               descending={descending}
               onClick={() => toggleSort("threads")}
-              className="hidden w-14 md:table-cell"
+              className="hidden w-[1%] whitespace-nowrap md:table-cell"
             />
-            <TableHead className="hidden w-32 md:table-cell">端口</TableHead>
+            <TableHead className="hidden w-[1%] whitespace-nowrap md:table-cell">
+              端口
+            </TableHead>
             <SortableHead
               label="运行时长"
               active={sortKey === "started"}
               descending={descending}
               onClick={() => toggleSort("started")}
-              className="hidden w-24 md:table-cell"
+              className="hidden w-[1%] whitespace-nowrap md:table-cell"
             />
-            <TableHead className="w-10" />
+            <TableHead className="w-[1%] whitespace-nowrap" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -249,10 +260,19 @@ const ProcessRow = (props: ProcessRowProps) => {
           aria-label={`选择 ${item.name}`}
         />
       </TableCell>
-      <TableCell>
-        <span className="flex items-center gap-2">
+      <TableCell className="max-w-0">
+        <div className="flex items-center gap-2">
           <ProcessAvatar name={item.name} />
-          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="min-w-0 flex-1 truncate">{item.name}</span>
+              }
+            />
+            <TooltipContent className="max-w-lg break-all">
+              {item.name}
+            </TooltipContent>
+          </Tooltip>
           {item.user !== currentUser ? (
             <Badge variant="outline" className="shrink-0">
               系统
@@ -263,7 +283,7 @@ const ProcessRow = (props: ProcessRowProps) => {
               {PROCESS_KIND_LABEL[item.kind]}
             </Badge>
           ) : null}
-        </span>
+        </div>
         <div className="flex items-center gap-3 pt-1 text-xs tabular-nums text-muted-foreground md:hidden">
           <span>PID {item.pid}</span>
           <span className={hot ? "text-destructive" : undefined}>

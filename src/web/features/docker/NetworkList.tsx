@@ -29,6 +29,11 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { useDockerNetworks } from "@web/features/docker/useDocker"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
@@ -222,13 +227,28 @@ const NetworkTable = (props: {
       <TableBody>
         {props.networks.map((network) => (
           <TableRow key={network.id}>
-            <TableCell className="max-w-[18rem] truncate">
-              {network.name}
+            <TableCell className="max-w-0">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="block truncate">{network.name}</span>
+                  }
+                />
+                <TooltipContent className="max-w-lg break-all">
+                  {network.name}
+                </TooltipContent>
+              </Tooltip>
             </TableCell>
-            <TableCell>{network.driver}</TableCell>
-            <TableCell>{network.scope}</TableCell>
-            <TableCell>{network.containers}</TableCell>
-            <TableCell className="text-xs text-muted-foreground">
+            <TableCell className="w-[1%] whitespace-nowrap">
+              {network.driver}
+            </TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
+              {network.scope}
+            </TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
+              {network.containers}
+            </TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap text-xs text-muted-foreground">
               {network.builtin
                 ? BUILTIN_NETWORK_HINT
                 : network.containers > 0

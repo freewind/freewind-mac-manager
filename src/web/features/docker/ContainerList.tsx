@@ -36,6 +36,11 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { ContainerLogsSheet } from "@web/features/docker/ContainerLogsSheet"
 import { CreateContainerDialog } from "@web/features/docker/CreateContainerDialog"
 import {
@@ -390,19 +395,37 @@ const ContainerTable = (props: {
       <TableBody>
         {props.containers.map((container) => (
           <TableRow key={container.id}>
-            <TableCell className="max-w-[16rem] truncate">
-              {container.name}
+            <TableCell className="max-w-0">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="block truncate">{container.name}</span>
+                  }
+                />
+                <TooltipContent className="max-w-lg break-all">
+                  {container.name}
+                </TooltipContent>
+              </Tooltip>
             </TableCell>
-            <TableCell className="max-w-[16rem] truncate">
-              {container.image}
+            <TableCell className="max-w-0">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="block truncate">{container.image}</span>
+                  }
+                />
+                <TooltipContent className="max-w-lg break-all">
+                  {container.image}
+                </TooltipContent>
+              </Tooltip>
             </TableCell>
-            <TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
               <ContainerStateBadge container={container} />
             </TableCell>
-            <TableCell className="text-xs text-muted-foreground">
+            <TableCell className="w-[1%] whitespace-nowrap text-xs text-muted-foreground">
               {formatContainerPorts(container.ports)}
             </TableCell>
-            <TableCell className="text-xs text-muted-foreground">
+            <TableCell className="w-[1%] whitespace-nowrap text-xs text-muted-foreground">
               {formatContainerStartedAt(container)}
             </TableCell>
             <TableCell>

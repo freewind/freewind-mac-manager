@@ -36,6 +36,11 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
@@ -232,27 +237,57 @@ export const RuleList = (props: RuleListProps) => {
             <TableBody>
               {visible.map((rule) => (
                 <TableRow key={rule.id}>
-                  <TableCell className="max-w-[12rem] truncate font-medium">
-                    {rule.name}
+                  <TableCell className="max-w-0 font-medium">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="block truncate">{rule.name}</span>
+                        }
+                      />
+                      <TooltipContent className="max-w-lg break-all">
+                        {rule.name}
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
-                  <TableCell className="max-w-[14rem] truncate">
-                    <span className="text-xs text-muted-foreground">
-                      {matchKindLabel(rule.matchKind)}
-                    </span>{" "}
-                    {matchConditionOf(rule)}
+                  <TableCell className="max-w-0">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {matchKindLabel(rule.matchKind)}{" "}
+                            {matchConditionOf(rule)}
+                          </span>
+                        }
+                      />
+                      <TooltipContent className="max-w-lg break-all">
+                        {matchKindLabel(rule.matchKind)}{" "}
+                        {matchConditionOf(rule)}
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
-                  <TableCell className="max-w-[14rem] truncate font-mono text-xs">
-                    {rule.upstream}
+                  <TableCell className="max-w-0 font-mono text-xs">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="block truncate">
+                            {rule.upstream}
+                          </span>
+                        }
+                      />
+                      <TooltipContent className="max-w-lg break-all">
+                        {rule.upstream}
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="w-[1%] whitespace-nowrap">
                     <StripeNote rule={rule} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="w-[1%] whitespace-nowrap">
                     <Badge variant={rule.enabled ? "secondary" : "outline"}>
                       {rule.enabled ? "启用" : "停用"}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="w-[1%] whitespace-nowrap">
                     <RuleActions
                       rule={rule}
                       busy={props.busy}

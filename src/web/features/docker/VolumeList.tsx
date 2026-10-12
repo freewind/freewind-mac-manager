@@ -30,6 +30,11 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { useDockerVolumes } from "@web/features/docker/useDocker"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
@@ -221,15 +226,39 @@ const VolumeTable = (props: {
       <TableBody>
         {props.volumes.map((volume) => (
           <TableRow key={volume.name}>
-            <TableCell className="max-w-[16rem] truncate">
-              {volume.name}
+            <TableCell className="max-w-0">
+              <Tooltip>
+                <TooltipTrigger
+                  render={<span className="block truncate">{volume.name}</span>}
+                />
+                <TooltipContent className="max-w-lg break-all">
+                  {volume.name}
+                </TooltipContent>
+              </Tooltip>
             </TableCell>
-            <TableCell>{volume.driver}</TableCell>
-            <TableCell>{sizeTextOf(volume)}</TableCell>
-            <TableCell className="max-w-[20rem] truncate text-xs text-muted-foreground">
-              {volume.mountpoint || "—"}
+            <TableCell className="w-[1%] whitespace-nowrap">
+              {volume.driver}
             </TableCell>
-            <TableCell>{volume.inUse ? "使用中（不能删除）" : "—"}</TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
+              {sizeTextOf(volume)}
+            </TableCell>
+            <TableCell className="max-w-0 text-xs text-muted-foreground">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="block truncate">
+                      {volume.mountpoint || "—"}
+                    </span>
+                  }
+                />
+                <TooltipContent className="max-w-lg break-all">
+                  {volume.mountpoint || "—"}
+                </TooltipContent>
+              </Tooltip>
+            </TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
+              {volume.inUse ? "使用中（不能删除）" : "—"}
+            </TableCell>
             <TableCell>
               <div className="flex justify-end">
                 <RemoveVolumeButton

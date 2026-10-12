@@ -46,6 +46,11 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { useDockerImages } from "@web/features/docker/useDocker"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
@@ -355,15 +360,28 @@ const ImageTable = (props: {
       <TableBody>
         {props.images.map((image) => (
           <TableRow key={image.id}>
-            <TableCell className="max-w-[20rem] truncate">
-              {image.repository}
+            <TableCell className="max-w-0">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="block truncate">{image.repository}</span>
+                  }
+                />
+                <TooltipContent className="max-w-lg break-all">
+                  {image.repository}
+                </TooltipContent>
+              </Tooltip>
             </TableCell>
-            <TableCell>{image.tag}</TableCell>
-            <TableCell>{formatBytes(image.sizeBytes)}</TableCell>
-            <TableCell className="text-xs text-muted-foreground">
+            <TableCell className="w-[1%] whitespace-nowrap">
+              {image.tag}
+            </TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
+              {formatBytes(image.sizeBytes)}
+            </TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap text-xs text-muted-foreground">
               {formatTimestamp(image.createdAt / 1000)}
             </TableCell>
-            <TableCell>
+            <TableCell className="w-[1%] whitespace-nowrap">
               {image.containers > 0 ? `${image.containers} 个容器` : "—"}
             </TableCell>
             <TableCell>

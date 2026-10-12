@@ -34,6 +34,11 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import type { EntryAction } from "@web/features/files/actions"
 import { type FileSortKey, sortEntries } from "@web/features/files/domain"
 import type { FilesModel } from "@web/features/files/useFiles"
@@ -124,7 +129,7 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
                     activeKey={sortKey}
                     descending={descending}
                     onSort={onSort}
-                    className="w-24"
+                    className="w-[1%] whitespace-nowrap"
                   />
                 ) : null}
                 <SortHeader
@@ -133,7 +138,7 @@ export const FileTable = ({ model, rowActions }: FileTableProps) => {
                   activeKey={sortKey}
                   descending={descending}
                   onSort={onSort}
-                  className="w-32 md:w-40"
+                  className="w-[1%] whitespace-nowrap"
                 />
               </TableRow>
             </TableHeader>
@@ -258,7 +263,16 @@ const FileRow = ({ model, entry, actions }: FileRowProps) => {
               icon={entry.kind === "dir" ? Folder01Icon : File01Icon}
               className="shrink-0 text-muted-foreground"
             />
-            <span className="truncate">{entry.name}</span>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                }
+              />
+              <TooltipContent className="max-w-lg break-all">
+                {entry.name}
+              </TooltipContent>
+            </Tooltip>
             {entry.kind === "dir" ? (
               <Button
                 size="icon-sm"
