@@ -42,6 +42,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@web/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@web/components/ui/dropdown-menu"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
 import { Textarea } from "@web/components/ui/textarea"
@@ -50,13 +56,24 @@ import {
   forgetPendingRequest,
   rememberPendingRequest,
 } from "@web/features/tasks/pending-requests"
+import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { useState } from "react"
 import { toast } from "sonner"
 import { GroupsTab } from "./GroupsTab"
 import { LabTab } from "./LabTab"
 import { piKeys, usePiBenchmarks, usePiModels } from "./queries"
 import { SettingsTab } from "./SettingsTab"
-import { usePiTab } from "./use-pi-tab"
+import { PI_TABS, type PiTab, usePiTab } from "./use-pi-tab"
+
+/** 分区在界面上的名字；顺序与 PI_TABS 一致。 */
+const PI_TAB_LABELS: Record<PiTab, string> = {
+  models: "模型",
+  groups: "分组",
+  settings: "设置",
+  probe: "能力探测",
+  chat: "Playground",
+  assistant: "AI助手",
+}
 
 type ProviderEntry = ReturnType<typeof usePiModels>["data"] extends infer T
   ? T extends { providers: (infer P)[] }
@@ -105,8 +122,11 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 export const PiPage = () => {
   const queryClient = useQueryClient()
   const query = usePiModels()
+  const isDesktop = useIsDesktop()
   const { tab: activeTab, selectTab } = usePiTab()
   const setActiveTab = selectTab
+  // 测速是独立工作区：默认不出现在模型列表前面，由列表上方的按钮进入
+  const [benchmarkOpen, setBenchmarkOpen] = useState(false)
   const [labSelection, setLabSelection] = useState<{
     provider: string
     model: string
@@ -298,53 +318,43 @@ export const PiPage = () => {
         <span className="text-xs text-muted-foreground">
           密钥仅写入、不回显；模型参数由 Pi 上游格式校验
         </span>
-        <div className="flex gap-1 rounded-md bg-muted p-1">
-          <Button
-            size="sm"
-            className="min-h-11"
-            variant={activeTab === "models" ? "default" : "ghost"}
-            onClick={() => setActiveTab("models")}
-          >
-            模型
-          </Button>
-          <Button
-            size="sm"
-            className="min-h-11"
-            variant={activeTab === "groups" ? "default" : "ghost"}
-            onClick={() => setActiveTab("groups")}
-          >
-            分组
-          </Button>
-          <Button
-            size="sm"
-            className="min-h-11"
-            variant={activeTab === "settings" ? "default" : "ghost"}
-            onClick={() => setActiveTab("settings")}
-          >
-            设置
-          </Button>
-          <Button
-            className="min-h-11"
-            variant={activeTab === "probe" ? "default" : "ghost"}
-            onClick={() => setActiveTab("probe")}
-          >
-            能力探测
-          </Button>
-          <Button
-            className="min-h-11"
-            variant={activeTab === "chat" ? "default" : "ghost"}
-            onClick={() => setActiveTab("chat")}
-          >
-            Playground
-          </Button>
-          <Button
-            className="min-h-11"
-            variant={activeTab === "assistant" ? "default" : "ghost"}
-            onClick={() => setActiveTab("assistant")}
-          >
-            AI助手
-          </Button>
-        </div>
+        {isDesktop ? (
+          <div className="ml-auto flex flex-wrap gap-1 rounded-md bg-muted p-1">
+            {PI_TABS.map((tab) => (
+              <Button
+                key={tab}
+                size="sm"
+                className="min-h-11"
+                variant={activeTab === tab ? "default" : "ghost"}
+                onClick={() => setActiveTab(tab)}
+              >
+                {PI_TAB_LABELS[tab]}
+              </Button>
+            ))}
+          </div>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  size="sm"
+                  className="min-h-11"
+                  variant="outline"
+                  aria-label={`当前分区：${PI_TAB_LABELS[activeTab]}`}
+                >
+                  {PI_TAB_LABELS[activeTab]}
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="start">
+              {PI_TABS.map((tab) => (
+                <DropdownMenuItem key={tab} onClick={() => setActiveTab(tab)}>
+                  {PI_TAB_LABELS[tab]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {activeTab === "models" ? (
           <div className="ml-auto flex gap-2">
             <Button
@@ -393,175 +403,201 @@ export const PiPage = () => {
           {query.data?.providers.length === 0 ? (
             <p className="text-sm text-muted-foreground">尚无 Provider。</p>
           ) : null}
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle>模型测速</CardTitle>
-              <CardDescription>
-                点击后产生真实请求；本次输出取配置上限与 4096 的较小值。正文 TPS
-                仅在上游提供推理 token 拆分时计算。
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
-              <Label className="grid gap-1 text-xs">
-                Provider
-                <Combobox
-                  items={(query.data?.providers ?? []).map((p) => p.id)}
-                  value={benchmarkProvider}
-                  onValueChange={(value) => {
-                    setBenchmarkProvider(value ?? "")
-                    setBenchmarkModel("")
-                  }}
-                >
-                  <ComboboxInput
-                    aria-label="测速 Provider"
-                    placeholder="选择 Provider"
-                  />
-                  <ComboboxContent>
-                    <ComboboxEmpty>无匹配项</ComboboxEmpty>
-                    <ComboboxList>
-                      {(item) => (
-                        <ComboboxItem key={item} value={item}>
-                          {item}
-                        </ComboboxItem>
-                      )}
-                    </ComboboxList>
-                  </ComboboxContent>
-                </Combobox>
-              </Label>
-              <Label className="grid gap-1 text-xs">
-                模型
-                <Combobox
-                  items={(
-                    query.data?.providers.find(
-                      (entry) => entry.id === benchmarkProvider
-                    )?.provider.models ?? []
-                  ).map((m) => m.id)}
-                  value={benchmarkModel}
-                  onValueChange={(value) => setBenchmarkModel(value ?? "")}
-                >
-                  <ComboboxInput aria-label="测速模型" placeholder="选择模型" />
-                  <ComboboxContent>
-                    <ComboboxEmpty>无匹配项</ComboboxEmpty>
-                    <ComboboxList>
-                      {(item) => {
-                        const model = query.data?.providers
-                          .find((entry) => entry.id === benchmarkProvider)
-                          ?.provider.models.find((m) => m.id === item)
-                        return (
-                          <ComboboxItem key={item} value={item}>
-                            {model?.name ?? item} · max{" "}
-                            {model?.maxTokens ?? "未声明"}
-                          </ComboboxItem>
-                        )
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-medium">Provider 列表</h2>
+            <Button
+              size="sm"
+              variant="outline"
+              className="ml-auto min-h-11"
+              onClick={() => setBenchmarkOpen((value) => !value)}
+            >
+              {benchmarkOpen ? "收起测速" : "模型测速"}
+            </Button>
+          </div>
+
+          {benchmarkOpen ? (
+            <>
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle>模型测速</CardTitle>
+                  <CardDescription>
+                    点击后产生真实请求；本次输出取配置上限与 4096 的较小值。正文
+                    TPS 仅在上游提供推理 token 拆分时计算。
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3 sm:grid-cols-2">
+                  <Label className="grid gap-1 text-xs">
+                    Provider
+                    <Combobox
+                      items={(query.data?.providers ?? []).map((p) => p.id)}
+                      value={benchmarkProvider}
+                      onValueChange={(value) => {
+                        setBenchmarkProvider(value ?? "")
+                        setBenchmarkModel("")
                       }}
-                    </ComboboxList>
-                  </ComboboxContent>
-                </Combobox>
-              </Label>
-              <Label className="grid gap-1 text-xs">
-                Thinking
-                <Combobox
-                  items={[
-                    "off",
-                    "minimal",
-                    "low",
-                    "medium",
-                    "high",
-                    "xhigh",
-                    "max",
-                  ]}
-                  value={benchmarkThinking}
-                  onValueChange={(value) => {
-                    if (value)
-                      setBenchmarkThinking(value as typeof benchmarkThinking)
-                  }}
-                >
-                  <ComboboxInput aria-label="测速 Thinking" />
-                  <ComboboxContent>
-                    <ComboboxEmpty>无匹配项</ComboboxEmpty>
-                    <ComboboxList>
-                      {(item) => (
-                        <ComboboxItem key={item} value={item}>
-                          {item}
-                        </ComboboxItem>
-                      )}
-                    </ComboboxList>
-                  </ComboboxContent>
-                </Combobox>
-              </Label>
-              <Button
-                className="min-h-11"
-                onClick={() => benchmark.mutate()}
-                disabled={
-                  benchmark.isPending ||
-                  benchmarkRunning ||
-                  !benchmarkProvider ||
-                  !benchmarkModel
-                }
-              >
-                {benchmark.isPending || benchmarkRunning
-                  ? "测速中…"
-                  : "开始一次测速"}
-              </Button>
-              {activeBenchmark ? (
-                <p role="status">
-                  {activeTask.data?.status ?? "核实中"}；可在任务历史查看结果。
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle>测速历史（最多 100 条）</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {history.isLoading ? (
-                <p role="status">正在读取测速历史…</p>
-              ) : null}
-              {history.isError ? (
-                <p role="alert">测速历史读取失败：{history.error.message}</p>
-              ) : null}
-              {history.data?.benchmarks.length === 0 ? (
-                <p>暂无测速记录。</p>
-              ) : null}
-              {history.data?.benchmarks.map((item) => (
-                <div key={item.id} className="rounded border p-3 text-sm">
-                  <p>
-                    {item.providerId}/{item.modelId} · {item.status} · 配置上限{" "}
-                    {item.configuredMaxTokens} tokens
-                  </p>
-                  <p>
-                    首事件 {item.metrics.firstEventMs ?? "—"} ms · 首正文{" "}
-                    {item.metrics.firstTextMs ?? "—"} ms · 总时长{" "}
-                    {item.metrics.durationMs ?? "—"} ms
-                  </p>
-                  <p>
-                    输入 {item.metrics.inputTokens ?? "—"} · 输出{" "}
-                    {item.metrics.outputTokens ?? "—"} · 文本输出{" "}
-                    {item.metrics.textOutputTokens ?? "—"} · 缓存读{" "}
-                    {item.metrics.cacheReadTokens ?? "—"} · 缓存写{" "}
-                    {item.metrics.cacheWriteTokens ?? "—"}
-                  </p>
-                  <p>
-                    正文 tokens/s：{item.metrics.outputTokensPerSecond ?? "—"} ·
-                    停止原因：{item.stopReason ?? "—"} ·{" "}
-                    {item.error ?? "无错误"}
-                  </p>
-                  <p>
-                    {new Date(item.startedAt).toLocaleString()} · {item.message}
-                  </p>
+                    >
+                      <ComboboxInput
+                        aria-label="测速 Provider"
+                        placeholder="选择 Provider"
+                      />
+                      <ComboboxContent>
+                        <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                        <ComboboxList>
+                          {(item) => (
+                            <ComboboxItem key={item} value={item}>
+                              {item}
+                            </ComboboxItem>
+                          )}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  </Label>
+                  <Label className="grid gap-1 text-xs">
+                    模型
+                    <Combobox
+                      items={(
+                        query.data?.providers.find(
+                          (entry) => entry.id === benchmarkProvider
+                        )?.provider.models ?? []
+                      ).map((m) => m.id)}
+                      value={benchmarkModel}
+                      onValueChange={(value) => setBenchmarkModel(value ?? "")}
+                    >
+                      <ComboboxInput
+                        aria-label="测速模型"
+                        placeholder="选择模型"
+                      />
+                      <ComboboxContent>
+                        <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                        <ComboboxList>
+                          {(item) => {
+                            const model = query.data?.providers
+                              .find((entry) => entry.id === benchmarkProvider)
+                              ?.provider.models.find((m) => m.id === item)
+                            return (
+                              <ComboboxItem key={item} value={item}>
+                                {model?.name ?? item} · max{" "}
+                                {model?.maxTokens ?? "未声明"}
+                              </ComboboxItem>
+                            )
+                          }}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  </Label>
+                  <Label className="grid gap-1 text-xs">
+                    Thinking
+                    <Combobox
+                      items={[
+                        "off",
+                        "minimal",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max",
+                      ]}
+                      value={benchmarkThinking}
+                      onValueChange={(value) => {
+                        if (value)
+                          setBenchmarkThinking(
+                            value as typeof benchmarkThinking
+                          )
+                      }}
+                    >
+                      <ComboboxInput aria-label="测速 Thinking" />
+                      <ComboboxContent>
+                        <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                        <ComboboxList>
+                          {(item) => (
+                            <ComboboxItem key={item} value={item}>
+                              {item}
+                            </ComboboxItem>
+                          )}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  </Label>
                   <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => removeHistory.mutate([item.id])}
-                    disabled={removeHistory.isPending}
+                    className="min-h-11"
+                    onClick={() => benchmark.mutate()}
+                    disabled={
+                      benchmark.isPending ||
+                      benchmarkRunning ||
+                      !benchmarkProvider ||
+                      !benchmarkModel
+                    }
                   >
-                    删除记录
+                    {benchmark.isPending || benchmarkRunning
+                      ? "测速中…"
+                      : "开始一次测速"}
                   </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                  {activeBenchmark ? (
+                    <p role="status">
+                      {activeTask.data?.status ?? "核实中"}
+                      ；可在任务历史查看结果。
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle>测速历史（最多 100 条）</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {history.isLoading ? (
+                    <p role="status">正在读取测速历史…</p>
+                  ) : null}
+                  {history.isError ? (
+                    <p role="alert">
+                      测速历史读取失败：{history.error.message}
+                    </p>
+                  ) : null}
+                  {history.data?.benchmarks.length === 0 ? (
+                    <p>暂无测速记录。</p>
+                  ) : null}
+                  {history.data?.benchmarks.map((item) => (
+                    <div key={item.id} className="rounded border p-3 text-sm">
+                      <p>
+                        {item.providerId}/{item.modelId} · {item.status} ·
+                        配置上限 {item.configuredMaxTokens} tokens
+                      </p>
+                      <p>
+                        首事件 {item.metrics.firstEventMs ?? "—"} ms · 首正文{" "}
+                        {item.metrics.firstTextMs ?? "—"} ms · 总时长{" "}
+                        {item.metrics.durationMs ?? "—"} ms
+                      </p>
+                      <p>
+                        输入 {item.metrics.inputTokens ?? "—"} · 输出{" "}
+                        {item.metrics.outputTokens ?? "—"} · 文本输出{" "}
+                        {item.metrics.textOutputTokens ?? "—"} · 缓存读{" "}
+                        {item.metrics.cacheReadTokens ?? "—"} · 缓存写{" "}
+                        {item.metrics.cacheWriteTokens ?? "—"}
+                      </p>
+                      <p>
+                        正文 tokens/s：
+                        {item.metrics.outputTokensPerSecond ?? "—"} · 停止原因：
+                        {item.stopReason ?? "—"} · {item.error ?? "无错误"}
+                      </p>
+                      <p>
+                        {new Date(item.startedAt).toLocaleString()} ·{" "}
+                        {item.message}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => removeHistory.mutate([item.id])}
+                        disabled={removeHistory.isPending}
+                      >
+                        删除记录
+                      </Button>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {query.data?.providers.map((entry) => (
               <Card key={entry.id}>

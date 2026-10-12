@@ -212,149 +212,162 @@ export const SettingsTab = () => {
       [key]: value,
     }))
   return (
-    <div className="grid gap-4 p-4 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>默认模型</CardTitle>
-          <CardDescription>
-            保存到全局 settings.json；已运行的 Pi 会话不会自动切换。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <Field label="默认 Provider（可填内置或自定义 Provider ID）">
-            <Input
-              list="pi-provider-options"
-              value={currentDraft.defaultProvider}
-              onChange={(event) =>
-                update("defaultProvider", event.target.value)
-              }
-              placeholder="留空时由 Pi 自动选择"
-            />
-            <datalist id="pi-provider-options">
-              {models.data?.providers.map((item) => (
-                <option key={item.id} value={item.id} />
-              ))}
-            </datalist>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => update("defaultProvider", "")}
-            >
-              清除覆盖
-            </Button>
-          </Field>
-          <Field label="默认模型 ID（可填 Pi 内置或自定义模型）">
-            <Input
-              value={currentDraft.defaultModel}
-              onChange={(event) => update("defaultModel", event.target.value)}
-              placeholder="留空时由 Pi 自动选择"
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => update("defaultModel", "")}
-            >
-              清除覆盖
-            </Button>
-          </Field>
-          <Field label="默认 Thinking 档位">
-            <Combobox
-              items={[
-                "off",
-                "minimal",
-                "low",
-                "medium",
-                "high",
-                "xhigh",
-                "max",
-              ]}
-              value={currentDraft.defaultThinkingLevel}
-              onValueChange={(value) =>
-                update("defaultThinkingLevel", value ?? "medium")
-              }
-            >
-              <ComboboxInput />
-              <ComboboxContent>
-                <ComboboxEmpty>无匹配项</ComboboxEmpty>
-                <ComboboxList>
-                  {(item) => (
-                    <ComboboxItem key={item} value={item}>
-                      {item}
-                    </ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-          </Field>
-          <Field label="主题">
-            <Input
-              value={currentDraft.theme}
-              onChange={(event) => update("theme", event.target.value)}
-            />
-          </Field>
-        </CardContent>
-      </Card>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-auto p-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>默认模型</CardTitle>
+              <CardDescription>
+                保存到全局 settings.json；已运行的 Pi 会话不会自动切换。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <Field label="默认 Provider（可填内置或自定义 Provider ID）">
+                <Input
+                  list="pi-provider-options"
+                  value={currentDraft.defaultProvider}
+                  onChange={(event) =>
+                    update("defaultProvider", event.target.value)
+                  }
+                  placeholder="留空时由 Pi 自动选择"
+                />
+                <datalist id="pi-provider-options">
+                  {models.data?.providers.map((item) => (
+                    <option key={item.id} value={item.id} />
+                  ))}
+                </datalist>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => update("defaultProvider", "")}
+                >
+                  清除覆盖
+                </Button>
+              </Field>
+              <Field label="默认模型 ID（可填 Pi 内置或自定义模型）">
+                <Input
+                  value={currentDraft.defaultModel}
+                  onChange={(event) =>
+                    update("defaultModel", event.target.value)
+                  }
+                  placeholder="留空时由 Pi 自动选择"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => update("defaultModel", "")}
+                >
+                  清除覆盖
+                </Button>
+              </Field>
+              <Field label="默认 Thinking 档位">
+                <Combobox
+                  items={[
+                    "off",
+                    "minimal",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                  ]}
+                  value={currentDraft.defaultThinkingLevel}
+                  onValueChange={(value) =>
+                    update("defaultThinkingLevel", value ?? "medium")
+                  }
+                >
+                  <ComboboxInput />
+                  <ComboboxContent>
+                    <ComboboxEmpty>无匹配项</ComboboxEmpty>
+                    <ComboboxList>
+                      {(item) => (
+                        <ComboboxItem key={item} value={item}>
+                          {item}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
+              </Field>
+              <Field label="主题">
+                <Input
+                  value={currentDraft.theme}
+                  onChange={(event) => update("theme", event.target.value)}
+                />
+              </Field>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>重试与上下文压缩</CardTitle>
-          <CardDescription>范围受限的官方 Pi 设置。</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Toggle
-            label="启用重试"
-            checked={currentDraft.retryEnabled}
-            onChange={(value) => update("retryEnabled", value)}
-          />
-          <NumberField
-            label="最大重试次数"
-            value={currentDraft.maxRetries}
-            max={20}
-            onChange={(value) => update("maxRetries", value)}
-          />
-          <NumberField
-            label="基础重试延迟（毫秒）"
-            value={currentDraft.baseDelayMs}
-            max={300000}
-            onChange={(value) => update("baseDelayMs", value)}
-          />
-          <Toggle
-            label="启用自动压缩"
-            checked={currentDraft.compactionEnabled}
-            onChange={(value) => update("compactionEnabled", value)}
-          />
-          <NumberField
-            label="压缩保留 Token"
-            value={currentDraft.reserveTokens}
-            max={1000000}
-            onChange={(value) => update("reserveTokens", value)}
-          />
-          <NumberField
-            label="保留近期 Token"
-            value={currentDraft.keepRecentTokens}
-            max={1000000}
-            onChange={(value) => update("keepRecentTokens", value)}
-          />
-          <Button
-            variant="outline"
-            className="sm:col-span-2"
-            onClick={() => {
-              if (!query.data) return
-              setResetAll(true)
-              setDraft(resolveDraft({ ...query.data, settings: {} }))
-            }}
-          >
-            恢复 Pi 默认设置
-          </Button>
-          <Button
-            className="sm:col-span-2"
-            onClick={() => save.mutate()}
-            disabled={save.isPending}
-          >
-            {save.isPending ? "保存中…" : "保存设置"}
-          </Button>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>重试与上下文压缩</CardTitle>
+              <CardDescription>范围受限的官方 Pi 设置。</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Toggle
+                label="启用重试"
+                checked={currentDraft.retryEnabled}
+                onChange={(value) => update("retryEnabled", value)}
+              />
+              <NumberField
+                label="最大重试次数"
+                value={currentDraft.maxRetries}
+                max={20}
+                onChange={(value) => update("maxRetries", value)}
+              />
+              <NumberField
+                label="基础重试延迟（毫秒）"
+                value={currentDraft.baseDelayMs}
+                max={300000}
+                onChange={(value) => update("baseDelayMs", value)}
+              />
+              <Toggle
+                label="启用自动压缩"
+                checked={currentDraft.compactionEnabled}
+                onChange={(value) => update("compactionEnabled", value)}
+              />
+              <NumberField
+                label="压缩保留 Token"
+                value={currentDraft.reserveTokens}
+                max={1000000}
+                onChange={(value) => update("reserveTokens", value)}
+              />
+              <NumberField
+                label="保留近期 Token"
+                value={currentDraft.keepRecentTokens}
+                max={1000000}
+                onChange={(value) => update("keepRecentTokens", value)}
+              />
+              <Button
+                variant="outline"
+                className="sm:col-span-2"
+                onClick={() => {
+                  if (!query.data) return
+                  setResetAll(true)
+                  setDraft(resolveDraft({ ...query.data, settings: {} }))
+                }}
+              >
+                恢复 Pi 默认设置
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* 保存入口常驻底部：表单再长也不会被推到看不见的地方 */}
+      <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
+        <p className="text-xs text-muted-foreground">
+          改动只写入全局 settings.json；已运行的 Pi 会话不会自动切换。
+        </p>
+        <Button
+          className="ml-auto min-h-11"
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+        >
+          {save.isPending ? "保存中…" : "保存设置"}
+        </Button>
+      </div>
     </div>
   )
 }

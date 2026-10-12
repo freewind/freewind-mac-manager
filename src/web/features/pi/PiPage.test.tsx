@@ -75,6 +75,23 @@ const response = {
   ],
 }
 
+let desktop = true
+
+/** 与 useIsDesktop 一致的匹配媒体查询替身：改 desktop 就切换断点。 */
+const setDesktop = (value: boolean) => {
+  desktop = value
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: desktop,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }))
+}
+
 const renderPage = () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -88,10 +105,12 @@ const renderPage = () => {
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllGlobals()
   window.history.replaceState({}, "", "/")
 })
 
 beforeEach(() => {
+  setDesktop(true)
   fetchModels.mockReset().mockResolvedValue(response)
   fetchAssistantSettings.mockReset().mockResolvedValue({
     settings: {},
@@ -139,6 +158,8 @@ describe("Pi model manager page", () => {
     renderPage()
     await screen.findByText("test")
     expect(startBenchmark).not.toHaveBeenCalled()
+    // 测速是独立工作区：先显式打开，不再默认压在模型列表前面
+    fireEvent.click(screen.getByRole("button", { name: "模型测速" }))
     const providerInput = screen.getByRole("combobox", {
       name: /测速 Provider/,
     })
@@ -188,5 +209,33 @@ describe("Pi model manager page", () => {
     expect(new URL(window.location.href).searchParams.get("piTab")).toBe(
       "assistant"
     )
+  })
+
+  it("手机上分区收进一个选择入口，不再铺一整排按钮", async () => {
+    setDesktop(false)
+    renderPage()
+    await screen.findByText("test")
+
+    // 桌面那一排分区按钮不在 DOM 里
+    expect(screen.queryByRole("button", { name: "分组" })).toBeNull()
+    // 当前分区在入口上可见，切换后进入对应分区
+    fireEvent.click(screen.getByRole("button", { name: "当前分区：模型" }))
+    fireEvent.click(await screen.findByRole("menuitem", { name: "设置" }))
+    expect(new URL(window.location.href).searchParams.get("piTab")).toBe(
+      "settings"
+    )
+    // 入口上的当前分区跟着变（设置内容本身依赖接口返回，这里不断言）
+    expect(screen.getByRole("button", { name: "当前分区：设置" })).toBeTruthy()
+  })
+
+  it("模型分区默认显示 Provider 列表，测速与历史不占首屏", async () => {
+    renderPage()
+    await screen.findByText("test")
+
+    expect(screen.getByRole("button", { name: "模型测速" })).toBeTruthy()
+    expect(screen.queryByText("测速历史（最多 100 条）")).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: "模型测速" }))
+    expect(await screen.findByText("测速历史（最多 100 条）")).toBeTruthy()
   })
 })
