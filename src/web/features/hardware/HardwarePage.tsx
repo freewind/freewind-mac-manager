@@ -27,7 +27,6 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@web/components/ui/empty"
-import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Separator } from "@web/components/ui/separator"
 import { Skeleton } from "@web/components/ui/skeleton"
 import type { ReactNode } from "react"
@@ -109,9 +108,9 @@ const Fields = ({ children }: { children: ReactNode }) => (
 )
 
 const LongList = ({ children }: { children: ReactNode }) => (
-  <ScrollArea className="max-h-72 min-w-0">
+  <div className="max-h-72 min-w-0 overflow-auto">
     <div className="divide-y divide-border pr-3">{children}</div>
-  </ScrollArea>
+  </div>
 )
 
 const HardwareDetails = ({

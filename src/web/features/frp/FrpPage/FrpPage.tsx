@@ -38,7 +38,6 @@ import {
 } from "@web/components/ui/card"
 import { Field, FieldContent, FieldLabel } from "@web/components/ui/field"
 import { Input } from "@web/components/ui/input"
-import { ScrollArea } from "@web/components/ui/scroll-area"
 import { Separator } from "@web/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { useFrp } from "@web/features/frp/useFrp"
@@ -317,11 +316,14 @@ export const FrpPage = () => {
               </CardAction>
             </CardHeader>
             <Separator />
-            <ScrollArea className="max-h-72">
-              <pre className="p-3 font-mono text-[0.6875rem] leading-relaxed">
+            <section
+              aria-label="frpc 配置预览"
+              className="max-h-72 min-w-0 overflow-auto"
+            >
+              <pre className="w-max min-w-full p-3 font-mono text-[0.6875rem] leading-relaxed whitespace-pre">
                 {model.toml}
               </pre>
-            </ScrollArea>
+            </section>
           </Card>
         </div>
       </div>

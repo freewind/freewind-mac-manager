@@ -395,9 +395,9 @@ export const DashboardPage = () => {
               </p>
             </CardHeader>
             <Separator />
-            <CardContent className="max-h-[28rem] overflow-y-auto px-0">
+            <CardContent className="max-h-[28rem] overflow-x-hidden overflow-y-auto px-0">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-background">
                   <TableRow>
                     <TableHead className="w-[1%] whitespace-nowrap">
                       端口

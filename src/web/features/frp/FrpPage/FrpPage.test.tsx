@@ -116,4 +116,22 @@ describe("FRP 页", () => {
 
     expect(screen.getByText("手机上可左右滑动查看远程端口与操作")).toBeTruthy()
   })
+
+  it("配置预览的滚动只在预览区内部，复制按钮留在预览之外", () => {
+    renderPage()
+
+    const preview = screen.getByRole("region", { name: "frpc 配置预览" })
+    // 限高 + 内部滚动：不再用 max-h 的 ScrollArea，内容不会溢出遮住下方操作
+    expect(preview.className).toContain("max-h-72")
+    expect(preview.className).toContain("overflow-auto")
+
+    const code = preview.querySelector("pre")
+    expect(code).not.toBeNull()
+    expect(code?.className).toContain("whitespace-pre")
+    expect(code?.className).toContain("w-max")
+
+    // 操作按钮在滚动容器外，不会被预览内容盖住
+    const copy = screen.getByRole("button", { name: "复制" })
+    expect(preview.contains(copy)).toBe(false)
+  })
 })

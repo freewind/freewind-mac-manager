@@ -610,11 +610,11 @@ export const SystemServicesPage = () => {
                   </CardAction>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="max-h-80 rounded-md border bg-muted/30">
-                    <pre className="p-3 font-mono text-[0.6875rem] leading-relaxed">
+                  <div className="max-h-80 overflow-auto rounded-md border bg-muted/30">
+                    <pre className="w-max min-w-full p-3 font-mono text-[0.6875rem] leading-relaxed whitespace-pre">
                       {service.plist}
                     </pre>
-                  </ScrollArea>
+                  </div>
                 </CardContent>
               </Card>
             </div>

@@ -134,6 +134,25 @@ describe("概览页", () => {
     expect(screen.getByText("手机上可左右滑动查看完整的监听地址")).toBeTruthy()
   })
 
+  it("监听端口卡的滚动收在卡片内部：表头常驻、不留第二条横向滚动条", () => {
+    renderPage()
+
+    // 表头在内部滚动时保持可见，不会被行内容盖住
+    const header = document.querySelector('[data-slot="table-header"].sticky')
+    expect(header).not.toBeNull()
+    expect(header?.className).toContain("bg-background")
+
+    // 滚动容器限高纵向滚动，并显式关掉横向溢出，
+    // 否则 overflow-y-auto 会把横向也算成 auto，与表内的横向滚动叠成两层
+    const scroller = screen
+      .getByText("监听地址")
+      .closest('[data-slot="card-content"]')
+    expect(scroller).not.toBeNull()
+    expect(scroller?.className).toContain("overflow-y-auto")
+    expect(scroller?.className).toContain("overflow-x-hidden")
+    expect(scroller?.className).toContain("max-h-[28rem]")
+  })
+
   it("AI 按钮带上页面上已显示的真实摘要，且只是预填不发请求", () => {
     renderPage()
 
