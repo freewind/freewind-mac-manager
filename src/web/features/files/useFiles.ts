@@ -129,12 +129,15 @@ export const useFiles = () => {
         ...(result.partial ?? []).map((item) => item.message),
       ]
       const issueCount = issueMessages.length
-      toast(
-        issueCount === 0
-          ? `已删除 ${result.completed.length} 项`
-          : `已删除 ${result.completed.length} 项，${issueCount} 项需要核实`,
-        issueCount > 0 ? { description: issueMessages.join("；") } : undefined
-      )
+      // 有失败或需核实项时是部分完成，不能报成成功。
+      if (issueCount === 0) {
+        toast.success(`已删除 ${result.completed.length} 项`)
+      } else {
+        toast.warning(
+          `已删除 ${result.completed.length} 项，${issueCount} 项需要核实`,
+          { description: issueMessages.join("；") }
+        )
+      }
 
       if (
         result.failed.length === 0 &&
@@ -163,12 +166,16 @@ export const useFiles = () => {
         ...(result.partial ?? []).map((item) => item.message),
       ]
       const issueCount = issueMessages.length
-      toast(
-        issueCount === 0
-          ? `${payload.mode === "copy" ? "已复制" : "已移动"} ${result.completed.length} 项`
-          : `${payload.mode === "copy" ? "已复制" : "已移动"} ${result.completed.length} 项，${issueCount} 项需要核实`,
-        issueCount > 0 ? { description: issueMessages.join("；") } : undefined
-      )
+      const action = payload.mode === "copy" ? "已复制" : "已移动"
+      // 同上：存在失败或需核实项时按部分完成提示。
+      if (issueCount === 0) {
+        toast.success(`${action} ${result.completed.length} 项`)
+      } else {
+        toast.warning(
+          `${action} ${result.completed.length} 项，${issueCount} 项需要核实`,
+          { description: issueMessages.join("；") }
+        )
+      }
 
       if (
         payload.mode === "move" &&

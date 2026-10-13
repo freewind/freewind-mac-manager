@@ -21,7 +21,7 @@ import { SOURCE_LABELS, shortSignature } from "./labels"
 const copySignature = async (signature: string): Promise<void> => {
   try {
     await navigator.clipboard.writeText(signature)
-    toast("已复制完整内容签名")
+    toast.success("已复制完整内容签名")
   } catch {
     toast.error("复制失败，请检查浏览器剪贴板权限")
   }

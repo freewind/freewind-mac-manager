@@ -188,7 +188,7 @@ export const useFrp = () => {
   const refresh = async () => {
     const result = await configQuery.refetch()
     if (result.isError) toast.error(`读取失败：${describeError(result.error)}`)
-    else toast.info("已重新读取 frpc 配置")
+    else toast.success("已重新读取 frpc 配置")
   }
 
   const saveAction = useTaskAction<ActionResponse, FrpConfigInput>({

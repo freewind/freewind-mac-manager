@@ -27,7 +27,7 @@ const Root = () => (
       <TooltipProvider>
         <App />
         <PwaStatus />
-        <Toaster position="bottom-right" />
+        <Toaster position="bottom-right" richColors />
       </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>

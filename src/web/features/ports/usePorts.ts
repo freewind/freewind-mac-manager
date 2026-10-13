@@ -141,9 +141,11 @@ export const usePorts = () => {
     try {
       const response = await killPortProcesses.mutateAsync({ port, pids })
       const killed = response.results.filter((item) => item.succeeded).length
-      notify(
-        `端口 ${port}：已结束 ${killed} 个进程，${pids.length - killed} 个跳过`
-      )
+      const skipped = pids.length - killed
+      const message = `端口 ${port}：已结束 ${killed} 个进程，${skipped} 个跳过`
+      // 有跳过说明没有全部结束，按部分完成提示，不报成成功。
+      if (skipped > 0) toast.warning(message)
+      else toast.success(message)
       return true
     } catch (error) {
       toast.error(describeError(error))

@@ -174,7 +174,7 @@ export const useCaddy = () => {
       toast.error("读取失败，请稍后再试")
       return
     }
-    toast.info("已重新读取 Caddy 状态")
+    toast.success("已重新读取 Caddy 状态")
   }
 
   return {

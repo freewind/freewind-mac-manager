@@ -154,8 +154,13 @@ export const DiskGrowthPage = () => {
   const keyword = useDiskGrowthLocalStore((state) => state.keyword)
   const setKeyword = useDiskGrowthLocalStore((state) => state.setKeyword)
   const collapseAll = useDiskGrowthLocalStore((state) => state.collapseAll)
-  const notify = (message: string | null) => {
-    if (message) toast(message)
+  const notify = (
+    message: string | null,
+    type: "success" | "error" = "success"
+  ) => {
+    if (!message) return
+    if (type === "error") toast.error(message)
+    else toast.success(message)
   }
 
   const range = useSelectionRange(snapshots)
@@ -533,7 +538,7 @@ type BranchRowProps = {
   view: "growth" | "size"
   ratio: number
   onToggle: () => void
-  onNotice: (message: string | null) => void
+  onNotice: (message: string | null, type?: "success" | "error") => void
   children?: ReactNode
 }
 
@@ -563,7 +568,7 @@ const BranchRow = ({
       await navigator.clipboard.writeText(text)
       onNotice(`已复制：${entry.path}`)
     } catch (error) {
-      onNotice(`复制失败：${describeError(error)}`)
+      onNotice(`复制失败：${describeError(error)}`, "error")
     }
   }
 

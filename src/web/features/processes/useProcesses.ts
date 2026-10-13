@@ -99,7 +99,7 @@ export const useProcesses = () => {
 
   const refresh = () => {
     void listQuery.refetch()
-    toast.info("已重新采样进程列表")
+    toast.success("已重新采样进程列表")
   }
 
   /** 结束进程：逐条汇报成功与失败原因。 */

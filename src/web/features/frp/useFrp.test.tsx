@@ -292,12 +292,12 @@ describe("FRP save and refresh feedback", () => {
     act(() => {
       refreshing = hook.current.refresh()
     })
-    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
     await act(async () => {
       resolve(config)
       await refreshing
     })
-    expect(toast.info).toHaveBeenCalledWith("已重新读取 frpc 配置")
+    expect(toast.success).toHaveBeenCalledWith("已重新读取 frpc 配置")
     client.clear()
   })
   it("discards a draft only through the explicit discard action", async () => {

@@ -15,9 +15,9 @@ export const useHardware = () => {
     if (!query.data) return
     try {
       await navigator.clipboard.writeText(hardwareOverviewText(query.data))
-      toast("已复制硬件概览文本，敏感字段已遮蔽")
+      toast.success("已复制硬件概览文本，敏感字段已遮蔽")
     } catch {
-      toast("复制失败，请检查浏览器剪贴板权限")
+      toast.error("复制失败，请检查浏览器剪贴板权限")
     }
   }
 

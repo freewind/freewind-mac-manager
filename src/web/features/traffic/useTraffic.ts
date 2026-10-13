@@ -178,7 +178,7 @@ export const useTraffic = () => {
   const startSelection = (id: string) => {
     local.setSelectionMode(true)
     local.setSelectedIds([id])
-    notify("多选模式：勾选另一份，中间的快照会一起选中")
+    toast.info("多选模式：勾选另一份，中间的快照会一起选中")
   }
 
   const exitSelection = () => local.setSelectionMode(false)
@@ -227,11 +227,17 @@ export const useTraffic = () => {
     try {
       const data = await killProcesses.mutateAsync({ pids })
       const failed = data.results.filter((item) => !item.succeeded)
-      notify(
-        failed.length === 0
-          ? `已结束「${label}」的 ${pids.length} 个进程`
-          : `结束「${label}」失败：${failed.map((item) => `PID ${item.pid} ${item.message}`).join("；")}`
-      )
+      const detail = failed
+        .map((item) => `PID ${item.pid} ${item.message}`)
+        .join("；")
+      // 全部成功、全部失败、部分失败分三种语义，提示颜色要与真实结果一致。
+      if (failed.length === 0) {
+        toast.success(`已结束「${label}」的 ${pids.length} 个进程`)
+      } else if (failed.length === data.results.length) {
+        toast.error(`结束「${label}」失败：${detail}`)
+      } else {
+        toast.warning(`结束「${label}」部分完成：${detail}`)
+      }
       return true
     } catch (error) {
       toast.error(`结束进程失败：${describeError(error)}`)
