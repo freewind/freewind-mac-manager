@@ -42,7 +42,15 @@ import {
   rememberPendingRequest,
 } from "@web/features/tasks/pending-requests"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
-import { Bot, Gauge, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
+import {
+  Bot,
+  Ellipsis,
+  Gauge,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { GroupsTab } from "./GroupsTab"
@@ -500,54 +508,65 @@ export const PiPage = () => {
                         {entry.provider.baseUrl}
                       </CardDescription>
                     </div>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {entry.hasApiKey ? "密钥已配置" : "无内置密钥"}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => startEdit(entry)}
+                      >
+                        <Pencil />
+                        编辑
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label={`更多操作：${entry.id}`}
+                            >
+                              <Ellipsis />
+                            </Button>
+                          }
+                        />
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => setDeleteTarget(entry)}
+                          >
+                            <Trash2 />
+                            删除 Provider
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-xs">
                     API：{entry.provider.api} · 模型：{entry.modelCount}
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={
-                        entry.provider.models.length === 0 ||
-                        entry.provider.models.some((model) =>
-                          busyBenchmarkKeys.has(`${entry.id}/${model.id}`)
-                        )
-                      }
-                      onClick={() =>
-                        void runBenchmarks(
-                          entry.provider.models.map((model) => ({
-                            providerId: entry.id,
-                            modelId: model.id,
-                          }))
-                        )
-                      }
-                    >
-                      <Gauge />
-                      测首字
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => startEdit(entry)}
-                    >
-                      <Pencil />
-                      编辑
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => setDeleteTarget(entry)}
-                    >
-                      <Trash2 />
-                      删除
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      entry.provider.models.length === 0 ||
+                      entry.provider.models.some((model) =>
+                        busyBenchmarkKeys.has(`${entry.id}/${model.id}`)
+                      )
+                    }
+                    onClick={() =>
+                      void runBenchmarks(
+                        entry.provider.models.map((model) => ({
+                          providerId: entry.id,
+                          modelId: model.id,
+                        }))
+                      )
+                    }
+                  >
+                    <Gauge />
+                    测首字
+                  </Button>
                   <div className="space-y-1 text-xs text-muted-foreground">
                     {entry.provider.models.map((model) => {
                       const key = `${entry.id}/${model.id}`

@@ -134,7 +134,9 @@ describe("Pi model manager page", () => {
   it("lists provider/model metadata but never receives a key", async () => {
     renderPage()
     expect(await screen.findByText("test")).toBeTruthy()
-    expect(screen.getByText("密钥已配置")).toBeTruthy()
+    // 页面不再展示密钥状态：新增 Provider 时密钥就是必填
+    expect(screen.queryByText("密钥已配置")).toBeNull()
+    expect(screen.queryByText("无内置密钥")).toBeNull()
     expect(JSON.stringify(fetchModels.mock.results[0].value)).not.toContain(
       "apiKey"
     )
@@ -169,7 +171,12 @@ describe("Pi model manager page", () => {
 
   it("requires an explicit delete action", async () => {
     renderPage()
-    fireEvent.click((await screen.findAllByRole("button", { name: "删除" }))[0])
+    fireEvent.click(
+      await screen.findByRole("button", { name: "更多操作：test" })
+    )
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "删除 Provider" })
+    )
     expect(screen.getByText(/将从 Pi 的 models.json 删除/)).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "删除 Provider" }))
     await waitFor(() => expect(deleteProvider).toHaveBeenCalledTimes(1))
