@@ -68,7 +68,7 @@ export const ContainerLogsSheet = (props: ContainerLogsSheetProps) => {
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <Button
               variant="outline"
-              className="min-h-11 px-3"
+              className="px-3"
               onClick={() => void logs.refetch()}
               disabled={logs.isFetching}
             >

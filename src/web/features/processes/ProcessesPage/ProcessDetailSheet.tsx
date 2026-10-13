@@ -229,7 +229,7 @@ export const ProcessDetailSheet = (props: ProcessDetailSheetProps) => {
               <Button
                 variant="destructive"
                 size="sm"
-                className="min-h-11 ml-auto"
+                className="ml-auto"
                 onClick={() => onRequestTerminate([selected], true)}
               >
                 强制结束

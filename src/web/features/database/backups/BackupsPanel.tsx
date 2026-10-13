@@ -231,18 +231,10 @@ export const BackupsPanel = () => {
             <AlertDescription className="space-y-2">
               <span>{actions.cancelUnknown}</span>
               <span className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  className="min-h-11"
-                  onClick={() => void actions.verify()}
-                >
+                <Button variant="outline" onClick={() => void actions.verify()}>
                   重新读取核实
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="min-h-11"
-                  onClick={actions.dismissUnknown}
-                >
+                <Button variant="ghost" onClick={actions.dismissUnknown}>
                   已核对，继续
                 </Button>
               </span>
@@ -307,7 +299,7 @@ export const BackupsPanel = () => {
               <ToggleGroupItem
                 key={item.value}
                 value={item.value}
-                className="min-h-11 px-3"
+                className="px-3"
               >
                 {item.label}
               </ToggleGroupItem>

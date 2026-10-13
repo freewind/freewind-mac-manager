@@ -207,7 +207,6 @@ export const MergeFilePanel = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="min-h-11"
                     onClick={reloadFromDisk}
                     disabled={save.isPending}
                   >
@@ -216,7 +215,6 @@ export const MergeFilePanel = () => {
                   <Button
                     size="sm"
                     variant="destructive"
-                    className="min-h-11"
                     onClick={() => runSave(true)}
                     disabled={save.isPending || draftOverLimit || unknown}
                   >
@@ -235,7 +233,7 @@ export const MergeFilePanel = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="mt-2 min-h-11"
+                  className="mt-2"
                   onClick={() => void verifyUnknown()}
                   disabled={save.isPending}
                 >
@@ -267,7 +265,6 @@ export const MergeFilePanel = () => {
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  className="min-h-11"
                   onClick={() => runSave(false)}
                   disabled={
                     save.isPending ||
@@ -282,7 +279,6 @@ export const MergeFilePanel = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="min-h-11"
                   onClick={cancelEdit}
                   disabled={save.isPending}
                 >
@@ -291,7 +287,6 @@ export const MergeFilePanel = () => {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="min-h-11"
                   onClick={() => void copyTemplate()}
                 >
                   复制别名行模板
@@ -315,7 +310,6 @@ export const MergeFilePanel = () => {
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  className="min-h-11"
                   onClick={startEdit}
                   disabled={fileOverLimit || unknown}
                 >
@@ -324,7 +318,6 @@ export const MergeFilePanel = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="min-h-11"
                   onClick={() => void copyTemplate()}
                 >
                   复制别名行模板
@@ -341,7 +334,7 @@ export const MergeFilePanel = () => {
             <Button
               size="sm"
               variant="outline"
-              className="mt-2 min-h-11"
+              className="mt-2"
               onClick={() => void fileQuery.refetch()}
             >
               重新读取

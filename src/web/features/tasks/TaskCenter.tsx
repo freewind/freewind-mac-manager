@@ -48,7 +48,6 @@ export const TaskCenter = ({ authenticated }: { authenticated: boolean }) => {
           <Button
             variant="outline"
             size="sm"
-            className="min-h-11"
             aria-label={`任务，进行中 ${count} 个`}
           >
             <Clock />

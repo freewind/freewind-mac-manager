@@ -97,7 +97,7 @@ export const ColimaCard = (props: ColimaCardProps) => {
           <div className="flex flex-wrap gap-1.5">
             <Button
               variant="outline"
-              className="min-h-11 px-3"
+              className="px-3"
               disabled={busy}
               onClick={() => model.requestAction("stop")}
             >
@@ -105,7 +105,7 @@ export const ColimaCard = (props: ColimaCardProps) => {
             </Button>
             <Button
               variant="outline"
-              className="min-h-11 px-3"
+              className="px-3"
               disabled={busy}
               onClick={() => model.requestAction("restart")}
             >
@@ -115,7 +115,7 @@ export const ColimaCard = (props: ColimaCardProps) => {
         ) : (
           <Button
             variant="outline"
-            className="min-h-11 self-start px-3"
+            className="self-start px-3"
             disabled={busy}
             onClick={() => {
               // 启动不影响现有容器，不需要二次确认

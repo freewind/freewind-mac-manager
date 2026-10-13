@@ -90,7 +90,6 @@ export const AiAssistantDialog = (props: AiAssistantDialogProps) => {
             <Button
               type="button"
               variant="outline"
-              className="min-h-11"
               disabled={chatRunning}
               onClick={() => chat.reset()}
             >
@@ -128,7 +127,7 @@ export const AiAssistantDialog = (props: AiAssistantDialogProps) => {
                   <span>请先去设置选择 AI 助手模型，再回来对话。</span>
                   <Button
                     variant="outline"
-                    className="min-h-11 w-fit"
+                    className="w-fit"
                     onClick={() => {
                       close()
                       props.onOpenModelSettings?.()

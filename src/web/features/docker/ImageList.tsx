@@ -93,7 +93,7 @@ export const ImageList = () => {
         </p>
         <Button
           variant="outline"
-          className="ml-auto min-h-11 shrink-0 px-3"
+          className="ml-auto shrink-0 px-3"
           onClick={model.openPull}
           disabled={model.action.busy}
         >
@@ -266,14 +266,12 @@ const PullImageDialog = (props: {
         <DialogFooter>
           <Button
             variant="outline"
-            className="min-h-11"
             onClick={() => props.onOpenChange(false)}
             disabled={props.busy}
           >
             取消
           </Button>
           <ActionButton
-            className="min-h-11"
             busy={props.busy}
             busyLabel="正在提交…"
             disabled={props.busy}

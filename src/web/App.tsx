@@ -193,12 +193,7 @@ export const App = () => {
           <div className="ml-auto flex items-center gap-2">
             <AiAssistantButton />
             <TaskCenter authenticated={authStatus.authenticated} />
-            <Button
-              size="sm"
-              className="min-h-11"
-              variant="outline"
-              onClick={() => void signOut()}
-            >
+            <Button size="sm" variant="outline" onClick={() => void signOut()}>
               退出登录
             </Button>
           </div>

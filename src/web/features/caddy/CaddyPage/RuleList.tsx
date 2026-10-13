@@ -192,7 +192,6 @@ export const RuleList = (props: RuleListProps) => {
           <Input
             id="caddy-rule-search"
             aria-label="搜索规则"
-            className="min-h-11"
             placeholder="按名称、域名或上游搜索"
             autoComplete="off"
             value={props.search}
@@ -368,7 +367,6 @@ export const RuleList = (props: RuleListProps) => {
             <AlertDialogCancel disabled={deleting.busy}>取消</AlertDialogCancel>
             <ActionButton
               variant="destructive"
-              className="min-h-11"
               busy={deleting.busy}
               busyLabel="删除中"
               onClick={confirmDelete}
@@ -401,7 +399,6 @@ export const RuleList = (props: RuleListProps) => {
               取消
             </AlertDialogCancel>
             <ActionButton
-              className="min-h-11"
               busy={disabling.busy}
               busyLabel="停用中"
               onClick={confirmDisable}
@@ -455,10 +452,7 @@ export const ExternalRulesSection = (props: ExternalRulesSectionProps) => {
           <p className="text-xs text-muted-foreground">{summary}</p>
           <CollapsibleTrigger
             render={
-              <Button
-                variant="outline"
-                className="ml-auto min-h-11 shrink-0 px-3"
-              >
+              <Button variant="outline" className="ml-auto shrink-0 px-3">
                 {open ? "收起外部规则" : "展开外部规则"}
               </Button>
             }
@@ -495,7 +489,7 @@ export const ExternalRulesSection = (props: ExternalRulesSectionProps) => {
                 </h3>
                 <ActionButton
                   variant="outline"
-                  className="ml-auto min-h-11 px-3"
+                  className="ml-auto px-3"
                   busy={props.busy}
                   busyLabel="导入中"
                   disabled={props.disabledReason !== null}

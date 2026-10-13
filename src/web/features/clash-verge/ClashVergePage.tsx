@@ -59,7 +59,7 @@ export const ClashVergePage = () => {
           ) : null}
           <Button
             size="sm"
-            className="ml-auto min-h-11 min-w-11"
+            className="ml-auto min-w-11"
             variant="outline"
             onClick={model.refresh}
             disabled={model.isFetching}
@@ -129,11 +129,7 @@ const ClashTabNav = (props: {
     }}
   >
     {CLASH_TABS.map((item) => (
-      <ToggleGroupItem
-        key={item.key}
-        value={item.key}
-        className="min-h-11 px-3"
-      >
+      <ToggleGroupItem key={item.key} value={item.key} className="px-3">
         {item.label}
       </ToggleGroupItem>
     ))}

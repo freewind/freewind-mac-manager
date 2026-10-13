@@ -201,15 +201,9 @@ export const DiskGrowthPage = () => {
             }}
             className="ml-2"
           >
-            <ToggleGroupItem className="min-h-11" value="growth">
-              看增长
-            </ToggleGroupItem>
-            <ToggleGroupItem className="min-h-11" value="size">
-              看大小
-            </ToggleGroupItem>
-            <ToggleGroupItem className="min-h-11" value="icicle">
-              分布图
-            </ToggleGroupItem>
+            <ToggleGroupItem value="growth">看增长</ToggleGroupItem>
+            <ToggleGroupItem value="size">看大小</ToggleGroupItem>
+            <ToggleGroupItem value="icicle">分布图</ToggleGroupItem>
           </ToggleGroup>
           <div className="relative ml-auto w-full md:w-64">
             <Search className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -225,7 +219,7 @@ export const DiskGrowthPage = () => {
             <Sheet open={snapshotPanelOpen} onOpenChange={setSnapshotPanelOpen}>
               <SheetTrigger
                 render={
-                  <Button variant="outline" size="sm" className="min-h-11">
+                  <Button variant="outline" size="sm">
                     <Clock aria-hidden="true" />
                     快照
                   </Button>
@@ -251,12 +245,7 @@ export const DiskGrowthPage = () => {
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="min-h-11"
-                  aria-label="更多操作"
-                >
+                <Button variant="outline" size="sm" aria-label="更多操作">
                   <MoreHorizontal aria-hidden="true" />
                 </Button>
               }
@@ -269,7 +258,6 @@ export const DiskGrowthPage = () => {
           </DropdownMenu>
           <ActionButton
             size="sm"
-            className="min-h-11"
             busy={scan.busy}
             busyLabel="扫描中…"
             onClick={() => void scan.run(undefined)}

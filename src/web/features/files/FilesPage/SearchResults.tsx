@@ -32,7 +32,7 @@ export const SearchResults = ({ model }: { model: FilesModel }) => {
         <Button
           size="sm"
           variant="ghost"
-          className="ml-auto min-h-11"
+          className="ml-auto"
           onClick={model.clearSearch}
         >
           退出搜索
@@ -71,7 +71,7 @@ export const SearchResults = ({ model }: { model: FilesModel }) => {
               <Button
                 variant="link"
                 size="sm"
-                className="min-h-11 px-1"
+                className="px-1"
                 onClick={() => model.openSearchResult(match.path)}
               >
                 {match.name}

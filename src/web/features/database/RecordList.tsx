@@ -102,7 +102,7 @@ export const SqliteValueView = (props: { value: SqliteValue }) => {
         <Button
           variant="link"
           size="sm"
-          className="min-h-11 px-1"
+          className="px-1"
           onClick={() => setExpanded((current) => !current)}
         >
           {expanded ? "收起" : "展开"}
@@ -147,7 +147,7 @@ const FilterEditor = (props: {
         >
           <ComboboxInput
             id="database-filter-column"
-            className="min-h-11 w-full"
+            className="w-full"
             placeholder="搜索字段"
           />
           <ComboboxContent>
@@ -174,7 +174,7 @@ const FilterEditor = (props: {
         >
           <ComboboxInput
             id="database-filter-operator"
-            className="min-h-11 w-full"
+            className="w-full"
             placeholder="搜索条件"
           />
           <ComboboxContent>
@@ -194,18 +194,12 @@ const FilterEditor = (props: {
           <Label htmlFor="database-filter-value">取值</Label>
           <Input
             id="database-filter-value"
-            className="min-h-11"
             value={text}
             onChange={(event) => setText(event.target.value)}
           />
         </div>
       ) : null}
-      <Button
-        variant="outline"
-        className="min-h-11"
-        disabled={!column}
-        onClick={add}
-      >
+      <Button variant="outline" disabled={!column} onClick={add}>
         <Plus aria-hidden="true" />
         添加筛选
       </Button>
@@ -339,7 +333,6 @@ export const RecordList = (props: RecordListProps) => {
                   <div className="min-w-max">
                     <Button
                       variant="outline"
-                      className="min-h-11"
                       onClick={() => props.onSelectRecord(record.key)}
                     >
                       查看
@@ -382,7 +375,6 @@ export const RecordList = (props: RecordListProps) => {
                 />
                 <Button
                   variant="outline"
-                  className="min-h-11"
                   onClick={() => props.onSelectRecord(record.key)}
                 >
                   查看
@@ -424,11 +416,7 @@ export const RecordList = (props: RecordListProps) => {
                 </button>
               </Badge>
             ))}
-            <Button
-              variant="ghost"
-              className="min-h-11"
-              onClick={() => props.onFiltersChange([])}
-            >
+            <Button variant="ghost" onClick={() => props.onFiltersChange([])}>
               清空筛选
             </Button>
           </div>
@@ -455,7 +443,7 @@ export const RecordList = (props: RecordListProps) => {
           >
             <ComboboxInput
               id="database-sort-column"
-              className="min-h-11 w-full"
+              className="w-full"
               placeholder="搜索排序字段"
             />
             <ComboboxContent>
@@ -481,7 +469,7 @@ export const RecordList = (props: RecordListProps) => {
               )
             }
           >
-            <SelectTrigger id="database-sort-direction" className="min-h-11">
+            <SelectTrigger id="database-sort-direction">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -499,7 +487,7 @@ export const RecordList = (props: RecordListProps) => {
       <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-t pt-3">
         <Button
           variant="outline"
-          className="min-h-11 shrink-0"
+          className="shrink-0"
           disabled={props.page <= 1}
           onClick={() => props.onPageChange(props.page - 1)}
         >
@@ -508,7 +496,7 @@ export const RecordList = (props: RecordListProps) => {
         <span className="shrink-0">第 {props.page} 页</span>
         <Button
           variant="outline"
-          className="min-h-11 shrink-0"
+          className="shrink-0"
           disabled={!hasNext}
           onClick={() => props.onPageChange(props.page + 1)}
         >
@@ -520,7 +508,7 @@ export const RecordList = (props: RecordListProps) => {
             value={String(props.pageSize)}
             onValueChange={(next) => props.onPageSizeChange(Number(next))}
           >
-            <SelectTrigger id="database-page-size" className="min-h-11">
+            <SelectTrigger id="database-page-size">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -540,16 +528,11 @@ export const RecordList = (props: RecordListProps) => {
         {checked.size > 0 ? (
           <span className="flex shrink-0 items-center gap-2">
             已选 {checked.size} 条（仅当前页）
-            <Button
-              variant="ghost"
-              className="min-h-11"
-              onClick={props.onClearChecked}
-            >
+            <Button variant="ghost" onClick={props.onClearChecked}>
               取消选择
             </Button>
             <Button
               variant="destructive"
-              className="min-h-11"
               disabled={!props.canDelete || props.deleteBusy}
               onClick={props.onRequestDeleteChecked}
             >

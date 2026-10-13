@@ -54,7 +54,7 @@ export const ConnectionsList = ({
                 render={
                   <button
                     type="button"
-                    className="flex min-h-11 w-full items-center gap-2 rounded-lg border px-4 py-3 text-left text-sm hover:bg-muted/40"
+                    className="flex w-full items-center gap-2 rounded-lg border px-4 py-3 text-left text-sm hover:bg-muted/40"
                   >
                     <span className="min-w-0 flex-1 break-all">
                       {connection.destination ?? "未知目标"}

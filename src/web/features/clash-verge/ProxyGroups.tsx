@@ -58,7 +58,7 @@ export const ProxyGroups = ({ proxies, sampledAt }: ProxyGroupsProps) => {
                   render={
                     <button
                       type="button"
-                      className="min-h-11 px-4 text-xs text-primary underline-offset-4 hover:underline"
+                      className="px-4 text-xs text-primary underline-offset-4 hover:underline"
                     >
                       展开全部节点
                     </button>

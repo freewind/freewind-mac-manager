@@ -131,7 +131,7 @@ export const ContainerList = () => {
         </p>
         <Button
           variant="outline"
-          className="ml-auto min-h-11 shrink-0 px-3"
+          className="ml-auto shrink-0 px-3"
           onClick={() => {
             create.clearFailure()
             setCreateOpen(true)
@@ -273,7 +273,7 @@ const ContainerActions = (props: {
       <ActionButton
         key={action}
         variant="outline"
-        className="min-h-11 px-3"
+        className="px-3"
         busy={props.busy}
         busyLabel={containerActionBusyLabels[action]}
         onClick={() => props.onAction(props.container, action)}
@@ -284,7 +284,7 @@ const ContainerActions = (props: {
     {props.container.state === "running" ? (
       <Button
         variant="outline"
-        className="min-h-11 px-3 text-destructive"
+        className="px-3 text-destructive"
         disabled={props.busy}
         onClick={() => props.onDanger(props.container, "kill")}
       >

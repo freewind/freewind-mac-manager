@@ -72,7 +72,7 @@ export const CaddyPage = () => {
         </Alert>
         <Button
           variant="outline"
-          className="mt-3 min-h-11 px-3"
+          className="mt-3 px-3"
           onClick={() => void model.refresh()}
         >
           <RefreshCw aria-hidden="true" />
@@ -113,7 +113,7 @@ export const CaddyPage = () => {
           </p>
           <Button
             variant="outline"
-            className="ml-auto min-h-11 shrink-0 px-3"
+            className="ml-auto shrink-0 px-3"
             disabled={model.isFetching}
             onClick={() => void model.refresh()}
           >
@@ -159,7 +159,7 @@ export const CaddyPage = () => {
               <h2 className="text-sm font-medium">规则</h2>
               <Button
                 variant="outline"
-                className="ml-auto min-h-11 shrink-0 px-3"
+                className="ml-auto shrink-0 px-3"
                 disabled={ruleBusy || writeDisabledReason !== null}
                 onClick={openCreate}
               >
@@ -254,11 +254,7 @@ const CaddyTabNav = (props: {
     }}
   >
     {CADDY_TABS.map((item) => (
-      <ToggleGroupItem
-        key={item.key}
-        value={item.key}
-        className="min-h-11 px-3"
-      >
+      <ToggleGroupItem key={item.key} value={item.key} className="px-3">
         {item.label}
       </ToggleGroupItem>
     ))}

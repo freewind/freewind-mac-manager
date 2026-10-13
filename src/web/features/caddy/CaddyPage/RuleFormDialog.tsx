@@ -210,10 +210,7 @@ export const RuleFormDialog = (props: RuleFormDialogProps) => {
                 })
               }
             >
-              <ComboboxInput
-                id="caddy-rule-match-kind"
-                className="min-h-11 w-full"
-              />
+              <ComboboxInput id="caddy-rule-match-kind" className="w-full" />
               <ComboboxContent>
                 <ComboboxEmpty>无匹配项</ComboboxEmpty>
                 <ComboboxList>
@@ -286,7 +283,7 @@ export const RuleFormDialog = (props: RuleFormDialogProps) => {
           </Field>
 
           <Field>
-            <div className="flex min-h-11 items-center gap-2">
+            <div className="flex items-center gap-2">
               <Checkbox
                 id="caddy-rule-strip-prefix"
                 checked={form.stripPrefix}
@@ -305,7 +302,7 @@ export const RuleFormDialog = (props: RuleFormDialogProps) => {
           </Field>
 
           <Field>
-            <div className="flex min-h-11 items-center gap-2">
+            <div className="flex items-center gap-2">
               <Checkbox
                 id="caddy-rule-enabled"
                 checked={form.enabled}
@@ -325,14 +322,12 @@ export const RuleFormDialog = (props: RuleFormDialogProps) => {
         <DialogFooter>
           <Button
             variant="outline"
-            className="min-h-11"
             disabled={props.busy}
             onClick={() => props.onOpenChange(false)}
           >
             取消
           </Button>
           <ActionButton
-            className="min-h-11"
             busy={props.busy}
             busyLabel="保存中"
             onClick={() => void submit()}

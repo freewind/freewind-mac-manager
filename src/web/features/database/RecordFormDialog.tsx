@@ -174,18 +174,10 @@ export const RecordFormDialog = (props: RecordFormDialogProps) => {
             <AlertDescription className="space-y-2">
               <span>{props.unknownNotice}</span>
               <span className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  className="min-h-11"
-                  onClick={props.onVerify}
-                >
+                <Button variant="outline" onClick={props.onVerify}>
                   重新读取核实
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="min-h-11"
-                  onClick={props.onDismissUnknown}
-                >
+                <Button variant="ghost" onClick={props.onDismissUnknown}>
                   已核对，继续
                 </Button>
               </span>
@@ -225,10 +217,7 @@ export const RecordFormDialog = (props: RecordFormDialogProps) => {
                         })
                       }
                     >
-                      <SelectTrigger
-                        className="min-h-11"
-                        aria-label={`${column.name} 取值方式`}
-                      >
+                      <SelectTrigger aria-label={`${column.name} 取值方式`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -244,7 +233,7 @@ export const RecordFormDialog = (props: RecordFormDialogProps) => {
                     {state.mode === "value" ? (
                       <Input
                         id={`record-field-${column.name}`}
-                        className="min-h-11 flex-1"
+                        className="flex-1"
                         value={state.text}
                         onChange={(event) =>
                           patch(column.name, {
@@ -259,7 +248,7 @@ export const RecordFormDialog = (props: RecordFormDialogProps) => {
                   <div className="flex flex-wrap items-center gap-2">
                     <Input
                       id={`record-field-${column.name}`}
-                      className="min-h-11 flex-1"
+                      className="flex-1"
                       value={state.text}
                       disabled={state.mode === "null"}
                       onChange={(event) =>
@@ -307,13 +296,8 @@ export const RecordFormDialog = (props: RecordFormDialogProps) => {
         </FieldGroup>
 
         <DialogFooter>
-          <DialogClose
-            render={<Button variant="outline" className="min-h-11" />}
-          >
-            取消
-          </DialogClose>
+          <DialogClose render={<Button variant="outline" />}>取消</DialogClose>
           <ActionButton
-            className="min-h-11"
             busy={props.busy}
             busyLabel={isInsert ? "正在新增…" : "正在保存…"}
             disabled={blockedByUnknown}

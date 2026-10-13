@@ -77,9 +77,7 @@ export const PortFilterBar = (props: PortFilterBarProps) => {
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border-b">
       <div className="flex flex-wrap items-center gap-2 px-4 py-2">
-        <CollapsibleTrigger
-          render={<Button variant="outline" size="sm" className="min-h-11" />}
-        >
+        <CollapsibleTrigger render={<Button variant="outline" size="sm" />}>
           {open ? (
             <ArrowUp aria-hidden="true" />
           ) : (

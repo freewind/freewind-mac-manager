@@ -42,7 +42,7 @@ const HardwareGroup = ({ title, children }: HardwareGroupProps) => (
     <Collapsible defaultOpen>
       <CardHeader className="flex flex-row items-center justify-between gap-2">
         <CardTitle>{title}</CardTitle>
-        <CollapsibleTrigger className="min-h-11 rounded-md px-3 text-xs text-muted-foreground hover:bg-muted">
+        <CollapsibleTrigger className="rounded-md px-3 text-xs text-muted-foreground hover:bg-muted">
           展开/收起
         </CollapsibleTrigger>
       </CardHeader>
@@ -80,7 +80,7 @@ const SensitiveField = ({
     <span className="text-muted-foreground">{label}</span>
     <button
       type="button"
-      className="min-h-11 max-w-full break-all text-left font-medium underline decoration-dotted underline-offset-4"
+      className="max-w-full break-all text-left font-medium underline decoration-dotted underline-offset-4"
       aria-label={`${label}，点击${reveal ? "遮蔽" : "显示"}`}
       onClick={onToggle}
     >
@@ -477,7 +477,6 @@ export const HardwarePage = () => {
         <div className="ml-auto flex flex-wrap gap-2">
           <Button
             size="sm"
-            className="min-h-11"
             variant="outline"
             onClick={() => void model.copy()}
             disabled={!data}
@@ -487,7 +486,6 @@ export const HardwarePage = () => {
           </Button>
           <Button
             size="sm"
-            className="min-h-11"
             variant="outline"
             onClick={model.exportText}
             disabled={!data}
@@ -497,7 +495,6 @@ export const HardwarePage = () => {
           </Button>
           <Button
             size="sm"
-            className="min-h-11"
             variant="outline"
             onClick={() => void model.refresh()}
             disabled={model.isFetching}

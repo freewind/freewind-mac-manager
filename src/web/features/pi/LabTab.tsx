@@ -250,7 +250,7 @@ export const LabTab = ({
         <div className="flex flex-wrap items-center gap-2">
           <CollapsibleTrigger
             render={
-              <Button variant="outline" size="sm" className="min-h-11">
+              <Button variant="outline" size="sm">
                 {advancedOpen ? "收起高级参数" : "展开高级参数"}
               </Button>
             }
@@ -392,7 +392,7 @@ export const LabTab = ({
             <Button
               key={item.id}
               variant="outline"
-              className="min-h-11 justify-start overflow-hidden"
+              className="justify-start overflow-hidden"
               onClick={() => {
                 setId(item.id)
                 setProvider(item.providerId)
@@ -426,7 +426,7 @@ export const LabTab = ({
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto min-h-11"
+            className="ml-auto"
             onClick={() => setMobileView("form")}
           >
             返回参数
@@ -460,7 +460,6 @@ export const LabTab = ({
           {mode === "chat" ? "发送消息" : "发起有界探测"}
         </Button>
         <Button
-          className="min-h-11"
           variant="outline"
           disabled={!busy || cancel.isPending}
           onClick={() => cancel.mutate()}
@@ -468,7 +467,6 @@ export const LabTab = ({
           中止当前请求
         </Button>
         <Button
-          className="min-h-11"
           variant="outline"
           disabled={busy || clear.isPending}
           onClick={() => clear.mutate()}

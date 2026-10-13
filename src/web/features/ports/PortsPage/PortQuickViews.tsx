@@ -64,11 +64,7 @@ export const PortViewSelect = (props: PortQuickViewsProps) => {
         if (typeof next === "string") model.setView(next as PortView)
       }}
     >
-      <SelectTrigger
-        size="sm"
-        aria-label="快捷视图"
-        className="min-h-11 w-40 shrink-0"
-      >
+      <SelectTrigger size="sm" aria-label="快捷视图" className="w-40 shrink-0">
         <SelectValue />
       </SelectTrigger>
       <SelectContent align="end">

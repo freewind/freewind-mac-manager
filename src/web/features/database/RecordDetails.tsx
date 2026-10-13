@@ -78,7 +78,6 @@ export const RecordDetails = (props: RecordDetailsProps) => {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            className="min-h-11"
             disabled={!props.canEdit || props.busy}
             onClick={props.onEdit}
           >
@@ -87,7 +86,6 @@ export const RecordDetails = (props: RecordDetailsProps) => {
           </Button>
           <Button
             variant="destructive"
-            className="min-h-11"
             disabled={!props.canDelete || props.busy}
             onClick={props.onDelete}
           >

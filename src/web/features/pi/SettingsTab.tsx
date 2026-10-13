@@ -361,7 +361,7 @@ export const SettingsTab = () => {
           改动只写入全局 settings.json；已运行的 Pi 会话不会自动切换。
         </p>
         <Button
-          className="ml-auto min-h-11"
+          className="ml-auto"
           onClick={() => save.mutate()}
           disabled={save.isPending}
         >
@@ -384,7 +384,7 @@ const Toggle = (props: {
   checked: boolean
   onChange: (value: boolean) => void
 }) => (
-  <label className="flex min-h-11 items-center gap-2 text-xs">
+  <label className="flex items-center gap-2 text-xs">
     <input
       type="checkbox"
       checked={props.checked}

@@ -82,12 +82,7 @@ export const PortsPage = () => {
               />
               自动刷新（{REFRESH_INTERVAL_SECONDS}s）
             </div>
-            <Button
-              size="sm"
-              className="min-h-11"
-              variant="outline"
-              onClick={model.refresh}
-            >
+            <Button size="sm" variant="outline" onClick={model.refresh}>
               <RefreshCw />
               刷新
             </Button>

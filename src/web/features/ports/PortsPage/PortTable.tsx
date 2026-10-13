@@ -393,7 +393,6 @@ const RowActions = (props: RowActionsProps) => (
       <DropdownMenuSeparator />
       <DropdownMenuItem
         variant="destructive"
-        className="min-h-11"
         aria-label={`结束进程（端口 ${props.port}）`}
         disabled={props.busy}
         onClick={props.onKill}

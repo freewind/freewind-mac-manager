@@ -206,7 +206,7 @@ export const SettingsCard = () => {
               <span>无法确认当前设置，请重新读取后再修改。</span>
               <Button
                 variant="outline"
-                className="min-h-11 w-fit"
+                className="w-fit"
                 onClick={() => void settings.refetch()}
                 disabled={settings.isFetching}
               >
@@ -232,7 +232,6 @@ export const SettingsCard = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-11"
                 onClick={() => void models.refetch()}
                 disabled={models.isFetching}
               >
@@ -296,7 +295,6 @@ export const SettingsCard = () => {
                 >
                   <ComboboxInput
                     aria-label="助手模型"
-                    className="min-h-11"
                     placeholder="搜索 Provider 或模型…"
                   />
                   <ComboboxContent>
@@ -328,10 +326,7 @@ export const SettingsCard = () => {
                     update({ thinkingLevel: toThinkingOption(value ?? "") })
                   }
                 >
-                  <ComboboxInput
-                    aria-label="助手 Thinking 档位"
-                    className="min-h-11"
-                  />
+                  <ComboboxInput aria-label="助手 Thinking 档位" />
                   <ComboboxContent>
                     <ComboboxEmpty>无匹配项</ComboboxEmpty>
                     <ComboboxList>
@@ -362,7 +357,6 @@ export const SettingsCard = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-11"
                 onClick={() =>
                   update({
                     systemPrompt: loaded?.defaults.systemPrompt ?? "",
@@ -387,7 +381,6 @@ export const SettingsCard = () => {
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="submit"
-                className="min-h-11"
                 disabled={save.isPending || !selectionValid}
               >
                 {save.isPending ? "正在保存…" : "保存设置"}
@@ -395,7 +388,6 @@ export const SettingsCard = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-11"
                 onClick={() => void rereadSettings()}
                 disabled={settings.isFetching}
               >

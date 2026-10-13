@@ -117,7 +117,7 @@ export const DockerPage = () => {
             <AiAssistantButton context={assistantContext} />
             <Button
               variant="outline"
-              className="min-h-11 shrink-0 px-3"
+              className="shrink-0 px-3"
               onClick={model.refresh}
               disabled={model.isRefreshing}
             >
@@ -266,11 +266,7 @@ const DockerTabNav = (props: {
     }}
   >
     {DOCKER_TABS.map((item) => (
-      <ToggleGroupItem
-        key={item.key}
-        value={item.key}
-        className="min-h-11 px-3"
-      >
+      <ToggleGroupItem key={item.key} value={item.key} className="px-3">
         {item.label}
       </ToggleGroupItem>
     ))}

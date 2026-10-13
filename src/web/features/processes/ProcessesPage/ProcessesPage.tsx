@@ -145,7 +145,6 @@ export const ProcessesPage = () => {
             }}
             variant="outline"
             size="sm"
-            className="min-h-11"
           >
             {PROCESS_SCOPES.map((item) => (
               <ToggleGroupItem key={item.key} value={item.key}>
@@ -158,18 +157,12 @@ export const ProcessesPage = () => {
             onPressedChange={model.setAutoRefresh}
             variant="outline"
             size="sm"
-            className="min-h-11"
           >
             {model.autoRefresh ? <Pause /> : <Play />}
             {model.autoRefresh ? "自动刷新" : "已暂停"}
           </Toggle>
           <AiAssistantButton context={assistantContext} />
-          <Button
-            variant="outline"
-            size="sm"
-            className="min-h-11"
-            onClick={model.refresh}
-          >
+          <Button variant="outline" size="sm" onClick={model.refresh}>
             <RefreshCw />
             立即刷新
           </Button>
@@ -245,7 +238,7 @@ export const ProcessesPage = () => {
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto min-h-11"
+            className="ml-auto"
             onClick={() => requestTerminate(model.checkedProcesses, false)}
           >
             结束进程
@@ -253,7 +246,6 @@ export const ProcessesPage = () => {
           <Button
             variant="destructive"
             size="sm"
-            className="min-h-11"
             onClick={() => requestTerminate(model.checkedProcesses, true)}
           >
             强制结束
@@ -261,7 +253,6 @@ export const ProcessesPage = () => {
           <Button
             variant="ghost"
             size="sm"
-            className="min-h-11"
             onClick={() => model.setChecked([])}
           >
             取消选择

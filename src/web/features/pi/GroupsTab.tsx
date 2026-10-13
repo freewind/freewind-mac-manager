@@ -424,7 +424,7 @@ export const GroupsTab = () => {
                         >
                           <ComboboxInput
                             aria-label={`成员 ${index + 1} Provider`}
-                            className="min-h-11 w-full"
+                            className="w-full"
                             placeholder="选择 Provider"
                           />
                           <ComboboxContent>
@@ -435,11 +435,7 @@ export const GroupsTab = () => {
                             </ComboboxEmpty>
                             <ComboboxList>
                               {(item) => (
-                                <ComboboxItem
-                                  key={item}
-                                  value={item}
-                                  className="min-h-11"
-                                >
+                                <ComboboxItem key={item} value={item}>
                                   {item}
                                 </ComboboxItem>
                               )}
@@ -455,7 +451,7 @@ export const GroupsTab = () => {
                         >
                           <ComboboxInput
                             aria-label={`成员 ${index + 1} 模型`}
-                            className="min-h-11 w-full"
+                            className="w-full"
                             placeholder="选择模型"
                           />
                           <ComboboxContent>
@@ -468,11 +464,7 @@ export const GroupsTab = () => {
                             </ComboboxEmpty>
                             <ComboboxList>
                               {(item) => (
-                                <ComboboxItem
-                                  key={item}
-                                  value={item}
-                                  className="min-h-11"
-                                >
+                                <ComboboxItem key={item} value={item}>
                                   {item}
                                 </ComboboxItem>
                               )}

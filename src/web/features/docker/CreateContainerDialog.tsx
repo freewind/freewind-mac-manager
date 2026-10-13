@@ -184,7 +184,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
             </div>
             <Button
               variant="outline"
-              className="min-h-11 self-start"
+              className="self-start"
               disabled={props.busy}
               onClick={() =>
                 patch({
@@ -257,7 +257,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
             </div>
             <Button
               variant="outline"
-              className="min-h-11 self-start"
+              className="self-start"
               disabled={props.busy}
               onClick={() =>
                 patch({
@@ -322,7 +322,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
             </div>
             <Button
               variant="outline"
-              className="min-h-11 self-start"
+              className="self-start"
               disabled={props.busy}
               onClick={() =>
                 patch({ env: [...form.env, { name: "", value: "" }] })
@@ -361,7 +361,7 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
                 })
               }
             >
-              <ComboboxInput id="create-restart" className="min-h-11 w-full" />
+              <ComboboxInput id="create-restart" className="w-full" />
               <ComboboxContent>
                 <ComboboxEmpty>无匹配项</ComboboxEmpty>
                 <ComboboxList>
@@ -403,14 +403,12 @@ export const CreateContainerDialog = (props: CreateContainerDialogProps) => {
         <DialogFooter>
           <Button
             variant="outline"
-            className="min-h-11"
             disabled={props.busy}
             onClick={() => props.onOpenChange(false)}
           >
             取消
           </Button>
           <ActionButton
-            className="min-h-11"
             busy={props.busy}
             busyLabel="正在提交…"
             onClick={submit}

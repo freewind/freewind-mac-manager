@@ -49,12 +49,7 @@ export const FilesToolbar = ({
 }: FilesToolbarProps) => (
   <div className="flex flex-wrap items-center gap-2">
     {onOpenTree ? (
-      <Button
-        size="sm"
-        className="min-h-11"
-        variant="outline"
-        onClick={onOpenTree}
-      >
+      <Button size="sm" variant="outline" onClick={onOpenTree}>
         <Folder />
         目录
       </Button>
@@ -64,7 +59,6 @@ export const FilesToolbar = ({
       <Button
         key={action.key}
         size="sm"
-        className="min-h-11"
         variant="outline"
         disabled={action.disabled}
         onClick={action.run}
@@ -79,7 +73,6 @@ export const FilesToolbar = ({
         render={
           <Button
             size="sm"
-            className="min-h-11"
             variant="outline"
             aria-label={selectionLabel(model)}
           />
@@ -107,12 +100,7 @@ export const FilesToolbar = ({
       </DropdownMenuContent>
     </DropdownMenu>
 
-    <Button
-      size="sm"
-      className="min-h-11"
-      variant="outline"
-      onClick={model.refresh}
-    >
+    <Button size="sm" variant="outline" onClick={model.refresh}>
       <RefreshCw />
       刷新
     </Button>
@@ -120,7 +108,7 @@ export const FilesToolbar = ({
     <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
       <Input
         aria-label="搜索文件名或内容"
-        className="min-h-11 w-full md:w-56"
+        className="w-full md:w-56"
         placeholder="搜索文件名或内容"
         value={model.search.query}
         onChange={(event) => model.setSearchQuery(event.target.value)}
@@ -135,7 +123,6 @@ export const FilesToolbar = ({
           if (next) model.setSearchScope(next as "current" | "subtree")
         }}
         variant="outline"
-        className="min-h-11"
         aria-label="搜索范围"
       >
         <ToggleGroupItem value="current">仅当前目录</ToggleGroupItem>
@@ -149,7 +136,6 @@ export const FilesToolbar = ({
             model.setSearchMode(next as "substring" | "wildcard" | "exact")
         }}
         variant="outline"
-        className="min-h-11"
         aria-label="匹配方式"
       >
         <ToggleGroupItem value="substring">子串</ToggleGroupItem>
@@ -160,7 +146,6 @@ export const FilesToolbar = ({
         pressed={model.search.caseSensitive}
         onPressedChange={model.setSearchCaseSensitive}
         variant="outline"
-        className="min-h-11"
       >
         区分大小写
       </Toggle>
@@ -168,13 +153,11 @@ export const FilesToolbar = ({
         pressed={model.search.searchContent}
         onPressedChange={model.setSearchContent}
         variant="outline"
-        className="min-h-11"
       >
         搜文件内容
       </Toggle>
       <Button
         size="sm"
-        className="min-h-11"
         onClick={model.submitSearch}
         disabled={model.search.query.trim().length === 0}
       >

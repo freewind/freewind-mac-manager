@@ -400,7 +400,7 @@ const PortBadges = (props: PortBadgesProps) => {
               <Button
                 variant="ghost"
                 size="xs"
-                className="min-h-11 px-1.5 md:min-h-6"
+                className="px-1.5 md:min-h-6"
                 aria-label={`查看全部 ${ports.length} 个端口`}
               >
                 +{rest.length}

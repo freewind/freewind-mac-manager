@@ -149,18 +149,10 @@ export const RestorePlanDialog = (props: RestorePlanDialogProps) => {
             <AlertDescription className="space-y-2">
               <span>{props.unknownNotice}</span>
               <span className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  className="min-h-11"
-                  onClick={props.onVerify}
-                >
+                <Button variant="outline" onClick={props.onVerify}>
                   重新读取核实
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="min-h-11"
-                  onClick={props.onDismissUnknown}
-                >
+                <Button variant="ghost" onClick={props.onDismissUnknown}>
                   已核对，继续
                 </Button>
               </span>
@@ -169,11 +161,8 @@ export const RestorePlanDialog = (props: RestorePlanDialogProps) => {
         )}
 
         <AlertDialogFooter>
-          <AlertDialogCancel className="min-h-11" disabled={props.busy}>
-            暂不恢复
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={props.busy}>暂不恢复</AlertDialogCancel>
           <AlertDialogAction
-            className="min-h-11"
             disabled={props.busy || blockedByUnknown || cannotRestore}
             onClick={props.onConfirm}
           >

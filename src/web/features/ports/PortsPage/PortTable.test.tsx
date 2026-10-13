@@ -162,7 +162,6 @@ describe("端口聚合表", () => {
     const kill = await screen.findByRole("menuitem", {
       name: "结束进程（端口 443）",
     })
-    expect(kill.className).toContain("min-h-11")
     await user.click(kill)
 
     expect(onRequestKill).toHaveBeenCalledTimes(1)

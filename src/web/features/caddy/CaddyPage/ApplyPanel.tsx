@@ -109,7 +109,7 @@ export const ApplyPanel = (props: ApplyPanelProps) => {
 
         <div className="flex flex-wrap items-center gap-2">
           <ActionButton
-            className="min-h-11 px-4"
+            className="px-4"
             busy={props.busy}
             busyLabel="应用并重新加载中"
             disabled={disabled}
@@ -139,7 +139,6 @@ export const ApplyPanel = (props: ApplyPanelProps) => {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={props.busy}>取消</AlertDialogCancel>
             <ActionButton
-              className="min-h-11"
               busy={props.busy}
               busyLabel="应用并重新加载中"
               onClick={() => void apply()}

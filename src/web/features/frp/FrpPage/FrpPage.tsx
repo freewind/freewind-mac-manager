@@ -169,7 +169,6 @@ export const FrpPage = () => {
             <Button
               variant="outline"
               size="sm"
-              className="min-h-11"
               disabled={model.saving}
               onClick={openCreate}
             >
@@ -179,7 +178,6 @@ export const FrpPage = () => {
             <ActionButton
               variant="outline"
               size="sm"
-              className="min-h-11"
               busy={model.probing}
               busyLabel="探测中…"
               onClick={() => void model.probeAll()}
@@ -190,7 +188,6 @@ export const FrpPage = () => {
             <ActionButton
               variant="outline"
               size="sm"
-              className="min-h-11"
               busy={model.isFetching}
               busyLabel="读取中…"
               onClick={model.refresh}
@@ -234,7 +231,6 @@ export const FrpPage = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="min-h-11"
                     aria-label={`类型筛选：${TYPE_FILTER_LABEL(model.typeFilter)}`}
                   >
                     类型：{TYPE_FILTER_LABEL(model.typeFilter)}
@@ -321,11 +317,7 @@ export const FrpPage = () => {
                     </span>
                     <CollapsibleTrigger
                       render={
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="ml-auto min-h-11"
-                        >
+                        <Button variant="outline" size="sm" className="ml-auto">
                           {serverOpen ? "收起服务端详情" : "展开服务端详情"}
                         </Button>
                       }
@@ -402,7 +394,7 @@ export const FrpPage = () => {
                   </Button>
                   <CollapsibleTrigger
                     render={
-                      <Button variant="outline" size="sm" className="min-h-11">
+                      <Button variant="outline" size="sm">
                         {previewOpen ? "收起预览" : "打开预览"}
                       </Button>
                     }
@@ -438,7 +430,6 @@ export const FrpPage = () => {
           <Button
             variant="outline"
             size="sm"
-            className="min-h-11"
             disabled={model.saving}
             onClick={() => setDiscardOpen(true)}
           >
@@ -446,7 +437,7 @@ export const FrpPage = () => {
           </Button>
         ) : null}
         <ActionButton
-          className="ml-auto min-h-11"
+          className="ml-auto"
           busy={model.saving}
           busyLabel="保存中…"
           disabled={!model.dirty || formOpen || pendingDelete !== null}

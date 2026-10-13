@@ -61,7 +61,6 @@ describe("AiAssistantButton", () => {
     const button = screen.getByRole("button", { name: "AI 助手" })
     expect(button.textContent).toContain("AI")
     expect((button as HTMLButtonElement).disabled).toBe(false)
-    expect(button.className).toContain("min-h-11")
     expect(button.getAttribute("aria-label")).toBe("AI 助手")
 
     await user.tab()

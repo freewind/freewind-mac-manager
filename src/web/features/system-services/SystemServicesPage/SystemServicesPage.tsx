@@ -305,7 +305,6 @@ export const SystemServicesPage = () => {
           action === "unload" || action === "stop" ? "outline" : "secondary"
         }
         size="sm"
-        className="min-h-11"
         disabled={availability.disabled || model.isPending}
         title={availability.reason ?? undefined}
         onClick={() => model.requestAction(action, service)}
@@ -624,7 +623,7 @@ export const SystemServicesPage = () => {
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto min-h-11"
+            className="ml-auto"
             onClick={model.refresh}
           >
             <RefreshCw />
@@ -645,12 +644,7 @@ export const SystemServicesPage = () => {
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
             <CollapsibleTrigger
               render={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="min-h-11"
-                  aria-expanded={filtersOpen}
-                >
+                <Button variant="outline" size="sm" aria-expanded={filtersOpen}>
                   {filtersOpen ? (
                     <ArrowUp aria-hidden="true" />
                   ) : (
@@ -665,7 +659,7 @@ export const SystemServicesPage = () => {
               <ToggleGroup
                 variant="outline"
                 size="sm"
-                className="min-h-11 flex-wrap"
+                className="flex-wrap"
                 value={[model.stateFilter]}
                 onValueChange={(values) =>
                   model.setStateFilter((values[0] ?? "all") as StateFilter)
@@ -681,7 +675,7 @@ export const SystemServicesPage = () => {
               <ToggleGroup
                 variant="outline"
                 size="sm"
-                className="min-h-11 flex-wrap"
+                className="flex-wrap"
                 value={[model.domainFilter]}
                 onValueChange={(values) =>
                   model.setDomainFilter((values[0] ?? "all") as DomainFilter)

@@ -334,7 +334,7 @@ export const DatabasePage = () => {
   const sections = (table: DatabaseTable) => (
     <>
       <Collapsible open={structureOpen} onOpenChange={setStructureOpen}>
-        <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between rounded-md border px-3 text-sm font-medium">
+        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-3 text-sm font-medium">
           表结构
           <span className="text-muted-foreground">
             {structureOpen ? "收起" : "展开"}
@@ -415,16 +415,11 @@ export const DatabasePage = () => {
                 <AlertDescription className="space-y-2">
                   <span>{model.unknownNotice}</span>
                   <span className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      className="min-h-11"
-                      onClick={verifyAfterUnknown}
-                    >
+                    <Button variant="outline" onClick={verifyAfterUnknown}>
                       重新读取核实
                     </Button>
                     <Button
                       variant="ghost"
-                      className="min-h-11"
                       onClick={model.dismissUnknownResult}
                     >
                       已核对，继续
@@ -449,7 +444,7 @@ export const DatabasePage = () => {
                 >
                   <ComboboxInput
                     id="database-table"
-                    className="min-h-11 w-56"
+                    className="w-56"
                     placeholder="搜索表"
                     disabled={model.tables.length === 0 || dirty}
                   />
@@ -467,7 +462,6 @@ export const DatabasePage = () => {
               </div>
               <Button
                 variant="outline"
-                className="min-h-11"
                 onClick={refreshAll}
                 disabled={model.tablesPending}
               >
@@ -475,7 +469,6 @@ export const DatabasePage = () => {
                 刷新
               </Button>
               <Button
-                className="min-h-11"
                 onClick={openInsert}
                 disabled={
                   tableDetail === null || insertHint !== null || !model.online
@@ -697,11 +690,7 @@ const DatabaseTabNav = (props: {
     }}
   >
     {DATABASE_TABS.map((item) => (
-      <ToggleGroupItem
-        key={item.key}
-        value={item.key}
-        className="min-h-11 px-3"
-      >
+      <ToggleGroupItem key={item.key} value={item.key} className="px-3">
         {item.label}
       </ToggleGroupItem>
     ))}

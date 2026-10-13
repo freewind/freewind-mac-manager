@@ -349,7 +349,6 @@ export const PiPage = () => {
               <Button
                 key={tab}
                 size="sm"
-                className="min-h-11"
                 variant={activeTab === tab ? "default" : "ghost"}
                 onClick={() => setActiveTab(tab)}
               >
@@ -363,7 +362,6 @@ export const PiPage = () => {
               render={
                 <Button
                   size="sm"
-                  className="min-h-11"
                   variant="outline"
                   aria-label={`当前分区：${PI_TAB_LABELS[activeTab]}`}
                 >
@@ -433,7 +431,7 @@ export const PiPage = () => {
             <Button
               size="sm"
               variant="outline"
-              className="ml-auto min-h-11"
+              className="ml-auto"
               onClick={() => void runBenchmarks(allBenchmarkTargets)}
               disabled={
                 allBenchmarkTargets.length === 0 || busyBenchmarkKeys.size > 0
@@ -591,7 +589,7 @@ export const PiPage = () => {
                             </Badge>
                           ) : null}
                           <Button
-                            className="ml-2 min-h-11"
+                            className="ml-2"
                             variant="outline"
                             onClick={() => {
                               setLabSelection({
@@ -679,7 +677,7 @@ export const PiPage = () => {
               {editingId &&
               query.data?.providers.find((entry) => entry.id === editingId)
                 ?.hasApiKey ? (
-                <label className="flex min-h-11 items-center gap-2 text-xs">
+                <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"
                     checked={draft.clearApiKey}

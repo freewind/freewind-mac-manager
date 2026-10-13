@@ -121,18 +121,10 @@ export const DeleteRecordsDialog = (props: DeleteRecordsDialogProps) => {
             <AlertDescription className="space-y-2">
               <span>{props.unknownNotice}</span>
               <span className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  className="min-h-11"
-                  onClick={props.onVerify}
-                >
+                <Button variant="outline" onClick={props.onVerify}>
                   重新读取核实
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="min-h-11"
-                  onClick={props.onDismissUnknown}
-                >
+                <Button variant="ghost" onClick={props.onDismissUnknown}>
                   已核对，继续
                 </Button>
               </span>
@@ -144,7 +136,6 @@ export const DeleteRecordsDialog = (props: DeleteRecordsDialogProps) => {
           <AlertDialogCancel disabled={props.busy}>取消</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
-            className="min-h-11"
             disabled={props.busy || blockedByUnknown}
             onClick={props.onConfirm}
           >

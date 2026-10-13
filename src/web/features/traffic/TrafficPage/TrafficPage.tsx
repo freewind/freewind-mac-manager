@@ -183,7 +183,7 @@ export const TrafficPage = () => {
               <Sheet open={snapshotListOpen} onOpenChange={setSnapshotListOpen}>
                 <SheetTrigger
                   render={
-                    <Button variant="outline" size="sm" className="min-h-11">
+                    <Button variant="outline" size="sm">
                       <Clock aria-hidden="true" />
                       快照
                     </Button>
@@ -210,12 +210,7 @@ export const TrafficPage = () => {
               />
               忽略代理进程
             </label>
-            <Button
-              size="sm"
-              className="min-h-11"
-              variant="outline"
-              onClick={model.refresh}
-            >
+            <Button size="sm" variant="outline" onClick={model.refresh}>
               <RefreshCw aria-hidden="true" />
               刷新
             </Button>

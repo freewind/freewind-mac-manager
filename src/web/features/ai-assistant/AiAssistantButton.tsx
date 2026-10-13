@@ -17,7 +17,7 @@ export const AiAssistantButton = (props: AiAssistantButtonProps) => {
   return (
     <Button
       variant="outline"
-      className="min-h-11 shrink-0 px-3"
+      className="shrink-0 px-3"
       aria-label="AI 助手"
       title="AI 助手"
       onClick={() => openWith(props.context)}

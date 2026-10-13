@@ -104,7 +104,7 @@ export const VersionPanel = (props: VersionPanelProps) => {
                   </span>
                   <ActionButton
                     variant="outline"
-                    className="ml-auto min-h-11 px-3"
+                    className="ml-auto px-3"
                     busy={props.busy && pending?.id === version.id}
                     busyLabel="恢复中"
                     disabled={disabled}
@@ -151,7 +151,6 @@ export const VersionPanel = (props: VersionPanelProps) => {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={props.busy}>取消</AlertDialogCancel>
             <ActionButton
-              className="min-h-11"
               busy={props.busy}
               busyLabel="恢复中"
               onClick={() => void confirm()}
