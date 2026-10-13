@@ -30,8 +30,12 @@ export const piTabFromUrl = (): PiTab => {
 
 const piTabUrl = (tab: PiTab): URL => {
   const url = new URL(window.location.href)
-  if (tab === DEFAULT_PI_TAB) url.searchParams.delete("piTab")
-  else url.searchParams.set("piTab", tab)
+  // 带运行深链时必须显式指定模型页，否则解析会再次回落到 Playground。
+  if (tab === DEFAULT_PI_TAB && !url.searchParams.get("piRun")) {
+    url.searchParams.delete("piTab")
+  } else {
+    url.searchParams.set("piTab", tab)
+  }
   return url
 }
 

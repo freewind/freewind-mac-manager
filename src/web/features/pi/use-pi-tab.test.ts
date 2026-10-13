@@ -47,6 +47,36 @@ describe("usePiTab", () => {
     expect(new URL(window.location.href).searchParams.get("piTab")).toBeNull()
   })
 
+  it("带运行深链切换模型时显式写入分区，保留运行和其他参数", () => {
+    setUrl("?dbTable=traffic_samples&piRun=req_1&feature=pi&clashTab=proxies")
+    const playgroundUrl = window.location.href
+    const { result } = renderHook(() => usePiTab())
+    expect(result.current.tab).toBe("chat")
+
+    act(() => result.current.selectTab("models"))
+
+    expect(result.current.tab).toBe("models")
+    expect(
+      Object.fromEntries(new URL(window.location.href).searchParams)
+    ).toMatchInlineSnapshot(`
+      {
+        "clashTab": "proxies",
+        "dbTable": "traffic_samples",
+        "feature": "pi",
+        "piRun": "req_1",
+        "piTab": "models",
+      }
+    `)
+    expect(piTabFromUrl()).toBe("models")
+    expect(window.history.state.macManagerFeature).toBe(true)
+
+    act(() => {
+      window.history.replaceState({}, "", playgroundUrl)
+      window.dispatchEvent(new PopStateEvent("popstate"))
+    })
+    expect(result.current.tab).toBe("chat")
+  })
+
   it("外部把 URL 改到 assistant 时（浮层跳转）能跟随", () => {
     const { result } = renderHook(() => usePiTab())
 
