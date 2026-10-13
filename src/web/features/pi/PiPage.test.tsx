@@ -219,12 +219,66 @@ describe("Pi model manager page", () => {
     expect(screen.getByRole("button", { name: "当前分区：设置" })).toBeTruthy()
   })
 
-  it("模型分区默认显示测速历史，并提供就地测速入口", async () => {
+  it("模型分区默认显示测速历史，每个模型行各有就地测速入口", async () => {
     renderPage()
     await screen.findByText("test")
 
     expect(screen.getByRole("button", { name: "全部测速" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "测首字" })).toBeTruthy()
     expect(screen.getByText("测速历史（最多 100 条）")).toBeTruthy()
+  })
+
+  it("每个模型行独立测速，点击只提交该模型", async () => {
+    fetchModels.mockResolvedValue({
+      ...response,
+      providers: [
+        {
+          ...response.providers[0],
+          modelCount: 2,
+          provider: {
+            ...response.providers[0].provider,
+            models: [
+              { id: "model-one", contextWindow: 1000, maxTokens: 100 },
+              { id: "model-two", contextWindow: 2000, maxTokens: 200 },
+            ],
+          },
+        },
+      ],
+    })
+    renderPage()
+    await screen.findByText("test")
+
+    const buttons = screen.getAllByRole("button", { name: "测首字" })
+    expect(buttons).toHaveLength(2)
+
+    fireEvent.click(buttons[1])
+    await waitFor(() => expect(startBenchmark).toHaveBeenCalledTimes(1))
+    expect(startBenchmark.mock.calls[0][0]).toMatchObject({
+      providerId: "test",
+      modelId: "model-two",
+      thinkingLevel: "medium",
+    })
+  })
+
+  it("测速结果与失败原因直接写回该按钮，不再另起状态标签", async () => {
+    fetchBenchmarks.mockResolvedValue({
+      benchmarks: [
+        {
+          id: "bench_0000000000000001",
+          providerId: "test",
+          modelId: "model-one",
+          status: "done",
+          message: "测速完成",
+          metrics: { firstEventMs: 100, firstTextMs: 123 },
+        },
+      ],
+    })
+    renderPage()
+    await screen.findByText("test")
+
+    const button = await screen.findByRole("button", { name: "首字 123 ms" })
+    expect(button.hasAttribute("disabled")).toBe(false)
+    // 结果只出现在按钮上，模型行里没有额外的状态标签
+    expect(screen.getAllByText("首字 123 ms")).toHaveLength(1)
   })
 })

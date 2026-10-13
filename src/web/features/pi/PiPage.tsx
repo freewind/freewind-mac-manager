@@ -10,7 +10,6 @@ import {
 } from "@shared/client-api"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { PageHeader } from "@web/components/PageHeader"
-import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
@@ -544,28 +543,7 @@ export const PiPage = () => {
                   <p className="text-xs">
                     API：{entry.provider.api} · 模型：{entry.modelCount}
                   </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={
-                      entry.provider.models.length === 0 ||
-                      entry.provider.models.some((model) =>
-                        busyBenchmarkKeys.has(`${entry.id}/${model.id}`)
-                      )
-                    }
-                    onClick={() =>
-                      void runBenchmarks(
-                        entry.provider.models.map((model) => ({
-                          providerId: entry.id,
-                          modelId: model.id,
-                        }))
-                      )
-                    }
-                  >
-                    <Gauge />
-                    测首字
-                  </Button>
-                  <div className="space-y-1 text-xs text-muted-foreground">
+                  <div className="space-y-2 text-xs text-muted-foreground">
                     {entry.provider.models.map((model) => {
                       const key = `${entry.id}/${model.id}`
                       const status = benchmarkStatusText(
@@ -574,22 +552,34 @@ export const PiPage = () => {
                         now
                       )
                       return (
-                        <p key={model.id} className="break-all">
-                          {model.name ?? model.id} ·{" "}
-                          {model.contextWindow ?? "未声明"} context /{" "}
-                          {model.maxTokens ?? "未声明"} 输出
-                          {status ? (
-                            <Badge
-                              className="ml-2"
-                              variant={
-                                status.failed ? "destructive" : "secondary"
-                              }
-                            >
-                              {status.text}
-                            </Badge>
-                          ) : null}
+                        <div
+                          key={model.id}
+                          className="flex flex-wrap items-center gap-2"
+                        >
+                          <span className="min-w-0 flex-1 break-all">
+                            {model.name ?? model.id} ·{" "}
+                            {model.contextWindow ?? "未声明"} context /{" "}
+                            {model.maxTokens ?? "未声明"} 输出
+                          </span>
+                          {/* 触发与结果合成同一个按钮：文字随测速状态变化 */}
                           <Button
-                            className="ml-2"
+                            size="sm"
+                            variant="outline"
+                            className={
+                              status?.failed ? "text-destructive" : undefined
+                            }
+                            disabled={busyBenchmarkKeys.has(key)}
+                            onClick={() =>
+                              void runBenchmarks([
+                                { providerId: entry.id, modelId: model.id },
+                              ])
+                            }
+                          >
+                            <Gauge />
+                            {status ? status.text : "测首字"}
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => {
                               setLabSelection({
@@ -601,7 +591,7 @@ export const PiPage = () => {
                           >
                             打开 Playground
                           </Button>
-                        </p>
+                        </div>
                       )
                     })}
                   </div>
