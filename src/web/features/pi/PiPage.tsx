@@ -8,6 +8,7 @@ import {
   startPiBenchmark,
   updatePiProvider,
 } from "@shared/client-api"
+import { formatToSeconds } from "@shared/format"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { PageHeader } from "@web/components/PageHeader"
 import { Button } from "@web/components/ui/button"
@@ -136,7 +137,7 @@ const benchmarkStatusText = (
   if (record.status === "done") {
     const firstByteMs =
       record.metrics.firstTextMs ?? record.metrics.firstEventMs
-    return { text: `首字 ${firstByteMs ?? "—"} ms`, failed: false }
+    return { text: `首字 ${formatToSeconds(firstByteMs)}`, failed: false }
   }
   return { text: record.message, failed: true }
 }
@@ -462,9 +463,9 @@ export const PiPage = () => {
                     {item.configuredMaxTokens} tokens
                   </p>
                   <p>
-                    首事件 {item.metrics.firstEventMs ?? "—"} ms · 首正文{" "}
-                    {item.metrics.firstTextMs ?? "—"} ms · 总时长{" "}
-                    {item.metrics.durationMs ?? "—"} ms
+                    首事件 {formatToSeconds(item.metrics.firstEventMs)} · 首正文{" "}
+                    {formatToSeconds(item.metrics.firstTextMs)} · 总时长{" "}
+                    {formatToSeconds(item.metrics.durationMs)}
                   </p>
                   <p>
                     输入 {item.metrics.inputTokens ?? "—"} · 输出{" "}

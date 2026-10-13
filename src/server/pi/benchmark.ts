@@ -18,6 +18,7 @@ import {
   PiBenchmarkResultSchema,
   PiBenchmarkTaskPayloadSchema,
 } from "@shared/api-contract/schemas/pi"
+import { formatToSeconds } from "@shared/format"
 import { listPiModels } from "./config"
 
 export const PI_BENCHMARK_HISTORY_LIMIT = 100
@@ -481,7 +482,7 @@ export const createPiBenchmarkService = (
           options.report(
             progressOf(
               metrics,
-              `已收到正文；首事件 ${metrics.firstEventMs.toFixed(0)} ms，首正文 ${metrics.firstTextMs.toFixed(0)} ms`
+              `已收到正文；首事件 ${formatToSeconds(metrics.firstEventMs)}，首正文 ${formatToSeconds(metrics.firstTextMs)}`
             )
           )
         } else if (event.type === "done") {

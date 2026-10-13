@@ -27,3 +27,10 @@ export const formatTimestamp = (seconds: number): string => {
   const pad = (input: number): string => String(input).padStart(2, "0")
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
+
+/**
+ * 毫秒耗时统一按秒展示：一位小数并带单位，避免测速结果出现
+ * `1503.049139 ms` 这种读不出来的原始浮点。耗时未知时用占位符，不留空值。
+ */
+export const formatToSeconds = (milliseconds: number | null): string =>
+  milliseconds === null ? "—" : `${(milliseconds / 1000).toFixed(1)} s`
