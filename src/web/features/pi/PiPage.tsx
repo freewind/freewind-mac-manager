@@ -1,15 +1,16 @@
+import type { PiBenchmarkResult } from "@shared/api-contract"
 import {
   ApiRequestError,
   addPiProvider,
   deletePiBenchmarks,
   deletePiProvider,
-  fetchTaskByRequestId,
   newRequestId,
   startPiBenchmark,
   updatePiProvider,
 } from "@shared/client-api"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { PageHeader } from "@web/components/PageHeader"
+import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
@@ -18,14 +19,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@web/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -49,12 +42,17 @@ import {
   rememberPendingRequest,
 } from "@web/features/tasks/pending-requests"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
-import { Bot, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { Bot, Gauge, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { GroupsTab } from "./GroupsTab"
 import { LabTab } from "./LabTab"
-import { piKeys, usePiBenchmarks, usePiModels } from "./queries"
+import {
+  benchmarkRunningExpired,
+  piKeys,
+  usePiBenchmarks,
+  usePiModels,
+} from "./queries"
 import { SettingsTab } from "./SettingsTab"
 import { PI_TABS, type PiTab, usePiTab } from "./use-pi-tab"
 
@@ -112,14 +110,36 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {}
 
+/**
+ * 模型行上的测速状态：提交中、测速中、首字耗时或失败原因。
+ * 超过服务端上限仍停在 running 的记录不再算「测速中」，也不再阻止重测。
+ */
+const benchmarkStatusText = (
+  record: PiBenchmarkResult | undefined,
+  pending: boolean,
+  now: number
+): { text: string; failed: boolean } | null => {
+  if (pending) return { text: "提交中…", failed: false }
+  if (record === undefined) return null
+  if (record.status === "running") {
+    return benchmarkRunningExpired(record, now)
+      ? { text: "结果未知", failed: true }
+      : { text: "测速中…", failed: false }
+  }
+  if (record.status === "done") {
+    const firstByteMs =
+      record.metrics.firstTextMs ?? record.metrics.firstEventMs
+    return { text: `首字 ${firstByteMs ?? "—"} ms`, failed: false }
+  }
+  return { text: record.message, failed: true }
+}
+
 export const PiPage = () => {
   const queryClient = useQueryClient()
   const query = usePiModels()
   const isDesktop = useIsDesktop()
   const { tab: activeTab, selectTab } = usePiTab()
   const setActiveTab = selectTab
-  // 测速是独立工作区：默认不出现在模型列表前面，由列表上方的按钮进入
-  const [benchmarkOpen, setBenchmarkOpen] = useState(false)
   const [labSelection, setLabSelection] = useState<{
     provider: string
     model: string
@@ -127,30 +147,9 @@ export const PiPage = () => {
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
-  const [benchmarkProvider, setBenchmarkProvider] = useState("")
-  const [benchmarkModel, setBenchmarkModel] = useState("")
-  const [benchmarkThinking, setBenchmarkThinking] = useState<
-    "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
-  >("medium")
-  const [activeBenchmark, setActiveBenchmark] = useState<{
-    requestId: string
-    taskId: string | null
-  } | null>(null)
+  /** 已发出但还没拿到回执的测速目标，键为 `provider/model`。 */
+  const [pendingTargets, setPendingTargets] = useState<string[]>([])
   const history = usePiBenchmarks(activeTab === "models")
-  const activeTask = useQuery({
-    queryKey: [
-      ...piKeys.all,
-      "benchmark-task",
-      activeBenchmark?.requestId ?? "",
-    ],
-    queryFn: () => fetchTaskByRequestId(activeBenchmark?.requestId ?? ""),
-    enabled: activeBenchmark !== null,
-    retry: false,
-    refetchInterval: (query) =>
-      query.state.data?.status === "running" || query.state.data === null
-        ? 1000
-        : false,
-  })
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: piKeys.all })
   const save = useMutation({
@@ -199,62 +198,65 @@ export const PiPage = () => {
     onError: (error) =>
       toast.error(error.message || "保存失败，请重新读取确认"),
   })
-  const benchmark = useMutation({
-    mutationFn: async () => {
-      if (!benchmarkProvider || !benchmarkModel)
-        throw new Error("请选择 Provider 和模型")
-      const requestId = newRequestId()
+  /** 提交一个目标的首字测速：先登记待核实请求，再发送。 */
+  const submitBenchmark = async (target: {
+    providerId: string
+    modelId: string
+  }): Promise<void> => {
+    const { providerId, modelId } = target
+    const requestId = newRequestId()
+    const label = `Pi ${providerId}/${modelId}`
+    rememberPendingRequest({
+      requestId,
+      kind: "pi_benchmark",
+      target: label,
+      startedAt: Date.now(),
+      taskId: null,
+    })
+    try {
+      const result = await startPiBenchmark(
+        { providerId, modelId, thinkingLevel: "medium" },
+        requestId
+      )
+      if (result.kind === "completed") {
+        forgetPendingRequest({ requestId })
+        if (result.body.status !== "done") toast.error(result.body.message)
+        return
+      }
+      // 已受理：终态由测速历史轮询补齐，待核实记录保留到确认完成。
       rememberPendingRequest({
         requestId,
         kind: "pi_benchmark",
-        target: `Pi ${benchmarkProvider}/${benchmarkModel}`,
-        startedAt: Date.now(),
-        taskId: null,
+        target: label,
+        startedAt: result.body.startedAt * 1000,
+        taskId: result.body.taskId,
       })
-      return {
-        requestId,
-        result: await startPiBenchmark(
-          {
-            providerId: benchmarkProvider,
-            modelId: benchmarkModel,
-            thinkingLevel: benchmarkThinking,
-          },
-          requestId
-        ),
-      }
-    },
-    onSuccess: async ({ requestId, result }) => {
-      if (result.kind === "completed") {
-        forgetPendingRequest({ requestId })
-        setActiveBenchmark(null)
-        if (result.body.status === "done") toast.success("Pi 模型测速完成")
-        else toast.error(result.body.message)
-      } else {
-        setActiveBenchmark({ requestId, taskId: result.body.taskId })
-        rememberPendingRequest({
-          requestId,
-          kind: "pi_benchmark",
-          target: `Pi ${benchmarkProvider}/${benchmarkModel}`,
-          startedAt: result.body.startedAt * 1000,
-          taskId: result.body.taskId,
-        })
-      }
-      await queryClient.invalidateQueries({ queryKey: piKeys.benchmarks() })
-    },
-    onError: async (error) => {
+    } catch (error) {
       if (
         error instanceof ApiRequestError &&
         error.resultUnknown &&
         error.requestId
       ) {
-        setActiveBenchmark({ requestId: error.requestId, taskId: null })
         toast.error("测速响应未知，正在通过请求标识核实任务")
-      } else {
-        toast.error(error.message || "测速未完成")
+        return
       }
-      await queryClient.invalidateQueries({ queryKey: piKeys.benchmarks() })
-    },
-  })
+      toast.error(error instanceof Error ? error.message : "测速未完成")
+    }
+  }
+
+  /** 并发提交多个目标，避免逐个等回执拖长整体时间。 */
+  const runBenchmarks = async (
+    targets: { providerId: string; modelId: string }[]
+  ): Promise<void> => {
+    if (targets.length === 0) return
+    const keys = targets.map(
+      (target) => `${target.providerId}/${target.modelId}`
+    )
+    setPendingTargets((current) => [...new Set([...current, ...keys])])
+    await Promise.all(targets.map((target) => submitBenchmark(target)))
+    await queryClient.invalidateQueries({ queryKey: piKeys.benchmarks() })
+    setPendingTargets((current) => current.filter((key) => !keys.includes(key)))
+  }
   const removeHistory = useMutation({
     mutationFn: deletePiBenchmarks,
     onSuccess: async (response) => {
@@ -299,9 +301,31 @@ export const PiPage = () => {
     })
   }
 
-  const benchmarkRunning =
-    activeBenchmark !== null &&
-    (!activeTask.data || activeTask.data.status === "running")
+  /** 全部 Provider 下的全部模型，作为「全部测速」的目标集合。 */
+  const allBenchmarkTargets = (query.data?.providers ?? []).flatMap((entry) =>
+    entry.provider.models.map((model) => ({
+      providerId: entry.id,
+      modelId: model.id,
+    }))
+  )
+  const benchmarkRecords = history.data?.benchmarks ?? []
+  const now = Date.now()
+  /** 每个目标最近一次测速记录；历史按开始时间倒序返回，第一条即最新。 */
+  const latestBenchmark = new Map<string, PiBenchmarkResult>()
+  for (const record of benchmarkRecords) {
+    const key = `${record.providerId}/${record.modelId}`
+    if (!latestBenchmark.has(key)) latestBenchmark.set(key, record)
+  }
+  /** 提交中或运行中的目标：这些目标的按钮不再允许重复提交。 */
+  const busyBenchmarkKeys = new Set([
+    ...pendingTargets,
+    ...benchmarkRecords
+      .filter(
+        (record) =>
+          record.status === "running" && !benchmarkRunningExpired(record, now)
+      )
+      .map((record) => `${record.providerId}/${record.modelId}`),
+  ])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -402,194 +426,68 @@ export const PiPage = () => {
               size="sm"
               variant="outline"
               className="ml-auto min-h-11"
-              onClick={() => setBenchmarkOpen((value) => !value)}
+              onClick={() => void runBenchmarks(allBenchmarkTargets)}
+              disabled={
+                allBenchmarkTargets.length === 0 || busyBenchmarkKeys.size > 0
+              }
             >
-              {benchmarkOpen ? "收起测速" : "模型测速"}
+              <Gauge />
+              {busyBenchmarkKeys.size > 0 ? "测速中…" : "全部测速"}
             </Button>
           </div>
 
-          {benchmarkOpen ? (
-            <>
-              <Card className="mb-4">
-                <CardHeader>
-                  <CardTitle>模型测速</CardTitle>
-                  <CardDescription>
-                    点击后产生真实请求；本次输出取配置上限与 4096 的较小值。正文
-                    TPS 仅在上游提供推理 token 拆分时计算。
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-2">
-                  <Label className="grid gap-1 text-xs">
-                    Provider
-                    <Combobox
-                      items={(query.data?.providers ?? []).map((p) => p.id)}
-                      value={benchmarkProvider}
-                      onValueChange={(value) => {
-                        setBenchmarkProvider(value ?? "")
-                        setBenchmarkModel("")
-                      }}
-                    >
-                      <ComboboxInput
-                        aria-label="测速 Provider"
-                        placeholder="选择 Provider"
-                      />
-                      <ComboboxContent>
-                        <ComboboxEmpty>无匹配项</ComboboxEmpty>
-                        <ComboboxList>
-                          {(item) => (
-                            <ComboboxItem key={item} value={item}>
-                              {item}
-                            </ComboboxItem>
-                          )}
-                        </ComboboxList>
-                      </ComboboxContent>
-                    </Combobox>
-                  </Label>
-                  <Label className="grid gap-1 text-xs">
-                    模型
-                    <Combobox
-                      items={(
-                        query.data?.providers.find(
-                          (entry) => entry.id === benchmarkProvider
-                        )?.provider.models ?? []
-                      ).map((m) => m.id)}
-                      value={benchmarkModel}
-                      onValueChange={(value) => setBenchmarkModel(value ?? "")}
-                    >
-                      <ComboboxInput
-                        aria-label="测速模型"
-                        placeholder="选择模型"
-                      />
-                      <ComboboxContent>
-                        <ComboboxEmpty>无匹配项</ComboboxEmpty>
-                        <ComboboxList>
-                          {(item) => {
-                            const model = query.data?.providers
-                              .find((entry) => entry.id === benchmarkProvider)
-                              ?.provider.models.find((m) => m.id === item)
-                            return (
-                              <ComboboxItem key={item} value={item}>
-                                {model?.name ?? item} · max{" "}
-                                {model?.maxTokens ?? "未声明"}
-                              </ComboboxItem>
-                            )
-                          }}
-                        </ComboboxList>
-                      </ComboboxContent>
-                    </Combobox>
-                  </Label>
-                  <Label className="grid gap-1 text-xs">
-                    Thinking
-                    <Combobox
-                      items={[
-                        "off",
-                        "minimal",
-                        "low",
-                        "medium",
-                        "high",
-                        "xhigh",
-                        "max",
-                      ]}
-                      value={benchmarkThinking}
-                      onValueChange={(value) => {
-                        if (value)
-                          setBenchmarkThinking(
-                            value as typeof benchmarkThinking
-                          )
-                      }}
-                    >
-                      <ComboboxInput aria-label="测速 Thinking" />
-                      <ComboboxContent>
-                        <ComboboxEmpty>无匹配项</ComboboxEmpty>
-                        <ComboboxList>
-                          {(item) => (
-                            <ComboboxItem key={item} value={item}>
-                              {item}
-                            </ComboboxItem>
-                          )}
-                        </ComboboxList>
-                      </ComboboxContent>
-                    </Combobox>
-                  </Label>
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>测速历史（最多 100 条）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {history.isLoading ? (
+                <p role="status">正在读取测速历史…</p>
+              ) : null}
+              {history.isError ? (
+                <p role="alert">测速历史读取失败：{history.error.message}</p>
+              ) : null}
+              {history.data?.benchmarks.length === 0 ? (
+                <p>暂无测速记录。</p>
+              ) : null}
+              {history.data?.benchmarks.map((item) => (
+                <div key={item.id} className="rounded border p-3 text-sm">
+                  <p>
+                    {item.providerId}/{item.modelId} · {item.status} · 配置上限{" "}
+                    {item.configuredMaxTokens} tokens
+                  </p>
+                  <p>
+                    首事件 {item.metrics.firstEventMs ?? "—"} ms · 首正文{" "}
+                    {item.metrics.firstTextMs ?? "—"} ms · 总时长{" "}
+                    {item.metrics.durationMs ?? "—"} ms
+                  </p>
+                  <p>
+                    输入 {item.metrics.inputTokens ?? "—"} · 输出{" "}
+                    {item.metrics.outputTokens ?? "—"} · 文本输出{" "}
+                    {item.metrics.textOutputTokens ?? "—"} · 缓存读{" "}
+                    {item.metrics.cacheReadTokens ?? "—"} · 缓存写{" "}
+                    {item.metrics.cacheWriteTokens ?? "—"}
+                  </p>
+                  <p>
+                    正文 tokens/s：
+                    {item.metrics.outputTokensPerSecond ?? "—"} · 停止原因：
+                    {item.stopReason ?? "—"} · {item.error ?? "无错误"}
+                  </p>
+                  <p>
+                    {new Date(item.startedAt).toLocaleString()} · {item.message}
+                  </p>
                   <Button
-                    className="min-h-11"
-                    onClick={() => benchmark.mutate()}
-                    disabled={
-                      benchmark.isPending ||
-                      benchmarkRunning ||
-                      !benchmarkProvider ||
-                      !benchmarkModel
-                    }
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => removeHistory.mutate([item.id])}
+                    disabled={removeHistory.isPending}
                   >
-                    {benchmark.isPending || benchmarkRunning
-                      ? "测速中…"
-                      : "开始一次测速"}
+                    删除记录
                   </Button>
-                  {activeBenchmark ? (
-                    <p role="status">
-                      {activeTask.data?.status ?? "核实中"}
-                      ；可在任务历史查看结果。
-                    </p>
-                  ) : null}
-                </CardContent>
-              </Card>
-              <Card className="mb-4">
-                <CardHeader>
-                  <CardTitle>测速历史（最多 100 条）</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {history.isLoading ? (
-                    <p role="status">正在读取测速历史…</p>
-                  ) : null}
-                  {history.isError ? (
-                    <p role="alert">
-                      测速历史读取失败：{history.error.message}
-                    </p>
-                  ) : null}
-                  {history.data?.benchmarks.length === 0 ? (
-                    <p>暂无测速记录。</p>
-                  ) : null}
-                  {history.data?.benchmarks.map((item) => (
-                    <div key={item.id} className="rounded border p-3 text-sm">
-                      <p>
-                        {item.providerId}/{item.modelId} · {item.status} ·
-                        配置上限 {item.configuredMaxTokens} tokens
-                      </p>
-                      <p>
-                        首事件 {item.metrics.firstEventMs ?? "—"} ms · 首正文{" "}
-                        {item.metrics.firstTextMs ?? "—"} ms · 总时长{" "}
-                        {item.metrics.durationMs ?? "—"} ms
-                      </p>
-                      <p>
-                        输入 {item.metrics.inputTokens ?? "—"} · 输出{" "}
-                        {item.metrics.outputTokens ?? "—"} · 文本输出{" "}
-                        {item.metrics.textOutputTokens ?? "—"} · 缓存读{" "}
-                        {item.metrics.cacheReadTokens ?? "—"} · 缓存写{" "}
-                        {item.metrics.cacheWriteTokens ?? "—"}
-                      </p>
-                      <p>
-                        正文 tokens/s：
-                        {item.metrics.outputTokensPerSecond ?? "—"} · 停止原因：
-                        {item.stopReason ?? "—"} · {item.error ?? "无错误"}
-                      </p>
-                      <p>
-                        {new Date(item.startedAt).toLocaleString()} ·{" "}
-                        {item.message}
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => removeHistory.mutate([item.id])}
-                        disabled={removeHistory.isPending}
-                      >
-                        删除记录
-                      </Button>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </>
-          ) : null}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {query.data?.providers.map((entry) => (
@@ -615,6 +513,27 @@ export const PiPage = () => {
                     <Button
                       size="sm"
                       variant="outline"
+                      disabled={
+                        entry.provider.models.length === 0 ||
+                        entry.provider.models.some((model) =>
+                          busyBenchmarkKeys.has(`${entry.id}/${model.id}`)
+                        )
+                      }
+                      onClick={() =>
+                        void runBenchmarks(
+                          entry.provider.models.map((model) => ({
+                            providerId: entry.id,
+                            modelId: model.id,
+                          }))
+                        )
+                      }
+                    >
+                      <Gauge />
+                      测首字
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => startEdit(entry)}
                     >
                       <Pencil />
@@ -630,26 +549,44 @@ export const PiPage = () => {
                     </Button>
                   </div>
                   <div className="space-y-1 text-xs text-muted-foreground">
-                    {entry.provider.models.map((model) => (
-                      <p key={model.id} className="break-all">
-                        {model.name ?? model.id} ·{" "}
-                        {model.contextWindow ?? "未声明"} context /{" "}
-                        {model.maxTokens ?? "未声明"} 输出
-                        <Button
-                          className="ml-2 min-h-11"
-                          variant="outline"
-                          onClick={() => {
-                            setLabSelection({
-                              provider: entry.id,
-                              model: model.id,
-                            })
-                            setActiveTab("chat")
-                          }}
-                        >
-                          打开 Playground
-                        </Button>
-                      </p>
-                    ))}
+                    {entry.provider.models.map((model) => {
+                      const key = `${entry.id}/${model.id}`
+                      const status = benchmarkStatusText(
+                        latestBenchmark.get(key),
+                        pendingTargets.includes(key),
+                        now
+                      )
+                      return (
+                        <p key={model.id} className="break-all">
+                          {model.name ?? model.id} ·{" "}
+                          {model.contextWindow ?? "未声明"} context /{" "}
+                          {model.maxTokens ?? "未声明"} 输出
+                          {status ? (
+                            <Badge
+                              className="ml-2"
+                              variant={
+                                status.failed ? "destructive" : "secondary"
+                              }
+                            >
+                              {status.text}
+                            </Badge>
+                          ) : null}
+                          <Button
+                            className="ml-2 min-h-11"
+                            variant="outline"
+                            onClick={() => {
+                              setLabSelection({
+                                provider: entry.id,
+                                model: model.id,
+                              })
+                              setActiveTab("chat")
+                            }}
+                          >
+                            打开 Playground
+                          </Button>
+                        </p>
+                      )
+                    })}
                   </div>
                 </CardContent>
               </Card>

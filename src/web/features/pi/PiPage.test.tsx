@@ -6,7 +6,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { PiPage } from "./PiPage"
@@ -154,27 +153,12 @@ describe("Pi model manager page", () => {
     expect(updateProvider.mock.calls[0][1].clearApiKey).toBe(false)
   })
 
-  it("starts a benchmark only after an explicit user action", async () => {
+  it("只有用户显式点击才发起测速，并覆盖全部模型", async () => {
     renderPage()
     await screen.findByText("test")
     expect(startBenchmark).not.toHaveBeenCalled()
-    // 测速是独立工作区：先显式打开，不再默认压在模型列表前面
-    fireEvent.click(screen.getByRole("button", { name: "模型测速" }))
-    const providerInput = screen.getByRole("combobox", {
-      name: /测速 Provider/,
-    })
-    fireEvent.focus(providerInput)
-    fireEvent.keyDown(providerInput, { key: "ArrowDown" })
-    fireEvent.click(
-      await within(document.body).findByRole("option", { name: "test" })
-    )
-    const modelInput = screen.getByRole("combobox", { name: "测速模型" })
-    fireEvent.focus(modelInput)
-    fireEvent.keyDown(modelInput, { key: "ArrowDown" })
-    fireEvent.click(
-      await within(document.body).findByRole("option", { name: /model-one/ })
-    )
-    fireEvent.click(screen.getByRole("button", { name: "开始一次测速" }))
+    // 测速不再展开面板：顶栏按钮直接就地触发全部目标的测速
+    fireEvent.click(screen.getByRole("button", { name: "全部测速" }))
     await waitFor(() => expect(startBenchmark).toHaveBeenCalledTimes(1))
     expect(startBenchmark.mock.calls[0][0]).toMatchObject({
       providerId: "test",
@@ -228,14 +212,12 @@ describe("Pi model manager page", () => {
     expect(screen.getByRole("button", { name: "当前分区：设置" })).toBeTruthy()
   })
 
-  it("模型分区默认显示 Provider 列表，测速与历史不占首屏", async () => {
+  it("模型分区默认显示测速历史，并提供就地测速入口", async () => {
     renderPage()
     await screen.findByText("test")
 
-    expect(screen.getByRole("button", { name: "模型测速" })).toBeTruthy()
-    expect(screen.queryByText("测速历史（最多 100 条）")).toBeNull()
-
-    fireEvent.click(screen.getByRole("button", { name: "模型测速" }))
-    expect(await screen.findByText("测速历史（最多 100 条）")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "全部测速" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "测首字" })).toBeTruthy()
+    expect(screen.getByText("测速历史（最多 100 条）")).toBeTruthy()
   })
 })
