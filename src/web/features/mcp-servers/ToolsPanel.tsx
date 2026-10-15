@@ -1,3 +1,4 @@
+import type { McpCallRecord, McpServer, McpTool } from "@shared/api-contract"
 import { describeError } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -29,13 +30,11 @@ import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { ChevronRight, Play, Search, Wrench } from "lucide-react"
 import { useState } from "react"
-import { toast } from "sonner"
 import { draftToArgs, emptyDraft, type McpFormDraft } from "./form"
 import { prettyJson, toolRisk } from "./format"
 import { useCallMcpTool } from "./queries"
 import { ResultView } from "./ResultView"
 import { SchemaForm } from "./SchemaForm"
-import type { McpCallRecord, McpServer, McpTool } from "./types"
 
 type ToolsPanelProps = {
   server: McpServer
@@ -57,6 +56,8 @@ const ToolTrial = (props: {
   disabledReason: string | null
   busy: boolean
   lastRecord: McpCallRecord | null
+  /** 后端拒绝这次调用的原因；持续显示在这张卡片里。 */
+  failure: string | null
   onCall: (tool: McpTool, args: Record<string, unknown>) => void
   onCancel: () => void
 }) => {
@@ -179,6 +180,13 @@ const ToolTrial = (props: {
               ) : null}
             </div>
 
+            {props.failure ? (
+              <Alert variant="destructive">
+                <AlertTitle>这次调用没有被执行</AlertTitle>
+                <AlertDescription>{props.failure}</AlertDescription>
+              </Alert>
+            ) : null}
+
             {props.lastRecord ? (
               <div className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/20 p-3">
                 <span className="text-xs font-medium">本次调用结果</span>
@@ -206,36 +214,46 @@ export const ToolsPanel = (props: ToolsPanelProps) => {
   const [busyTool, setBusyTool] = useState<string | null>(null)
   const [pending, setPending] = useState<PendingCall | null>(null)
   const [results, setResults] = useState<Record<string, McpCallRecord>>({})
+  const [failures, setFailures] = useState<Record<string, string>>({})
 
   const confirming = useDialogSubmit(() => setPending(null))
   useHistoryOverlay(pending !== null, () => setPending(null))
 
   const run = async (
     tool: McpTool,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    acknowledgedRisk: boolean
   ): Promise<void> => {
     setBusyTool(tool.name)
+    setFailures((previous) => {
+      const next = { ...previous }
+      delete next[tool.name]
+      return next
+    })
     try {
       const record = await call.mutateAsync({
         serverId: server.config.id,
-        toolName: tool.name,
-        args,
+        request: { toolName: tool.name, args, acknowledgedRisk },
       })
       setResults((previous) => ({ ...previous, [tool.name]: record }))
     } catch (error) {
-      // 参数或连接层面的失败在工具卡片内持续展示，不用一闪而过的 toast。
-      toast.error(describeError(error))
+      // 被后端拒绝（未连接、未确认、工具不存在）就在这张卡片里持续说明原因。
+      setFailures((previous) => ({
+        ...previous,
+        [tool.name]: describeError(error),
+      }))
     } finally {
       setBusyTool(null)
     }
   }
 
   const requestCall = (tool: McpTool, args: Record<string, unknown>): void => {
+    // 服务端声明有副作用的工具先确认；后端还会再拦一次，这里只是提前问清。
     if (tool.annotations.destructive) {
       setPending({ tool, args })
       return
     }
-    void run(tool, args)
+    void run(tool, args, false)
   }
 
   const normalized = keyword.trim().toLowerCase()
@@ -302,6 +320,7 @@ export const ToolsPanel = (props: ToolsPanelProps) => {
               disabledReason={props.disabledReason}
               busy={busyTool === tool.name}
               lastRecord={results[tool.name] ?? null}
+              failure={failures[tool.name] ?? null}
               onCall={requestCall}
               onCancel={() =>
                 setResults((previous) => {
@@ -352,7 +371,7 @@ export const ToolsPanel = (props: ToolsPanelProps) => {
                 const target = pending
                 if (!target) return
                 void confirming.submit(async () => {
-                  await run(target.tool, target.args)
+                  await run(target.tool, target.args, true)
                   return true
                 })
               }}

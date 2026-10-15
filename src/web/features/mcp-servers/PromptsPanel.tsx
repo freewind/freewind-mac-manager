@@ -1,3 +1,4 @@
+import type { McpCallRecord, McpPrompt, McpServer } from "@shared/api-contract"
 import { describeError } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import {
@@ -24,7 +25,6 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { useGetMcpPrompt } from "./queries"
 import { ResultView } from "./ResultView"
-import type { McpCallRecord, McpPrompt, McpServer } from "./types"
 
 type PromptsPanelProps = {
   server: McpServer
@@ -207,8 +207,7 @@ export const PromptsPanel = (props: PromptsPanelProps) => {
             onGet={(name, args) =>
               get.mutateAsync({
                 serverId: props.server.config.id,
-                name,
-                args,
+                request: { name, args },
               })
             }
           />

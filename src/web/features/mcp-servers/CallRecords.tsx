@@ -1,3 +1,4 @@
+import type { McpCallRecord } from "@shared/api-contract"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
@@ -19,7 +20,6 @@ import {
 } from "./format"
 import { useMcpCallsQuery } from "./queries"
 import { ResultView } from "./ResultView"
-import type { McpCallRecord } from "./types"
 
 const KIND_LABELS: Record<McpCallRecord["kind"], string> = {
   tool: "工具",
@@ -66,7 +66,7 @@ export const CallRecords = (props: { serverId: string | null }) => {
     )
   }
 
-  const records = query.data
+  const records = query.data.calls
 
   if (records.length === 0) {
     return (

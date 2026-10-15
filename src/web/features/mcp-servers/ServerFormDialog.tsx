@@ -1,3 +1,9 @@
+import type {
+  McpKeyValue,
+  McpServer,
+  McpServerInput,
+  McpTransport,
+} from "@shared/api-contract"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
@@ -30,12 +36,6 @@ import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
-import type {
-  McpKeyValue,
-  McpServer,
-  McpServerInput,
-  McpTransport,
-} from "./types"
 
 /**
  * 环境变量/请求头的编辑行。

@@ -1,7 +1,7 @@
+import type { McpServer, McpServerInput } from "@shared/api-contract"
 import { describeError } from "@shared/format"
 import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
-import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
   Empty,
@@ -26,15 +26,13 @@ import {
 import { ServerDetail } from "./ServerDetail"
 import { ServerFormDialog } from "./ServerFormDialog"
 import { ServerList } from "./ServerList"
-import type { McpServer, McpServerInput } from "./types"
 import { useMcpSelection } from "./useMcpSelection"
 
 /**
  * MCP Servers 页面。
  *
- * 目前是纯前端演示：服务器配置、连接状态、能力清单和调用结果全部来自
- * `./mock` 里的内存实现，不会真的启动进程或发起网络请求，刷新即重置。
- * 页面的数据与动作只经过 `./queries`，接真实后端时替换那一层即可。
+ * 页面只经 `./queries` 访问本机后端；后端负责按配置建立真实 MCP 连接、
+ * 缓存能力清单与记录每次调用。手机与桌面共享同一份数据与动作，只有渲染差异。
  */
 export const McpServersPage = () => {
   const isDesktop = useIsDesktop()
@@ -51,7 +49,7 @@ export const McpServersPage = () => {
   const [editing, setEditing] = useState<McpServer | null>(null)
   const [formFailure, setFormFailure] = useState<string | null>(null)
 
-  const servers = query.data ?? []
+  const servers = query.data?.servers ?? []
   const selected =
     servers.find((item) => item.config.id === selection.serverId) ?? null
   const connectedCount = servers.filter(
@@ -141,7 +139,6 @@ export const McpServersPage = () => {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
         <PageHeader title="MCP Servers" loading={query.isLoading} />
-        <Badge variant="outline">演示数据</Badge>
         {servers.length > 0 ? (
           <span className="text-xs text-muted-foreground">
             共 {servers.length} 台 · {connectedCount} 台已连接
@@ -166,10 +163,11 @@ export const McpServersPage = () => {
       </header>
 
       <Alert className="mx-4 mt-3">
-        <AlertTitle>本页是纯前端演示</AlertTitle>
+        <AlertTitle>这里连的是本机真实进程</AlertTitle>
         <AlertDescription>
-          服务器、连接状态、能力清单与调用结果都来自浏览器内存里的模拟数据，
-          不会启动本机进程、不会访问网络，刷新页面即恢复初始状态。
+          stdio 服务器会由本机后端按你填的命令启动子进程，工具调用会真的执行；
+          远程服务器会从本机发起网络请求。连接与调用都以本机身份进行，请只添加
+          你信任的服务器。
         </AlertDescription>
       </Alert>
 

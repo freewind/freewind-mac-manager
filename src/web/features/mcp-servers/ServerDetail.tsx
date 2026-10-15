@@ -1,3 +1,4 @@
+import type { McpServer } from "@shared/api-contract"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
@@ -29,8 +30,8 @@ import {
 } from "./format"
 import { PromptsPanel } from "./PromptsPanel"
 import { ResourcesPanel } from "./ResourcesPanel"
+import { ServerLogs } from "./ServerLogs"
 import { ToolsPanel } from "./ToolsPanel"
-import type { McpServer } from "./types"
 import { MCP_TABS, type McpTab } from "./useMcpSelection"
 
 /** 把服务器配置还原成常见客户端的 JSON 形状，便于复制到别处。 */
@@ -336,7 +337,12 @@ export const ServerDetail = (props: ServerDetailProps) => {
             <PromptsPanel server={server} disabledReason={callDisabledReason} />
           ) : null}
           {props.tab === "records" ? (
-            <CallRecords serverId={server.config.id} />
+            <div className="flex min-w-0 flex-col gap-4">
+              <CallRecords serverId={server.config.id} />
+              {server.config.transport === "stdio" ? (
+                <ServerLogs server={server} />
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>

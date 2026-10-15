@@ -1,3 +1,9 @@
+import type {
+  McpCallRecord,
+  McpResource,
+  McpResourceTemplate,
+  McpServer,
+} from "@shared/api-contract"
 import { describeError } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { Badge } from "@web/components/ui/badge"
@@ -15,12 +21,6 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { useReadMcpResource } from "./queries"
 import { ResultView } from "./ResultView"
-import type {
-  McpCallRecord,
-  McpResource,
-  McpResourceTemplate,
-  McpServer,
-} from "./types"
 
 type ResourcesPanelProps = {
   server: McpServer
@@ -207,7 +207,10 @@ export const ResourcesPanel = (props: ResourcesPanelProps) => {
   const read = useReadMcpResource()
 
   const onRead = (uri: string): Promise<McpCallRecord> =>
-    read.mutateAsync({ serverId: props.server.config.id, uri })
+    read.mutateAsync({
+      serverId: props.server.config.id,
+      request: { uri },
+    })
 
   if (resources.length === 0 && templates.length === 0) {
     return (

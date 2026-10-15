@@ -1,3 +1,4 @@
+import type { McpServer } from "@shared/api-contract"
 import { Badge } from "@web/components/ui/badge"
 import { Input } from "@web/components/ui/input"
 import { cn } from "cn"
@@ -8,7 +9,6 @@ import {
   CONNECTION_VARIANTS,
   formatRelative,
 } from "./format"
-import type { McpServer } from "./types"
 
 type ServerListProps = {
   servers: McpServer[]

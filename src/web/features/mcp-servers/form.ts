@@ -1,4 +1,4 @@
-import type { McpJsonSchema, McpJsonSchemaProperty } from "./types"
+import type { McpJsonSchema, McpJsonSchemaProperty } from "@shared/api-contract"
 
 /**
  * 工具入参的编辑草稿。

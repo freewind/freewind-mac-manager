@@ -1,3 +1,4 @@
+import type { McpJsonSchema, McpJsonSchemaProperty } from "@shared/api-contract"
 import { Checkbox } from "@web/components/ui/checkbox"
 import {
   Field,
@@ -16,7 +17,6 @@ import {
 } from "@web/components/ui/select"
 import { Textarea } from "@web/components/ui/textarea"
 import type { McpFormDraft } from "./form"
-import type { McpJsonSchema, McpJsonSchemaProperty } from "./types"
 
 type SchemaFormProps = {
   schema: McpJsonSchema

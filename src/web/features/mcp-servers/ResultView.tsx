@@ -1,3 +1,4 @@
+import type { McpCallRecord, McpContentBlock } from "@shared/api-contract"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -11,7 +12,6 @@ import {
   formatDuration,
   prettyJson,
 } from "./format"
-import type { McpCallRecord, McpContentBlock } from "./types"
 
 /**
  * 内容块没有 id，用自身内容派生稳定 key。
@@ -64,8 +64,7 @@ const ContentBlock = (props: { block: McpContentBlock }) => {
           className="w-full max-w-md rounded-md border"
         />
         <figcaption className="text-xs text-muted-foreground">
-          {block.mimeType} · {formatBytes(block.bytes)} ·
-          演示占位图，真实调用会返回实际截图
+          {block.mimeType} · {formatBytes(block.bytes)}
         </figcaption>
       </figure>
     )

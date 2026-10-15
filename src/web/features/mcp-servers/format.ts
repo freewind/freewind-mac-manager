@@ -3,7 +3,7 @@ import type {
   McpConnectionState,
   McpTool,
   McpTransport,
-} from "./types"
+} from "@shared/api-contract"
 
 type BadgeVariant =
   | "default"
