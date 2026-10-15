@@ -19,6 +19,7 @@ import { DockerPage } from "@web/features/docker/DockerPage"
 import { FilesPage } from "@web/features/files/FilesPage"
 import { FrpPage } from "@web/features/frp/FrpPage"
 import { HardwarePage } from "@web/features/hardware/HardwarePage"
+import { McpServersPage } from "@web/features/mcp-servers/McpServersPage"
 import { PiPage } from "@web/features/pi/PiPage"
 import { PortsPage } from "@web/features/ports/PortsPage"
 import { ProcessesPage } from "@web/features/processes/ProcessesPage"
@@ -49,6 +50,7 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "docker",
   "database",
   "hardware",
+  "mcp-servers",
 ]
 
 const featureFromUrl = (): FeatureKey => {
@@ -214,6 +216,7 @@ export const App = () => {
           {feature === "docker" ? <DockerPage /> : null}
           {feature === "database" ? <DatabasePage /> : null}
           {feature === "hardware" ? <HardwarePage /> : null}
+          {feature === "mcp-servers" ? <McpServersPage /> : null}
         </div>
       </SidebarInset>
       <AiAssistantDialog onOpenModelSettings={openAiAssistantSettings} />

@@ -20,6 +20,7 @@ import {
 import {
   Activity,
   ArrowRight,
+  Blocks,
   Bot,
   ChartLine,
   CircuitBoard,
@@ -54,6 +55,7 @@ export type FeatureKey =
   | "docker"
   | "database"
   | "hardware"
+  | "mcp-servers"
 
 type FeatureItem = {
   key: FeatureKey
@@ -72,6 +74,7 @@ const FEATURES: FeatureItem[] = [
   { key: "docker", label: "Docker", icon: Container },
   { key: "database", label: "数据库", icon: Database },
   { key: "pi", label: "Pi Agent", icon: Bot },
+  { key: "mcp-servers", label: "MCP Servers", icon: Blocks },
   { key: "hardware", label: "硬件", icon: CircuitBoard },
 ]
 
