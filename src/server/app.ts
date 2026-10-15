@@ -41,6 +41,16 @@ import {
 import { createFrpRouter, frpContract } from "./frp/handlers"
 import { hardwareContract, hardwareRouter } from "./hardware/handlers"
 import { healthContract, healthRouter } from "./health/handlers"
+import {
+  createMcpServersRouter,
+  mcpServersContract,
+} from "./mcp-servers/handlers"
+import { getMcpRuntime } from "./mcp-servers/runtime"
+import {
+  createMcpServersService,
+  type McpServersService,
+} from "./mcp-servers/service"
+import { getMcpServerStore } from "./mcp-servers/store"
 import { createPiRouter, piContract } from "./pi/handlers"
 import { portsContract, portsRouter } from "./ports/handlers"
 import { processesContract, processesRouter } from "./processes/handlers"
@@ -70,6 +80,11 @@ export const createApp = (injected?: {
    */
   database?: DatabaseService
   /**
+   * 仅测试使用：替换 MCP Servers 域服务。缺省时用进程级单例的 store 与
+   * 运行时；运行时是单例，dev 重建 app 不会把旧连接变成没人关的孤儿。
+   */
+  mcpServers?: McpServersService
+  /**
    * 仅测试使用：替换协作数据存储。缺省时使用 env.DATABASE_FILE 指向的库。
    */
   collaboration?: CollaborationStore
@@ -88,6 +103,18 @@ export const createApp = (injected?: {
   createExpressEndpoints(authContract, createAuthRouter(), app, options)
   app.use(auth.middleware)
   createExpressEndpoints(healthContract, healthRouter, app, options)
+  createExpressEndpoints(
+    mcpServersContract,
+    createMcpServersRouter(
+      injected?.mcpServers ??
+        createMcpServersService({
+          store: getMcpServerStore(),
+          runtime: getMcpRuntime(),
+        })
+    ),
+    app,
+    options
+  )
   createExpressEndpoints(hardwareContract, hardwareRouter, app, options)
   createExpressEndpoints(clashVergeContract, clashVergeRouter, app, options)
   createExpressEndpoints(dashboardContract, dashboardRouter, app, options)

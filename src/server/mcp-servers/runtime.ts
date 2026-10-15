@@ -644,3 +644,17 @@ export class McpRuntime {
     }
   }
 }
+
+let singleton: McpRuntime | null = null
+
+/**
+ * 应用内共用一个运行时。
+ *
+ * dev 下改了后端代码会重建整个 Express app，如果用「每次 createApp 新建一个
+ * 运行时」，旧连接就没人关了；进程级单例避免这种泄漏。测试直接 new McpRuntime()
+ * 注入，不碰这个单例。
+ */
+export const getMcpRuntime = (): McpRuntime => {
+  singleton ??= new McpRuntime()
+  return singleton
+}
