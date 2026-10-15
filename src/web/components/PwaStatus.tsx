@@ -3,6 +3,7 @@ import { useIsMutating } from "@tanstack/react-query"
 import { Button } from "@web/components/ui/button"
 import { usePendingRequests } from "@web/features/tasks/pending-requests"
 import { useActiveTasks } from "@web/features/tasks/queries"
+import { useAuthStatus } from "@web/hooks/use-auth-status"
 import { useHasProtectedEdits } from "@web/hooks/use-edit-protection"
 import { usePwaStatus } from "@web/hooks/use-pwa-status"
 import { RefreshCw } from "lucide-react"
@@ -12,13 +13,16 @@ export const PwaStatus = () => {
   const pending = usePendingRequests()
   const editing = useHasProtectedEdits()
   const { online, registrationFailed } = usePwaStatus()
+  const { status: authStatus } = useAuthStatus()
   const mutations = useIsMutating()
   const writes = useSyncExternalStore(
     subscribeWrites,
     activeWriteCount,
     () => 0
   )
-  const tasks = useActiveTasks(online)
+  // 未登录时不能发起这个请求：它的 401 会在登录成功后被派发，
+  // 触发全局 markUnauthenticated，把刚建立的状态打回登录页。
+  const tasks = useActiveTasks(online && (authStatus?.authenticated ?? false))
   const blocked =
     editing ||
     pending.length > 0 ||
