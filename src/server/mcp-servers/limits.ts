@@ -15,6 +15,16 @@ export const MCP_CONNECT_TIMEOUT_MS = 20_000
  */
 export const MCP_REQUEST_TIMEOUT_MS = 60_000
 
+/**
+ * 单次调用的默认等待上限（秒）。
+ * 契约里的 timeoutSeconds 为 null 时用它，标准配置的 `timeout` 单位也是秒。
+ */
+export const MCP_DEFAULT_TIMEOUT_SECONDS = MCP_REQUEST_TIMEOUT_MS / 1000
+
+/** 每台服务器的超时上下限：太小会把正常请求误判成超时，太大等于没有上限。 */
+export const MCP_MIN_TIMEOUT_SECONDS = 1
+export const MCP_MAX_TIMEOUT_SECONDS = 3600
+
 /** 关闭 stdio 子进程时等待退出的时间，超过就 SIGKILL。 */
 export const MCP_CLOSE_TIMEOUT_MS = 2_000
 

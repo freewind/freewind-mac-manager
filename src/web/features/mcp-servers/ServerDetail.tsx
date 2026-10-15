@@ -39,6 +39,7 @@ const configJson = (server: McpServer): string => {
   const spec: Record<string, unknown> =
     server.config.transport === "stdio"
       ? {
+          type: "stdio",
           command: server.config.command,
           args: server.config.args,
           ...(server.config.cwd ? { cwd: server.config.cwd } : {}),
@@ -51,6 +52,7 @@ const configJson = (server: McpServer): string => {
             : {}),
         }
       : {
+          type: "http",
           url: server.config.url,
           ...(server.config.headers.length > 0
             ? {
@@ -60,6 +62,10 @@ const configJson = (server: McpServer): string => {
               }
             : {}),
         }
+  // 标准字段名是 timeout，单位是秒；没设置就不写这一项。
+  if (server.config.timeoutSeconds !== null) {
+    spec.timeout = server.config.timeoutSeconds
+  }
   return prettyJson({ mcpServers: { [server.config.name]: spec } })
 }
 
@@ -135,6 +141,12 @@ const ConfigSummary = (props: { server: McpServer }) => {
           ))}
         </div>
       ) : null}
+      <span className="text-xs text-muted-foreground">
+        调用超时
+        {config.timeoutSeconds === null
+          ? " 60 秒（默认）"
+          : ` ${config.timeoutSeconds} 秒`}
+      </span>
       <span className="text-xs text-muted-foreground">
         创建于 {formatDateTime(config.createdAt)} · 最近修改{" "}
         {formatRelative(config.updatedAt)}

@@ -96,6 +96,8 @@ const sanitizeInput = (input: McpServerInput): McpServerInput => {
     headers: input.transport === "http" ? rows(input.headers) : [],
     enabled: input.enabled,
     tags: input.tags.map((tag) => tag.trim()).filter((tag) => tag !== ""),
+    // 秒数由 schema 限定在 1–3600；null 表示用默认值。
+    timeoutSeconds: input.timeoutSeconds,
   }
 }
 

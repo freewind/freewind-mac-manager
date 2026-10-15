@@ -29,6 +29,7 @@ type ServerRow = {
   headers_json: string
   enabled: number
   tags_json: string
+  timeout_seconds: number | null
   capabilities_json: string | null
   capabilities_fetched_at: number | null
   created_at: number
@@ -50,8 +51,8 @@ type CallRow = {
 }
 
 const SERVER_COLUMNS = `id, name, description, transport, command, args_json, cwd,
-  env_json, url, headers_json, enabled, tags_json, capabilities_json,
-  capabilities_fetched_at, created_at, updated_at`
+  env_json, url, headers_json, enabled, tags_json, timeout_seconds,
+  capabilities_json, capabilities_fetched_at, created_at, updated_at`
 
 const CALL_COLUMNS = `id, server_id, server_name, kind, name, status, started_at,
   duration_ms, request_json, content_json, error`
@@ -95,6 +96,7 @@ const toConfig = (row: ServerRow): McpServerConfig => ({
   headers: parseJson<McpKeyValue[]>(row.headers_json, []),
   enabled: row.enabled !== 0,
   tags: parseJson<string[]>(row.tags_json, []),
+  timeoutSeconds: row.timeout_seconds,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -126,14 +128,32 @@ const configValues = (config: McpServerConfig): (string | number | null)[] => [
   JSON.stringify(config.headers),
   config.enabled ? 1 : 0,
   JSON.stringify(config.tags),
+  config.timeoutSeconds,
   config.createdAt,
   config.updatedAt,
 ]
 
 const INSERT_SERVER_SQL = `INSERT INTO mcp_server (
   id, name, description, transport, command, args_json, cwd, env_json, url,
-  headers_json, enabled, tags_json, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  headers_json, enabled, tags_json, timeout_seconds, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+/**
+ * 幂等补列：老库的 mcp_server 没有新列时补上，历史配置不动。
+ * SQLite 的 ADD COLUMN 对已有行填 NULL，正是「未设置、用默认值」的语义。
+ */
+const ensureColumn = (
+  db: DatabaseSync,
+  table: string,
+  column: string,
+  definition: string
+): void => {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as {
+    name: string
+  }[]
+  if (rows.some((row) => row.name === column)) return
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+}
 
 /**
  * MCP Server 配置、能力缓存与调用记录的存储（node:sqlite，无第三方依赖）。
@@ -163,12 +183,12 @@ export class McpServerStore {
         headers_json TEXT NOT NULL,
         enabled INTEGER NOT NULL,
         tags_json TEXT NOT NULL,
+        timeout_seconds INTEGER,
         capabilities_json TEXT,
         capabilities_fetched_at INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
-
       CREATE TABLE IF NOT EXISTS mcp_call (
         id TEXT PRIMARY KEY,
         server_id TEXT NOT NULL,
@@ -185,6 +205,8 @@ export class McpServerStore {
       CREATE INDEX IF NOT EXISTS idx_mcp_call_server ON mcp_call (server_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_mcp_call_started ON mcp_call (started_at DESC);
     `)
+    // 已有库补列：新库建表时已带上，老库在这里补上，配置与记录都不丢。
+    ensureColumn(this.db, "mcp_server", "timeout_seconds", "INTEGER")
   }
 
   close(): void {
@@ -258,7 +280,8 @@ export class McpServerStore {
       .prepare(
         `UPDATE mcp_server SET name = ?, description = ?, transport = ?,
          command = ?, args_json = ?, cwd = ?, env_json = ?, url = ?,
-         headers_json = ?, enabled = ?, tags_json = ?, updated_at = ?
+         headers_json = ?, enabled = ?, tags_json = ?, timeout_seconds = ?,
+         updated_at = ?
          WHERE id = ?`
       )
       .run(
@@ -273,6 +296,7 @@ export class McpServerStore {
         JSON.stringify(updated.headers),
         updated.enabled ? 1 : 0,
         JSON.stringify(updated.tags),
+        updated.timeoutSeconds,
         updated.updatedAt,
         id
       )

@@ -24,11 +24,11 @@ import {
   MCP_CLIENT_VERSION,
   MCP_CLOSE_TIMEOUT_MS,
   MCP_CONNECT_TIMEOUT_MS,
+  MCP_DEFAULT_TIMEOUT_SECONDS,
   MCP_LOG_LINES,
   MCP_MAX_MESSAGE_BYTES,
   MCP_MAX_RECORD_BYTES,
   MCP_MAX_STDERR_BYTES,
-  MCP_REQUEST_TIMEOUT_MS,
 } from "./limits"
 import {
   normalizeCallToolResult,
@@ -89,6 +89,8 @@ type Entry = {
   logText: string
   logsTruncated: boolean
   disposers: (() => void)[]
+  /** 这台服务器的调用等待上限，连接时按配置算好。 */
+  timeoutMs: number
 }
 
 const newEntry = (): Entry => ({
@@ -102,6 +104,7 @@ const newEntry = (): Entry => ({
   logText: "",
   logsTruncated: false,
   disposers: [],
+  timeoutMs: MCP_DEFAULT_TIMEOUT_SECONDS * 1000,
 })
 
 /** 把有序键值对转成对象；空键丢掉，同名后者覆盖前者。 */
@@ -151,26 +154,6 @@ const describeFailure = (error: unknown): string => {
   return "未知原因"
 }
 
-/** 给一段等待加硬上限；超时后先执行清理，再以超时错误结束。 */
-const withTimeout = async <T>(
-  run: Promise<T>,
-  milliseconds: number,
-  onTimeout: () => void
-): Promise<T> => {
-  let timer: NodeJS.Timeout | undefined
-  const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      onTimeout()
-      reject(new McpTimeoutError(milliseconds))
-    }, milliseconds)
-  })
-  try {
-    return await Promise.race([run, timeout])
-  } finally {
-    if (timer !== undefined) clearTimeout(timer)
-  }
-}
-
 const safeClose = async (target: {
   close: () => Promise<void>
 }): Promise<void> => {
@@ -190,8 +173,9 @@ export type McpRuntimeOptions = {
     config: McpServerConfig,
     onStderr: (chunk: string) => void
   ) => McpTransport
-  /** 仅测试使用：缩短等待上限，避免为了验证超时分支真的等 60 秒。 */
+  /** 仅测试使用：缩短连接阶段的等待上限。 */
   connectTimeoutMs?: number
+  /** 仅测试使用：覆盖服务器配置里的超时，避免为了验证超时分支真的等 60 秒。 */
   requestTimeoutMs?: number
 }
 
@@ -200,12 +184,21 @@ export class McpRuntime {
   private readonly inFlight = new Set<string>()
   private readonly options: McpRuntimeOptions
   private readonly connectTimeoutMs: number
-  private readonly requestTimeoutMs: number
 
   constructor(options: McpRuntimeOptions = {}) {
     this.options = options
     this.connectTimeoutMs = options.connectTimeoutMs ?? MCP_CONNECT_TIMEOUT_MS
-    this.requestTimeoutMs = options.requestTimeoutMs ?? MCP_REQUEST_TIMEOUT_MS
+  }
+
+  /**
+   * 这台服务器的调用等待上限。
+   * 优先用配置里的秒数（标准配置的 timeout），没配就用默认值。
+   */
+  private timeoutMsOf(config: McpServerConfig): number {
+    return (
+      this.options.requestTimeoutMs ??
+      (config.timeoutSeconds ?? MCP_DEFAULT_TIMEOUT_SECONDS) * 1000
+    )
   }
 
   /** 当前运行状态；从未连过时是未连接。 */
@@ -339,6 +332,7 @@ export class McpRuntime {
 
     const entry = newEntry()
     entry.state = "connecting"
+    entry.timeoutMs = this.timeoutMsOf(config)
     this.entries.set(config.id, entry)
 
     let transport: McpTransport
@@ -355,8 +349,9 @@ export class McpRuntime {
     const client = new McpClient({
       name: MCP_CLIENT_NAME,
       version: MCP_CLIENT_VERSION,
-      // 初始化请求用连接超时；后续请求各自带上更宽的调用超时。
-      requestTimeoutMs: this.connectTimeoutMs,
+      // 连接阶段（initialize）不该等满调用超时：两者取小，避免连一台挂住的
+      // 服务器要等好几分钟。能力清单则按服务器自己的超时来。
+      requestTimeoutMs: Math.min(entry.timeoutMs, this.connectTimeoutMs),
       roots: [],
     })
     entry.client = client
@@ -396,54 +391,40 @@ export class McpRuntime {
     }
 
     try {
-      const loaded = await withTimeout(
-        (async () => {
-          // client.connect 自己会启动传输层，这里不能再调 transport.start()，
-          // 否则 stdio 传输会因为「已经启动过」直接报错。
-          const initialized = await client.connect(transport)
-          const tools = await client.listTools({
-            timeoutMs: this.requestTimeoutMs,
-          })
-          const resources = await listOptional(
-            "资源清单",
-            () => client.listResources({ timeoutMs: this.requestTimeoutMs }),
-            []
-          )
-          const templates = await listOptional(
-            "资源模板清单",
-            () =>
-              client.listResourceTemplates({
-                timeoutMs: this.requestTimeoutMs,
-              }),
-            []
-          )
-          const prompts = await listOptional("提示词清单", async () => {
-            const result = await client.request<{ prompts?: unknown }>(
-              "prompts/list",
-              {},
-              { timeoutMs: this.requestTimeoutMs }
-            )
-            return result.prompts ?? []
-          }, [])
-          return { initialized, tools, resources, templates, prompts }
-        })(),
-        this.connectTimeoutMs,
-        () => {
-          void transport.close()
-        }
+      // 每个请求都带自己的超时，所以这里不需要再套一层总时限：
+      // 加上它只会让「谁超时了」变得说不清。
+      const initialized = await client.connect(transport)
+      const tools = await client.listTools({ timeoutMs: entry.timeoutMs })
+      const resources = await listOptional(
+        "资源清单",
+        () => client.listResources({ timeoutMs: entry.timeoutMs }),
+        []
       )
+      const templates = await listOptional(
+        "资源模板清单",
+        () => client.listResourceTemplates({ timeoutMs: entry.timeoutMs }),
+        []
+      )
+      const prompts = await listOptional("提示词清单", async () => {
+        const result = await client.request<{ prompts?: unknown }>(
+          "prompts/list",
+          {},
+          { timeoutMs: entry.timeoutMs }
+        )
+        return result.prompts ?? []
+      }, [])
 
       entry.capabilities = normalizeCapabilities({
-        tools: loaded.tools,
-        resources: loaded.resources,
-        resourceTemplates: loaded.templates,
-        prompts: loaded.prompts,
+        tools,
+        resources,
+        resourceTemplates: templates,
+        prompts,
         fetchedAt: Date.now(),
       })
       entry.serverInfo = {
-        name: loaded.initialized.serverInfo.name,
-        version: loaded.initialized.serverInfo.version,
-        protocolVersion: loaded.initialized.protocolVersion,
+        name: initialized.serverInfo.name,
+        version: initialized.serverInfo.version,
+        protocolVersion: initialized.protocolVersion,
       }
       entry.state = "connected"
       entry.connectedAt = Date.now()
@@ -530,7 +511,7 @@ export class McpRuntime {
     const startedAt = Date.now()
     try {
       const result = await client.callTool(toolName, args, {
-        timeoutMs: this.requestTimeoutMs,
+        timeoutMs: entry.timeoutMs,
       })
       const normalized = normalizeCallToolResult(result, MCP_MAX_RECORD_BYTES)
       return {
@@ -556,7 +537,7 @@ export class McpRuntime {
     const startedAt = Date.now()
     try {
       const result = await client.readResource(uri, {
-        timeoutMs: this.requestTimeoutMs,
+        timeoutMs: entry.timeoutMs,
       })
       return {
         status: "ok",
@@ -593,7 +574,7 @@ export class McpRuntime {
       }>(
         "prompts/get",
         { name, arguments: args },
-        { timeoutMs: this.requestTimeoutMs }
+        { timeoutMs: entry.timeoutMs }
       )
       const lines: string[] = []
       if (typeof result.description === "string" && result.description !== "") {

@@ -35,7 +35,6 @@ import { Textarea } from "@web/components/ui/textarea"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
-import { toast } from "sonner"
 
 /**
  * 环境变量/请求头的编辑行。
@@ -67,6 +66,8 @@ type FormState = {
   headers: KeyValueRow[]
   enabled: boolean
   tagsText: string
+  /** 调用超时（秒）；空字符串表示用默认值。 */
+  timeoutText: string
 }
 
 const emptyForm = (): FormState => ({
@@ -81,6 +82,7 @@ const emptyForm = (): FormState => ({
   headers: [],
   enabled: true,
   tagsText: "",
+  timeoutText: "",
 })
 
 const formOf = (server: McpServer): FormState => ({
@@ -95,6 +97,10 @@ const formOf = (server: McpServer): FormState => ({
   headers: toRows(server.config.headers),
   enabled: server.config.enabled,
   tagsText: server.config.tags.join("、"),
+  timeoutText:
+    server.config.timeoutSeconds === null
+      ? ""
+      : String(server.config.timeoutSeconds),
 })
 
 const toInput = (form: FormState): McpServerInput => ({
@@ -121,6 +127,8 @@ const toInput = (form: FormState): McpServerInput => ({
     .split(/[、,，]/)
     .map((tag) => tag.trim())
     .filter((tag) => tag !== ""),
+  timeoutSeconds:
+    form.timeoutText.trim() === "" ? null : Number(form.timeoutText.trim()),
 })
 
 /** 环境变量 / 请求头的行编辑器：key 为空的行在提交时会被丢掉。 */
@@ -204,29 +212,27 @@ const KeyValueEditor = (props: {
   </Field>
 )
 
-type ParsedServer = { name: string; spec: Record<string, unknown> }
-
 const asStringArray = (value: unknown): string[] =>
   Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : []
 
-const asKeyValues = (value: unknown): McpKeyValue[] => {
-  if (typeof value !== "object" || value === null || Array.isArray(value))
-    return []
-  return Object.entries(value as Record<string, unknown>).map(
-    ([key, item]) => ({
-      key,
-      value: typeof item === "string" ? item : JSON.stringify(item),
-    })
-  )
-}
+const isStringRecord = (value: unknown): value is Record<string, string> =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.values(value).every((item) => typeof item === "string")
+
+const asKeyRows = (value: Record<string, string>): KeyValueRow[] =>
+  toRows(Object.entries(value).map(([key, item]) => ({ key, value: item })))
+
+type ParsedServer = { name: string; spec: Record<string, unknown> }
 
 /**
- * 解析粘贴进来的 MCP JSON 配置。
+ * 解析粘贴进来的配置。
  *
- * 同时接受常见客户端的 `{ "mcpServers": { ... } }` 形状和直接的 `{ name: spec }`
- * 形状；不认识的字段忽略，但会把「识别到几个服务器」如实告诉用户。
+ * 接受标准写法 `{ "mcpServers": { "名称": { ... } } }`，也接受直接就是
+ * `{ "名称": { ... } }`；单条配置（不带服务器名）不接受，因为名字必须有。
  */
 const parseJsonConfig = (
   text: string
@@ -260,22 +266,135 @@ const parseJsonConfig = (
   return { ok: true, servers }
 }
 
-const formFromParsed = (parsed: ParsedServer): FormState => {
-  const spec = parsed.spec
+/** 本页支持的键，全部取自 MCP 客户端配置的标准写法。 */
+const SUPPORTED_KEYS = new Set([
+  "type",
+  "url",
+  "headers",
+  "command",
+  "args",
+  "env",
+  "cwd",
+  "enabled",
+  "description",
+  "timeout",
+])
+
+/** 标准里有、但本页不实现的能力：认出来并明确说明忽略，而不是当成拼写错误。 */
+const UNSUPPORTED_KEYS = new Set([
+  "oauth",
+  "auth",
+  "exposure",
+  "toolExposure",
+  "alwaysLoad",
+])
+
+const HTTP_TYPES = new Set(["http", "streamable-http"])
+const STDIO_TYPES = new Set(["stdio"])
+
+type ParsedForm =
+  | { ok: true; form: FormState; notes: string[] }
+  | { ok: false; message: string }
+
+/**
+ * 把一条标准配置转成表单状态。
+ *
+ * 只认标准字段：`type`、`url`、`headers`、`command`、`args`、`env`、`cwd`、
+ * `enabled`、`description`、`timeout`（秒）。其它写法不做猜测式兼容，
+ * 而是把不认识的键列出来，让用户知道为什么没生效。
+ */
+const formFromSpec = (
+  name: string,
+  spec: Record<string, unknown>
+): ParsedForm => {
+  const unknown = Object.keys(spec).filter(
+    (key) => !SUPPORTED_KEYS.has(key) && !UNSUPPORTED_KEYS.has(key)
+  )
+  const unsupported = Object.keys(spec).filter((key) =>
+    UNSUPPORTED_KEYS.has(key)
+  )
+  const notes: string[] = []
+  if (unknown.length > 0) {
+    notes.push(
+      `已忽略无法识别的键：${unknown.join("、")}（标准写法用 type、url、headers、command、args、env、cwd、enabled、description、timeout）`
+    )
+  }
+  if (unsupported.length > 0) {
+    notes.push(`本页不支持这些标准字段，已忽略：${unsupported.join("、")}`)
+  }
+
+  // 解析失败时也把忽略说明带上：用户最需要知道的是「为什么我这段没生效」。
+  const fail = (message: string): ParsedForm => ({
+    ok: false,
+    message:
+      notes.length === 0 ? message : `${message}。另外：${notes.join("；")}`,
+  })
+
+  const type = spec.type
+  if (type !== undefined && typeof type !== "string") {
+    return fail(`「${name}」的 type 必须是字符串`)
+  }
+  if (type === "sse") {
+    return fail(
+      `「${name}」用的是旧版 SSE 传输，本页不支持；请改用 Streamable HTTP 的地址`
+    )
+  }
+  if (type !== undefined && !HTTP_TYPES.has(type) && !STDIO_TYPES.has(type)) {
+    return fail(
+      `「${name}」的 type「${type}」不认识；只支持 stdio、http、streamable-http`
+    )
+  }
+  if (spec.headers !== undefined && !isStringRecord(spec.headers)) {
+    return fail(`「${name}」的 headers 必须是「名称: 值」的对象`)
+  }
+  if (spec.env !== undefined && !isStringRecord(spec.env)) {
+    return fail(`「${name}」的 env 必须是「名称: 值」的对象`)
+  }
+  if (spec.args !== undefined && !Array.isArray(spec.args)) {
+    return fail(`「${name}」的 args 必须是字符串数组`)
+  }
+
+  const timeout = spec.timeout
+  if (
+    timeout !== undefined &&
+    (typeof timeout !== "number" ||
+      !Number.isInteger(timeout) ||
+      timeout < 1 ||
+      timeout > 3600)
+  ) {
+    return fail(`「${name}」的 timeout 必须是 1–3600 的整数秒`)
+  }
+
   const url = typeof spec.url === "string" ? spec.url : ""
-  const transport: McpTransport = url !== "" ? "http" : "stdio"
+  const command = typeof spec.command === "string" ? spec.command : ""
+  // 与标准一致：给了 url 就是 HTTP，给了 command 就是 stdio。
+  if (url === "" && command === "") {
+    return fail(`「${name}」需要 command（stdio）或 url（Streamable HTTP）`)
+  }
+  if (type !== undefined && HTTP_TYPES.has(type) && url === "") {
+    return fail(`「${name}」声明了 HTTP，但没有 url`)
+  }
+  if (type !== undefined && STDIO_TYPES.has(type) && command === "") {
+    return fail(`「${name}」声明了 stdio，但没有 command`)
+  }
+
   return {
-    ...emptyForm(),
-    name: parsed.name,
-    description: typeof spec.description === "string" ? spec.description : "",
-    transport,
-    command: typeof spec.command === "string" ? spec.command : "",
-    argsText: asStringArray(spec.args).join("\n"),
-    cwd: typeof spec.cwd === "string" ? spec.cwd : "",
-    env: toRows(asKeyValues(spec.env)),
-    url,
-    headers: toRows(asKeyValues(spec.headers)),
-    enabled: spec.disabled !== true,
+    ok: true,
+    notes,
+    form: {
+      ...emptyForm(),
+      name,
+      description: typeof spec.description === "string" ? spec.description : "",
+      transport: url !== "" ? "http" : "stdio",
+      command,
+      argsText: asStringArray(spec.args).join("\n"),
+      cwd: typeof spec.cwd === "string" ? spec.cwd : "",
+      env: isStringRecord(spec.env) ? asKeyRows(spec.env) : [],
+      url,
+      headers: isStringRecord(spec.headers) ? asKeyRows(spec.headers) : [],
+      enabled: spec.enabled !== false,
+      timeoutText: timeout === undefined ? "" : String(timeout),
+    },
   }
 }
 
@@ -301,6 +420,9 @@ export const ServerFormDialog = (props: ServerFormDialogProps) => {
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [jsonText, setJsonText] = useState("")
+  /** 粘贴解析的结果说明：识别到几个服务器、忽略了哪些键。持续显示，不用 toast。 */
+  const [parseNotes, setParseNotes] = useState<string[]>([])
+  const [parseError, setParseError] = useState<string | null>(null)
 
   useHistoryOverlay(props.open, () => props.onOpenChange(false))
 
@@ -308,18 +430,26 @@ export const ServerFormDialog = (props: ServerFormDialogProps) => {
     setForm((previous) => ({ ...previous, ...next }))
 
   const applyJson = (): void => {
+    setParseError(null)
+    setParseNotes([])
     const result = parseJsonConfig(jsonText)
     if (!result.ok) {
-      toast.error(`解析失败：${result.message}`)
+      setParseError(result.message)
       return
     }
     const [first] = result.servers
-    patch(formFromParsed(first))
-    toast.success(
+    const parsed = formFromSpec(first.name, first.spec)
+    if (!parsed.ok) {
+      setParseError(parsed.message)
+      return
+    }
+    patch(parsed.form)
+    setParseNotes([
       result.servers.length === 1
         ? `已填入「${first.name}」`
-        : `识别到 ${result.servers.length} 个服务器，已填入第一个「${first.name}」`
-    )
+        : `识别到 ${result.servers.length} 个服务器，已填入第一个「${first.name}」`,
+      ...parsed.notes,
+    ])
   }
 
   const validate = (): Record<string, string> => {
@@ -332,6 +462,13 @@ export const ServerFormDialog = (props: ServerFormDialogProps) => {
       if (form.url.trim() === "") found.url = "请填写服务地址"
       else if (!/^https?:\/\//.test(form.url.trim())) {
         found.url = "地址需要以 http:// 或 https:// 开头"
+      }
+    }
+    const timeout = form.timeoutText.trim()
+    if (timeout !== "") {
+      const seconds = Number(timeout)
+      if (!Number.isInteger(seconds) || seconds < 1 || seconds > 3600) {
+        found.timeout = "超时需要填 1–3600 的整数秒"
       }
     }
     return found
@@ -393,6 +530,24 @@ export const ServerFormDialog = (props: ServerFormDialogProps) => {
             >
               解析并填入表单
             </Button>
+            {parseError ? (
+              <Alert variant="destructive">
+                <AlertTitle>这段配置没能解析</AlertTitle>
+                <AlertDescription>{parseError}</AlertDescription>
+              </Alert>
+            ) : null}
+            {parseNotes.length > 0 ? (
+              <Alert>
+                <AlertTitle>解析结果</AlertTitle>
+                <AlertDescription>
+                  <ul className="flex list-disc flex-col gap-0.5 pl-4">
+                    {parseNotes.map((note) => (
+                      <li key={note}>{note}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            ) : null}
           </div>
         ) : null}
 
@@ -544,6 +699,26 @@ export const ServerFormDialog = (props: ServerFormDialogProps) => {
               disabled={props.busy}
               onChange={(event) => patch({ tagsText: event.target.value })}
             />
+          </Field>
+
+          <Field data-invalid={errors.timeout ? true : undefined}>
+            <FieldLabel htmlFor={`mcp-${prefix}-timeout`}>
+              调用超时（秒）
+            </FieldLabel>
+            <Input
+              id={`mcp-${prefix}-timeout`}
+              value={form.timeoutText}
+              autoComplete="off"
+              inputMode="numeric"
+              placeholder="留空用默认 60 秒"
+              disabled={props.busy}
+              onChange={(event) => patch({ timeoutText: event.target.value })}
+            />
+            <FieldDescription>
+              单次调用的等待上限，范围 1–3600 秒。等待超过上限只解除等待，
+              结果会标成未知，不会自动重试。
+            </FieldDescription>
+            {errors.timeout ? <FieldError>{errors.timeout}</FieldError> : null}
           </Field>
 
           <Field>

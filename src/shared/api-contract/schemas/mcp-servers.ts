@@ -40,6 +40,8 @@ export const McpServerConfigSchema = z.object({
   headers: z.array(McpKeyValueSchema).max(64),
   enabled: z.boolean(),
   tags: z.array(z.string().max(40)).max(12),
+  /** 单次调用的等待上限（秒）；null 表示用默认值（60 秒）。 */
+  timeoutSeconds: z.number().int().min(1).max(3600).nullable(),
   createdAt: z.number(),
   updatedAt: z.number(),
 })
@@ -249,6 +251,8 @@ export const McpServerInputSchema = z.object({
   headers: z.array(McpKeyValueSchema).max(64).default([]),
   enabled: z.boolean().default(true),
   tags: z.array(z.string().max(40)).max(12).default([]),
+  /** 标准配置里的 timeout（秒）；不填就用默认值。 */
+  timeoutSeconds: z.number().int().min(1).max(3600).nullable().default(null),
 })
 
 export const McpToolCallInputSchema = z.object({
