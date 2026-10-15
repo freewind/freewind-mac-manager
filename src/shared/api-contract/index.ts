@@ -10,5 +10,13 @@ export {
   DOCKER_CONTAINER_STATES,
 } from "./schemas/docker"
 export { FRP_PROXY_TYPES } from "./schemas/frp"
+export {
+  MCP_CALL_KINDS,
+  MCP_CALL_STATUSES,
+  MCP_CONNECTION_STATES,
+  MCP_CONTENT_BLOCK_TYPES,
+  MCP_JSON_SCHEMA_TYPES,
+  MCP_TRANSPORTS,
+} from "./schemas/mcp-servers"
 export * from "./schemas/tasks"
 export * from "./types"

@@ -551,3 +551,68 @@ export type DatabaseRestoreState = z.infer<typeof DatabaseRestoreStateSchema>
 export type DatabaseBackupIdPathParams = z.infer<
   typeof DatabaseBackupIdPathParamsSchema
 >
+
+import type {
+  McpCallKindSchema,
+  McpCallRecordSchema,
+  McpCallStatusSchema,
+  McpCallsQuerySchema,
+  McpCallsResponseSchema,
+  McpCapabilitiesResponseSchema,
+  McpCapabilitiesSchema,
+  McpConnectionStateSchema,
+  McpContentBlockSchema,
+  McpJsonSchemaPropertySchema,
+  McpJsonSchemaSchema,
+  McpKeyValueSchema,
+  McpLogsResponseSchema,
+  McpPromptArgumentSchema,
+  McpPromptGetInputSchema,
+  McpPromptSchema,
+  McpResourceReadInputSchema,
+  McpResourceSchema,
+  McpResourceTemplateSchema,
+  McpServerConfigSchema,
+  McpServerInfoSchema,
+  McpServerInputSchema,
+  McpServerSchema,
+  McpServerStatusSchema,
+  McpServersResponseSchema,
+  McpToolAnnotationsSchema,
+  McpToolCallInputSchema,
+  McpToolSchema,
+  McpTransportSchema,
+} from "./schemas/mcp-servers"
+
+export type McpTransport = z.infer<typeof McpTransportSchema>
+export type McpConnectionState = z.infer<typeof McpConnectionStateSchema>
+export type McpKeyValue = z.infer<typeof McpKeyValueSchema>
+export type McpServerConfig = z.infer<typeof McpServerConfigSchema>
+export type McpServerInfo = z.infer<typeof McpServerInfoSchema>
+export type McpServerStatus = z.infer<typeof McpServerStatusSchema>
+export type McpJsonSchemaProperty = z.infer<typeof McpJsonSchemaPropertySchema>
+export type McpJsonSchema = z.infer<typeof McpJsonSchemaSchema>
+export type McpToolAnnotations = z.infer<typeof McpToolAnnotationsSchema>
+export type McpTool = z.infer<typeof McpToolSchema>
+export type McpResource = z.infer<typeof McpResourceSchema>
+export type McpResourceTemplate = z.infer<typeof McpResourceTemplateSchema>
+export type McpPromptArgument = z.infer<typeof McpPromptArgumentSchema>
+export type McpPrompt = z.infer<typeof McpPromptSchema>
+export type McpCapabilities = z.infer<typeof McpCapabilitiesSchema>
+export type McpServer = z.infer<typeof McpServerSchema>
+export type McpContentBlock = z.infer<typeof McpContentBlockSchema>
+export type McpCallKind = z.infer<typeof McpCallKindSchema>
+export type McpCallStatus = z.infer<typeof McpCallStatusSchema>
+export type McpCallRecord = z.infer<typeof McpCallRecordSchema>
+export type McpServersResponse = z.infer<typeof McpServersResponseSchema>
+export type McpCapabilitiesResponse = z.infer<
+  typeof McpCapabilitiesResponseSchema
+>
+export type McpCallsQuery = z.infer<typeof McpCallsQuerySchema>
+export type McpCallsQueryInput = z.input<typeof McpCallsQuerySchema>
+export type McpCallsResponse = z.infer<typeof McpCallsResponseSchema>
+export type McpLogsResponse = z.infer<typeof McpLogsResponseSchema>
+export type McpServerInput = z.infer<typeof McpServerInputSchema>
+export type McpToolCallInput = z.infer<typeof McpToolCallInputSchema>
+export type McpResourceReadInput = z.infer<typeof McpResourceReadInputSchema>
+export type McpPromptGetInput = z.infer<typeof McpPromptGetInputSchema>

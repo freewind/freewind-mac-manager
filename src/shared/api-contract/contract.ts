@@ -14,6 +14,7 @@ import { filesRoutes } from "./routes/files"
 import { frpRoutes } from "./routes/frp"
 import { hardwareRoutes } from "./routes/hardware"
 import { healthRoutes } from "./routes/health"
+import { mcpServersRoutes } from "./routes/mcp-servers"
 import { piRoutes } from "./routes/pi"
 import { portsRoutes } from "./routes/ports"
 import { processesRoutes } from "./routes/processes"
@@ -44,6 +45,7 @@ export const contract = c.router(
     ...databaseRoutes,
     ...databaseBackupRoutes,
     ...collaborationRoutes,
+    ...mcpServersRoutes,
   },
   { pathPrefix: API_BASE }
 )

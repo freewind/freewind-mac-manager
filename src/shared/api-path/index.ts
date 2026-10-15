@@ -125,6 +125,22 @@ export const ApiPath = {
   collaborationComment: `${API_BASE}/collaboration/topics/:topicId/threads/:threadId/comments/:commentId`,
   collaborationSearch: `${API_BASE}/collaboration/search`,
   collaborationEvents: `${API_BASE}/collaboration/events`,
+  /** MCP Servers：服务器配置、连接、能力与调用记录。 */
+  mcpServers: `${API_BASE}/mcp-servers`,
+  /** 全部调用记录，也支持 ?serverId= 过滤；与 /mcp-servers/:id 不同方法，不会互相截断。 */
+  mcpServerCalls: `${API_BASE}/mcp-servers/calls`,
+  mcpServer: `${API_BASE}/mcp-servers/:id`,
+  mcpServerConnect: `${API_BASE}/mcp-servers/:id/connect`,
+  mcpServerDisconnect: `${API_BASE}/mcp-servers/:id/disconnect`,
+  mcpServerCapabilities: `${API_BASE}/mcp-servers/:id/capabilities`,
+  mcpServerLogs: `${API_BASE}/mcp-servers/:id/logs`,
+  /**
+   * 工具名放在 body 而不是路径：MCP 不限制工具名字符集，放路径需要额外转义，
+   * 容易在客户端与服务端之间出现不一致。
+   */
+  mcpServerToolCall: `${API_BASE}/mcp-servers/:id/tool-call`,
+  mcpServerResourceRead: `${API_BASE}/mcp-servers/:id/resource-read`,
+  mcpServerPromptGet: `${API_BASE}/mcp-servers/:id/prompt-get`,
 } as const
 
 export type ApiPathKey = keyof typeof ApiPath
