@@ -1108,9 +1108,11 @@ export const MergeProfilesPanel = () => {
                   </Popover>
                 </span>
               </TableHead>
-              <TableHead className="w-full min-w-[160px]">值</TableHead>
+              <TableHead className="w-[min(60vw,640px)] min-w-[160px]">
+                值
+              </TableHead>
               <TableHead className="min-w-[120px]">出口</TableHead>
-              <TableHead className="min-w-[60px]">
+              <TableHead className="w-full min-w-[60px]">
                 <span className="sr-only">操作</span>
               </TableHead>
             </TableRow>
