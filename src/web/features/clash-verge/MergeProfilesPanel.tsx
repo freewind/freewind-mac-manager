@@ -11,26 +11,105 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useClashVergeProfilesQuery } from "./queries"
 
-/** 一条自定义分组规则：正则在节点名里匹配，捕获项取分组拼出新名字。 */
+/** 一条自定义分组规则：正则在节点名里匹配，捕获项取分组拼出新组名。 */
 type GroupRule = { id: string; pattern: string; capture: string }
 
+/** 单条规则命中某个节点后的结果。 */
+type RuleMatch = { node: string; groups: string[]; target: string }
+
+/** 预览列最多列出几条：这里只用于核对规则，不铺满整张表。 */
+const PREVIEW_LIMIT = 10
+
+/** 把捕获项里的 $1、$2 换成实际捕获组，其余字符原样保留。 */
+const applyCapture = (capture: string, groups: string[]): string =>
+  capture.replace(
+    /\$(\d+)/g,
+    (_, index: string) => groups[Number(index) - 1] ?? ""
+  )
+
+/** 在节点名上跑一条规则：正则非法或为空时返回空结果，不让界面崩。 */
+const matchRule = (rule: GroupRule, nodeNames: string[]): RuleMatch[] => {
+  const pattern = rule.pattern.trim()
+  if (pattern === "") return []
+  let regex: RegExp
+  try {
+    regex = new RegExp(pattern)
+  } catch {
+    return []
+  }
+  const matches: RuleMatch[] = []
+  for (const node of nodeNames) {
+    const result = regex.exec(node)
+    if (!result) continue
+    const groups = result.slice(1).map((value) => value ?? "")
+    matches.push({ node, groups, target: applyCapture(rule.capture, groups) })
+  }
+  return matches
+}
+
+/** 预览单元格：去重后最多列 PREVIEW_LIMIT 条，超出只报总数。 */
+const PreviewList = (props: { items: string[]; empty: string }) => {
+  const items = [...new Set(props.items)]
+  if (items.length === 0) {
+    return <span className="text-muted-foreground">{props.empty}</span>
+  }
+  return (
+    <span className="block space-y-0.5">
+      {items.slice(0, PREVIEW_LIMIT).map((item) => (
+        <span key={item} className="block break-all">
+          {item}
+        </span>
+      ))}
+      {items.length > PREVIEW_LIMIT ? (
+        <span className="block text-muted-foreground">
+          {`…共 ${items.length} 条`}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
 /**
- * 合并订阅：本轮只做选择界面（勾选订阅、看各自节点数量）。
- * 合并结果要写到哪里、怎么和全局 Merge 叠加还没定，按钮先只回显范围，
- * 不写任何文件，避免造出半个可用状态。
+ * 合并订阅：勾选要合并的订阅，再写自定义分组规则。
  *
- * 自定义分组规则只提供编辑界面：不读任何节点内容、不做预览，
- * 写成通用规则由合并逻辑使用。
+ * 规则表第三列显示正则命中的捕获组，第四列显示按捕获项拼出的目标组名，
+ * 用于边写边核对；预览只读已勾选订阅的节点名，不写任何文件。
+ * 合并写入还没定稿，按钮只回显范围。
  */
 export const MergeProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
-  const profiles = query.data?.profiles ?? []
+  const profiles = useMemo(() => query.data?.profiles ?? [], [query.data])
   const [selected, setSelected] = useState<string[]>([])
   const [rules, setRules] = useState<GroupRule[]>([])
+
+  const chosen = useMemo(
+    () => profiles.filter((profile) => selected.includes(profile.uid)),
+    [profiles, selected]
+  )
+  const nodeNames = useMemo(
+    () => chosen.flatMap((profile) => profile.nodes.map((node) => node.name)),
+    [chosen]
+  )
+  const previews = useMemo(
+    () => rules.map((rule) => matchRule(rule, nodeNames)),
+    [rules, nodeNames]
+  )
+  const nodeTotal = chosen.reduce(
+    (total, profile) => total + profile.nodes.length,
+    0
+  )
+
+  const toggle = (uid: string, checked: boolean) => {
+    setSelected((current) =>
+      checked
+        ? [...current.filter((item) => item !== uid), uid]
+        : current.filter((item) => item !== uid)
+    )
+  }
 
   const addRule = () => {
     setRules((current) => [
@@ -48,20 +127,6 @@ export const MergeProfilesPanel = () => {
   const removeRule = (id: string) => {
     setRules((current) => current.filter((rule) => rule.id !== id))
   }
-
-  const toggle = (uid: string, checked: boolean) => {
-    setSelected((current) =>
-      checked
-        ? [...current.filter((item) => item !== uid), uid]
-        : current.filter((item) => item !== uid)
-    )
-  }
-
-  const chosen = profiles.filter((profile) => selected.includes(profile.uid))
-  const nodeTotal = chosen.reduce(
-    (total, profile) => total + profile.nodes.length,
-    0
-  )
 
   const merge = () => {
     toast.message(
@@ -116,7 +181,7 @@ export const MergeProfilesPanel = () => {
                   />
                 </TableCell>
                 <TableCell className="text-left">{profile.name}</TableCell>
-                <TableCell className="text-left tabular-nums text-muted-foreground">
+                <TableCell className="text-left text-muted-foreground tabular-nums">
                   {profile.nodes.length}
                 </TableCell>
                 <TableCell className="w-full text-left whitespace-normal text-muted-foreground">
@@ -156,47 +221,107 @@ export const MergeProfilesPanel = () => {
         <div>
           <h3 className="text-sm font-medium">自定义分组规则</h3>
           <p className="text-xs text-muted-foreground">
-            每行一条：左边填正则去匹配节点名，右边填捕获项（如 $1、$2）
+            正则在节点名里匹配，捕获项用 $1、$2
+            取分组；右侧实时显示捕获组与目标组名
           </p>
+          {chosen.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              先在上面勾选订阅，预览才有可匹配的节点
+            </p>
+          ) : null}
         </div>
 
-        {rules.length === 0 ? (
-          <p className="text-sm text-muted-foreground">还没有规则</p>
-        ) : (
-          <ul className="space-y-2">
-            {rules.map((rule, index) => (
-              <li
-                key={rule.id}
-                className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]"
-              >
-                <Input
-                  value={rule.pattern}
-                  aria-label={`第 ${index + 1} 条规则的正则`}
-                  placeholder="正则，例如 ^(.+?)\\|"
-                  onChange={(event) =>
-                    updateRule(rule.id, { pattern: event.target.value })
-                  }
-                />
-                <Input
-                  value={rule.capture}
-                  aria-label={`第 ${index + 1} 条规则的捕获项`}
-                  placeholder="捕获项，例如 $1"
-                  onChange={(event) =>
-                    updateRule(rule.id, { capture: event.target.value })
-                  }
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label={`删除第 ${index + 1} 条分组规则`}
-                  onClick={() => removeRule(rule.id)}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-56">正则</TableHead>
+              <TableHead className="w-32">捕获项</TableHead>
+              <TableHead>捕获组</TableHead>
+              <TableHead>目标组名</TableHead>
+              <TableHead className="w-full">
+                <span className="sr-only">操作</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rules.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={5}
+                  className="text-muted-foreground whitespace-normal"
                 >
-                  删除
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+                  还没有规则
+                </TableCell>
+              </TableRow>
+            ) : (
+              rules.map((rule, index) => {
+                const matches = previews[index] ?? []
+                return (
+                  <TableRow key={rule.id}>
+                    <TableCell className="w-56">
+                      <Input
+                        value={rule.pattern}
+                        aria-label={`第 ${index + 1} 条规则的正则`}
+                        placeholder="例如 ^(.+?)\|"
+                        onChange={(event) =>
+                          updateRule(rule.id, { pattern: event.target.value })
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="w-32">
+                      <Input
+                        value={rule.capture}
+                        aria-label={`第 ${index + 1} 条规则的捕获项`}
+                        placeholder="例如 $1"
+                        onChange={(event) =>
+                          updateRule(rule.id, { capture: event.target.value })
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="align-top text-xs whitespace-normal">
+                      <PreviewList
+                        items={matches.map(
+                          (match) => `[${match.groups.join(" / ")}]`
+                        )}
+                        empty={
+                          rule.pattern.trim() === ""
+                            ? "等待填写正则"
+                            : "没有匹配的节点"
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="align-top text-xs whitespace-normal">
+                      <PreviewList
+                        items={[
+                          ...new Set(
+                            matches
+                              .map((match) => match.target)
+                              .filter((target) => target !== "")
+                          ),
+                        ]}
+                        empty={
+                          rule.capture.trim() === ""
+                            ? "等待填写捕获项"
+                            : "没有可用的组名"
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="w-full">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label={`删除第 ${index + 1} 条分组规则`}
+                        onClick={() => removeRule(rule.id)}
+                      >
+                        删除
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
 
         <Button variant="outline" size="sm" onClick={addRule}>
           添加分组规则
