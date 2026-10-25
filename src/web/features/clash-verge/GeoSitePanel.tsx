@@ -3,6 +3,11 @@ import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import { Input } from "@web/components/ui/input"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@web/components/ui/popover"
+import {
   Table,
   TableBody,
   TableCell,
@@ -10,7 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { useState } from "react"
+import { CircleHelp } from "lucide-react"
+import { type ReactNode, useState } from "react"
 import { useClashVergeGeositeQuery } from "./queries"
 
 /**
@@ -43,6 +49,29 @@ const DOMAIN_TYPE_LABEL: Record<string, string> = {
   full: "全匹配",
   regex: "正则",
 }
+
+/** 表头说明：标题旁一个问号，点开看这一列是什么。 */
+const HeaderHelp = (props: { label: string; children: ReactNode }) => (
+  <span className="flex items-center gap-1">
+    {props.label}
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`说明：${props.label}`}
+          >
+            <CircleHelp aria-hidden="true" />
+          </Button>
+        }
+      />
+      <PopoverContent className="w-[min(92vw,360px)] text-xs">
+        {props.children}
+      </PopoverContent>
+    </Popover>
+  </span>
+)
 
 /** 属性标注显示成 @ads 这种形式，与上游写法一致。 */
 const attributeText = (attributes: string[]): string =>
@@ -129,10 +158,24 @@ export const GeoSitePanel = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[60px]">分类</TableHead>
-                    <TableHead className="min-w-[60px]">个数</TableHead>
+                    <TableHead className="min-w-[60px]">
+                      <HeaderHelp label="分类">
+                        geosite.dat 里的分类名，内容来自上游 v2fly
+                        清单；分类会随数据更新增删
+                      </HeaderHelp>
+                    </TableHead>
+                    <TableHead className="min-w-[60px]">
+                      <HeaderHelp label="个数">
+                        该分类的域名条目数。页面只带前 100
+                        条用于展示，多出的用「还有 N 条」标出
+                      </HeaderHelp>
+                    </TableHead>
                     <TableHead className="w-full min-w-[60px]">
-                      域名（类型 值 属性）
+                      <HeaderHelp label="域名">
+                        每条包含类型（域名 / 根域 / 全匹配 /
+                        正则）、值与属性。属性是上游标注，只有少数条目有，例如
+                        TIKTOK 全部带 @!cn
+                      </HeaderHelp>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
