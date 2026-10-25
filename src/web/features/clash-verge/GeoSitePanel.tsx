@@ -1,9 +1,13 @@
 import { describeError, formatTimestamp } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
+import { Button } from "@web/components/ui/button"
 import { Input } from "@web/components/ui/input"
 import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
 import { useState } from "react"
 import { useClashVergeGeositeQuery } from "./queries"
+
+/** 分页大小：数据一次性拿到前端，只是展示时分页。 */
+const PAGE_SIZE = 100
 
 const bytesText = (bytes: number): string =>
   bytes < 1024 * 1024
@@ -19,6 +23,7 @@ export const GeoSitePanel = () => {
   const query = useClashVergeGeositeQuery()
   const data = query.data
   const [keyword, setKeyword] = useState("")
+  const [page, setPage] = useState(1)
 
   const needle = keyword.trim().toLowerCase()
   const filtered =
@@ -29,6 +34,14 @@ export const GeoSitePanel = () => {
         : data.categories.filter((item) =>
             item.code.toLowerCase().includes(needle)
           )
+
+  // 搜索把结果变短时页码可能越界，按当前总页数夹一下，不再额外存一份状态。
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pageRows = filtered.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  )
 
   return (
     <section className="space-y-3" aria-label="geosite 数据库">
@@ -53,7 +66,10 @@ export const GeoSitePanel = () => {
           <div className="flex flex-wrap items-center gap-2">
             <Input
               value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
+              onChange={(event) => {
+                setKeyword(event.target.value)
+                setPage(1)
+              }}
               placeholder="按分类名过滤，如 ads、cn、netflix"
               aria-label="按分类名过滤"
               className="max-w-sm"
@@ -69,7 +85,7 @@ export const GeoSitePanel = () => {
               {/* 表格统一规则：分类名与个数按内容宽度，最后一列占满剩余。 */}
               <Table>
                 <TableBody>
-                  {filtered.map((category) => (
+                  {pageRows.map((category) => (
                     <TableRow key={category.code}>
                       <TableCell className="min-w-[60px] px-2 py-1 align-top text-left">
                         {category.code}
@@ -100,6 +116,29 @@ export const GeoSitePanel = () => {
               </Table>
             </div>
           )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">
+              {`第 ${currentPage} / ${totalPages} 页 · 共 ${filtered.length} 个分类`}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setPage(currentPage - 1)}
+              >
+                上一页
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() => setPage(currentPage + 1)}
+              >
+                下一页
+              </Button>
+            </div>
+          </div>
         </>
       )}
     </section>
