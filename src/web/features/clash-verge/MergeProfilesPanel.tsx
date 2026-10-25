@@ -73,6 +73,7 @@ import {
   useMergeClashProfiles,
   useSaveClashMergeConfig,
 } from "./queries"
+import { YamlHighlight } from "./yaml-highlight"
 
 /** 一行自定义规则：类型 + 值 + 出口，id 只用于 React key。 */
 type CustomRow = CustomRule & { id: string }
@@ -421,6 +422,8 @@ export const MergeProfilesPanel = () => {
 
   /** 基座模板：本地编辑优先，否则回显服务端保存的。 */
   const [editedTemplate, setEditedTemplate] = useState<string | null>(null)
+  /** 模板默认只读高亮；点「编辑模板」才换成文本框。 */
+  const [editingTemplate, setEditingTemplate] = useState(false)
   const template =
     editedTemplate ?? configQuery.data?.template ?? DEFAULT_MERGE_TEMPLATE
 
@@ -1231,14 +1234,25 @@ export const MergeProfilesPanel = () => {
               会拼在我们生成的规则之后、MATCH 之前运行
             </p>
           </div>
-          <Textarea
-            value={template}
-            aria-label="基座模板 YAML"
-            spellCheck={false}
-            className="min-h-[320px] font-mono text-xs"
-            onChange={(event) => setEditedTemplate(event.target.value)}
-          />
+          {editingTemplate ? (
+            <Textarea
+              value={template}
+              aria-label="基座模板 YAML"
+              spellCheck={false}
+              className="min-h-[320px] font-mono text-xs"
+              onChange={(event) => setEditedTemplate(event.target.value)}
+            />
+          ) : (
+            <YamlHighlight content={template} fileName="merge-template.yaml" />
+          )}
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditingTemplate(!editingTemplate)}
+            >
+              {editingTemplate ? "完成编辑" : "编辑模板"}
+            </Button>
             <Button
               variant="outline"
               size="sm"
