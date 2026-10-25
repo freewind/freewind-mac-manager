@@ -71,8 +71,14 @@ const NodeTable = (props: { nodes: ClashVergeProfile["nodes"] }) => (
 )
 
 /**
+ * 高亮是同步渲染的，成本随字符数增长；haitta 那种 88 万字符的配置会卡主线程。
+ * 超过这个长度就退化成纯文本：仍可滚动与复制，只是没有颜色。
+ */
+const FILE_HIGHLIGHT_MAX_CHARS = 120_000
+
+/**
  * 配置文件弹窗：只在打开时读一次，正文用 File 组件做 YAML 高亮。
- * 文件可能很大（接近 1 MB），所以整块限高滚动，不做额外处理。
+ * 超过高亮上限的文件直接用 pre 显示，避免整页卡死。
  */
 const ProfileFileDialog = (props: {
   profile: ClashVergeProfile | null
@@ -103,6 +109,15 @@ const ProfileFileDialog = (props: {
           </Alert>
         ) : query.data === undefined ? (
           <p className="text-sm text-muted-foreground">读取中…</p>
+        ) : query.data.content.length > FILE_HIGHLIGHT_MAX_CHARS ? (
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">
+              {`文件较大（${query.data.content.length} 字符），已关闭语法高亮以保证滚动顺畅`}
+            </p>
+            <pre className="max-h-[70vh] overflow-auto rounded-md border p-2 text-xs">
+              {query.data.content}
+            </pre>
+          </div>
         ) : (
           <div className="max-h-[70vh] overflow-auto rounded-md border text-xs">
             <File
