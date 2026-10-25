@@ -593,7 +593,7 @@ type GeositeDomainType = (typeof GEOSITE_DOMAIN_TYPES)[number]
 
 type GeositeCategory = {
   code: string
-  domains: { type: GeositeDomainType; value: string }[]
+  domains: { type: GeositeDomainType; value: string; attributes: string[] }[]
 }
 
 /** 解析结果缓存：文件 mtime 变了才重解，否则每次请求都要重读 4 MB。 */
@@ -616,6 +616,34 @@ const readVarint = (
     shift += 7
   }
   return { value, next: offset }
+}
+
+/** 读一条 Domain 的 attribute key：Attribute 的 key 在字段 1，其余值跳过。 */
+const readAttributeKey = (
+  buffer: Buffer,
+  start: number,
+  end: number
+): string | null => {
+  let cursor = start
+  let key: string | null = null
+  while (cursor < end) {
+    const tag = readVarint(buffer, cursor)
+    cursor = tag.next
+    const kind = tag.value >> 3
+    const wire = tag.value & 7
+    if (wire === 0) {
+      cursor = readVarint(buffer, cursor).next
+    } else if (wire === 2) {
+      const len = readVarint(buffer, cursor)
+      cursor = len.next
+      const next = Math.min(cursor + len.value, end)
+      if (kind === 1) key = buffer.toString("utf8", cursor, next)
+      cursor = next
+    } else {
+      break
+    }
+  }
+  return key
 }
 
 /**
@@ -658,6 +686,7 @@ const parseGeosite = (buffer: Buffer): GeositeCategory[] => {
       } else if (innerField === 2) {
         let domainType: GeositeDomainType = "plain"
         let value = ""
+        const attributes: string[] = []
         let cursor = offset
         while (cursor < innerEnd) {
           const fieldTag = readVarint(buffer, cursor)
@@ -674,12 +703,16 @@ const parseGeosite = (buffer: Buffer): GeositeCategory[] => {
             cursor = len.next
             const nextCursor = Math.min(cursor + len.value, innerEnd)
             if (kind === 2) value = buffer.toString("utf8", cursor, nextCursor)
+            else if (kind === 3) {
+              const attributeKey = readAttributeKey(buffer, cursor, nextCursor)
+              if (attributeKey !== null) attributes.push(attributeKey)
+            }
             cursor = nextCursor
           } else {
             break
           }
         }
-        if (value !== "") domains.push({ type: domainType, value })
+        if (value !== "") domains.push({ type: domainType, value, attributes })
       }
       offset = innerEnd
     }
@@ -729,7 +762,11 @@ export const readClashVergeGeosite = async (): Promise<ClashVergeGeosite> => {
       count: category.domains.length,
       preview: category.domains
         .slice(0, GEOSITE_PREVIEW_LIMIT)
-        .map((domain) => ({ type: domain.type, value: domain.value })),
+        .map((domain) => ({
+          type: domain.type,
+          value: domain.value,
+          attributes: domain.attributes,
+        })),
     })),
   }
 }

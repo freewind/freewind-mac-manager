@@ -37,6 +37,10 @@ const DOMAIN_TYPE_LABEL: Record<string, string> = {
   regex: "正则",
 }
 
+/** 属性标注显示成 @ads 这种形式，与上游写法一致。 */
+const attributeText = (attributes: string[]): string =>
+  attributes.map((attribute) => `@${attribute}`).join(" ")
+
 const bytesText = (bytes: number): string =>
   bytes < 1024 * 1024
     ? `${(bytes / 1024).toFixed(1)} KB`
@@ -136,6 +140,11 @@ export const GeoSitePanel = () => {
                                 {DOMAIN_TYPE_LABEL[domain.type] ?? domain.type}
                               </span>
                               {domain.value}
+                              {domain.attributes.length > 0 ? (
+                                <span className="shrink-0 text-[10px] text-muted-foreground">
+                                  {attributeText(domain.attributes)}
+                                </span>
+                              ) : null}
                             </span>
                           ))}
                           {category.count > category.preview.length ? (

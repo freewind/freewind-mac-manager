@@ -222,10 +222,12 @@ export const SaveClashMergeConfigBodySchema = z.object({
   customRules: z.array(CustomRuleSchema).max(200).default([]),
 })
 
-/** geosite 里的单个域名：类型与值，类型对应内核的 Plain/RootDomain/Full/Regex。 */
+/** geosite 里的单个域名：类型、值与属性标记（如 ads、cn）。 */
 export const ClashVergeGeositeDomainSchema = z.object({
   type: z.enum(["plain", "rootdomain", "full", "regex"]),
   value: z.string(),
+  /** v2fly 的 attribute 标注，没有时为空数组。 */
+  attributes: z.array(z.string()).max(10),
 })
 
 /** geosite 数据库里的单个分类：名字、条目数与前面一段域名（带类型）。 */

@@ -84,11 +84,11 @@ type GeositeTarget = GeositeRule["target"]
 /** 一行 GEO 分流：分类名 + 出口，id 只用于 React key。 */
 type GeositeRow = GeositeRule & { id: string }
 
-/** 下拉里的分类选项：名字 + 条目数 + 前若干条域名（带类型）。 */
+/** 下拉里的分类选项：名字 + 条目数 + 前若干条域名（带类型与属性）。 */
 type GeositeOption = {
   code: string
   count: number
-  preview: { type: string; value: string }[]
+  preview: { type: string; value: string; attributes: string[] }[]
 }
 
 const GEOSITE_TARGET_LABELS: Record<GeositeTarget, string> = {
@@ -133,6 +133,13 @@ const CategoryCountCell = (props: {
                 {DOMAIN_TYPE_LABEL[domain.type] ?? domain.type}
               </span>
               {domain.value}
+              {domain.attributes.length > 0 ? (
+                <span className="ml-1 text-[10px] text-muted-foreground">
+                  {domain.attributes
+                    .map((attribute) => `@${attribute}`)
+                    .join(" ")}
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>
