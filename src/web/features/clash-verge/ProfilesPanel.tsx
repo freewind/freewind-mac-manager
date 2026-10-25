@@ -35,7 +35,7 @@ import {
   FileCode,
   LoaderCircle,
 } from "lucide-react"
-import { Component, type ReactNode, Suspense, useRef, useState } from "react"
+import { Component, type ReactNode, Suspense, useState } from "react"
 import { toast } from "sonner"
 import {
   useClashVergeProfileFileQuery,
@@ -76,38 +76,11 @@ const NodeTable = (props: { nodes: ClashVergeProfile["nodes"] }) => (
   </Table>
 )
 
-/** 小到这种程度就直接上高亮，不必先闪一下纯文本。 */
-const FILE_HIGHLIGHT_EAGER_MAX_CHARS = 20_000
-
-/**
- * 高亮是同步渲染的，成本随字符数增长；haitta 那种 88 万字符的配置要算很久。
- * 超过这个长度不自动加高亮，先给纯文本，需要时手动点。
- */
-const FILE_HIGHLIGHT_AUTO_MAX_CHARS = 200_000
-
-/** 纯文本展示：高亮不可用、或还没算出来时用它，保证内容总能读。 */
-const PlainProfileText = (props: {
-  content: string
-  note?: string
-  preRef?: (node: HTMLPreElement | null) => void
-}) => (
-  <div className="space-y-1">
-    {props.note === undefined ? null : (
-      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-        <LoaderCircle
-          className="size-3 animate-spin motion-reduce:animate-none"
-          aria-hidden="true"
-        />
-        {props.note}
-      </p>
-    )}
-    <pre
-      ref={props.preRef}
-      className="max-h-[70vh] overflow-auto rounded-md border p-2 text-xs"
-    >
-      {props.content}
-    </pre>
-  </div>
+/** 纯文本展示：默认就是它，也是高亮不可用时的兼底。 */
+const PlainProfileText = (props: { content: string }) => (
+  <pre className="max-h-[70vh] overflow-auto rounded-md border p-2 text-xs">
+    {props.content}
+  </pre>
 )
 
 /**
@@ -149,56 +122,50 @@ const HighlightPool = (props: { children: ReactNode }) => (
 )
 
 /**
- * 配置文件正文：先出纯文本，再补 YAML 高亮。
+ * 配置文件正文：默认按纯文本显示，点了「添加高亮」才走高亮。
  *
- * 高亮会让主线程算很久，所以不在首帧直接渲染：先用 pre 把原文提交到页面
- * （ref 回调在提交后运行），再推后 150ms 切到高亮。超大文件不自动切换，
- * 改成手动点。
+ * 高亮会占 CPU（尤其几十万字符的配置），所以不自动触发，把选择权留给使用者。
+ * 外面用 Suspense + ErrorBoundary 兜住挂起与异常，不论哪种情况都退回纯文本。
  */
 const ProfileFileBody = (props: {
   content: string
   fileName: string
   themeType: ReturnType<typeof useThemeType>
 }) => {
-  const autoHighlight = props.content.length <= FILE_HIGHLIGHT_AUTO_MAX_CHARS
-  const [highlight, setHighlight] = useState(
-    props.content.length <= FILE_HIGHLIGHT_EAGER_MAX_CHARS
-  )
-  const scheduled = useRef(false)
-  // 原文一上屏就排一次切换；ref 回调可能重复触发，用 ref 挡住。
-  const scheduleHighlight = (node: HTMLPreElement | null) => {
-    if (node === null || scheduled.current || !autoHighlight) return
-    scheduled.current = true
-    setTimeout(() => setHighlight(true), 150)
-  }
+  const [highlight, setHighlight] = useState(false)
   if (!highlight) {
     return (
-      <div className="space-y-1">
-        {autoHighlight ? null : (
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs text-muted-foreground">
-              {`文件较大（${props.content.length} 字符），先按纯文本显示`}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setHighlight(true)}
-            >
-              添加高亮
-            </Button>
-          </div>
-        )}
-        <PlainProfileText
-          content={props.content}
-          note={autoHighlight ? "正在添加语法高亮…" : undefined}
-          preRef={scheduleHighlight}
-        />
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            {`按纯文本显示，共 ${props.content.length} 字符`}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setHighlight(true)}
+          >
+            添加高亮
+          </Button>
+        </div>
+        <PlainProfileText content={props.content} />
       </div>
     )
   }
-  const fallback = <PlainProfileText content={props.content} />
+  const fallback = (
+    <div className="space-y-1">
+      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+        <LoaderCircle
+          className="size-3 animate-spin motion-reduce:animate-none"
+          aria-hidden="true"
+        />
+        正在添加语法高亮…
+      </p>
+      <PlainProfileText content={props.content} />
+    </div>
+  )
   return (
-    <HighlightBoundary fallback={fallback}>
+    <HighlightBoundary fallback={<PlainProfileText content={props.content} />}>
       <HighlightPool>
         <Suspense fallback={fallback}>
           <div className="max-h-[70vh] overflow-auto rounded-md border text-xs">
