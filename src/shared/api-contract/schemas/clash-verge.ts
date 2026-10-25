@@ -1,6 +1,6 @@
 import {
   DEFAULT_HEALTH_CHECK,
-  DEFAULT_SNIFFER_PORTS,
+  DEFAULT_MERGE_TEMPLATE,
 } from "@shared/clash-merge-defaults"
 import { z } from "zod"
 
@@ -215,16 +215,6 @@ export const CustomRuleSchema = z.object({
 })
 
 /**
- * 嗅探端口配置：三项都是逗号分隔的端口或范围，服务端合并前逐项校验。
- * 默认值来自 shared/clash-merge-defaults，读写旧记录时自动补齐。
- */
-export const SnifferPortsSchema = z.object({
-  tls: z.string().trim().max(200),
-  quic: z.string().trim().max(200),
-  http: z.string().trim().max(200),
-})
-
-/**
  * 测速地址与间隔：url-test 与 fallback 组共用。
  * 只接受 http/https，其余 scheme 内核不认，合并前就拦下。
  */
@@ -249,8 +239,8 @@ export const ClashMergeConfigSchema = z.object({
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   /** 自定义域名规则：优先级最高，排在 GEO 规则之前。 */
   customRules: z.array(CustomRuleSchema).max(200).default([]),
-  /** 嗅探端口：早期版本没有这个字段，读旧记录时用默认值。 */
-  snifferPorts: SnifferPortsSchema.default(DEFAULT_SNIFFER_PORTS),
+  /** 基座模板：合并产物里所有手写配置都来自它。 */
+  template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   /** 测速参数：早期版本没有这个字段，读旧记录时用默认值。 */
   healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
   /** 上次保存时间，秒级；null 表示从未保存过。 */
@@ -262,7 +252,7 @@ export const SaveClashMergeConfigBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   customRules: z.array(CustomRuleSchema).max(200).default([]),
-  snifferPorts: SnifferPortsSchema.default(DEFAULT_SNIFFER_PORTS),
+  template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
 })
 
@@ -299,6 +289,6 @@ export const MergeClashProfilesBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   customRules: z.array(CustomRuleSchema).max(200).default([]),
-  snifferPorts: SnifferPortsSchema.default(DEFAULT_SNIFFER_PORTS),
+  template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
 })

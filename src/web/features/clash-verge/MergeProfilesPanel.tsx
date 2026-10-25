@@ -20,8 +20,7 @@ import {
   type ClashMergeGroupType,
   DEFAULT_GEOSITE_RULES,
   DEFAULT_HEALTH_CHECK,
-  DEFAULT_SNIFFER_PORTS,
-  type SnifferPorts,
+  DEFAULT_MERGE_TEMPLATE,
 } from "@shared/clash-merge-defaults"
 import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -63,6 +62,7 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import { Textarea } from "@web/components/ui/textarea"
 import { CircleHelp, GripVertical, Lock } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -419,10 +419,10 @@ export const MergeProfilesPanel = () => {
     [editedCustom, configQuery.data]
   )
 
-  /** 嗅探端口：本地编辑优先，否则回显服务端保存的。 */
-  const [editedSniffer, setEditedSniffer] = useState<SnifferPorts | null>(null)
-  const snifferPorts =
-    editedSniffer ?? configQuery.data?.snifferPorts ?? DEFAULT_SNIFFER_PORTS
+  /** 基座模板：本地编辑优先，否则回显服务端保存的。 */
+  const [editedTemplate, setEditedTemplate] = useState<string | null>(null)
+  const template =
+    editedTemplate ?? configQuery.data?.template ?? DEFAULT_MERGE_TEMPLATE
 
   /** 测速参数：间隔存成字符串，允许输入过程中被清空。 */
   const [editedHealth, setEditedHealth] = useState<{
@@ -601,7 +601,7 @@ export const MergeProfilesPanel = () => {
             value: rule.value.trim(),
             target: rule.target,
           })),
-        snifferPorts,
+        template,
         healthCheck: {
           url: health.url.trim(),
           interval: Number(health.interval),
@@ -635,7 +635,7 @@ export const MergeProfilesPanel = () => {
             value: rule.value.trim(),
             target: rule.target,
           })),
-        snifferPorts,
+        template,
         healthCheck: {
           url: health.url.trim(),
           interval: Number(health.interval),
@@ -1215,60 +1215,32 @@ export const MergeProfilesPanel = () => {
 
         <div className="space-y-2 border-t pt-3">
           <div>
-            <h3 className="text-sm font-medium">流量嗅探</h3>
+            <h3 className="text-sm font-medium">基座模板</h3>
             <p className="text-xs text-muted-foreground">
-              合并时固定写入：开启嗅探、强制 DNS
-              映射、嗅探到域名后改写目标地址；不写域名白名单。
-              端口写逗号分隔的端口或范围，留空表示该协议不嗅探
+              合并产物里所有手写配置都来自这里：mode、dns、sniffer、geodata
+              等固定项都在模板里改。订阅只提供节点，proxies 与 proxy-groups
+              由页面生成（模板里写了也会被忽略）；模板里的 rules
+              会拼在我们生成的规则之后、MATCH 之前运行
             </p>
           </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <label htmlFor="sniffer-tls" className="space-y-1">
-              <span className="block text-xs text-muted-foreground">TLS</span>
-              <Input
-                id="sniffer-tls"
-                value={snifferPorts.tls}
-                aria-label="TLS 嗅探端口"
-                className="w-[min(60vw,200px)]"
-                onChange={(event) =>
-                  setEditedSniffer({ ...snifferPorts, tls: event.target.value })
-                }
-              />
-            </label>
-            <label htmlFor="sniffer-quic" className="space-y-1">
-              <span className="block text-xs text-muted-foreground">QUIC</span>
-              <Input
-                id="sniffer-quic"
-                value={snifferPorts.quic}
-                aria-label="QUIC 嗅探端口"
-                className="w-[min(60vw,200px)]"
-                onChange={(event) =>
-                  setEditedSniffer({
-                    ...snifferPorts,
-                    quic: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <label htmlFor="sniffer-http" className="space-y-1">
-              <span className="block text-xs text-muted-foreground">HTTP</span>
-              <Input
-                id="sniffer-http"
-                value={snifferPorts.http}
-                aria-label="HTTP 嗅探端口"
-                className="w-[min(60vw,200px)]"
-                onChange={(event) =>
-                  setEditedSniffer({
-                    ...snifferPorts,
-                    http: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <p className="pb-1 text-xs text-muted-foreground">
-              TLS 与 HTTP 可以全端口，盖住非常规端口的网站；QUIC
-              别开全端口，对游戏、BT 的 UDP 流量做解密尝试很费 CPU
-            </p>
+          <Textarea
+            value={template}
+            aria-label="基座模板 YAML"
+            spellCheck={false}
+            className="min-h-[320px] font-mono text-xs"
+            onChange={(event) => setEditedTemplate(event.target.value)}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditedTemplate(DEFAULT_MERGE_TEMPLATE)}
+            >
+              恢复默认模板
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {`当前 ${template.length} 字符`}
+            </span>
           </div>
         </div>
 

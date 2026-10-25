@@ -43,10 +43,10 @@ import {
   type ClashMergeGroupType,
   DEFAULT_GEOSITE_RULES,
   DEFAULT_HEALTH_CHECK,
-  DEFAULT_SNIFFER_PORTS,
+  DEFAULT_MERGE_TEMPLATE,
   MERGED_URL_TEST_TOLERANCE,
 } from "@shared/clash-merge-defaults"
-import { stringify as toYaml } from "yaml"
+import { parse as parseYaml, stringify as toYaml } from "yaml"
 import {
   ControllerError,
   connectionLimit,
@@ -963,7 +963,7 @@ export const readClashMergeConfig = (): ClashMergeConfig =>
     rules: [],
     geositeRules: [],
     customRules: [],
-    snifferPorts: DEFAULT_SNIFFER_PORTS,
+    template: DEFAULT_MERGE_TEMPLATE,
     healthCheck: DEFAULT_HEALTH_CHECK,
     updatedAt: null,
   }
@@ -989,74 +989,6 @@ const MERGED_PRIMARY_GROUP = "节点选择"
 const MERGED_DIRECT_GROUP = "直连"
 /** 拦截开关组：默认 REJECT，可切到直接直连或总组。 */
 const MERGED_REJECT_GROUP = "拒绝"
-/**
- * 从第一个订阅继承的字段：目前只带 rules 依赖的 rule-providers。
- * dns、端口、控制接口、TUN 这些都还没定，且端口类由 Clash Verge 自己生成。
- */
-const MERGED_INHERIT_KEYS = ["rule-providers"] as const
-
-/**
- * 原组全是特殊目标（DIRECT / REJECT / PASS）时返回对应关键字：
- * 直连组、广告拦截组不能改成代理组，否则国内流量与广告会走代理。
- * 只要组里有真实节点就返回 null，按代理组处理。
- */
-const specialOutletOf = (members: string[]): string | null => {
-  if (members.length === 0) return null
-  const kinds = new Set<string>()
-  for (const member of members) {
-    const upper = member.toUpperCase()
-    if (upper.startsWith("REJECT")) kinds.add("REJECT")
-    else if (upper === "DIRECT") kinds.add("DIRECT")
-    else if (upper === "PASS") kinds.add("PASS")
-    else return null
-  }
-  return [...kinds][0] ?? null
-}
-
-/** 合并后出口可用的固定名字，撞名时会带后缀。 */
-type MergedOutlets = {
-  primary: string
-  direct: string
-  reject: string
-}
-
-/**
- * 把规则里指向原订阅组的出口换成合并后的出口。
- * 出口位置固定：MATCH / FINAL 在第 2 段，其余规则在第 3 段；
- * 后面的 no-resolve、resolve 是参数，不得当成出口。
- */
-const rewriteRuleGroup = (
-  rule: string,
-  originalGroups: Map<string, string[]>,
-  outlets: MergedOutlets
-): string => {
-  const parts = rule.split(",")
-  const head = parts[0].trim().toUpperCase()
-  const outletIndex = head === "MATCH" || head === "FINAL" ? 1 : 2
-  if (parts.length <= outletIndex) return rule
-  const outlet = parts[outletIndex].trim()
-  const members = originalGroups.get(outlet)
-  // 原订阅里的组：按成员性质归到总组或两个开关组。
-  if (members !== undefined) {
-    const special = specialOutletOf(members)
-    if (special === "DIRECT") parts[outletIndex] = outlets.direct
-    else if (special === "REJECT") parts[outletIndex] = outlets.reject
-    else if (special === "PASS") return rule
-    else parts[outletIndex] = outlets.primary
-    return parts.join(",")
-  }
-  // 本来就是内置目标的，也接到开关组上，才能一键改道。
-  const upper = outlet.toUpperCase()
-  if (upper === "DIRECT") {
-    parts[outletIndex] = outlets.direct
-    return parts.join(",")
-  }
-  if (upper === "REJECT") {
-    parts[outletIndex] = outlets.reject
-    return parts.join(",")
-  }
-  return rule
-}
 
 /** 节点名必须唯一：重名时依次加 -2、-3 后缀。 */
 const uniqueNodeName = (name: string, used: Set<string>): string => {
@@ -1067,33 +999,33 @@ const uniqueNodeName = (name: string, used: Set<string>): string => {
 }
 
 /**
- * 解析嗅探端口文本：逗号分隔，每项是端口或端口范围。
+ * 解析基座模板：必须是 YAML 对象，语法错要直接报出原因。
  *
- * 写错会让内核拒绝整份配置，所以合并前逐项校验；空串表示这个协议不嗅探。
+ * proxies 与 proxy-groups 由页面根据勾选的订阅生成，模板里的同名键一律忽略，
+ * 否则同一个键会同时来自两处，实际生效哪个根本说不清。
  */
-const parseSnifferPorts = (text: string, label: string): string[] => {
-  const items = text
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item !== "")
-  for (const item of items) {
-    const matched = /^(\d{1,5})(?:-(\d{1,5}))?$/.exec(item)
-    if (matched === null) {
-      throw new PublicOperationError(
-        400,
-        `嗅探端口写法不对（${label}）：${item}，应形如 443 或 8080-8880`
-      )
-    }
-    const start = Number(matched[1])
-    const end = matched[2] === undefined ? start : Number(matched[2])
-    if (start < 1 || end > 65535 || start > end) {
-      throw new PublicOperationError(
-        400,
-        `嗅探端口超出范围（${label}）：${item}，应在 1-65535 内且起始不大于结束`
-      )
-    }
+const parseMergeTemplate = (
+  text: string
+): { base: Record<string, unknown>; rules: string[] } => {
+  let document: unknown
+  try {
+    document = parseYaml(text)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new PublicOperationError(400, `基座模板不是合法 YAML：${detail}`)
   }
-  return items
+  if (!isRecord(document)) {
+    throw new PublicOperationError(400, "基座模板必须是一个 YAML 对象")
+  }
+  const { proxies, "proxy-groups": proxyGroups, rules, ...base } = document
+  void proxies
+  void proxyGroups
+  return {
+    base,
+    rules: (Array.isArray(rules) ? rules : []).filter(
+      (rule): rule is string => typeof rule === "string"
+    ),
+  }
 }
 
 /** 编译正则：非法或为空都返回 null，由调用方跳过这条规则。 */
@@ -1182,9 +1114,6 @@ export const mergeClashProfiles = async (
   // 收集节点：重名节点加后缀，否则整份配置会因重名失效。
   const proxies: Record<string, unknown>[] = []
   const usedNames = new Set<string>()
-  /** 原订阅里的组名与成员：用来把 rules 的出口改成合并后的组。 */
-  const originalGroups = new Map<string, string[]>()
-  let baseDocument: Record<string, unknown> | null = null
   for (const entry of ordered) {
     if (entry.file === "" || path.basename(entry.file) !== entry.file) continue
     let text: string
@@ -1197,19 +1126,6 @@ export const mergeClashProfiles = async (
       continue
     }
     const source = parseYamlRecord(text)
-    baseDocument ??= source
-    for (const group of Array.isArray(source["proxy-groups"])
-      ? source["proxy-groups"]
-      : []) {
-      if (isRecord(group) && typeof group.name === "string") {
-        originalGroups.set(
-          group.name,
-          (Array.isArray(group.proxies) ? group.proxies : []).filter(
-            (member): member is string => typeof member === "string"
-          )
-        )
-      }
-    }
     const items = source.proxies
     for (const proxy of Array.isArray(items) ? items : []) {
       if (!isRecord(proxy) || typeof proxy.name !== "string") continue
@@ -1274,37 +1190,19 @@ export const mergeClashProfiles = async (
     takenNames.add(name)
     return name
   }
-  const outlets: MergedOutlets = {
+  const outlets = {
     primary: uniqueGroupName(MERGED_PRIMARY_GROUP),
     direct: uniqueGroupName(MERGED_DIRECT_GROUP),
     reject: uniqueGroupName(MERGED_REJECT_GROUP),
   }
 
-  // 继承第一个订阅的通用字段与分流规则（rule-providers 等靠它才完整）。
-  const inherited: Record<string, unknown> = {}
-  for (const key of MERGED_INHERIT_KEYS) {
-    const value = baseDocument === null ? undefined : baseDocument[key]
-    if (value !== undefined) inherited[key] = value
-  }
+  // 基座模板：所有手写配置都从这里来，订阅只提供节点。
+  const template = parseMergeTemplate(input.template)
   /** 三个固定出口组：自定义规则与 GEO 分类共用。 */
   const outletOf: Record<"proxy" | "direct" | "reject", string> = {
     proxy: outlets.primary,
     direct: outlets.direct,
     reject: outlets.reject,
-  }
-
-  // 嗅探自己写死，不从订阅继承：很多订阅没写这段，而我们大量规则靠域名命中。
-  // skip-domain 故意留空：不带任何域名白名单，避免别家订阅的白名单带进自己的配置。
-  const sniffer = {
-    enable: true,
-    "force-dns-mapping": true,
-    "override-destination": true,
-    "parse-pure-ip": true,
-    sniff: {
-      TLS: { ports: parseSnifferPorts(input.snifferPorts.tls, "TLS") },
-      QUIC: { ports: parseSnifferPorts(input.snifferPorts.quic, "QUIC") },
-      HTTP: { ports: parseSnifferPorts(input.snifferPorts.http, "HTTP") },
-    },
   }
   const healthCheck = input.healthCheck
 
@@ -1314,27 +1212,24 @@ export const mergeClashProfiles = async (
     .filter((rule) => rule.value !== "")
     .map((rule) => `${rule.type},${rule.value},${outletOf[rule.target]}`)
 
-  // GEO 分类分流：用户自定义的在前，固定三条在后，都优先于继承来的订阅规则。
-  // 分类名先在本机 geosite.dat 里核实：写错的分类会让内核拒绝整份配置，
-  // 用户自己选的缺失直接报错，固定规则缺失则跳过。
+  // GEO 分类分流：用户自定义的在前，固定三条在后，都排在模板规则与 MATCH 之前。
+  // 分类名先在本机 geosite.dat 里核实：写错的分类会让内核拒绝整份配置。
+  // 数据库本身读不到就直接报错：固定三条是分流的骨架，静默跳过等于生成一份没分流的配置。
   const geositeRules: string[] = []
   const geositeOutletOf = outletOf
-  let geositeCodeOf: Map<string, string> | null = null
+  let geositeCodeOf: Map<string, string>
   try {
     const { categories } = await loadGeosite()
     geositeCodeOf = new Map(
       categories.map((category) => [category.code.toUpperCase(), category.code])
     )
   } catch {
-    geositeCodeOf = null
+    throw new PublicOperationError(
+      404,
+      `找不到 geosite 数据库，无法校验 GEO 分类：${CLASH_VERGE_GEOSITE_FILE}`
+    )
   }
   for (const rule of input.geositeRules) {
-    if (geositeCodeOf === null) {
-      throw new PublicOperationError(
-        404,
-        `找不到 geosite 数据库，无法校验 GEO 分类：${CLASH_VERGE_GEOSITE_FILE}`
-      )
-    }
     const code = geositeCodeOf.get(rule.code.trim().toUpperCase())
     if (code === undefined) {
       throw new PublicOperationError(
@@ -1346,19 +1241,13 @@ export const mergeClashProfiles = async (
   }
   // 固定规则：分类已经不在 geosite.dat 里就跳过，不让它挡住合并。
   for (const rule of DEFAULT_GEOSITE_RULES) {
-    const code = geositeCodeOf?.get(rule.code.toUpperCase())
+    const code = geositeCodeOf.get(rule.code.toUpperCase())
     if (code === undefined) continue
     geositeRules.push(`GEOSITE,${code},${geositeOutletOf[rule.target]}`)
   }
 
-  const rawRules = baseDocument === null ? undefined : baseDocument.rules
-  const rules = [
-    ...customRules,
-    ...geositeRules,
-    ...(Array.isArray(rawRules) ? rawRules : [])
-      .filter((rule): rule is string => typeof rule === "string")
-      .map((rule) => rewriteRuleGroup(rule, originalGroups, outlets)),
-  ]
+  // 生成规则骨架：自定义 → GEO → 固定三条 → 模板里的固定规则 → MATCH。
+  const rules = [...customRules, ...geositeRules, ...template.rules]
   // 没有 MATCH 收尾就补一条，否则最后一段流量会落到不存在的组。
   if (!rules.some((rule) => rule.startsWith("MATCH"))) {
     rules.push(`MATCH,${outlets.primary}`)
@@ -1366,8 +1255,9 @@ export const mergeClashProfiles = async (
 
   const mergedText = toYaml(
     {
-      ...inherited,
-      sniffer,
+      // 模板在前，页面生成的四块在后覆盖它：proxies、proxy-groups、rules
+      // 都在模板解析时被剔除，所以这里叠加不会出现双份。
+      ...template.base,
       proxies,
       "proxy-groups": [
         {

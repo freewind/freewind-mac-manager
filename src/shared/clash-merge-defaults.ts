@@ -10,23 +10,6 @@ export const DEFAULT_GEOSITE_RULES = [
   { code: "GEOLOCATION-!CN", target: "proxy" },
 ] as const
 
-/**
- * 流量嗅探的端口配置：三项都是逗号分隔的端口或端口范围。
- *
- * 存成字符串而不是数字数组，因为 `1-65535` 这种范围写法本身不是数字。
- */
-export type SnifferPorts = { tls: string; quic: string; http: string }
-
-/**
- * 默认嗅探端口：TLS 与 HTTP 走全端口，故能盖住各种非常规端口的站点；
- * QUIC 只用 443/8443，避开对游戏、BT 等 UDP 流量做昂贵的解密尝试。
- */
-export const DEFAULT_SNIFFER_PORTS: SnifferPorts = {
-  tls: "1-65535",
-  quic: "443, 8443",
-  http: "1-65535",
-}
-
 /** 合并后可选的组类型：手动选、延迟最低、按序兜底。 */
 export type ClashMergeGroupType = "select" | "url-test" | "fallback"
 
@@ -41,3 +24,56 @@ export const DEFAULT_HEALTH_CHECK = {
 
 /** url-test 的容差：延迟差在这范围内视为持平，避免在两个节点间来回抖。 */
 export const MERGED_URL_TEST_TOLERANCE = 50
+/**
+ * 合并用的基座模板：合并产物里所有手写配置都从这里来。
+ *
+ * 订阅只提供节点，规则与各项行为全部由我们定义；页面生成的 proxies、
+ * proxy-groups 与规则骨架会拼接到它上面，模板里的 rules 追加在 MATCH 之前。
+ */
+export const DEFAULT_MERGE_TEMPLATE = `mode: rule
+log-level: info
+ipv6: false
+udp: true
+unified-delay: true
+tcp-concurrent: true
+find-process-mode: strict
+profile:
+  store-selected: true
+  store-fake-ip: true
+geodata-mode: true
+geo-auto-update: true
+geo-update-interval: 24
+# DNS 必须自己给：机场的 dns 不再继承，缺了会导致部分节点解析失败。
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  fallback:
+    - https://dns.cloudflare.com/dns-query
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+# 嗅探：TLS 开全端口盖住非常规端口的站点，QUIC 与 HTTP 收窄省 CPU。
+sniffer:
+  enable: true
+  force-dns-mapping: true
+  override-destination: true
+  parse-pure-ip: true
+  sniff:
+    TLS:
+      ports: ["1-65535"]
+    QUIC:
+      ports: ["443", "8443"]
+    HTTP:
+      ports: ["80", "8080-8880"]
+# 固定规则：排在页面生成的规则之后、MATCH 之前。
+rules:
+  - GEOIP,CN,DIRECT,no-resolve
+`
