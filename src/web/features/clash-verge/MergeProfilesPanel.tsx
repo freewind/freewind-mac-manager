@@ -44,11 +44,9 @@ const matchNodes = (pattern: string, nodeNames: string[]): string[] => {
   return nodeNames.filter((node) => regex.exec(node) !== null)
 }
 
-/** 节点标签：与订阅表同一种样式，空结果给一句说明。 */
-const NodeTags = (props: { nodes: string[]; empty: string }) => {
-  if (props.nodes.length === 0) {
-    return <span className="text-muted-foreground">{props.empty}</span>
-  }
+/** 节点标签：与订阅表同一种样式；没有节点时留空，不占位。 */
+const NodeTags = (props: { nodes: string[] }) => {
+  if (props.nodes.length === 0) return null
   return (
     <span className="flex flex-wrap items-center gap-1">
       {props.nodes.map((node) => (
@@ -193,10 +191,7 @@ export const MergeProfilesPanel = () => {
                   {profile.nodes.length === 0 ? (
                     "（没有节点）"
                   ) : (
-                    <NodeTags
-                      nodes={profile.nodes.map((node) => node.name)}
-                      empty=""
-                    />
+                    <NodeTags nodes={profile.nodes.map((node) => node.name)} />
                   )}
                 </TableCell>
               </TableRow>
@@ -243,7 +238,7 @@ export const MergeProfilesPanel = () => {
                 : "选中的节点都已分组"}
             </p>
           ) : (
-            <NodeTags nodes={unmatchedNodes} empty="" />
+            <NodeTags nodes={unmatchedNodes} />
           )}
         </div>
 
@@ -267,7 +262,7 @@ export const MergeProfilesPanel = () => {
                       其余未匹配的节点
                     </TableCell>
                     <TableCell className="align-top text-xs whitespace-normal">
-                      <NodeTags nodes={unmatchedNodes} empty="没有剩余节点" />
+                      <NodeTags nodes={unmatchedNodes} />
                     </TableCell>
                     <TableCell>
                       <Input
@@ -294,14 +289,7 @@ export const MergeProfilesPanel = () => {
                     />
                   </TableCell>
                   <TableCell className="align-top text-xs whitespace-normal">
-                    <NodeTags
-                      nodes={matches}
-                      empty={
-                        rule.pattern.trim() === ""
-                          ? "等待填写正则"
-                          : "没有匹配的节点"
-                      }
-                    />
+                    <NodeTags nodes={matches} />
                   </TableCell>
                   <TableCell>
                     <Input
