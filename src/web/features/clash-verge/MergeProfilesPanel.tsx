@@ -26,6 +26,13 @@ import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@web/components/ui/card"
 import { Checkbox } from "@web/components/ui/checkbox"
 import {
   Combobox,
@@ -708,282 +715,294 @@ export const MergeProfilesPanel = () => {
 
   return (
     <section className="space-y-3" aria-label="合并订阅">
-      <div>
-        <h2 className="text-sm font-medium">合并订阅</h2>
-        <p className="text-xs text-muted-foreground">
-          勾选要合并的订阅，合并后这些订阅的节点会写进同一份配置
-        </p>
-      </div>
+      <h2 className="text-sm font-medium">合并订阅</h2>
 
-      {query.isLoading ? (
-        <p className="text-sm text-muted-foreground">正在读取订阅清单…</p>
-      ) : null}
-
-      {query.isError ? (
-        <Alert variant="destructive">
-          <AlertTitle>读取订阅清单失败</AlertTitle>
-          <AlertDescription>{describeError(query.error)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {!query.isLoading && profiles.length === 0 ? (
-        <p className="text-sm text-muted-foreground">没有可合并的订阅</p>
-      ) : null}
-
-      {profiles.length > 0 ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[60px]">
-                <Checkbox
-                  aria-label="全选订阅"
-                  checked={allProfilesChecked}
-                  onCheckedChange={(checked) => toggleAllProfiles(checked)}
-                />
-              </TableHead>
-              <TableHead className="min-w-[60px]">订阅</TableHead>
-              <TableHead className="min-w-[60px]">节点数</TableHead>
-              <TableHead className="w-full min-w-[60px]">节点</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {profiles.map((profile) => (
-              <TableRow key={profile.uid || profile.url}>
-                <TableCell>
-                  <Checkbox
-                    aria-label={`选择订阅：${profile.name}`}
-                    checked={selected.includes(profile.uid)}
-                    onCheckedChange={(checked) => toggle(profile.uid, checked)}
-                  />
-                </TableCell>
-                <TableCell className="text-left">{profile.name}</TableCell>
-                <TableCell className="text-left text-muted-foreground tabular-nums">
-                  {profile.nodes.length}
-                </TableCell>
-                <TableCell className="w-full max-w-0 text-left whitespace-normal text-muted-foreground">
-                  {profile.nodes.length === 0 ? (
-                    "（没有节点）"
-                  ) : (
-                    <NodeTagsCell
-                      label={profile.name}
-                      nodes={profile.nodes.map((node) => node.name)}
-                    />
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : null}
-
-      <div className="space-y-2 border-t pt-3">
-        <div>
-          <h3 className="text-sm font-medium">自定义分组规则</h3>
-          <p className="text-xs text-muted-foreground">
-            正则在节点名里匹配，右侧列出命中的节点；目标组名直接填。最后一行固定兜底，其余节点归到「其他」
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {configQuery.data?.updatedAt
-              ? `上次保存：${formatTimestamp(configQuery.data.updatedAt)}`
-              : "尚未保存到服务端"}
-          </p>
-          {chosen.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              先在上面勾选订阅，预览才有可匹配的节点
-            </p>
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>订阅</CardTitle>
+          <CardDescription>
+            勾选要合并的订阅，合并后这些订阅的节点会写进同一份配置
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {query.isLoading ? (
+            <p className="text-sm text-muted-foreground">正在读取订阅清单…</p>
           ) : null}
-        </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[60px]">
-                <Checkbox
-                  aria-label="全选分组规则"
-                  checked={allChecked}
-                  onCheckedChange={(checked) => toggleAllRules(checked)}
-                />
-              </TableHead>
-              <TableHead className="min-w-[120px]">正则</TableHead>
-              <TableHead className="min-w-[60px]">匹配数</TableHead>
-              <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
-              <TableHead className="min-w-[120px]">目标组名</TableHead>
-              <TableHead className="min-w-[100px]">类型</TableHead>
-              <TableHead className="min-w-[60px]">
-                <span className="sr-only">操作</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rules.map((rule, index) => {
-              if (rule.fixed) {
+          {query.isError ? (
+            <Alert variant="destructive">
+              <AlertTitle>读取订阅清单失败</AlertTitle>
+              <AlertDescription>{describeError(query.error)}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {!query.isLoading && profiles.length === 0 ? (
+            <p className="text-sm text-muted-foreground">没有可合并的订阅</p>
+          ) : null}
+
+          {profiles.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[60px]">
+                    <Checkbox
+                      aria-label="全选订阅"
+                      checked={allProfilesChecked}
+                      onCheckedChange={(checked) => toggleAllProfiles(checked)}
+                    />
+                  </TableHead>
+                  <TableHead className="min-w-[60px]">订阅</TableHead>
+                  <TableHead className="min-w-[60px]">节点数</TableHead>
+                  <TableHead className="w-full min-w-[60px]">节点</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {profiles.map((profile) => (
+                  <TableRow key={profile.uid || profile.url}>
+                    <TableCell>
+                      <Checkbox
+                        aria-label={`选择订阅：${profile.name}`}
+                        checked={selected.includes(profile.uid)}
+                        onCheckedChange={(checked) =>
+                          toggle(profile.uid, checked)
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="text-left">{profile.name}</TableCell>
+                    <TableCell className="text-left text-muted-foreground tabular-nums">
+                      {profile.nodes.length}
+                    </TableCell>
+                    <TableCell className="w-full max-w-0 text-left whitespace-normal text-muted-foreground">
+                      {profile.nodes.length === 0 ? (
+                        "（没有节点）"
+                      ) : (
+                        <NodeTagsCell
+                          label={profile.name}
+                          nodes={profile.nodes.map((node) => node.name)}
+                        />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>自定义分组规则</CardTitle>
+          <CardDescription>
+            正则在节点名里匹配，右侧列出命中的节点；目标组名直接填。最后一行固定兜底，其余节点归到「其他」
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-xs text-muted-foreground">
+              {configQuery.data?.updatedAt
+                ? `上次保存：${formatTimestamp(configQuery.data.updatedAt)}`
+                : "尚未保存到服务端"}
+            </p>
+            {chosen.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                先在上面勾选订阅，预览才有可匹配的节点
+              </p>
+            ) : null}
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[60px]">
+                  <Checkbox
+                    aria-label="全选分组规则"
+                    checked={allChecked}
+                    onCheckedChange={(checked) => toggleAllRules(checked)}
+                  />
+                </TableHead>
+                <TableHead className="min-w-[120px]">正则</TableHead>
+                <TableHead className="min-w-[60px]">匹配数</TableHead>
+                <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
+                <TableHead className="min-w-[120px]">目标组名</TableHead>
+                <TableHead className="min-w-[100px]">类型</TableHead>
+                <TableHead className="min-w-[60px]">
+                  <span className="sr-only">操作</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rules.map((rule, index) => {
+                if (rule.fixed) {
+                  return (
+                    <TableRow key={rule.id}>
+                      <TableCell>
+                        <Checkbox
+                          aria-label="生成兜底的「其他」组"
+                          checked={checkedRules.includes(rule.id)}
+                          onCheckedChange={(checked) =>
+                            toggleRule(rule.id, checked)
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        其余未匹配的节点
+                      </TableCell>
+                      <TableCell className="text-left tabular-nums text-muted-foreground">
+                        {unmatchedNodes.length}
+                      </TableCell>
+                      <TableCell className="align-top text-xs whitespace-normal">
+                        <NodeTags nodes={unmatchedNodes} />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={rule.target}
+                          disabled
+                          aria-label="兜底分组的目标组名"
+                        />
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        手动选择
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                  )
+                }
+                const matches = previews[index] ?? []
                 return (
                   <TableRow key={rule.id}>
                     <TableCell>
                       <Checkbox
-                        aria-label="生成兜底的「其他」组"
+                        aria-label={`选择第 ${index + 1} 条分组规则`}
                         checked={checkedRules.includes(rule.id)}
                         onCheckedChange={(checked) =>
                           toggleRule(rule.id, checked)
                         }
                       />
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      其余未匹配的节点
+                    <TableCell>
+                      <Input
+                        value={rule.pattern}
+                        aria-label={`第 ${index + 1} 条规则的正则`}
+                        onChange={(event) =>
+                          updateRule(rule.id, { pattern: event.target.value })
+                        }
+                      />
                     </TableCell>
                     <TableCell className="text-left tabular-nums text-muted-foreground">
-                      {unmatchedNodes.length}
+                      {matches.length}
                     </TableCell>
                     <TableCell className="align-top text-xs whitespace-normal">
-                      <NodeTags nodes={unmatchedNodes} />
+                      <NodeTags nodes={matches} />
                     </TableCell>
                     <TableCell>
                       <Input
                         value={rule.target}
-                        disabled
-                        aria-label="兜底分组的目标组名"
+                        aria-label={`第 ${index + 1} 条规则的目标组名`}
+                        onChange={(event) =>
+                          updateRule(rule.id, { target: event.target.value })
+                        }
                       />
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      手动选择
+                    <TableCell className="text-left">
+                      <Select
+                        value={rule.type}
+                        onValueChange={(next) =>
+                          updateRule(rule.id, {
+                            type: next as ClashMergeGroupType,
+                          })
+                        }
+                      >
+                        <SelectTrigger
+                          aria-label={`第 ${index + 1} 条规则的类型`}
+                        >
+                          <SelectValue>
+                            {GROUP_TYPE_LABELS[rule.type]}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(
+                            Object.keys(
+                              GROUP_TYPE_LABELS
+                            ) as ClashMergeGroupType[]
+                          ).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {GROUP_TYPE_LABELS[type]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
-                    <TableCell />
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label={`删除第 ${index + 1} 条分组规则`}
+                        onClick={() => removeRule(rule.id)}
+                      >
+                        删除
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 )
-              }
-              const matches = previews[index] ?? []
-              return (
-                <TableRow key={rule.id}>
-                  <TableCell>
-                    <Checkbox
-                      aria-label={`选择第 ${index + 1} 条分组规则`}
-                      checked={checkedRules.includes(rule.id)}
-                      onCheckedChange={(checked) =>
-                        toggleRule(rule.id, checked)
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      value={rule.pattern}
-                      aria-label={`第 ${index + 1} 条规则的正则`}
-                      onChange={(event) =>
-                        updateRule(rule.id, { pattern: event.target.value })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="text-left tabular-nums text-muted-foreground">
-                    {matches.length}
-                  </TableCell>
-                  <TableCell className="align-top text-xs whitespace-normal">
-                    <NodeTags nodes={matches} />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      value={rule.target}
-                      aria-label={`第 ${index + 1} 条规则的目标组名`}
-                      onChange={(event) =>
-                        updateRule(rule.id, { target: event.target.value })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="text-left">
-                    <Select
-                      value={rule.type}
-                      onValueChange={(next) =>
-                        updateRule(rule.id, {
-                          type: next as ClashMergeGroupType,
-                        })
-                      }
-                    >
-                      <SelectTrigger
-                        aria-label={`第 ${index + 1} 条规则的类型`}
-                      >
-                        <SelectValue>
-                          {GROUP_TYPE_LABELS[rule.type]}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(
-                          Object.keys(
-                            GROUP_TYPE_LABELS
-                          ) as ClashMergeGroupType[]
-                        ).map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {GROUP_TYPE_LABELS[type]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      aria-label={`删除第 ${index + 1} 条分组规则`}
-                      onClick={() => removeRule(rule.id)}
-                    >
-                      删除
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+              })}
+            </TableBody>
+          </Table>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={addRule}>
-            添加分组规则
-          </Button>
-        </div>
-
-        {/* 测速参数全局一份：只有测速最快、按序兜底两种组用得上。 */}
-        <div className="flex flex-wrap items-end gap-2">
-          <label htmlFor="health-url" className="space-y-1">
-            <span className="block text-xs text-muted-foreground">
-              测速地址
-            </span>
-            <Input
-              id="health-url"
-              value={health.url}
-              aria-label="测速地址"
-              className="w-[min(70vw,320px)]"
-              onChange={(event) =>
-                setEditedHealth({ ...health, url: event.target.value })
-              }
-            />
-          </label>
-          <label htmlFor="health-interval" className="space-y-1">
-            <span className="block text-xs text-muted-foreground">
-              间隔（秒）
-            </span>
-            <Input
-              id="health-interval"
-              value={health.interval}
-              inputMode="numeric"
-              aria-label="测速间隔（秒）"
-              className="w-24"
-              onChange={(event) =>
-                setEditedHealth({ ...health, interval: event.target.value })
-              }
-            />
-          </label>
-          <p className="pb-1 text-xs text-muted-foreground">
-            仅「测速最快」「按序兜底」两种组使用；地址要选你的线路也能访问的 204
-            地址，否则组里会一个可用节点都没有
-          </p>
-        </div>
-
-        <div className="space-y-2 border-t pt-3">
-          <div>
-            <h3 className="text-sm font-medium">自定义规则</h3>
-            <p className="text-xs text-muted-foreground">
-              手写域名规则，优先级最高：合并时排在 GEO
-              分类与订阅规则之前；值为空的行不会写进配置
-            </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={addRule}>
+              添加分组规则
+            </Button>
           </div>
 
+          {/* 测速参数全局一份：只有测速最快、按序兜底两种组用得上。 */}
+          <div className="flex flex-wrap items-end gap-2">
+            <label htmlFor="health-url" className="space-y-1">
+              <span className="block text-xs text-muted-foreground">
+                测速地址
+              </span>
+              <Input
+                id="health-url"
+                value={health.url}
+                aria-label="测速地址"
+                className="w-[min(70vw,320px)]"
+                onChange={(event) =>
+                  setEditedHealth({ ...health, url: event.target.value })
+                }
+              />
+            </label>
+            <label htmlFor="health-interval" className="space-y-1">
+              <span className="block text-xs text-muted-foreground">
+                间隔（秒）
+              </span>
+              <Input
+                id="health-interval"
+                value={health.interval}
+                inputMode="numeric"
+                aria-label="测速间隔（秒）"
+                className="w-24"
+                onChange={(event) =>
+                  setEditedHealth({ ...health, interval: event.target.value })
+                }
+              />
+            </label>
+            <p className="pb-1 text-xs text-muted-foreground">
+              仅「测速最快」「按序兜底」两种组使用；地址要选你的线路也能访问的
+              204 地址，否则组里会一个可用节点都没有
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>自定义规则</CardTitle>
+          <CardDescription>
+            手写域名规则，优先级最高：合并时排在 GEO
+            分类与固定规则之前；值为空的行不会写进配置
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1147,22 +1166,24 @@ export const MergeProfilesPanel = () => {
           <Button variant="outline" size="sm" onClick={addCustomRule}>
             添加规则
           </Button>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="space-y-2 border-t pt-3">
-          <div>
-            <h3 className="text-sm font-medium">GEO 分类分流</h3>
-            <p className="text-xs text-muted-foreground">
-              上方选中即加入，可拖动调整先后；表格最后三行是固定规则（不可删改，分类不在
-              geosite.dat
-              里时自动跳过），排在自定义规则之后生效。合并时全部写到规则最前面，优先于订阅自带规则
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>GEO 分类分流</CardTitle>
+          <CardDescription>
+            上方选中即加入，可拖动调整先后；表格最后三行是固定规则（不可删改，分类不在
+            geosite.dat
+            里时自动跳过），排在自定义规则之后生效。合并时全部写到规则最前面
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {geositeQuery.isError ? (
+            <p className="text-xs text-destructive">
+              {`读取 GEO 分类失败：${describeError(geositeQuery.error)}`}
             </p>
-            {geositeQuery.isError ? (
-              <p className="text-xs text-destructive">
-                {`读取 GEO 分类失败：${describeError(geositeQuery.error)}`}
-              </p>
-            ) : null}
-          </div>
+          ) : null}
 
           <Combobox
             items={geositeOptions}
@@ -1278,9 +1299,18 @@ export const MergeProfilesPanel = () => {
               还没有添加自定义分类，当前只有上面三条固定规则
             </p>
           ) : null}
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>基座模板</CardTitle>
+          <CardDescription>
+            合并产物以它为底：proxies 与 proxy-groups 是占位，rules
+            列表会被自动填充
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -1289,40 +1319,40 @@ export const MergeProfilesPanel = () => {
             查看或编辑基座模板
           </Button>
           <span className="text-xs text-muted-foreground">
-            {`合并产物以它为底：${template.length} 字符${templateDirty ? "，有未保存的修改" : ""}`}
+            {`${template.length} 字符${templateDirty ? "，有未保存的修改" : ""}`}
           </span>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-          {/* 保存放在合并左边：这些都是我们自己维护的设置，合并生成的配置会覆盖文件，不会覆盖它们。 */}
-          <ActionButton
-            size="sm"
-            variant={dirty ? "default" : "outline"}
-            busy={saveConfig.isPending}
-            busyLabel="保存中…"
-            onClick={() => void save()}
-          >
-            {dirty ? "保存设置（有改动）" : "保存设置"}
-          </ActionButton>
-          <ActionButton
-            disabled={chosen.length < 2}
-            busy={mergeProfiles.isPending}
-            busyLabel="生成中…"
-            onClick={() => void merge()}
-          >
-            合并订阅
-          </ActionButton>
-          <span className="text-xs text-muted-foreground">
-            {chosen.length < 2
-              ? "先在上面勾选至少 2 个订阅"
-              : `已选 ${chosen.length} 个订阅、${nodeTotal} 个节点；参与合并的分组 ${checkedRules.length} 个`}
+      <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+        {/* 保存放在合并左边：这些都是我们自己维护的设置，合并生成的配置会覆盖文件，不会覆盖它们。 */}
+        <ActionButton
+          size="sm"
+          variant={dirty ? "default" : "outline"}
+          busy={saveConfig.isPending}
+          busyLabel="保存中…"
+          onClick={() => void save()}
+        >
+          {dirty ? "保存设置（有改动）" : "保存设置"}
+        </ActionButton>
+        <ActionButton
+          disabled={chosen.length < 2}
+          busy={mergeProfiles.isPending}
+          busyLabel="生成中…"
+          onClick={() => void merge()}
+        >
+          合并订阅
+        </ActionButton>
+        <span className="text-xs text-muted-foreground">
+          {chosen.length < 2
+            ? "先在上面勾选至少 2 个订阅"
+            : `已选 ${chosen.length} 个订阅、${nodeTotal} 个节点；参与合并的分组 ${checkedRules.length} 个`}
+        </span>
+        {configQuery.isError ? (
+          <span className="text-xs text-destructive">
+            {`读取已保存设置失败：${describeError(configQuery.error)}`}
           </span>
-          {configQuery.isError ? (
-            <span className="text-xs text-destructive">
-              {`读取已保存设置失败：${describeError(configQuery.error)}`}
-            </span>
-          ) : null}
-        </div>
+        ) : null}
       </div>
 
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
