@@ -50,7 +50,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@web/components/ui/dialog"
@@ -86,7 +85,6 @@ import {
   useMergeClashProfiles,
   useSaveClashMergeConfig,
 } from "./queries"
-import { YamlHighlight } from "./yaml-highlight"
 
 /** 一行自定义规则：类型 + 值 + 出口，id 只用于 React key。 */
 type CustomRow = CustomRule & { id: string }
@@ -483,10 +481,6 @@ export const MergeProfilesPanel = () => {
 
   /** 基座模板：本地编辑优先，否则回显服务端保存的。 */
   const [editedTemplate, setEditedTemplate] = useState<string | null>(null)
-  /** 模板默认不占页面，点按钮在弹窗里看或改。 */
-  const [templateOpen, setTemplateOpen] = useState(false)
-  /** 模板默认只读高亮；点「编辑模板」才换成文本框。 */
-  const [editingTemplate, setEditingTemplate] = useState(false)
   const template =
     editedTemplate ?? configQuery.data?.template ?? DEFAULT_MERGE_TEMPLATE
 
@@ -1345,13 +1339,20 @@ export const MergeProfilesPanel = () => {
         description="合并产物以它为底：proxies 与 proxy-groups 是占位，rules 列表会被自动填充"
         summary={`${template.length} 字符${templateDirty ? "，有未保存的修改" : ""}`}
       >
+        <Textarea
+          value={template}
+          aria-label="基座模板 YAML"
+          spellCheck={false}
+          className="max-h-[60vh] min-h-[320px] font-mono text-xs"
+          onChange={(event) => setEditedTemplate(event.target.value)}
+        />
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setTemplateOpen(true)}
+            onClick={() => setEditedTemplate(DEFAULT_MERGE_TEMPLATE)}
           >
-            查看或编辑基座模板
+            恢复默认模板
           </Button>
         </div>
       </CollapsibleCard>
@@ -1386,50 +1387,6 @@ export const MergeProfilesPanel = () => {
           </span>
         ) : null}
       </div>
-
-      <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
-        <DialogContent className="w-[min(96vw,1100px)] sm:max-w-[1100px]">
-          <DialogHeader>
-            <DialogTitle>基座模板</DialogTitle>
-            <DialogDescription>
-              合并产物以它为底。proxies 与 proxy-groups
-              两行是占位标记，保持空数组即可，合并时就地换成勾选的节点与分组；
-              rules 列表留空，合并时依次填入自定义规则、GEO
-              分类、固定三条、GEOIP 一条，再拼上你自己写的规则，最后补 MATCH
-            </DialogDescription>
-          </DialogHeader>
-          {editingTemplate ? (
-            <Textarea
-              value={template}
-              aria-label="基座模板 YAML"
-              spellCheck={false}
-              className="max-h-[60vh] min-h-[40vh] font-mono text-xs"
-              onChange={(event) => setEditedTemplate(event.target.value)}
-            />
-          ) : (
-            <YamlHighlight content={template} fileName="merge-template.yaml" />
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditingTemplate(!editingTemplate)}
-            >
-              {editingTemplate ? "完成编辑" : "编辑模板"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditedTemplate(DEFAULT_MERGE_TEMPLATE)}
-            >
-              恢复默认模板
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              {`当前 ${template.length} 字符${templateDirty ? "，尚未保存" : ""}`}
-            </span>
-          </div>
-        </DialogContent>
-      </Dialog>
     </section>
   )
 }
