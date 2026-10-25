@@ -21,9 +21,6 @@ type GroupRule = { id: string; pattern: string; capture: string }
 /** 单条规则命中某个节点后的结果。 */
 type RuleMatch = { node: string; groups: string[]; target: string }
 
-/** 预览列最多列出几条：这里只用于核对规则，不铺满整张表。 */
-const PREVIEW_LIMIT = 10
-
 /** 把捕获项里的 $1、$2 换成实际捕获组，其余字符原样保留。 */
 const applyCapture = (capture: string, groups: string[]): string =>
   capture.replace(
@@ -52,7 +49,7 @@ const matchRule = (rule: GroupRule, nodeNames: string[]): RuleMatch[] => {
 }
 
 /**
- * 预览单元格：去重后最多列 PREVIEW_LIMIT 条，超出只报总数。
+ * 预览单元格：去重后全部列出，不截断。
  * tags 用于节点名，与订阅表保持同一种标签样式；组名用纯文本。
  */
 const PreviewList = (props: {
@@ -64,14 +61,13 @@ const PreviewList = (props: {
   if (items.length === 0) {
     return <span className="text-muted-foreground">{props.empty}</span>
   }
-  const overflow = items.length > PREVIEW_LIMIT
   return (
     <span
       className={
         props.tags ? "flex flex-wrap items-center gap-1" : "block space-y-0.5"
       }
     >
-      {items.slice(0, PREVIEW_LIMIT).map((item) =>
+      {items.map((item) =>
         props.tags ? (
           <span
             key={item}
@@ -85,15 +81,6 @@ const PreviewList = (props: {
           </span>
         )
       )}
-      {overflow ? (
-        <span
-          className={
-            props.tags ? "text-muted-foreground" : "block text-muted-foreground"
-          }
-        >
-          {`…共 ${items.length} 条`}
-        </span>
-      ) : null}
     </span>
   )
 }
