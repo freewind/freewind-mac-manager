@@ -7,7 +7,7 @@ import {
   CollapsibleTrigger,
 } from "@web/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
-import { ChevronRight, Copy } from "lucide-react"
+import { ChevronRight, CircleCheck, Copy } from "lucide-react"
 import { toast } from "sonner"
 import { useClashVergeProfilesQuery } from "./queries"
 
@@ -75,8 +75,16 @@ export const ProfilesPanel = () => {
                   className="space-y-2 rounded-lg border p-3"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {profile.name}
+                    <span className="flex min-w-0 flex-1 items-center gap-1">
+                      <span className="min-w-0 truncate text-sm font-medium">
+                        {profile.name}
+                      </span>
+                      {profile.current ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-600/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                          <CircleCheck aria-hidden="true" className="size-3" />
+                          当前启用
+                        </span>
+                      ) : null}
                     </span>
                     <Button
                       size="sm"

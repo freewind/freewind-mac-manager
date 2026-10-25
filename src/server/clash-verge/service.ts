@@ -503,12 +503,17 @@ export const readClashVergeProfiles =
       }
       throw error
     }
-    const entries = remoteProfiles(parseYamlRecord(text).items)
+    const document = parseYamlRecord(text)
+    const entries = remoteProfiles(document.items)
+    // 顶层 current 是被启用订阅的 uid：只有一个订阅会被标记为当前启用。
+    const currentUid =
+      typeof document.current === "string" ? document.current : ""
     const profiles = await Promise.all(
       entries.map(async (entry) => ({
         uid: entry.uid,
         name: entry.name,
         url: entry.url,
+        current: entry.uid !== "" && entry.uid === currentUid,
         ...(await profileNodes(entry.file)),
       }))
     )

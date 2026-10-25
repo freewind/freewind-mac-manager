@@ -118,6 +118,8 @@ export const ClashVergeProfileSchema = z.object({
   uid: z.string(),
   name: z.string(),
   url: z.string(),
+  /** 是否 Clash Verge 当前正在使用的订阅（profiles.yaml 顶层的 current）。 */
+  current: z.boolean(),
   nodes: z.array(ClashVergeProfileNodeSchema).max(300),
   /** 节点数超过上限时只回前 300 条，这里标出是否被截断。 */
   nodesTruncated: z.boolean(),
