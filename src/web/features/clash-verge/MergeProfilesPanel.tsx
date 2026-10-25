@@ -1002,6 +1002,7 @@ export const MergeProfilesPanel = () => {
               placeholder="搜索并添加分类"
               aria-label="搜索并添加 GEO 分类"
               className="max-w-sm"
+              showClear
             />
             <ComboboxContent>
               <ComboboxEmpty>没有匹配的分类</ComboboxEmpty>

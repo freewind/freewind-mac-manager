@@ -1,7 +1,12 @@
 import { describeError, formatTimestamp } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
-import { Input } from "@web/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@web/components/ui/input-group"
 import {
   Popover,
   PopoverContent,
@@ -15,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { CircleHelp } from "lucide-react"
+import { CircleHelp, X } from "lucide-react"
 import { type ReactNode, useState } from "react"
 import { useClashVergeGeositeQuery } from "./queries"
 
@@ -136,16 +141,31 @@ export const GeoSitePanel = () => {
             {`共 ${data.totalCategories} 个分类、${data.totalDomains} 条域名`}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <Input
-              value={keyword}
-              onChange={(event) => {
-                setKeyword(event.target.value)
-                setPage(1)
-              }}
-              placeholder="按分类名过滤，如 ads、cn、netflix"
-              aria-label="按分类名过滤"
-              className="max-w-sm"
-            />
+            <InputGroup className="max-w-sm">
+              <InputGroupInput
+                value={keyword}
+                onChange={(event) => {
+                  setKeyword(event.target.value)
+                  setPage(1)
+                }}
+                placeholder="按分类名过滤，如 ads、cn、netflix"
+                aria-label="按分类名过滤"
+              />
+              {keyword === "" ? null : (
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label="清除搜索"
+                    onClick={() => {
+                      setKeyword("")
+                      setPage(1)
+                    }}
+                  >
+                    <X aria-hidden="true" />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              )}
+            </InputGroup>
             <span className="text-xs text-muted-foreground">
               {keyword.trim() === "" ? "" : `${filtered.length} 个匹配`}
             </span>
