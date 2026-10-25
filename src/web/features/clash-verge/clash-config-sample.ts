@@ -47,6 +47,8 @@ external-controller-cors:
 # ---------- 二、自定义入站（需要多个监听地址时用） ----------
 # 主端口只能绑一个地址；想同时听多个地址/端口，就定义多个入站。
 # 每一项都是独立监听，name 唯一，type 支持 mixed / http / socks / tun 等。
+# 也可以把主端口写成 0 全关、只留 listeners；但 Clash Verge 的系统代理、
+# 面板都指向 mixed-port，关掉后这些功能会失效，所以实务上保留 mixed-port 更稳。
 listeners:
   - name: lan-mixed
     type: mixed
