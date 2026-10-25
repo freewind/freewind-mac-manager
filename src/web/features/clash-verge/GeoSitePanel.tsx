@@ -2,7 +2,14 @@ import { describeError, formatTimestamp } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import { Input } from "@web/components/ui/input"
-import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@web/components/ui/table"
 import { useState } from "react"
 import { useClashVergeGeositeQuery } from "./queries"
 
@@ -120,6 +127,15 @@ export const GeoSitePanel = () => {
             <div className="max-h-[70vh] overflow-auto">
               {/* 表格统一规则：分类名与个数按内容宽度，最后一列占满剩余。 */}
               <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[60px]">分类</TableHead>
+                    <TableHead className="min-w-[60px]">个数</TableHead>
+                    <TableHead className="w-full min-w-[60px]">
+                      域名（类型 值 属性）
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {pageRows.map((category) => (
                     <TableRow key={category.code}>
