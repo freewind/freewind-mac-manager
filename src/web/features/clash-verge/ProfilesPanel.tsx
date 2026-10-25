@@ -92,16 +92,23 @@ export const ProfilesPanel = () => {
                     {profile.url}
                   </p>
                   <Collapsible>
-                    <CollapsibleTrigger
-                      render={
-                        <button
-                          type="button"
-                          className="text-xs text-primary underline-offset-4 hover:underline"
-                        >
-                          节点信息
-                        </button>
-                      }
-                    />
+                    {/* 节点数常驻显示在按钮右侧，不随展开/收缩变化。 */}
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <CollapsibleTrigger
+                        render={
+                          <button
+                            type="button"
+                            className="text-xs text-primary underline-offset-4 hover:underline"
+                          >
+                            节点信息
+                          </button>
+                        }
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {`共 ${profile.nodes.length} 个节点`}
+                        {profile.nodesTruncated ? "（已截断）" : ""}
+                      </span>
+                    </div>
                     <CollapsibleContent>
                       {profile.nodes.length === 0 ? (
                         <p className="mt-2 text-xs text-muted-foreground">
@@ -109,12 +116,6 @@ export const ProfilesPanel = () => {
                         </p>
                       ) : (
                         <>
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            {`共 ${profile.nodes.length} 个节点`}
-                            {profile.nodesTruncated
-                              ? "（已截断，只显示前面的）"
-                              : ""}
-                          </p>
                           <div className="mt-1 max-h-72 overflow-auto pr-1">
                             {/* 自动布局：前两列按内容宽度（节点名超过一半时截断，
                                 留出地址列），最后一列 w-full 吃满剩余宽度并单行截断。 */}
