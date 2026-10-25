@@ -19,6 +19,9 @@ import {
 /** 一次最多渲染的分类数：总共一千多个，全渲染会卡。 */
 const CATEGORY_ROWS_LIMIT = 300
 
+/** 分类条目的分页大小：与服务端默认页大小一致。 */
+const PAGE_SIZE = 500
+
 /** protobuf 里的条目类型：显示中文，免得看不懂 plain / rootdomain。 */
 const DOMAIN_TYPE_LABEL: Record<string, string> = {
   plain: "域名",
@@ -32,26 +35,35 @@ const bytesText = (bytes: number): string =>
     ? `${(bytes / 1024).toFixed(1)} KB`
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
-/** 单个分类的条目弹窗：条目多，只显示服务端给的前 500 条。 */
+/** 正在查看的分类与页码：整块放外面，弹窗组件自己不存 state。 */
+type CategoryView = { code: string; offset: number }
+
+/** 单个分类的条目弹窗：按页翻，一页 500 条。 */
 const GeositeCategoryDialog = (props: {
-  code: string | null
+  view: CategoryView | null
+  onChangeOffset: (offset: number) => void
   onClose: () => void
 }) => {
-  const query = useClashVergeGeositeCategoryQuery(props.code)
+  const query = useClashVergeGeositeCategoryQuery(
+    props.view?.code ?? null,
+    props.view?.offset ?? 0
+  )
+  const total = query.data?.total ?? 0
+  const offset = props.view?.offset ?? 0
   return (
     <Dialog
-      open={props.code !== null}
+      open={props.view !== null}
       onOpenChange={(open) => {
         if (!open) props.onClose()
       }}
     >
       <DialogContent className="w-[min(96vw,760px)] sm:max-w-[760px]">
         <DialogHeader>
-          <DialogTitle>{props.code ?? ""}</DialogTitle>
+          <DialogTitle>{props.view?.code ?? ""}</DialogTitle>
           <DialogDescription>
             {query.data === undefined
               ? "正在读取条目"
-              : `${query.data.total} 条${query.data.truncated ? `，只显示前 ${query.data.domains.length} 条` : ""}`}
+              : `共 ${total} 条 · 显示第 ${offset + 1}-${offset + query.data.domains.length} 条`}
           </DialogDescription>
         </DialogHeader>
         {query.isError ? (
@@ -62,7 +74,7 @@ const GeositeCategoryDialog = (props: {
         ) : query.data === undefined ? (
           <p className="text-sm text-muted-foreground">读取中…</p>
         ) : (
-          <div className="max-h-[70vh] overflow-auto">
+          <div className="max-h-[60vh] overflow-auto">
             {/* 表格统一规则：类型列按内容宽度，域名列占满剩余并截断。 */}
             <Table>
               <TableBody>
@@ -80,20 +92,45 @@ const GeositeCategoryDialog = (props: {
             </Table>
           </div>
         )}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
+            {`共 ${Math.max(1, Math.ceil(total / PAGE_SIZE))} 页`}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={offset === 0}
+              onClick={() =>
+                props.onChangeOffset(Math.max(0, offset - PAGE_SIZE))
+              }
+            >
+              上一页
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={offset + PAGE_SIZE >= total}
+              onClick={() => props.onChangeOffset(offset + PAGE_SIZE)}
+            >
+              下一页
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   )
 }
 
 /**
- * geosite 数据库面板（只读）：列出全部分类与条目数，点分类看具体域名。
+ * geosite 数据库面板（只读）：列出全部分类与条目数，点「全部显示」翻页看域名。
  * 数据来自本机 geosite.dat，与 Clash Verge 内核使用同一份文件。
  */
 export const GeoSitePanel = () => {
   const query = useClashVergeGeositeQuery()
   const data = query.data
   const [keyword, setKeyword] = useState("")
-  const [code, setCode] = useState<string | null>(null)
+  const [view, setView] = useState<CategoryView | null>(null)
 
   const needle = keyword.trim().toLowerCase()
   const filtered =
@@ -147,17 +184,22 @@ export const GeoSitePanel = () => {
                   {rows.map((category) => (
                     <TableRow key={category.code}>
                       <TableCell className="min-w-[60px] px-2 py-1 text-left">
+                        {category.code}
+                      </TableCell>
+                      <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground tabular-nums">
+                        {category.count}
+                      </TableCell>
+                      <TableCell className="w-full min-w-[60px] px-2 py-1 text-left">
                         <Button
                           size="sm"
-                          variant="ghost"
-                          aria-label={`查看分类条目：${category.code}`}
-                          onClick={() => setCode(category.code)}
+                          variant="outline"
+                          aria-label={`全部显示：${category.code}`}
+                          onClick={() =>
+                            setView({ code: category.code, offset: 0 })
+                          }
                         >
-                          {category.code}
+                          全部显示
                         </Button>
-                      </TableCell>
-                      <TableCell className="w-full min-w-[60px] px-2 py-1 text-left text-muted-foreground tabular-nums">
-                        {category.count}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -172,7 +214,15 @@ export const GeoSitePanel = () => {
           ) : null}
         </>
       )}
-      <GeositeCategoryDialog code={code} onClose={() => setCode(null)} />
+      <GeositeCategoryDialog
+        view={view}
+        onChangeOffset={(offset) =>
+          setView((current) =>
+            current === null ? null : { ...current, offset }
+          )
+        }
+        onClose={() => setView(null)}
+      />
     </section>
   )
 }

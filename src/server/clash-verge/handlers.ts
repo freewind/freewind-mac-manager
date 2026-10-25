@@ -79,13 +79,19 @@ export const clashVergeRouter = {
   },
   getClashVergeGeositeCategory: async ({
     params,
+    query,
   }: {
     params: { code: string }
+    query: { offset?: number; limit?: number }
   }) => {
     try {
       return {
         status: 200 as const,
-        body: await readClashVergeGeositeCategory(params.code),
+        body: await readClashVergeGeositeCategory(
+          params.code,
+          query.offset,
+          query.limit
+        ),
       }
     } catch (error) {
       return publicSystemError(error)

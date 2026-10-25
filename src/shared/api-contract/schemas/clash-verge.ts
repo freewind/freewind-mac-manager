@@ -216,12 +216,19 @@ export const ClashVergeGeositeDomainSchema = z.object({
   value: z.string(),
 })
 
-/** 单个分类的正文：条目数超过上限时只回前 500 条。 */
+/** 单个分类的正文：按 offset/limit 分页，一页最多 1000 条。 */
 export const ClashVergeGeositeCategoryDetailSchema = z.object({
   code: z.string(),
   total: z.number().int().nonnegative(),
-  truncated: z.boolean(),
-  domains: z.array(ClashVergeGeositeDomainSchema).max(500),
+  /** 本次返回的起始下标（0 起）。 */
+  offset: z.number().int().nonnegative(),
+  domains: z.array(ClashVergeGeositeDomainSchema).max(1000),
+})
+
+/** 分类条目的分页参数：GET 传字符串，交给 zod 转数字。 */
+export const ClashVergeGeositeCategoryQuerySchema = z.object({
+  offset: z.coerce.number().int().min(0).max(200_000).optional(),
+  limit: z.coerce.number().int().min(1).max(1000).optional(),
 })
 
 /** 分类名走路径参数：大小写不敏感，服务端自己查证。 */

@@ -3,6 +3,7 @@ import {
   ClashMergeConfigSchema,
   ClashVergeConnectionsResponseSchema,
   ClashVergeGeositeCategoryDetailSchema,
+  ClashVergeGeositeCategoryQuerySchema,
   ClashVergeGeositeCodeParamsSchema,
   ClashVergeGeositeSchema,
   ClashVergeMergeFileSchema,
@@ -89,6 +90,7 @@ export const clashVergeRoutes = {
     method: "GET",
     path: toContractPath(ApiPath.clashVergeGeositeCategory),
     pathParams: ClashVergeGeositeCodeParamsSchema,
+    query: ClashVergeGeositeCategoryQuerySchema,
     responses: {
       200: ClashVergeGeositeCategoryDetailSchema,
       404: ApiErrorSchema,

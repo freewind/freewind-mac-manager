@@ -91,14 +91,15 @@ export const fetchClashVergeGeosite = async (options?: {
     })
   )
 
-/** 单个分类的域名条目：分类名大小写不敏感。 */
+/** 单个分类的域名条目：分类名大小写不敏感，按 offset/limit 分页。 */
 export const fetchClashVergeGeositeCategory = async (
   code: string,
-  options?: { signal?: AbortSignal }
+  options?: { offset?: number; limit?: number; signal?: AbortSignal }
 ): Promise<ClashVergeGeositeCategoryDetail> =>
   unwrap<ClashVergeGeositeCategoryDetail>(
     await apiClient.getClashVergeGeositeCategory({
       params: { code },
+      query: { offset: options?.offset, limit: options?.limit },
       fetchOptions: options?.signal ? { signal: options.signal } : undefined,
     })
   )
