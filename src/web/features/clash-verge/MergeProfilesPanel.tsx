@@ -85,11 +85,11 @@ export const MergeProfilesPanel = () => {
   const rules = useMemo<GroupRule[]>(
     () =>
       editedRules ?? [
+        FALLBACK_RULE,
         ...(configQuery.data?.rules ?? []).map((rule, index) => ({
           ...rule,
           id: `saved-${index}`,
         })),
-        FALLBACK_RULE,
       ],
     [editedRules, configQuery.data]
   )
@@ -129,13 +129,13 @@ export const MergeProfilesPanel = () => {
   }
 
   const addRule = () => {
-    // 新规则插在兜底行之前，兜底行始终在最后。
+    // 兜底行固定在表头下方第一行，新规则追加到末尾。
     const fixed = rules.filter((rule) => rule.fixed)
     const normal = rules.filter((rule) => !rule.fixed)
     setEditedRules([
+      ...fixed,
       ...normal,
       { id: crypto.randomUUID(), pattern: "", target: "" },
-      ...fixed,
     ])
   }
 
@@ -260,24 +260,6 @@ export const MergeProfilesPanel = () => {
               先在上面勾选订阅，预览才有可匹配的节点
             </p>
           ) : null}
-        </div>
-
-        <div className="space-y-2 rounded-lg border p-3">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <h4 className="text-sm font-medium">待分组节点</h4>
-            <span className="text-xs text-muted-foreground">
-              {`${unmatchedNodes.length} / ${nodeNames.length}`}
-            </span>
-          </div>
-          {unmatchedNodes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {nodeNames.length === 0
-                ? "先在上面勾选订阅"
-                : "选中的节点都已分组"}
-            </p>
-          ) : (
-            <NodeTags nodes={unmatchedNodes} />
-          )}
         </div>
 
         <Table>
