@@ -1066,11 +1066,12 @@ export const mergeClashProfiles = async (
           proxies: group.members,
         })),
         // 两个开关组：默认与写死一致，需要时在面板上一键改道。
-        // 不能互相引用：内核会报 ProxyGroup 环路，所以拒绝组里的「直连」用内置 DIRECT。
+        // 两个组不能互相引用：内核会以 ProxyGroup 环路直接拒绝加载，
+        // 所以彼此那两个选项都用内置的 DIRECT / REJECT 表示。
         {
           name: outlets.direct,
           type: "select",
-          proxies: ["DIRECT", outlets.primary, outlets.reject],
+          proxies: ["DIRECT", outlets.primary, "REJECT"],
         },
         {
           name: outlets.reject,
