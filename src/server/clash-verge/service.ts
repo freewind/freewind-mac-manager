@@ -422,9 +422,27 @@ const remoteProfiles = (items: unknown): RemoteProfileEntry[] => {
 const PROFILE_NODES_LIMIT = 300
 
 /**
+ * 键按名称排序后序列化：同一份配置换行或换键序也认作同一条，
+ * 用于判断两个节点除名字外是否一模一样。
+ */
+const stableKey = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(stableKey).join(",")}]`
+  if (isRecord(value)) {
+    return `{${Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${key}:${stableKey(item)}`)
+      .join(",")}}`
+  }
+  return JSON.stringify(value) ?? "null"
+}
+
+/**
  * 读单个订阅的节点：节点就在 profiles/<file> 的 proxies 里。
  * 文件名来自 profiles.yaml 而非客户端，仍要求是单纯文件名（不含路径分隔符），
  * 避免异常数据把读取路径带出 profiles 目录；读不到按空列表返回，不报错。
+ *
+ * duplicate 在同一订阅内比较：除 name 外全部字段相同即标记，
+ * 机场常把同一条线路写成多个名字。
  */
 const profileNodes = async (
   file: string
@@ -439,19 +457,31 @@ const profileNodes = async (
     return { nodes: [], nodesTruncated: false }
   }
   const proxies = parseYamlRecord(text).proxies
-  const nodes: ClashVergeProfileNode[] = []
+  const entries: { node: ClashVergeProfileNode; key: string }[] = []
   for (const item of Array.isArray(proxies) ? proxies : []) {
     if (!isRecord(item) || typeof item.name !== "string") continue
-    nodes.push({
-      name: item.name,
-      type: typeof item.type === "string" ? item.type : "未知",
-      server: typeof item.server === "string" ? item.server : "",
-      port: typeof item.port === "number" ? item.port : null,
+    const { name: _, ...rest } = item
+    entries.push({
+      node: {
+        name: item.name,
+        type: typeof item.type === "string" ? item.type : "未知",
+        server: typeof item.server === "string" ? item.server : "",
+        port: typeof item.port === "number" ? item.port : null,
+        duplicate: false,
+      },
+      key: stableKey(rest),
     })
   }
+  const counts = new Map<string, number>()
+  for (const entry of entries) {
+    counts.set(entry.key, (counts.get(entry.key) ?? 0) + 1)
+  }
   return {
-    nodes: nodes.slice(0, PROFILE_NODES_LIMIT),
-    nodesTruncated: nodes.length > PROFILE_NODES_LIMIT,
+    nodes: entries.slice(0, PROFILE_NODES_LIMIT).map((entry) => ({
+      ...entry.node,
+      duplicate: (counts.get(entry.key) ?? 0) > 1,
+    })),
+    nodesTruncated: entries.length > PROFILE_NODES_LIMIT,
   }
 }
 

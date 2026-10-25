@@ -103,6 +103,11 @@ export const ClashVergeProfileNodeSchema = z.object({
   type: z.string(),
   server: z.string(),
   port: z.number().int().nullable(),
+  /**
+   * 同一订阅内除名字外配置完全相同的条目（含 uuid、sni、ws 路径等），
+   * 用于识别只改名字的重复节点。
+   */
+  duplicate: z.boolean(),
 })
 
 /**
