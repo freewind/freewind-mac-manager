@@ -6,6 +6,26 @@ import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
 import { useState } from "react"
 import { useClashVergeGeositeQuery } from "./queries"
 
+/**
+ * 要显示的页码：当前页前后各 1 个，加上第一页与最后一页；
+ * 中间不连续的地方用 "gap" 表示省略号。
+ */
+const pageItems = (current: number, total: number): (number | string)[] => {
+  const wanted = new Set<number>([1, total, current - 1, current, current + 1])
+  const pages = [...wanted]
+    .filter((page) => page >= 1 && page <= total)
+    .sort((left, right) => left - right)
+  const items: (number | string)[] = []
+  let previous = 0
+  for (const page of pages) {
+    // 省略号以左边那一页命名，兼作 React key。
+    if (previous !== 0 && page - previous > 1) items.push(`gap-${previous}`)
+    items.push(page)
+    previous = page
+  }
+  return items
+}
+
 /** 分页大小：数据一次性拿到前端，只是展示时分页。 */
 const PAGE_SIZE = 100
 
@@ -129,19 +149,25 @@ export const GeoSitePanel = () => {
               >
                 上一页
               </Button>
-              {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-                (pageNumber) => (
-                  <Button
-                    key={pageNumber}
-                    size="sm"
-                    variant={pageNumber === currentPage ? "default" : "outline"}
-                    aria-label={`第 ${pageNumber} 页`}
-                    aria-current={
-                      pageNumber === currentPage ? "page" : undefined
-                    }
-                    onClick={() => setPage(pageNumber)}
+              {pageItems(currentPage, totalPages).map((item) =>
+                typeof item === "string" ? (
+                  <span
+                    key={item}
+                    aria-hidden="true"
+                    className="px-1 text-xs text-muted-foreground"
                   >
-                    {pageNumber}
+                    …
+                  </span>
+                ) : (
+                  <Button
+                    key={item}
+                    size="sm"
+                    variant={item === currentPage ? "default" : "outline"}
+                    aria-label={`第 ${item} 页`}
+                    aria-current={item === currentPage ? "page" : undefined}
+                    onClick={() => setPage(item)}
+                  >
+                    {item}
                   </Button>
                 )
               )}
