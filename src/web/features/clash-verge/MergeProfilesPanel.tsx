@@ -38,6 +38,11 @@ import {
 } from "@web/components/ui/dialog"
 import { Input } from "@web/components/ui/input"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@web/components/ui/popover"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -52,7 +57,7 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { GripVertical, Lock } from "lucide-react"
+import { CircleHelp, GripVertical, Lock } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
@@ -744,7 +749,56 @@ export const MergeProfilesPanel = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[140px]">类型</TableHead>
+                <TableHead className="min-w-[140px]">
+                  <span className="flex items-center gap-1">
+                    类型
+                    <Popover>
+                      <PopoverTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label="说明三种规则类型的区别"
+                          >
+                            <CircleHelp aria-hidden="true" />
+                          </Button>
+                        }
+                      />
+                      <PopoverContent className="w-80 text-xs">
+                        <ul className="space-y-2">
+                          <li>
+                            <span className="font-mono">DOMAIN</span>
+                            ：只匹配这个域名本身，不含子域名。例：
+                            <span className="font-mono">
+                              DOMAIN,example.com
+                            </span>
+                            不匹配
+                            <span className="font-mono">a.example.com</span>
+                          </li>
+                          <li>
+                            <span className="font-mono">DOMAIN-SUFFIX</span>
+                            ：匹配这个域名及其所有子域名。例：
+                            <span className="font-mono">
+                              DOMAIN-SUFFIX,example.com
+                            </span>
+                            同时匹配
+                            <span className="font-mono">a.example.com</span>、
+                            <span className="font-mono">a.b.example.com</span>
+                          </li>
+                          <li>
+                            <span className="font-mono">DOMAIN-KEYWORD</span>
+                            ：域名里包含这个词就命中。例：
+                            <span className="font-mono">
+                              DOMAIN-KEYWORD,ads
+                            </span>
+                            匹配<span className="font-mono">ads.foo.com</span>、
+                            <span className="font-mono">my-ads-bar.net</span>
+                          </li>
+                        </ul>
+                      </PopoverContent>
+                    </Popover>
+                  </span>
+                </TableHead>
                 <TableHead className="w-full min-w-[160px]">值</TableHead>
                 <TableHead className="min-w-[120px]">出口</TableHead>
                 <TableHead className="min-w-[60px]">
