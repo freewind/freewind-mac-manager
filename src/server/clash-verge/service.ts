@@ -1001,8 +1001,7 @@ const uniqueNodeName = (name: string, used: Set<string>): string => {
 /**
  * 解析基座模板：必须是 YAML 对象，语法错要直接报出原因。
  *
- * proxies 与 proxy-groups 由页面根据勾选的订阅生成，模板里的同名键一律忽略，
- * 否则同一个键会同时来自两处，实际生效哪个根本说不清。
+ * proxies 与 proxy-groups 只是占位：保留键的位置，值在组装时被页面生成的内容替换。
  */
 const parseMergeTemplate = (
   text: string
@@ -1017,9 +1016,7 @@ const parseMergeTemplate = (
   if (!isRecord(document)) {
     throw new PublicOperationError(400, "基座模板必须是一个 YAML 对象")
   }
-  const { proxies, "proxy-groups": proxyGroups, rules, ...base } = document
-  void proxies
-  void proxyGroups
+  const { rules, ...base } = document
   return {
     base,
     rules: (Array.isArray(rules) ? rules : []).filter(
@@ -1257,48 +1254,55 @@ export const mergeClashProfiles = async (
     rules.push(`MATCH,${outlets.primary}`)
   }
 
-  const mergedText = toYaml(
+  // 页面生成的两块：模板里写了对应键就按它的位置填充，没写就追加到末尾。
+  const proxyGroups = [
     {
-      // 模板在前，页面生成的四块在后覆盖它：proxies、proxy-groups、rules
-      // 都在模板解析时被剔除，所以这里叠加不会出现双份。
-      ...template.base,
-      proxies,
-      "proxy-groups": [
-        {
-          name: outlets.primary,
-          type: "select",
-          proxies: groups.map((group) => group.name),
-        },
-        // 地区组按用户选的类型生成：非 select 的要带测速参数，否则内核用自身默认值。
-        ...groups.map((group) => ({
-          name: group.name,
-          type: group.type,
-          ...(group.type === "select"
-            ? {}
-            : { url: healthCheck.url, interval: healthCheck.interval }),
-          ...(group.type === "url-test"
-            ? { tolerance: MERGED_URL_TEST_TOLERANCE }
-            : {}),
-          proxies: group.members,
-        })),
-        // 两个开关组：默认与写死一致，需要时在面板上一键改道。
-        // 两个组不能互相引用：内核会以 ProxyGroup 环路直接拒绝加载，
-        // 所以彼此那两个选项都用内置的 DIRECT / REJECT 表示。
-        {
-          name: outlets.direct,
-          type: "select",
-          proxies: ["DIRECT", outlets.primary, "REJECT"],
-        },
-        {
-          name: outlets.reject,
-          type: "select",
-          proxies: ["REJECT", "DIRECT", outlets.primary],
-        },
-      ],
-      rules,
+      name: outlets.primary,
+      type: "select",
+      proxies: groups.map((group) => group.name),
     },
-    { lineWidth: 0 }
-  )
+    // 地区组按用户选的类型生成：非 select 的要带测速参数，否则内核用自身默认值。
+    ...groups.map((group) => ({
+      name: group.name,
+      type: group.type,
+      ...(group.type === "select"
+        ? {}
+        : { url: healthCheck.url, interval: healthCheck.interval }),
+      ...(group.type === "url-test"
+        ? { tolerance: MERGED_URL_TEST_TOLERANCE }
+        : {}),
+      proxies: group.members,
+    })),
+    // 两个开关组：默认与写死一致，需要时在面板上一键改道。
+    // 两个组不能互相引用：内核会以 ProxyGroup 环路直接拒绝加载，
+    // 所以彼此那两个选项都用内置的 DIRECT / REJECT 表示。
+    {
+      name: outlets.direct,
+      type: "select",
+      proxies: ["DIRECT", outlets.primary, "REJECT"],
+    },
+    {
+      name: outlets.reject,
+      type: "select",
+      proxies: ["REJECT", "DIRECT", outlets.primary],
+    },
+  ]
+
+  /**
+   * 按模板的键顺序组装：模板里写到的 proxies / proxy-groups 就填在它原来的位置，
+   * 这样模板上看到的占位位置与产物一致；没写就追加在末尾。
+   */
+  const merged: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(template.base)) {
+    if (key === "proxies") merged.proxies = proxies
+    else if (key === "proxy-groups") merged["proxy-groups"] = proxyGroups
+    else merged[key] = value
+  }
+  merged.proxies ??= proxies
+  merged["proxy-groups"] ??= proxyGroups
+  merged.rules = rules
+
+  const mergedText = toYaml(merged, { lineWidth: 0 })
   await writeFileAtomic(
     path.join(CLASH_VERGE_PROFILE_DIR, MERGED_FILE),
     mergedText

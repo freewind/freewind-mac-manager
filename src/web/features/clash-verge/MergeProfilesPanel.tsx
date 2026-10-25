@@ -1228,10 +1228,9 @@ export const MergeProfilesPanel = () => {
           <div>
             <h3 className="text-sm font-medium">基座模板</h3>
             <p className="text-xs text-muted-foreground">
-              合并产物里所有手写配置都来自这里：mode、dns、sniffer、geodata
-              等固定项都在模板里改。订阅只提供节点，proxies 与 proxy-groups
-              由页面生成（模板里写了也会被忽略）；模板里的 rules
-              会拼在我们生成的规则之后、MATCH 之前运行
+              合并产物以这里为底：proxies 与 proxy-groups 两行是占位标记，
+              保持空数组即可，合并时会就地换成勾选的节点与分组；模板里的 rules
+              会拼在页面生成的规则（自定义 → GEO → 固定三条）之后
             </p>
           </div>
           {editingTemplate ? (
