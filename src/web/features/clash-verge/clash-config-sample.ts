@@ -17,12 +17,14 @@ mixed-port: 7890
 port: 7891
 # 纯 SOCKS5 端口，同上。
 socks-port: 7892
-# 是否接受来自局域网其他设备的连接。false 时只有本机能连。
-# 注意：这一项管「接不接受外部来连」，下面的 bind-address 管「监听在哪个地址」。
+# 是否接受来自局域网其他设备的连接。false 时内核只监听回环，别人连不上。
+# 这就是「本机代理不外传」的全部开关，不需要再写 bind-address。
 allow-lan: false
-# 监听的地址：* 或 0.0.0.0 表示所有网卡，127.0.0.1 表示只监听回环。
-# 只有 allow-lan: true 时它才起作用；两项都要改，手机才连得上本机代理。
-bind-address: 127.0.0.1
+# 绑定地址（不需要就别写）：
+#   不写 = 所有网卡；127.0.0.1 = 只绑回环（效果同 allow-lan: false）；
+#   192.168.1.10 = 只绑这块网卡，多网卡机器想让手机只从 Wi-Fi 进来时用它。
+# 它只有在 allow-lan: true 时才有意义；allow-lan: false 时写了也被忽略。
+# bind-address: 127.0.0.1
 # 运行模式：rule 按规则分流 / global 全部走代理 / direct 全部直连。
 mode: rule
 # 日志级别：silent / error / warning / info / debug。
