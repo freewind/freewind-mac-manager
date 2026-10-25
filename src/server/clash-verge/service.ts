@@ -441,8 +441,8 @@ const stableKey = (value: unknown): string => {
  * 文件名来自 profiles.yaml 而非客户端，仍要求是单纯文件名（不含路径分隔符），
  * 避免异常数据把读取路径带出 profiles 目录；读不到按空列表返回，不报错。
  *
- * duplicate 在同一订阅内比较：除 name 外全部字段相同即标记，
- * 机场常把同一条线路写成多个名字。
+ * duplicateOf 指向同配置首次出现的序号（1 起）：机场常把同一条线路
+ * 写成多个名字，只让后出现的那几条标注重复，第一条保持干净。
  */
 const profileNodes = async (
   file: string
@@ -467,20 +467,19 @@ const profileNodes = async (
         type: typeof item.type === "string" ? item.type : "未知",
         server: typeof item.server === "string" ? item.server : "",
         port: typeof item.port === "number" ? item.port : null,
-        duplicate: false,
+        duplicateOf: null,
       },
       key: stableKey(rest),
     })
   }
-  const counts = new Map<string, number>()
-  for (const entry of entries) {
-    counts.set(entry.key, (counts.get(entry.key) ?? 0) + 1)
-  }
+  const firstSeen = new Map<string, number>()
+  const nodes = entries.slice(0, PROFILE_NODES_LIMIT).map((entry, position) => {
+    const first = firstSeen.get(entry.key)
+    if (first === undefined) firstSeen.set(entry.key, position + 1)
+    return { ...entry.node, duplicateOf: first ?? null }
+  })
   return {
-    nodes: entries.slice(0, PROFILE_NODES_LIMIT).map((entry) => ({
-      ...entry.node,
-      duplicate: (counts.get(entry.key) ?? 0) > 1,
-    })),
+    nodes,
     nodesTruncated: entries.length > PROFILE_NODES_LIMIT,
   }
 }

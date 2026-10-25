@@ -129,7 +129,9 @@ export const ProfilesPanel = () => {
                                     {node.name}
                                   </TableCell>
                                   <TableCell className="px-2 py-1 text-left text-muted-foreground">
-                                    {node.duplicate ? "重复" : ""}
+                                    {node.duplicateOf === null
+                                      ? ""
+                                      : `重复(${node.duplicateOf})`}
                                   </TableCell>
                                   <TableCell className="px-2 py-1 text-left text-muted-foreground">
                                     {node.type}
