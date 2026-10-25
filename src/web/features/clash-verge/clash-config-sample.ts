@@ -49,7 +49,8 @@ external-controller-cors:
 listeners:
   - name: lan-mixed
     type: mixed
-    # 只绑这一块网卡，其他网卡上的设备连不进来。
+    # 只绑这一块网卡；换成具体局域网 IP 时，回环（127.0.0.1）就连不上了，
+    # 本机客户端也得改成那个 IP。想两边都通，就再开一个听回环的入站。
     listen: 127.0.0.1
     port: 7893
     # 是否转发 UDP（游戏、QUIC 需要）。
