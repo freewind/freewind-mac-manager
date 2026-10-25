@@ -222,12 +222,18 @@ export const SaveClashMergeConfigBodySchema = z.object({
   customRules: z.array(CustomRuleSchema).max(200).default([]),
 })
 
-/** geosite 数据库里的单个分类：名字、条目数与前面一段域名（页面直接列成标签）。 */
+/** geosite 里的单个域名：类型与值，类型对应内核的 Plain/RootDomain/Full/Regex。 */
+export const ClashVergeGeositeDomainSchema = z.object({
+  type: z.enum(["plain", "rootdomain", "full", "regex"]),
+  value: z.string(),
+})
+
+/** geosite 数据库里的单个分类：名字、条目数与前面一段域名（带类型）。 */
 export const ClashVergeGeositeCategorySchema = z.object({
   code: z.string(),
   count: z.number().int().nonnegative(),
   /** 该分类的前若干条域名，数量受上限控制，不足的部分由 count 体现。 */
-  preview: z.array(z.string()).max(100),
+  preview: z.array(ClashVergeGeositeDomainSchema).max(100),
 })
 
 /** geosite 数据库概览：文件信息 + 全部分类名、条目数与域名预览。 */

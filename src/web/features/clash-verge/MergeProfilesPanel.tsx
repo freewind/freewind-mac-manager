@@ -84,8 +84,12 @@ type GeositeTarget = GeositeRule["target"]
 /** 一行 GEO 分流：分类名 + 出口，id 只用于 React key。 */
 type GeositeRow = GeositeRule & { id: string }
 
-/** 下拉里的分类选项：名字 + 条目数 + 前若干条域名。 */
-type GeositeOption = { code: string; count: number; preview: string[] }
+/** 下拉里的分类选项：名字 + 条目数 + 前若干条域名（带类型）。 */
+type GeositeOption = {
+  code: string
+  count: number
+  preview: { type: string; value: string }[]
+}
 
 const GEOSITE_TARGET_LABELS: Record<GeositeTarget, string> = {
   proxy: "走代理",
@@ -124,7 +128,12 @@ const CategoryCountCell = (props: {
         </p>
         <ul className="space-y-1 font-mono break-all">
           {first.map((domain) => (
-            <li key={domain}>{domain}</li>
+            <li key={`${domain.type}-${domain.value}`}>
+              <span className="mr-1 text-[10px] text-muted-foreground">
+                {DOMAIN_TYPE_LABEL[domain.type] ?? domain.type}
+              </span>
+              {domain.value}
+            </li>
           ))}
         </ul>
       </PopoverContent>
@@ -239,6 +248,14 @@ const matchNodes = (pattern: string, nodeNames: string[]): string[] => {
     return []
   }
   return nodeNames.filter((node) => regex.exec(node) !== null)
+}
+
+/** protobuf 里的类型：页面显示中文，免得看不懂 plain / rootdomain。 */
+const DOMAIN_TYPE_LABEL: Record<string, string> = {
+  plain: "域名",
+  rootdomain: "根域",
+  full: "全匹配",
+  regex: "正则",
 }
 
 /** 一行能放下的节点标签个数：超过就收进「全部」弹窗。 */

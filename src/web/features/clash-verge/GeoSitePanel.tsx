@@ -29,6 +29,14 @@ const pageItems = (current: number, total: number): (number | string)[] => {
 /** 分页大小：数据一次性拿到前端，只是展示时分页。 */
 const PAGE_SIZE = 100
 
+/** protobuf 里的类型：页面显示中文，免得看不懂 plain / rootdomain。 */
+const DOMAIN_TYPE_LABEL: Record<string, string> = {
+  plain: "域名",
+  rootdomain: "根域",
+  full: "全匹配",
+  regex: "正则",
+}
+
 const bytesText = (bytes: number): string =>
   bytes < 1024 * 1024
     ? `${(bytes / 1024).toFixed(1)} KB`
@@ -121,10 +129,13 @@ export const GeoSitePanel = () => {
                         <span className="flex flex-wrap gap-1">
                           {category.preview.map((domain) => (
                             <span
-                              key={domain}
-                              className="inline-flex max-w-full items-center rounded-md border px-1.5 py-0.5 text-xs break-all"
+                              key={`${domain.type}-${domain.value}`}
+                              className="inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs break-all"
                             >
-                              {domain}
+                              <span className="shrink-0 text-[10px] text-muted-foreground">
+                                {DOMAIN_TYPE_LABEL[domain.type] ?? domain.type}
+                              </span>
+                              {domain.value}
                             </span>
                           ))}
                           {category.count > category.preview.length ? (

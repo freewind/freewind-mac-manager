@@ -729,7 +729,7 @@ export const readClashVergeGeosite = async (): Promise<ClashVergeGeosite> => {
       count: category.domains.length,
       preview: category.domains
         .slice(0, GEOSITE_PREVIEW_LIMIT)
-        .map((domain) => domain.value),
+        .map((domain) => ({ type: domain.type, value: domain.value })),
     })),
   }
 }
