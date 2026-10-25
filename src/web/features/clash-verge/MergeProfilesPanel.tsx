@@ -84,8 +84,8 @@ type GeositeTarget = GeositeRule["target"]
 /** 一行 GEO 分流：分类名 + 出口，id 只用于 React key。 */
 type GeositeRow = GeositeRule & { id: string }
 
-/** 下拉里的分类选项：名字 + 条目数。 */
-type GeositeOption = { code: string; count: number }
+/** 下拉里的分类选项：名字 + 条目数 + 前若干条域名。 */
+type GeositeOption = { code: string; count: number; preview: string[] }
 
 const GEOSITE_TARGET_LABELS: Record<GeositeTarget, string> = {
   proxy: "走代理",
@@ -94,12 +94,51 @@ const GEOSITE_TARGET_LABELS: Record<GeositeTarget, string> = {
 }
 
 /**
+ * 个数单元格：点开看该分类前 10 个域名，用来判断里面究竟是什么。
+ * 没有预览数据时退化成纯文本，不弹空窗。
+ */
+const CategoryCountCell = (props: {
+  code: string
+  option: GeositeOption | undefined
+}) => {
+  const preview = props.option?.preview ?? []
+  if (props.option === undefined) return <>—</>
+  if (preview.length === 0) return <>{props.option.count}</>
+  const first = preview.slice(0, 10)
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="xs"
+            aria-label={`查看 ${props.code} 的前几个域名`}
+          >
+            {props.option.count}
+          </Button>
+        }
+      />
+      <PopoverContent className="w-80 text-xs">
+        <p className="mb-1 text-muted-foreground">
+          {`${props.code} 的前 ${first.length} 个域名（共 ${props.option.count} 条）`}
+        </p>
+        <ul className="space-y-1 font-mono break-all">
+          {first.map((domain) => (
+            <li key={domain}>{domain}</li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
  * GEO 分流行：把手在左，可以上下拖动调整顺序；顺序就是规则生效顺序。
  * 只用原生 button 做把手：拖拽需要原生 pointer 事件，交给自己控制更直接。
  */
 const SortableGeositeRow = (props: {
   rule: GeositeRow
-  count: number
+  option: GeositeOption | undefined
   onChangeTarget: (target: GeositeTarget) => void
   onRemove: () => void
 }) => {
@@ -136,7 +175,7 @@ const SortableGeositeRow = (props: {
       </TableCell>
       <TableCell className="text-left">{props.rule.code}</TableCell>
       <TableCell className="text-left text-muted-foreground tabular-nums">
-        {props.count}
+        <CategoryCountCell code={props.rule.code} option={props.option} />
       </TableCell>
       <TableCell className="text-left">
         <Select
@@ -961,10 +1000,9 @@ export const MergeProfilesPanel = () => {
                     <SortableGeositeRow
                       key={rule.id}
                       rule={rule}
-                      count={
-                        geositeOptions.find((item) => item.code === rule.code)
-                          ?.count ?? 0
-                      }
+                      option={geositeOptions.find(
+                        (item) => item.code === rule.code
+                      )}
                       onChangeTarget={(target) =>
                         updateGeositeTarget(rule.id, target)
                       }
@@ -994,7 +1032,7 @@ export const MergeProfilesPanel = () => {
                     </TableCell>
                     <TableCell className="text-left">{rule.code}</TableCell>
                     <TableCell className="text-left text-muted-foreground tabular-nums">
-                      {info?.count ?? "—"}
+                      <CategoryCountCell code={rule.code} option={info} />
                     </TableCell>
                     <TableCell className="text-left">
                       {GEOSITE_TARGET_LABELS[rule.target]}
