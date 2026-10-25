@@ -778,6 +778,10 @@ const MERGED_NAME = "freewind-merged"
 const MERGED_FALLBACK_GROUP = "其他"
 /** 规则出口统一指向的总组：在它里可再选具体地区组。 */
 const MERGED_PRIMARY_GROUP = "节点选择"
+/** 直连开关组：默认 DIRECT，可切到总组或拦截。 */
+const MERGED_DIRECT_GROUP = "直连"
+/** 拦截开关组：默认 REJECT，可切到直接直连或总组。 */
+const MERGED_REJECT_GROUP = "拒绝"
 /**
  * 从第一个订阅继承的字段：目前只带 rules 依赖的 rule-providers。
  * dns、端口、控制接口、TUN 这些都还没定，且端口类由 Clash Verge 自己生成。
@@ -802,15 +806,22 @@ const specialOutletOf = (members: string[]): string | null => {
   return [...kinds][0] ?? null
 }
 
+/** 合并后出口可用的固定名字，撞名时会带后缀。 */
+type MergedOutlets = {
+  primary: string
+  direct: string
+  reject: string
+}
+
 /**
- * 把规则里指向原订阅组的出口换成本次的总组。
+ * 把规则里指向原订阅组的出口换成合并后的出口。
  * 出口位置固定：MATCH / FINAL 在第 2 段，其余规则在第 3 段；
  * 后面的 no-resolve、resolve 是参数，不得当成出口。
  */
 const rewriteRuleGroup = (
   rule: string,
   originalGroups: Map<string, string[]>,
-  target: string
+  outlets: MergedOutlets
 ): string => {
   const parts = rule.split(",")
   const head = parts[0].trim().toUpperCase()
@@ -818,9 +829,26 @@ const rewriteRuleGroup = (
   if (parts.length <= outletIndex) return rule
   const outlet = parts[outletIndex].trim()
   const members = originalGroups.get(outlet)
-  if (members === undefined) return rule
-  parts[outletIndex] = specialOutletOf(members) ?? target
-  return parts.join(",")
+  // 原订阅里的组：按成员性质归到总组或两个开关组。
+  if (members !== undefined) {
+    const special = specialOutletOf(members)
+    if (special === "DIRECT") parts[outletIndex] = outlets.direct
+    else if (special === "REJECT") parts[outletIndex] = outlets.reject
+    else if (special === "PASS") return rule
+    else parts[outletIndex] = outlets.primary
+    return parts.join(",")
+  }
+  // 本来就是内置目标的，也接到开关组上，才能一键改道。
+  const upper = outlet.toUpperCase()
+  if (upper === "DIRECT") {
+    parts[outletIndex] = outlets.direct
+    return parts.join(",")
+  }
+  if (upper === "REJECT") {
+    parts[outletIndex] = outlets.reject
+    return parts.join(",")
+  }
+  return rule
 }
 
 /** 节点名必须唯一：重名时依次加 -2、-3 后缀。 */
@@ -988,9 +1016,24 @@ export const mergeClashProfiles = async (
     throw new PublicOperationError(400, "所有规则都没命中节点，未生成配置")
   }
 
-  const primaryGroup = groupIndex.has(MERGED_PRIMARY_GROUP)
-    ? `${MERGED_PRIMARY_GROUP}-合并`
-    : MERGED_PRIMARY_GROUP
+  // 三个固定组名都可能与地区组撞名，撞上就加后缀，规则跟着用新名。
+  const takenNames = new Set(groups.map((group) => group.name))
+  const uniqueGroupName = (base: string): string => {
+    if (!takenNames.has(base)) {
+      takenNames.add(base)
+      return base
+    }
+    let index = 2
+    while (takenNames.has(`${base}-${index}`)) index += 1
+    const name = `${base}-${index}`
+    takenNames.add(name)
+    return name
+  }
+  const outlets: MergedOutlets = {
+    primary: uniqueGroupName(MERGED_PRIMARY_GROUP),
+    direct: uniqueGroupName(MERGED_DIRECT_GROUP),
+    reject: uniqueGroupName(MERGED_REJECT_GROUP),
+  }
 
   // 继承第一个订阅的通用字段与分流规则（rule-providers 等靠它才完整）。
   const inherited: Record<string, unknown> = {}
@@ -1001,10 +1044,10 @@ export const mergeClashProfiles = async (
   const rawRules = baseDocument === null ? undefined : baseDocument.rules
   const rules = (Array.isArray(rawRules) ? rawRules : [])
     .filter((rule): rule is string => typeof rule === "string")
-    .map((rule) => rewriteRuleGroup(rule, originalGroups, primaryGroup))
+    .map((rule) => rewriteRuleGroup(rule, originalGroups, outlets))
   // 没有 MATCH 收尾就补一条，否则最后一段流量会落到不存在的组。
   if (!rules.some((rule) => rule.startsWith("MATCH"))) {
-    rules.push(`MATCH,${primaryGroup}`)
+    rules.push(`MATCH,${outlets.primary}`)
   }
 
   const mergedText = toYaml(
@@ -1013,7 +1056,7 @@ export const mergeClashProfiles = async (
       proxies,
       "proxy-groups": [
         {
-          name: primaryGroup,
+          name: outlets.primary,
           type: "select",
           proxies: groups.map((group) => group.name),
         },
@@ -1022,6 +1065,18 @@ export const mergeClashProfiles = async (
           type: "select",
           proxies: group.members,
         })),
+        // 两个开关组：默认与写死一致，需要时在面板上一键改道。
+        // 不能互相引用：内核会报 ProxyGroup 环路，所以拒绝组里的「直连」用内置 DIRECT。
+        {
+          name: outlets.direct,
+          type: "select",
+          proxies: ["DIRECT", outlets.primary, outlets.reject],
+        },
+        {
+          name: outlets.reject,
+          type: "select",
+          proxies: ["REJECT", "DIRECT", outlets.primary],
+        },
       ],
       rules,
     },
