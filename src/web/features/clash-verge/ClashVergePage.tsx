@@ -5,10 +5,12 @@ import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { RefreshCw } from "lucide-react"
 import { ConfigDetailPanel } from "./ConfigDetailPanel"
 import { ConnectionsList } from "./ConnectionsList"
+import { CurrentProfileCard } from "./CurrentProfileCard"
 import { GeoSitePanel } from "./GeoSitePanel"
 import { MergeProfilesPanel } from "./MergeProfilesPanel"
 import { ProfilesPanel } from "./ProfilesPanel"
 import { ProxyGroups } from "./ProxyGroups"
+import { SelectedGroupsCard } from "./SelectedGroupsCard"
 import { StatusCards } from "./StatusCards"
 import { CLASH_TABS, type ClashTab, useClashTab } from "./useClashTab"
 import { useClashVerge } from "./useClashVerge"
@@ -84,15 +86,16 @@ export const ClashVergePage = () => {
               </p>
             ) : null}
             <StatusCards status={model.status} />
-            {model.status?.sampledAt ? (
-              <p className="-mt-4 text-xs text-muted-foreground">
-                状态采集于{" "}
-                {new Date(model.status.sampledAt).toLocaleTimeString()}
-                {model.status.availability.state !== "available"
-                  ? " · 状态不可用，数据可能过期"
-                  : ""}
-              </p>
-            ) : null}
+            <div className="grid gap-3 lg:grid-cols-2">
+              <CurrentProfileCard
+                profiles={model.profiles}
+                isError={model.profilesQueryIsError}
+              />
+              <SelectedGroupsCard
+                proxies={model.proxies}
+                isError={model.proxiesQueryIsError}
+              />
+            </div>
           </div>
         ) : null}
         {tab === "profiles" ? <ProfilesPanel /> : null}

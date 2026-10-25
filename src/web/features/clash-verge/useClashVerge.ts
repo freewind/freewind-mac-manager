@@ -23,10 +23,13 @@ export const useClashVerge = () => {
     status: status.data,
     proxies: proxies.data,
     connections: connections.data,
+    profiles: profiles.data,
     isLoading: status.isLoading || proxies.isLoading || connections.isLoading,
     isFetching:
       status.isFetching || proxies.isFetching || connections.isFetching,
     statusQueryIsError: status.isError,
+    proxiesQueryIsError: proxies.isError,
+    profilesQueryIsError: profiles.isError,
     refresh,
   }
 }
