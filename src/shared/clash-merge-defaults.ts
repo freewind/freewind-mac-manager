@@ -55,8 +55,9 @@ profile:
   store-selected: true
   store-fake-ip: true
 geodata-mode: true
-geo-auto-update: true
-geo-update-interval: 24
+# geo 数据交给 Clash Verge 自己管理：内核从 GitHub 拉在境内经常失败，
+# 每天白跑一次还可能在失败后把本地数据折腾成一半。
+geo-auto-update: false
 dns:
   enable: true
   ipv6: false
@@ -69,11 +70,38 @@ dns:
   nameserver:
     - https://dns.alidns.com/dns-query
     - https://doh.pub/dns-query
-  # 节点服务器的域名用国内纯 IP 解析：没这一条时内核会走下面那套 fallback，
+  # 节点服务器的域名用国内纯 IP 解析：没这一条时内核会走 fallback 那套，
   # 而境外 DoH 在境内会被 reset，结果是所有节点都连不上（表现为全部测速超时）。
   proxy-server-nameserver:
     - 223.5.5.5
     - 119.29.29.29
+  # 这些域名不要假 IP：局域网设备、时间同步、系统联网探测、
+  # 语音与游戏加速都靠真实解析，被 fake-ip 接管后直接不可用。
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "*.localdomain"
+    - "*.localhost"
+    - "*.home.arpa"
+    - "*.test"
+    - "time.*.com"
+    - "time.*.gov"
+    - "time.*.apple.com"
+    - "time.windows.com"
+    - "ntp.*.com"
+    - "+.pool.ntp.org"
+    - "*.msftconnecttest.com"
+    - "*.msftncsi.com"
+    - "captive.apple.com"
+    - "connectivitycheck.gstatic.com"
+    - "localhost.ptlogin2.qq.com"
+    - "stun.*.*"
+    - "stun.*.*.*"
+    - "+.stun.*.*"
+    - "+.stun.playstation.net"
+    - "xbox.*.*.microsoft.com"
+    - "*.*.xboxlive.com"
+    - "*.srv.nintendo.net"
 
 # ===== 页面生成：勾选订阅的全部节点（内容会被替换，位置保留）=====
 proxies: []
@@ -86,6 +114,13 @@ sniffer:
   force-dns-mapping: true
   override-destination: true
   parse-pure-ip: true
+  # 这些流量不要嗅探：米家、Apple 推送与 STUN 语音链路对 TLS 嗅探敏感，
+  # 嗅探后重写目标会变成推送变慢、语音连不上。
+  skip-domain:
+    - "Mijia Cloud"
+    - "+.push.apple.com"
+    - "+.apple.com"
+    - "+.stun.*.*"
   sniff:
     TLS:
       ports: ["1-65535"]
