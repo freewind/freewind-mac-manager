@@ -442,6 +442,25 @@ const stableKey = (value: unknown): string => {
   return JSON.stringify(value) ?? "null"
 }
 
+/** 订阅自带的代理组：成员只保留真实节点名，嵌套的组名丢掉。 */
+const profileGroups = (
+  document: Record<string, unknown>,
+  nodeNames: Set<string>
+): { name: string; members: string[] }[] => {
+  const raw = document["proxy-groups"]
+  const groups: { name: string; members: string[] }[] = []
+  for (const item of Array.isArray(raw) ? raw : []) {
+    if (!isRecord(item) || typeof item.name !== "string") continue
+    const members = (Array.isArray(item.proxies) ? item.proxies : []).filter(
+      (member): member is string =>
+        typeof member === "string" && nodeNames.has(member)
+    )
+    if (members.length === 0) continue
+    groups.push({ name: item.name, members })
+  }
+  return groups
+}
+
 /**
  * 读单个订阅的节点：节点就在 profiles/<file> 的 proxies 里。
  * 文件名来自 profiles.yaml 而非客户端，仍要求是单纯文件名（不含路径分隔符），
@@ -452,17 +471,22 @@ const stableKey = (value: unknown): string => {
  */
 const profileNodes = async (
   file: string
-): Promise<{ nodes: ClashVergeProfileNode[]; nodesTruncated: boolean }> => {
+): Promise<{
+  nodes: ClashVergeProfileNode[]
+  nodesTruncated: boolean
+  groups: { name: string; members: string[] }[]
+}> => {
   if (file === "" || path.basename(file) !== file) {
-    return { nodes: [], nodesTruncated: false }
+    return { nodes: [], nodesTruncated: false, groups: [] }
   }
   let text: string
   try {
     text = await readFile(path.join(CLASH_VERGE_PROFILE_DIR, file), "utf8")
   } catch {
-    return { nodes: [], nodesTruncated: false }
+    return { nodes: [], nodesTruncated: false, groups: [] }
   }
   const proxies = parseYamlRecord(text).proxies
+  const document = parseYamlRecord(text)
   const entries: { node: ClashVergeProfileNode; key: string }[] = []
   for (const item of Array.isArray(proxies) ? proxies : []) {
     if (!isRecord(item) || typeof item.name !== "string") continue
@@ -487,6 +511,7 @@ const profileNodes = async (
   return {
     nodes,
     nodesTruncated: entries.length > PROFILE_NODES_LIMIT,
+    groups: profileGroups(document, new Set(nodes.map((node) => node.name))),
   }
 }
 

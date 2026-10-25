@@ -111,6 +111,15 @@ export const ClashVergeProfileNodeSchema = z.object({
 })
 
 /**
+ * 订阅里的代理组：成员只保留真实节点名（嵌套的组名不算），
+ * 用于在节点列表里展示层级。
+ */
+export const ClashVergeProfileGroupSchema = z.object({
+  name: z.string(),
+  members: z.array(z.string()).max(1000),
+})
+
+/**
  * 订阅清单条目：Clash Verge 的 profiles.yaml 里 type 为 remote 的记录。
  * 只读回显，不含编辑与切换能力；url 原样返回，由调用方决定展示方式。
  */
@@ -124,6 +133,8 @@ export const ClashVergeProfileSchema = z.object({
   nodes: z.array(ClashVergeProfileNodeSchema).max(300),
   /** 节点数超过上限时只回前 300 条，这里标出是否被截断。 */
   nodesTruncated: z.boolean(),
+  /** 订阅自带的代理组；没有组时前端直接平铺节点。 */
+  groups: z.array(ClashVergeProfileGroupSchema).max(100),
 })
 
 export const ClashVergeProfilesResponseSchema = z.object({

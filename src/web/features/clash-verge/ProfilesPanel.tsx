@@ -33,6 +33,33 @@ const endpointOf = (server: string, port: number | null): string => {
   return port === null ? server : `${server}:${port}`
 }
 
+/** 节点表格：规则列宽统一，最后一列占满剩余。 */
+const NodeTable = (props: { nodes: ClashVergeProfile["nodes"] }) => (
+  <Table>
+    <TableBody>
+      {props.nodes.map((node, index) => (
+        <TableRow key={`${node.name}-${node.server}`}>
+          <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground">
+            {index + 1}
+          </TableCell>
+          <TableCell className="min-w-[60px] px-2 py-1 text-left">
+            {node.name}
+          </TableCell>
+          <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground">
+            {node.duplicateOf === null ? "" : `重复(${node.duplicateOf})`}
+          </TableCell>
+          <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground">
+            {node.type}
+          </TableCell>
+          <TableCell className="w-full min-w-[60px] max-w-0 truncate px-2 py-1 text-left text-muted-foreground">
+            {endpointOf(node.server, node.port)}
+          </TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+)
+
 /**
  * 订阅链接面板（只读）。
  *
@@ -175,34 +202,44 @@ export const ProfilesPanel = () => {
                         <p className="mt-2 text-xs text-muted-foreground">
                           没读到节点：该订阅的配置文件可能还没下载
                         </p>
-                      ) : (
+                      ) : profile.groups.length === 0 ? (
                         <div className="mt-1 max-h-72 overflow-auto pr-1">
-                          {/* 表格统一规则：前面的列按内容宽度（每列至少 60px），最后一列占满剩余，全部左对齐。 */}
-                          <Table>
-                            <TableBody>
-                              {profile.nodes.map((node, index) => (
-                                <TableRow key={`${node.name}-${node.server}`}>
-                                  <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground">
-                                    {index + 1}
-                                  </TableCell>
-                                  <TableCell className="min-w-[60px] px-2 py-1 text-left">
-                                    {node.name}
-                                  </TableCell>
-                                  <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground">
-                                    {node.duplicateOf === null
-                                      ? ""
-                                      : `重复(${node.duplicateOf})`}
-                                  </TableCell>
-                                  <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground">
-                                    {node.type}
-                                  </TableCell>
-                                  <TableCell className="w-full min-w-[60px] max-w-0 truncate px-2 py-1 text-left text-muted-foreground">
-                                    {endpointOf(node.server, node.port)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                          <NodeTable nodes={profile.nodes} />
+                        </div>
+                      ) : (
+                        /* 有代理组时展示层级：第一级是组，展开后是该组的节点。 */
+                        <div className="mt-2 space-y-2">
+                          {profile.groups.map((group) => {
+                            const byName = new Map(
+                              profile.nodes.map((node) => [node.name, node])
+                            )
+                            const members = group.members
+                              .map((name) => byName.get(name))
+                              .filter((node) => node !== undefined)
+                            return (
+                              <Collapsible key={group.name}>
+                                <CollapsibleTrigger
+                                  render={
+                                    <button
+                                      type="button"
+                                      className="flex items-center gap-1 text-xs text-primary underline-offset-4 hover:underline [&[aria-expanded=true]>svg]:rotate-90"
+                                    >
+                                      <ChevronRight
+                                        aria-hidden="true"
+                                        className="size-3 transition-transform"
+                                      />
+                                      {`${group.name}（${members.length}）`}
+                                    </button>
+                                  }
+                                />
+                                <CollapsibleContent>
+                                  <div className="mt-1 max-h-72 overflow-auto pr-1">
+                                    <NodeTable nodes={members} />
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            )
+                          })}
                         </div>
                       )}
                     </CollapsibleContent>
