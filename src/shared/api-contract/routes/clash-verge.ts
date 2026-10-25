@@ -2,6 +2,9 @@ import { ApiPath, toContractPath } from "@shared/api-path"
 import {
   ClashMergeConfigSchema,
   ClashVergeConnectionsResponseSchema,
+  ClashVergeGeositeCategoryDetailSchema,
+  ClashVergeGeositeCodeParamsSchema,
+  ClashVergeGeositeSchema,
   ClashVergeMergeFileSchema,
   ClashVergeProfileFileQuerySchema,
   ClashVergeProfileFileSchema,
@@ -68,6 +71,26 @@ export const clashVergeRoutes = {
     responses: {
       200: ClashVergeProfileFileSchema,
       400: ApiErrorSchema,
+      404: ApiErrorSchema,
+      ...readErrors,
+    },
+  },
+  // geosite 数据库：只读本地 geosite.dat，用于查看分类与域名条目。
+  getClashVergeGeosite: {
+    method: "GET",
+    path: toContractPath(ApiPath.clashVergeGeosite),
+    responses: {
+      200: ClashVergeGeositeSchema,
+      404: ApiErrorSchema,
+      ...readErrors,
+    },
+  },
+  getClashVergeGeositeCategory: {
+    method: "GET",
+    path: toContractPath(ApiPath.clashVergeGeositeCategory),
+    pathParams: ClashVergeGeositeCodeParamsSchema,
+    responses: {
+      200: ClashVergeGeositeCategoryDetailSchema,
       404: ApiErrorSchema,
       ...readErrors,
     },

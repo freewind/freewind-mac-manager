@@ -1,6 +1,8 @@
 import {
   fetchClashMergeConfig,
   fetchClashVergeConnections,
+  fetchClashVergeGeosite,
+  fetchClashVergeGeositeCategory,
   fetchClashVergeMergeFile,
   fetchClashVergeProfileFile,
   fetchClashVergeProfiles,
@@ -21,6 +23,9 @@ export const clashVergeKeys = {
   mergeFile: ["clash-verge", "merge-file"] as const,
   profiles: ["clash-verge", "profiles"] as const,
   profileFile: (uid: string) => ["clash-verge", "profile-file", uid] as const,
+  geosite: ["clash-verge", "geosite"] as const,
+  geositeCategory: (code: string) =>
+    ["clash-verge", "geosite-category", code] as const,
   mergeConfig: ["clash-verge", "merge-config"] as const,
 }
 
@@ -65,6 +70,24 @@ export const useClashVergeProfileFileQuery = (uid: string | null) =>
     queryKey: clashVergeKeys.profileFile(uid ?? ""),
     queryFn: ({ signal }) => fetchClashVergeProfileFile(uid ?? "", { signal }),
     enabled: uid !== null,
+    retry: false,
+  })
+
+/** geosite 数据库概览：本地文件，进面板读一次，不轮询。 */
+export const useClashVergeGeositeQuery = () =>
+  useQuery({
+    queryKey: clashVergeKeys.geosite,
+    queryFn: ({ signal }) => fetchClashVergeGeosite({ signal }),
+    retry: false,
+  })
+
+/** 单个分类的条目：只在对应弹窗打开时读。 */
+export const useClashVergeGeositeCategoryQuery = (code: string | null) =>
+  useQuery({
+    queryKey: clashVergeKeys.geositeCategory(code ?? ""),
+    queryFn: ({ signal }) =>
+      fetchClashVergeGeositeCategory(code ?? "", { signal }),
+    enabled: code !== null,
     retry: false,
   })
 

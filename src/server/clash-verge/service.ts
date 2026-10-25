@@ -22,6 +22,8 @@ import type {
   ClashMergeConfig,
   ClashVergeConnection,
   ClashVergeConnectionsResponse,
+  ClashVergeGeosite,
+  ClashVergeGeositeCategoryDetail,
   ClashVergeMergeFile,
   ClashVergeProfileFile,
   ClashVergeProfileNode,
@@ -575,13 +577,183 @@ export const readClashVergeProfileFile = async (
       : content,
   }
 }
+/** geosite 数据库：与 profiles.yaml 同目录，由 Clash Verge 下载维护。 */
+const CLASH_VERGE_GEOSITE_FILE = path.join(
+  path.dirname(CLASH_VERGE_PROFILES_FILE),
+  "geosite.dat"
+)
+
+/** 单个分类最多返回的条目数：分类动辄上万条，页面只给够看的量。 */
+const GEOSITE_DOMAINS_LIMIT = 500
+
+/** protobuf 里的类型枚举顺序：Plain / Regex / RootDomain / Full。 */
+const GEOSITE_DOMAIN_TYPES = ["plain", "regex", "rootdomain", "full"] as const
+
+type GeositeDomainType = (typeof GEOSITE_DOMAIN_TYPES)[number]
+
+type GeositeCategory = {
+  code: string
+  domains: { type: GeositeDomainType; value: string }[]
+}
+
+/** 解析结果缓存：文件 mtime 变了才重解，否则每次请求都要重读 4 MB。 */
+let geositeCache: { modified: number; categories: GeositeCategory[] } | null =
+  null
+
+/** 读一个 protobuf varint：返回数值与下一个字节位置。 */
+const readVarint = (
+  buffer: Buffer,
+  start: number
+): { value: number; next: number } => {
+  let value = 0
+  let shift = 0
+  let offset = start
+  while (offset < buffer.length) {
+    const byte = buffer[offset] ?? 0
+    offset += 1
+    value += (byte & 0x7f) * 2 ** shift
+    if ((byte & 0x80) === 0) break
+    shift += 7
+  }
+  return { value, next: offset }
+}
+
+/**
+ * 解析 geosite.dat（protobuf，无第三方库）：
+ * 顶层 repeated GeoSite，其中 country_code = 1、repeated Domain = 2；
+ * Domain 里 type = 1（varint）、value = 2（string），其余字段跳过。
+ */
+const parseGeosite = (buffer: Buffer): GeositeCategory[] => {
+  const categories: GeositeCategory[] = []
+  let offset = 0
+  while (offset < buffer.length) {
+    const outer = readVarint(buffer, offset)
+    offset = outer.next
+    const field = outer.value >> 3
+    const wire = outer.value & 7
+    if (wire !== 2) break
+    const length = readVarint(buffer, offset)
+    offset = length.next
+    const end = Math.min(offset + length.value, buffer.length)
+    if (field !== 1) {
+      offset = end
+      continue
+    }
+    let code = ""
+    const domains: GeositeCategory["domains"] = []
+    while (offset < end) {
+      const inner = readVarint(buffer, offset)
+      offset = inner.next
+      const innerField = inner.value >> 3
+      const innerWire = inner.value & 7
+      if (innerWire !== 2) {
+        if (innerWire === 0) offset = readVarint(buffer, offset).next
+        continue
+      }
+      const innerLength = readVarint(buffer, offset)
+      offset = innerLength.next
+      const innerEnd = Math.min(offset + innerLength.value, end)
+      if (innerField === 1) {
+        code = buffer.toString("utf8", offset, innerEnd)
+      } else if (innerField === 2) {
+        let domainType: GeositeDomainType = "plain"
+        let value = ""
+        let cursor = offset
+        while (cursor < innerEnd) {
+          const fieldTag = readVarint(buffer, cursor)
+          cursor = fieldTag.next
+          const wireType = fieldTag.value & 7
+          const kind = fieldTag.value >> 3
+          if (wireType === 0) {
+            const num = readVarint(buffer, cursor)
+            cursor = num.next
+            if (kind === 1)
+              domainType = GEOSITE_DOMAIN_TYPES[num.value] ?? "plain"
+          } else if (wireType === 2) {
+            const len = readVarint(buffer, cursor)
+            cursor = len.next
+            const nextCursor = Math.min(cursor + len.value, innerEnd)
+            if (kind === 2) value = buffer.toString("utf8", cursor, nextCursor)
+            cursor = nextCursor
+          } else {
+            break
+          }
+        }
+        if (value !== "") domains.push({ type: domainType, value })
+      }
+      offset = innerEnd
+    }
+    if (code !== "") categories.push({ code, domains })
+  }
+  return categories
+}
+
+/** 读 geosite.dat 并解析（带 mtime 缓存）；文件不存在给 404。 */
+const loadGeosite = async (): Promise<{
+  size: number
+  modified: number
+  categories: GeositeCategory[]
+}> => {
+  let info: Stats
+  try {
+    info = await lstat(CLASH_VERGE_GEOSITE_FILE)
+  } catch {
+    throw new PublicOperationError(
+      404,
+      `找不到 geosite 数据库：${CLASH_VERGE_GEOSITE_FILE}（在 Clash Verge 里更新一次 GEO 数据）`
+    )
+  }
+  const modified = Math.floor(info.mtimeMs / 1000)
+  if (geositeCache !== null && geositeCache.modified === modified) {
+    return { size: info.size, modified, categories: geositeCache.categories }
+  }
+  const categories = parseGeosite(await readFile(CLASH_VERGE_GEOSITE_FILE))
+  geositeCache = { modified, categories }
+  return { size: info.size, modified, categories }
+}
+
+/** geosite 概览：文件信息 + 全部分类名与条目数。 */
+export const readClashVergeGeosite = async (): Promise<ClashVergeGeosite> => {
+  const { size, modified, categories } = await loadGeosite()
+  return {
+    path: CLASH_VERGE_GEOSITE_FILE,
+    size,
+    modified,
+    totalCategories: categories.length,
+    totalDomains: categories.reduce(
+      (sum, category) => sum + category.domains.length,
+      0
+    ),
+    categories: categories.map((category) => ({
+      code: category.code,
+      count: category.domains.length,
+    })),
+  }
+}
+
+/** 单个分类的域名条目：分类名大小写不敏感，查不到给 404。 */
+export const readClashVergeGeositeCategory = async (
+  code: string
+): Promise<ClashVergeGeositeCategoryDetail> => {
+  const { categories } = await loadGeosite()
+  const upper = code.toUpperCase()
+  const category = categories.find((item) => item.code.toUpperCase() === upper)
+  if (category === undefined) {
+    throw new PublicOperationError(404, `geosite 里没有这个分类：${code}`)
+  }
+  return {
+    code: category.code,
+    total: category.domains.length,
+    truncated: category.domains.length > GEOSITE_DOMAINS_LIMIT,
+    domains: category.domains.slice(0, GEOSITE_DOMAINS_LIMIT),
+  }
+}
 
 /**
  * 读订阅清单：Clash Verge 不对外提供订阅 API，只能解析 profiles.yaml。
  * 这里回显磁盘上的配置内容，不是内核运行状态；文件不存在给 404，
  * 解析不出条目时返回空列表，不伪造订阅。
- */
-export const readClashVergeProfiles =
+ */ export const readClashVergeProfiles =
   async (): Promise<ClashVergeProfilesResponse> => {
     const { document } = await readClashVergeIndex()
     const entries = profileEntries(document.items)

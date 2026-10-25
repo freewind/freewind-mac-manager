@@ -6,6 +6,8 @@ import {
   getClashVergeStatus,
   mergeClashProfiles,
   readClashMergeConfig,
+  readClashVergeGeosite,
+  readClashVergeGeositeCategory,
   readClashVergeMergeFile,
   readClashVergeProfileFile,
   readClashVergeProfiles,
@@ -25,6 +27,8 @@ export const clashVergeContract = {
   getClashVergeConnections: contract.getClashVergeConnections,
   getClashVergeProfiles: contract.getClashVergeProfiles,
   getClashVergeProfileFile: contract.getClashVergeProfileFile,
+  getClashVergeGeosite: contract.getClashVergeGeosite,
+  getClashVergeGeositeCategory: contract.getClashVergeGeositeCategory,
   setClashVergeCurrentProfile: contract.setClashVergeCurrentProfile,
   getClashMergeConfig: contract.getClashMergeConfig,
   saveClashMergeConfig: contract.saveClashMergeConfig,
@@ -60,6 +64,28 @@ export const clashVergeRouter = {
       return {
         status: 200 as const,
         body: await readClashVergeProfileFile(query.uid),
+      }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  // geosite 数据库：只读本地 geosite.dat，分类名大小写不敏感。
+  getClashVergeGeosite: async () => {
+    try {
+      return { status: 200 as const, body: await readClashVergeGeosite() }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  getClashVergeGeositeCategory: async ({
+    params,
+  }: {
+    params: { code: string }
+  }) => {
+    try {
+      return {
+        status: 200 as const,
+        body: await readClashVergeGeositeCategory(params.code),
       }
     } catch (error) {
       return publicSystemError(error)

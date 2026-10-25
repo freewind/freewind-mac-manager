@@ -1,12 +1,13 @@
 import { useSyncExternalStore } from "react"
 
-/** Clash 页的主体分区：状态快照、订阅信息、合并订阅、代理组与活动连接。 */
+/** Clash 页的主体分区：状态快照、订阅信息、合并订阅、代理组、活动连接与 GEO 数据。 */
 export const CLASH_TABS = [
   { key: "status", label: "状态" },
   { key: "profiles", label: "订阅信息" },
   { key: "merge", label: "合并订阅" },
   { key: "proxies", label: "代理组" },
   { key: "connections", label: "活动连接" },
+  { key: "geosite", label: "GEO 数据" },
 ] as const
 
 export type ClashTab = (typeof CLASH_TABS)[number]["key"]
