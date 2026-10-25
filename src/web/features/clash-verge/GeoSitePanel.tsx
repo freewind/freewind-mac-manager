@@ -120,7 +120,7 @@ export const GeoSitePanel = () => {
             <span className="text-xs text-muted-foreground">
               {`第 ${currentPage} / ${totalPages} 页 · 共 ${filtered.length} 个分类`}
             </span>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-1">
               <Button
                 size="sm"
                 variant="outline"
@@ -129,6 +129,22 @@ export const GeoSitePanel = () => {
               >
                 上一页
               </Button>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map(
+                (pageNumber) => (
+                  <Button
+                    key={pageNumber}
+                    size="sm"
+                    variant={pageNumber === currentPage ? "default" : "outline"}
+                    aria-label={`第 ${pageNumber} 页`}
+                    aria-current={
+                      pageNumber === currentPage ? "page" : undefined
+                    }
+                    onClick={() => setPage(pageNumber)}
+                  >
+                    {pageNumber}
+                  </Button>
+                )
+              )}
               <Button
                 size="sm"
                 variant="outline"
