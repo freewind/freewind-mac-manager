@@ -304,6 +304,7 @@ export const MergeProfilesPanel = () => {
                 />
               </TableHead>
               <TableHead className="min-w-[120px]">正则</TableHead>
+              <TableHead className="min-w-[60px]">匹配数</TableHead>
               <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
               <TableHead className="min-w-[120px]">目标组名</TableHead>
               <TableHead className="min-w-[60px]">
@@ -319,6 +320,9 @@ export const MergeProfilesPanel = () => {
                     <TableCell />
                     <TableCell className="text-xs text-muted-foreground">
                       其余未匹配的节点
+                    </TableCell>
+                    <TableCell className="text-left tabular-nums text-muted-foreground">
+                      {unmatchedNodes.length}
                     </TableCell>
                     <TableCell className="align-top text-xs whitespace-normal">
                       <NodeTags nodes={unmatchedNodes} />
@@ -354,6 +358,9 @@ export const MergeProfilesPanel = () => {
                         updateRule(rule.id, { pattern: event.target.value })
                       }
                     />
+                  </TableCell>
+                  <TableCell className="text-left tabular-nums text-muted-foreground">
+                    {matches.length}
                   </TableCell>
                   <TableCell className="align-top text-xs whitespace-normal">
                     <NodeTags nodes={matches} />
