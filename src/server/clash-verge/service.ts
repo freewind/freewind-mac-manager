@@ -1164,9 +1164,13 @@ export const mergeClashProfiles = async (
       groups[existing].members.push(...members)
     }
   }
-  // 「其余」始终排在最后一组；没有剩余节点就不建。
+  // 「其余」排在最后一组；用户不勾兜底、或没有剩余节点就不建。
   const rest = [...usedNames].filter((name) => !assigned.has(name))
-  if (rest.length > 0 && !groupIndex.has(MERGED_FALLBACK_GROUP)) {
+  if (
+    input.includeFallback &&
+    rest.length > 0 &&
+    !groupIndex.has(MERGED_FALLBACK_GROUP)
+  ) {
     groups.push({
       name: MERGED_FALLBACK_GROUP,
       members: rest,

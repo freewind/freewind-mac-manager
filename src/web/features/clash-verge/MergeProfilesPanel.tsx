@@ -373,8 +373,8 @@ export const MergeProfilesPanel = () => {
   const [editedSelected, setEditedSelected] = useState<string[]>([])
   const [editedRules, setEditedRules] = useState<GroupRule[] | null>(null)
   const selected = editedSelected
-  /** 规则行的勾选状态：仅为本地选择，未绑定具体批量动作。 */
-  const [checkedRules, setCheckedRules] = useState<string[]>([])
+  /** 规则行的勾选状态：兜底的「其他」默认勾上，可手动取消。 */
+  const [checkedRules, setCheckedRules] = useState<string[]>([FALLBACK_RULE.id])
   const rules = useMemo<GroupRule[]>(
     () =>
       editedRules ?? [
@@ -557,13 +557,11 @@ export const MergeProfilesPanel = () => {
     setEditedGeosite(arrayMove(geositeRules, from, to))
   }
 
-  const normalRules = rules.filter((rule) => !rule.fixed)
   const allChecked =
-    normalRules.length > 0 &&
-    normalRules.every((rule) => checkedRules.includes(rule.id))
+    rules.length > 0 && rules.every((rule) => checkedRules.includes(rule.id))
 
   const toggleAllRules = (checked: boolean) => {
-    setCheckedRules(checked ? normalRules.map((rule) => rule.id) : [])
+    setCheckedRules(checked ? rules.map((rule) => rule.id) : [])
   }
 
   const toggleRule = (id: string, checked: boolean) => {
@@ -586,10 +584,12 @@ export const MergeProfilesPanel = () => {
         target: rule.target,
         type: rule.type,
       }))
+    const includeFallback = checkedRules.includes(FALLBACK_RULE.id)
     try {
       const result = await mergeProfiles.mutateAsync({
         selected,
         rules: chosenRules,
+        includeFallback,
         geositeRules: geositeRules.map((rule) => ({
           code: rule.code,
           target: rule.target,
@@ -760,7 +760,15 @@ export const MergeProfilesPanel = () => {
               if (rule.fixed) {
                 return (
                   <TableRow key={rule.id}>
-                    <TableCell />
+                    <TableCell>
+                      <Checkbox
+                        aria-label="生成兜底的「其他」组"
+                        checked={checkedRules.includes(rule.id)}
+                        onCheckedChange={(checked) =>
+                          toggleRule(rule.id, checked)
+                        }
+                      />
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       其余未匹配的节点
                     </TableCell>

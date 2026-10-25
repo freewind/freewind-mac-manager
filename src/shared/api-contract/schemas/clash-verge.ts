@@ -287,6 +287,8 @@ export const ClashVergeGeositeSchema = z.object({
 export const MergeClashProfilesBodySchema = z.object({
   selected: z.array(z.string().max(64)).min(1).max(200),
   rules: z.array(ClashMergeRuleSchema).max(200),
+  /** 是否生成兜底的「其他」组：不勾选时未匹配的节点不进任何组。 */
+  includeFallback: z.boolean().default(true),
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   customRules: z.array(CustomRuleSchema).max(200).default([]),
   template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
