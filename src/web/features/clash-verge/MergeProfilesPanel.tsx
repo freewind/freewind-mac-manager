@@ -116,6 +116,16 @@ const GEOSITE_TARGET_LABELS: Record<GeositeTarget, string> = {
 }
 
 /**
+ * 自定义域名规则的出口：三个内置别名，也可以直接选本次合并生成的分组名。
+ * 某些网站对地区有要求，必须能把域名钉到「香港」「美国」这类具体组上。
+ */
+const CUSTOM_TARGET_ALIASES: Record<string, string> = {
+  proxy: "走代理",
+  direct: "直连",
+  reject: "拒绝",
+}
+
+/**
  * 个数单元格：点开看该分类前 10 个域名，用来判断里面究竟是什么。
  * 没有预览数据时退化成纯文本，不弹空窗。
  */
@@ -637,6 +647,16 @@ export const MergeProfilesPanel = () => {
     setEditedGeosite(geositeRules.filter((rule) => rule.id !== id))
   }
 
+  /** 可选的具体分组名：来自分组规则里的目标组名，去重且不含内置别名。 */
+  const customTargetOptions = useMemo(() => {
+    const names = new Set<string>()
+    for (const rule of rules) {
+      const name = rule.target.trim()
+      if (name !== "" && !(name in CUSTOM_TARGET_ALIASES)) names.add(name)
+    }
+    return [...names]
+  }, [rules])
+
   const addCustomRule = () => {
     setEditedCustom([
       ...customRules,
@@ -1032,7 +1052,7 @@ export const MergeProfilesPanel = () => {
 
       <CollapsibleCard
         title="自定义域名规则"
-        description="按域名后缀、完整域名或关键词匹配，命中就走你指定的出口；比下面的 GEO 分类先生效"
+        description="按域名后缀、完整域名或关键词匹配，命中就走你指定的出口；出口可选内置三项，也能直接选某个地区组（比如对地区有要求的网站）；比下面的 GEO 分类先生效"
         summary={`${customRules.length} 条`}
       >
         <Table>
@@ -1158,7 +1178,7 @@ export const MergeProfilesPanel = () => {
                     value={rule.target}
                     onValueChange={(next) =>
                       updateCustomRule(rule.id, {
-                        target: next as GeositeTarget,
+                        target: next ?? rule.target,
                       })
                     }
                   >
@@ -1166,15 +1186,20 @@ export const MergeProfilesPanel = () => {
                       aria-label={`第 ${index + 1} 条自定义规则的出口`}
                     >
                       <SelectValue>
-                        {GEOSITE_TARGET_LABELS[rule.target]}
+                        {CUSTOM_TARGET_ALIASES[rule.target] ?? rule.target}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {(
-                        Object.keys(GEOSITE_TARGET_LABELS) as GeositeTarget[]
-                      ).map((target) => (
-                        <SelectItem key={target} value={target}>
-                          {GEOSITE_TARGET_LABELS[target]}
+                      {Object.entries(CUSTOM_TARGET_ALIASES).map(
+                        ([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        )
+                      )}
+                      {customTargetOptions.map((name) => (
+                        <SelectItem key={name} value={name}>
+                          {name}
                         </SelectItem>
                       ))}
                     </SelectContent>

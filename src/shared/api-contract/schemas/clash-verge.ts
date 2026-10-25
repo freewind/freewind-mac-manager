@@ -188,11 +188,18 @@ export const CustomRuleTypeSchema = z.enum([
   "DOMAIN-KEYWORD",
 ])
 
-/** 一条自定义规则：类型 + 值 + 出口，出口与 GEO 分类共用三个选项。 */
+/**
+ * 自定义域名规则的出口：三个内置别名（走代理 / 直连 / 拒绕），
+ * 或本次合并生成的某个分组名（如「香港」「美国」）。
+ * 别名由服务端映射到内置组；直接写组名的，合并前校验它确实存在。
+ */
+export const CustomRuleTargetSchema = z.string().min(1).max(60)
+
+/** 一条自定义规则：类型 + 值 + 出口。 */
 export const CustomRuleSchema = z.object({
   type: CustomRuleTypeSchema,
   value: z.string().min(1).max(200),
-  target: GeositeTargetSchema,
+  target: CustomRuleTargetSchema,
 })
 
 /**

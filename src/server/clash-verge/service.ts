@@ -1064,11 +1064,26 @@ export const mergeClashProfiles = async (
 
   // 基座模板：所有手写配置都从这里来，订阅只提供节点。
   const template = parseMergeTemplate(input.template)
-  /** 三个固定出口组：自定义规则与 GEO 分类共用。 */
-  const outletOf: Record<"proxy" | "direct" | "reject", string> = {
+  /** 三个内置出口别名：自定义规则不指定具体分组时用它。 */
+  const outletOf: Record<string, string> = {
     proxy: outlets.primary,
     direct: outlets.direct,
     reject: outlets.reject,
+  }
+  /** 本次生成的全部分组名：自定义规则可以直接把域名指向其中一个。 */
+  const outletNames = new Set(groups.map((group) => group.name))
+  /**
+   * 解析自定义规则的出口：内置别名映射到固定组，其余必须是本次生成的分组名。
+   * 写一个不存在的组会让内核拒绕整份配置，所以在合并前就拦下。
+   */
+  const resolveOutlet = (target: string): string => {
+    const alias = outletOf[target]
+    if (alias !== undefined) return alias
+    if (outletNames.has(target)) return target
+    throw new PublicOperationError(
+      400,
+      `自定义规则的出口分组不存在：${target}（请先在分组规则里加一条同名分组）`
+    )
   }
   const healthCheck = input.healthCheck
 
@@ -1076,7 +1091,7 @@ export const mergeClashProfiles = async (
   const customRules = input.customRules
     .map((rule) => ({ ...rule, value: rule.value.trim() }))
     .filter((rule) => rule.value !== "")
-    .map((rule) => `${rule.type},${rule.value},${outletOf[rule.target]}`)
+    .map((rule) => `${rule.type},${rule.value},${resolveOutlet(rule.target)}`)
 
   // GEO 分类分流：用户自定义的在前，固定三条在后，都排在模板规则与 MATCH 之前。
   // 分类名先在本机 geosite.dat 里核实：写错的分类会让内核拒绝整份配置。
