@@ -69,7 +69,7 @@ export const clashVergeRouter = {
   saveClashMergeConfig: async ({
     body,
   }: {
-    body: { selected: string[]; rules: { pattern: string; target: string }[] }
+    body: { rules: { pattern: string; target: string }[] }
   }) => {
     try {
       return {

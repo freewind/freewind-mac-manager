@@ -139,10 +139,8 @@ export const useClashMergeConfigQuery = () =>
 export const useSaveClashMergeConfig = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: {
-      selected: string[]
-      rules: { pattern: string; target: string }[]
-    }) => saveClashMergeConfig(input),
+    mutationFn: (input: { rules: { pattern: string; target: string }[] }) =>
+      saveClashMergeConfig(input),
     retry: false,
     networkMode: "always",
     onSuccess: () => {

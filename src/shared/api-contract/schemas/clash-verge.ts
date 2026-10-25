@@ -148,18 +148,16 @@ export const ClashMergeRuleSchema = z.object({
 })
 
 /**
- * 合并订阅的长期设置：选中的订阅 uid 与分组规则。
- * 存在应用自己的单库里，与 Clash Verge 的配置文件无关。
+ * 合并订阅的分组规则：只存用户手输的正则与目标组名，
+ * 选中哪些订阅、命中哪些节点都是实时算出来的，不落库。
  */
 export const ClashMergeConfigSchema = z.object({
-  selected: z.array(z.string().max(64)).max(200),
   rules: z.array(ClashMergeRuleSchema).max(200),
   /** 上次保存时间，秒级；null 表示从未保存过。 */
   updatedAt: z.number().int().nullable(),
 })
 
-/** 保存时只接受选中的订阅与规则，保存时间由服务端写。 */
+/** 保存时只接受分组规则，保存时间由服务端写。 */
 export const SaveClashMergeConfigBodySchema = z.object({
-  selected: z.array(z.string().max(64)).max(200),
   rules: z.array(ClashMergeRuleSchema).max(200),
 })

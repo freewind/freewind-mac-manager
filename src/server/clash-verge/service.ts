@@ -680,15 +680,12 @@ export const setClashVergeCurrentProfile = async (
 
 /** 读合并设置：从未保存时给空配置，页面按空态渲染。 */
 export const readClashMergeConfig = (): ClashMergeConfig =>
-  getClashMergeStore().read() ?? { selected: [], rules: [], updatedAt: null }
+  getClashMergeStore().read() ?? { rules: [], updatedAt: null }
 
 /** 保存合并设置；整份替换，不做局部合并。 */
 export const saveClashMergeConfig = (
   input: SaveClashMergeConfigBody
 ): string => {
-  const updatedAt = getClashMergeStore().save({
-    selected: input.selected,
-    rules: input.rules,
-  })
-  return `已保存 ${input.rules.length} 条分组规则、${input.selected.length} 个订阅（${new Date(updatedAt * 1000).toLocaleString()}）`
+  const updatedAt = getClashMergeStore().save(input)
+  return `已保存 ${input.rules.length} 条分组规则（${new Date(updatedAt * 1000).toLocaleString()}）`
 }

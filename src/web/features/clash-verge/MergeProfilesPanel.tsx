@@ -78,10 +78,10 @@ export const MergeProfilesPanel = () => {
   const configQuery = useClashMergeConfigQuery()
   const saveConfig = useSaveClashMergeConfig()
   const profiles = useMemo(() => query.data?.profiles ?? [], [query.data])
-  /** 本地编辑优先；没改过就用服务端已保存的值（纯推导，不用 effect 回填）。 */
-  const [editedSelected, setEditedSelected] = useState<string[] | null>(null)
+  /** 只记住本地勾选；选中的订阅不保存，每次进来重新勾。 */
+  const [editedSelected, setEditedSelected] = useState<string[]>([])
   const [editedRules, setEditedRules] = useState<GroupRule[] | null>(null)
-  const selected = editedSelected ?? configQuery.data?.selected ?? []
+  const selected = editedSelected
   const rules = useMemo<GroupRule[]>(
     () =>
       editedRules ?? [
@@ -155,11 +155,10 @@ export const MergeProfilesPanel = () => {
     )
   }
 
-  /** 保存到服务端：兑底行是固定规则，不存。 */
+  /** 保存到服务端：只存用户填的正则与目标组名，兑底行与订阅选择都不存。 */
   const save = async () => {
     try {
       const result = await saveConfig.mutateAsync({
-        selected,
         rules: rules
           .filter((rule) => !rule.fixed)
           .map((rule) => ({ pattern: rule.pattern, target: rule.target })),

@@ -87,9 +87,8 @@ export const fetchClashMergeConfig = async (options?: {
     })
   )
 
-/** 保存合并设置：整份替换，写操作不自动重试。 */
+/** 保存合并设置：只存分组规则，整份替换，不自动重试。 */
 export const saveClashMergeConfig = async (input: {
-  selected: string[]
   rules: { pattern: string; target: string }[]
 }): Promise<ActionResponse> =>
   unwrap<ActionResponse>(await apiClient.saveClashMergeConfig({ body: input }))
