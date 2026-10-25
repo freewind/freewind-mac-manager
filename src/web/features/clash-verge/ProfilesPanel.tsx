@@ -12,28 +12,12 @@ import {
   AlertDialogTitle,
 } from "@web/components/ui/alert-dialog"
 import { Button } from "@web/components/ui/button"
-import { Checkbox } from "@web/components/ui/checkbox"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@web/components/ui/collapsible"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@web/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@web/components/ui/table"
+import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { ChevronRight, CircleCheck, Copy } from "lucide-react"
 import { useState } from "react"
@@ -78,29 +62,6 @@ export const ProfilesPanel = () => {
       toast.error(describeError(error))
       return false
     }
-  }
-
-  /** 合并弹窗的来源订阅：非空即打开，打开时默认勾选它自己。 */
-  const [mergeFrom, setMergeFrom] = useState<ClashVergeProfile | null>(null)
-  const [mergeUids, setMergeUids] = useState<string[]>([])
-
-  const openMerge = (profile: ClashVergeProfile) => {
-    setMergeUids([profile.uid])
-    setMergeFrom(profile)
-  }
-
-  const toggleMergeUid = (uid: string, checked: boolean) => {
-    setMergeUids((current) =>
-      checked
-        ? [...new Set([...current, uid])]
-        : current.filter((item) => item !== uid)
-    )
-  }
-
-  const confirmMerge = () => {
-    const count = mergeUids.length
-    setMergeFrom(null)
-    toast.success(`已选择 ${count} 个订阅用于合并`)
   }
 
   const copyUrl = async (url: string, name: string) => {
@@ -208,13 +169,6 @@ export const ProfilesPanel = () => {
                         {`共 ${profile.nodes.length} 个节点`}
                         {profile.nodesTruncated ? "（已截断）" : ""}
                       </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openMerge(profile)}
-                      >
-                        合并订阅
-                      </Button>
                     </div>
                     <CollapsibleContent>
                       {profile.nodes.length === 0 ? (
@@ -259,58 +213,6 @@ export const ProfilesPanel = () => {
           )}
         </>
       ) : null}
-
-      <Dialog
-        open={mergeFrom !== null}
-        onOpenChange={(open) => {
-          if (!open) setMergeFrom(null)
-        }}
-      >
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>合并订阅</DialogTitle>
-            <DialogDescription>勾选要参与合并的订阅。</DialogDescription>
-          </DialogHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8" />
-                <TableHead>订阅</TableHead>
-                <TableHead className="text-right">节点数</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(data?.profiles ?? []).map((profile) => (
-                <TableRow key={profile.uid || profile.url}>
-                  <TableCell className="w-8 py-1">
-                    <Checkbox
-                      aria-label={`选择订阅：${profile.name}`}
-                      checked={mergeUids.includes(profile.uid)}
-                      onCheckedChange={(checked) =>
-                        toggleMergeUid(profile.uid, checked)
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="max-w-0 truncate py-1">
-                    {profile.name}
-                  </TableCell>
-                  <TableCell className="py-1 text-right text-muted-foreground tabular-nums">
-                    {profile.nodes.length}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setMergeFrom(null)}>
-              取消
-            </Button>
-            <Button disabled={mergeUids.length === 0} onClick={confirmMerge}>
-              合并订阅
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog
         open={pending !== null}
