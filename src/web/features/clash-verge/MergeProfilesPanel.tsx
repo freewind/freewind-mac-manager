@@ -16,7 +16,20 @@ import { toast } from "sonner"
 import { useClashVergeProfilesQuery } from "./queries"
 
 /** 一条自定义分组规则：正则在节点名里匹配，目标组名直接填写。 */
-type GroupRule = { id: string; pattern: string; target: string }
+type GroupRule = {
+  id: string
+  pattern: string
+  target: string
+  fixed?: boolean
+}
+
+/** 兜底规则：固定目标组名「其他」，不可删除，聚合其余规则没命中的节点。 */
+const FALLBACK_RULE: GroupRule = {
+  id: "fallback",
+  pattern: "",
+  target: "其他",
+  fixed: true,
+}
 
 /** 在节点名上跑一条规则：正则非法或为空时返回空结果，不让界面崩。 */
 const matchNodes = (pattern: string, nodeNames: string[]): string[] => {
@@ -54,14 +67,14 @@ const NodeTags = (props: { nodes: string[]; empty: string }) => {
  * 合并订阅：勾选要合并的订阅，再写自定义分组规则。
  *
  * 规则表第二列显示正则命中的节点，第三列直接填目标组名，方便边写边核对；
- * 预览只读已勾选订阅的节点名，不写任何文件。合并写入还没定稿，
- * 按钮只回显范围。
+ * 末尾固定一条兜底规则，把其余没被任何规则命中的节点归到「其他」。
+ * 预览只读已勾选订阅的节点名，不写任何文件；合并写入还没定稿，按钮只回显范围。
  */
 export const MergeProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
   const profiles = useMemo(() => query.data?.profiles ?? [], [query.data])
   const [selected, setSelected] = useState<string[]>([])
-  const [rules, setRules] = useState<GroupRule[]>([])
+  const [rules, setRules] = useState<GroupRule[]>([FALLBACK_RULE])
 
   const chosen = useMemo(
     () => profiles.filter((profile) => selected.includes(profile.uid)),
@@ -79,7 +92,7 @@ export const MergeProfilesPanel = () => {
     () => rules.map((rule) => matchNodes(rule.pattern, nodeNames)),
     [rules, nodeNames]
   )
-  /** 还没被任何规则命中的节点：写一条规则就少一批，用来盯分组进度。 */
+  /** 还没被任何规则命中的节点：兜底规则兜的就是它们。 */
   const unmatchedNodes = useMemo(() => {
     const matched = new Set(previews.flat())
     return nodeNames.filter((name) => !matched.has(name))
@@ -98,10 +111,16 @@ export const MergeProfilesPanel = () => {
   }
 
   const addRule = () => {
-    setRules((current) => [
-      ...current,
-      { id: crypto.randomUUID(), pattern: "", target: "" },
-    ])
+    // 新规则插在兜底行之前，兜底行始终在最后。
+    setRules((current) => {
+      const fixed = current.filter((rule) => rule.fixed)
+      const normal = current.filter((rule) => !rule.fixed)
+      return [
+        ...normal,
+        { id: crypto.randomUUID(), pattern: "", target: "" },
+        ...fixed,
+      ]
+    })
   }
 
   const updateRule = (id: string, patch: Partial<GroupRule>) => {
@@ -201,7 +220,7 @@ export const MergeProfilesPanel = () => {
         <div>
           <h3 className="text-sm font-medium">自定义分组规则</h3>
           <p className="text-xs text-muted-foreground">
-            正则在节点名里匹配，右侧列出命中的节点；目标组名直接填，合并时用它建组
+            正则在节点名里匹配，右侧列出命中的节点；目标组名直接填。最后一行固定兜底，其余节点归到「其他」
           </p>
           {chosen.length === 0 ? (
             <p className="text-xs text-muted-foreground">
@@ -240,64 +259,73 @@ export const MergeProfilesPanel = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rules.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="whitespace-normal text-muted-foreground"
-                >
-                  还没有规则
-                </TableCell>
-              </TableRow>
-            ) : (
-              rules.map((rule, index) => {
-                const matches = previews[index] ?? []
+            {rules.map((rule, index) => {
+              if (rule.fixed) {
                 return (
                   <TableRow key={rule.id}>
-                    <TableCell>
-                      <Input
-                        value={rule.pattern}
-                        aria-label={`第 ${index + 1} 条规则的正则`}
-                        placeholder="例如 ^(.+?)\|"
-                        onChange={(event) =>
-                          updateRule(rule.id, { pattern: event.target.value })
-                        }
-                      />
+                    <TableCell className="text-xs text-muted-foreground">
+                      其余未匹配的节点
                     </TableCell>
                     <TableCell className="align-top text-xs whitespace-normal">
-                      <NodeTags
-                        nodes={matches}
-                        empty={
-                          rule.pattern.trim() === ""
-                            ? "等待填写正则"
-                            : "没有匹配的节点"
-                        }
-                      />
+                      <NodeTags nodes={unmatchedNodes} empty="没有剩余节点" />
                     </TableCell>
                     <TableCell>
                       <Input
                         value={rule.target}
-                        aria-label={`第 ${index + 1} 条规则的目标组名`}
-                        placeholder="例如 日本"
-                        onChange={(event) =>
-                          updateRule(rule.id, { target: event.target.value })
-                        }
+                        disabled
+                        aria-label="兜底分组的目标组名"
                       />
                     </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        aria-label={`删除第 ${index + 1} 条分组规则`}
-                        onClick={() => removeRule(rule.id)}
-                      >
-                        删除
-                      </Button>
-                    </TableCell>
+                    <TableCell />
                   </TableRow>
                 )
-              })
-            )}
+              }
+              const matches = previews[index] ?? []
+              return (
+                <TableRow key={rule.id}>
+                  <TableCell>
+                    <Input
+                      value={rule.pattern}
+                      aria-label={`第 ${index + 1} 条规则的正则`}
+                      placeholder="例如 香港"
+                      onChange={(event) =>
+                        updateRule(rule.id, { pattern: event.target.value })
+                      }
+                    />
+                  </TableCell>
+                  <TableCell className="align-top text-xs whitespace-normal">
+                    <NodeTags
+                      nodes={matches}
+                      empty={
+                        rule.pattern.trim() === ""
+                          ? "等待填写正则"
+                          : "没有匹配的节点"
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      value={rule.target}
+                      aria-label={`第 ${index + 1} 条规则的目标组名`}
+                      placeholder="例如 香港"
+                      onChange={(event) =>
+                        updateRule(rule.id, { target: event.target.value })
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label={`删除第 ${index + 1} 条分组规则`}
+                      onClick={() => removeRule(rule.id)}
+                    >
+                      删除
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
 
