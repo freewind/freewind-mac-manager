@@ -51,21 +51,46 @@ const matchRule = (rule: GroupRule, nodeNames: string[]): RuleMatch[] => {
   return matches
 }
 
-/** 预览单元格：去重后最多列 PREVIEW_LIMIT 条，超出只报总数。 */
-const PreviewList = (props: { items: string[]; empty: string }) => {
+/**
+ * 预览单元格：去重后最多列 PREVIEW_LIMIT 条，超出只报总数。
+ * tags 用于节点名，与订阅表保持同一种标签样式；组名用纯文本。
+ */
+const PreviewList = (props: {
+  items: string[]
+  empty: string
+  tags?: boolean
+}) => {
   const items = [...new Set(props.items)]
   if (items.length === 0) {
     return <span className="text-muted-foreground">{props.empty}</span>
   }
+  const overflow = items.length > PREVIEW_LIMIT
   return (
-    <span className="block space-y-0.5">
-      {items.slice(0, PREVIEW_LIMIT).map((item) => (
-        <span key={item} className="block break-all">
-          {item}
-        </span>
-      ))}
-      {items.length > PREVIEW_LIMIT ? (
-        <span className="block text-muted-foreground">
+    <span
+      className={
+        props.tags ? "flex flex-wrap items-center gap-1" : "block space-y-0.5"
+      }
+    >
+      {items.slice(0, PREVIEW_LIMIT).map((item) =>
+        props.tags ? (
+          <span
+            key={item}
+            className="inline-flex max-w-full items-center rounded-md border px-1.5 py-0.5 text-xs break-all"
+          >
+            {item}
+          </span>
+        ) : (
+          <span key={item} className="block break-all">
+            {item}
+          </span>
+        )
+      )}
+      {overflow ? (
+        <span
+          className={
+            props.tags ? "text-muted-foreground" : "block text-muted-foreground"
+          }
+        >
           {`…共 ${items.length} 条`}
         </span>
       ) : null}
@@ -280,6 +305,7 @@ export const MergeProfilesPanel = () => {
                     </TableCell>
                     <TableCell className="w-full align-top text-xs whitespace-normal">
                       <PreviewList
+                        tags
                         items={matches.map((match) => match.node)}
                         empty={
                           rule.pattern.trim() === ""
