@@ -115,29 +115,27 @@ export const ProfilesPanel = () => {
                           没读到节点：该订阅的配置文件可能还没下载
                         </p>
                       ) : (
-                        <>
-                          <div className="mt-1 max-h-72 overflow-auto pr-1">
-                            {/* 自动布局：前两列按内容宽度（节点名超过一半时截断，
+                        <div className="mt-1 max-h-72 overflow-auto pr-1">
+                          {/* 自动布局：前两列按内容宽度（节点名超过一半时截断，
                                 留出地址列），最后一列 w-full 吃满剩余宽度并单行截断。 */}
-                            <Table>
-                              <TableBody>
-                                {profile.nodes.map((node) => (
-                                  <TableRow key={`${node.name}-${node.server}`}>
-                                    <TableCell className="max-w-[50%] truncate px-2 py-1 text-left">
-                                      {node.name}
-                                    </TableCell>
-                                    <TableCell className="px-2 py-1 text-left text-muted-foreground">
-                                      {node.type}
-                                    </TableCell>
-                                    <TableCell className="w-full max-w-0 truncate px-2 py-1 text-left text-muted-foreground">
-                                      {endpointOf(node.server, node.port)}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </>
+                          <Table>
+                            <TableBody>
+                              {profile.nodes.map((node) => (
+                                <TableRow key={`${node.name}-${node.server}`}>
+                                  <TableCell className="max-w-[50%] truncate px-2 py-1 text-left">
+                                    {node.name}
+                                  </TableCell>
+                                  <TableCell className="px-2 py-1 text-left text-muted-foreground">
+                                    {node.type}
+                                  </TableCell>
+                                  <TableCell className="w-full max-w-0 truncate px-2 py-1 text-left text-muted-foreground">
+                                    {endpointOf(node.server, node.port)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       )}
                     </CollapsibleContent>
                   </Collapsible>
