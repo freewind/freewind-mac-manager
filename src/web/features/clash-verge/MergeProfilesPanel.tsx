@@ -38,6 +38,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@web/components/ui/dialog"
@@ -422,6 +423,8 @@ export const MergeProfilesPanel = () => {
 
   /** 基座模板：本地编辑优先，否则回显服务端保存的。 */
   const [editedTemplate, setEditedTemplate] = useState<string | null>(null)
+  /** 模板默认不占页面，点按钮在弹窗里看或改。 */
+  const [templateOpen, setTemplateOpen] = useState(false)
   /** 模板默认只读高亮；点「编辑模板」才换成文本框。 */
   const [editingTemplate, setEditingTemplate] = useState(false)
   const template =
@@ -438,6 +441,59 @@ export const MergeProfilesPanel = () => {
       configQuery.data?.healthCheck.interval ?? DEFAULT_HEALTH_CHECK.interval
     ),
   }
+
+  /** 模板会不会与已保存的不同：用来提示尚未保存。 */
+  const templateDirty =
+    configQuery.data !== undefined && template !== configQuery.data.template
+
+  /**
+   * 页面上任何设置与已保存的不同，就把保存按钮高亮。
+   * 逐项比实际提交的内容（去掉 id 这类只在本地用的字段），保存成功后 config 失效重取，自然回落。
+   */
+  const dirty = useMemo(() => {
+    const saved = configQuery.data
+    if (saved === undefined) return false
+    const current = JSON.stringify({
+      // 与服务端实际写进配置的内容对齐：空行会被丢掉，不参与比较，
+      // 否则存完还显示「有改动」。
+      rules: rules
+        .filter(
+          (rule) =>
+            !rule.fixed &&
+            rule.pattern.trim() !== "" &&
+            rule.target.trim() !== ""
+        )
+        .map((rule) => ({
+          pattern: rule.pattern,
+          target: rule.target,
+          type: rule.type,
+        })),
+      geositeRules: geositeRules.map((rule) => ({
+        code: rule.code,
+        target: rule.target,
+      })),
+      customRules: customRules
+        .filter((rule) => rule.value.trim() !== "")
+        .map((rule) => ({
+          type: rule.type,
+          value: rule.value,
+          target: rule.target,
+        })),
+      template,
+      healthCheck: {
+        url: health.url.trim(),
+        interval: Number(health.interval),
+      },
+    })
+    const stored = JSON.stringify({
+      rules: saved.rules,
+      geositeRules: saved.geositeRules,
+      customRules: saved.customRules,
+      template: saved.template,
+      healthCheck: saved.healthCheck,
+    })
+    return current !== stored
+  }, [rules, geositeRules, customRules, template, health, configQuery.data])
 
   const chosen = useMemo(
     () => profiles.filter((profile) => selected.includes(profile.uid)),
@@ -1224,57 +1280,29 @@ export const MergeProfilesPanel = () => {
           ) : null}
         </div>
 
-        <div className="space-y-2 border-t pt-3">
-          <div>
-            <h3 className="text-sm font-medium">基座模板</h3>
-            <p className="text-xs text-muted-foreground">
-              合并产物以这里为底：proxies 与 proxy-groups 两行是占位标记，
-              保持空数组即可，合并时会就地换成勾选的节点与分组；模板里的 rules
-              会拼在页面生成的规则（自定义 → GEO → 固定三条）之后
-            </p>
-          </div>
-          {editingTemplate ? (
-            <Textarea
-              value={template}
-              aria-label="基座模板 YAML"
-              spellCheck={false}
-              className="min-h-[320px] font-mono text-xs"
-              onChange={(event) => setEditedTemplate(event.target.value)}
-            />
-          ) : (
-            <YamlHighlight content={template} fileName="merge-template.yaml" />
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditingTemplate(!editingTemplate)}
-            >
-              {editingTemplate ? "完成编辑" : "编辑模板"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditedTemplate(DEFAULT_MERGE_TEMPLATE)}
-            >
-              恢复默认模板
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              {`当前 ${template.length} 字符`}
-            </span>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTemplateOpen(true)}
+          >
+            查看或编辑基座模板
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            {`合并产物以它为底：${template.length} 字符${templateDirty ? "，有未保存的修改" : ""}`}
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-3">
           {/* 保存放在合并左边：这些都是我们自己维护的设置，合并生成的配置会覆盖文件，不会覆盖它们。 */}
           <ActionButton
             size="sm"
-            variant="outline"
+            variant={dirty ? "default" : "outline"}
             busy={saveConfig.isPending}
             busyLabel="保存中…"
             onClick={() => void save()}
           >
-            保存设置
+            {dirty ? "保存设置（有改动）" : "保存设置"}
           </ActionButton>
           <ActionButton
             disabled={chosen.length < 2}
@@ -1296,6 +1324,50 @@ export const MergeProfilesPanel = () => {
           ) : null}
         </div>
       </div>
+
+      <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
+        <DialogContent className="w-[min(96vw,1100px)] sm:max-w-[1100px]">
+          <DialogHeader>
+            <DialogTitle>基座模板</DialogTitle>
+            <DialogDescription>
+              合并产物以它为底。proxies 与 proxy-groups
+              两行是占位标记，保持空数组即可，合并时就地换成勾选的节点与分组；
+              rules 列表留空，合并时依次填入自定义规则、GEO
+              分类、固定三条、GEOIP 一条，再拼上你自己写的规则，最后补 MATCH
+            </DialogDescription>
+          </DialogHeader>
+          {editingTemplate ? (
+            <Textarea
+              value={template}
+              aria-label="基座模板 YAML"
+              spellCheck={false}
+              className="max-h-[60vh] min-h-[40vh] font-mono text-xs"
+              onChange={(event) => setEditedTemplate(event.target.value)}
+            />
+          ) : (
+            <YamlHighlight content={template} fileName="merge-template.yaml" />
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditingTemplate(!editingTemplate)}
+            >
+              {editingTemplate ? "完成编辑" : "编辑模板"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditedTemplate(DEFAULT_MERGE_TEMPLATE)}
+            >
+              恢复默认模板
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {`当前 ${template.length} 字符${templateDirty ? "，尚未保存" : ""}`}
+            </span>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
