@@ -62,7 +62,9 @@ listeners:
 tun:
   # 开启后本机所有流量（含不认代理的 App）走 TUN 网卡。
   enable: false
-  # 协议栈：system 最稳 / gvisor 不依赖系统 / mixed 混合。
+  # 协议栈：system 用系统的 TCP/IP 实现，性能最好；gvisor 用用户态自己实现一套
+  # （跨平台一致、不依赖系统，CPU 略高）；mixed = TCP 走 system、UDP 走 gvisor。
+  # 注意：三者都仍需系统提供 tun 虚拟网卡，区别只在谁处理 TCP/IP。
   stack: system
   # 自动加路由，把默认路由指到 TUN。
   auto-route: true
