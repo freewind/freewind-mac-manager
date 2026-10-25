@@ -727,6 +727,52 @@ const MERGED_FILE = "freewind-merged.yaml"
 const MERGED_NAME = "freewind-merged"
 /** 兑底分组名：与页面上的兑底行保持一致。 */
 const MERGED_FALLBACK_GROUP = "其他"
+/** 规则出口统一指向的总组：在它里可再选具体地区组。 */
+const MERGED_PRIMARY_GROUP = "节点选择"
+/**
+ * 从第一个订阅继承的字段：目前只带 rules 依赖的 rule-providers。
+ * dns、端口、控制接口、TUN 这些都还没定，且端口类由 Clash Verge 自己生成。
+ */
+const MERGED_INHERIT_KEYS = ["rule-providers"] as const
+
+/**
+ * 原组全是特殊目标（DIRECT / REJECT / PASS）时返回对应关键字：
+ * 直连组、广告拦截组不能改成代理组，否则国内流量与广告会走代理。
+ * 只要组里有真实节点就返回 null，按代理组处理。
+ */
+const specialOutletOf = (members: string[]): string | null => {
+  if (members.length === 0) return null
+  const kinds = new Set<string>()
+  for (const member of members) {
+    const upper = member.toUpperCase()
+    if (upper.startsWith("REJECT")) kinds.add("REJECT")
+    else if (upper === "DIRECT") kinds.add("DIRECT")
+    else if (upper === "PASS") kinds.add("PASS")
+    else return null
+  }
+  return [...kinds][0] ?? null
+}
+
+/**
+ * 把规则里指向原订阅组的出口换成本次的总组。
+ * 出口位置固定：MATCH / FINAL 在第 2 段，其余规则在第 3 段；
+ * 后面的 no-resolve、resolve 是参数，不得当成出口。
+ */
+const rewriteRuleGroup = (
+  rule: string,
+  originalGroups: Map<string, string[]>,
+  target: string
+): string => {
+  const parts = rule.split(",")
+  const head = parts[0].trim().toUpperCase()
+  const outletIndex = head === "MATCH" || head === "FINAL" ? 1 : 2
+  if (parts.length <= outletIndex) return rule
+  const outlet = parts[outletIndex].trim()
+  const members = originalGroups.get(outlet)
+  if (members === undefined) return rule
+  parts[outletIndex] = specialOutletOf(members) ?? target
+  return parts.join(",")
+}
 
 /** 节点名必须唯一：重名时依次加 -2、-3 后缀。 */
 const uniqueNodeName = (name: string, used: Set<string>): string => {
@@ -810,17 +856,22 @@ export const mergeClashProfiles = async (
     throw error
   }
   const document = parseYamlRecord(indexText)
-  const entries = profileEntries(document.items).filter((entry) =>
-    input.selected.includes(entry.uid)
-  )
-  if (entries.length === 0) {
+  const entries = profileEntries(document.items)
+  // 按用户勾选顺序处理：第一个订阅同时提供要继承的通用字段与分流规则。
+  const ordered = input.selected
+    .map((uid) => entries.find((entry) => entry.uid === uid))
+    .filter((entry): entry is ProfileEntry => entry !== undefined)
+  if (ordered.length === 0) {
     throw new PublicOperationError(400, "没有选中可合并的订阅")
   }
 
   // 收集节点：重名节点加后缀，否则整份配置会因重名失效。
   const proxies: Record<string, unknown>[] = []
   const usedNames = new Set<string>()
-  for (const entry of entries) {
+  /** 原订阅里的组名与成员：用来把 rules 的出口改成合并后的组。 */
+  const originalGroups = new Map<string, string[]>()
+  let baseDocument: Record<string, unknown> | null = null
+  for (const entry of ordered) {
     if (entry.file === "" || path.basename(entry.file) !== entry.file) continue
     let text: string
     try {
@@ -831,7 +882,21 @@ export const mergeClashProfiles = async (
     } catch {
       continue
     }
-    const items = parseYamlRecord(text).proxies
+    const source = parseYamlRecord(text)
+    baseDocument ??= source
+    for (const group of Array.isArray(source["proxy-groups"])
+      ? source["proxy-groups"]
+      : []) {
+      if (isRecord(group) && typeof group.name === "string") {
+        originalGroups.set(
+          group.name,
+          (Array.isArray(group.proxies) ? group.proxies : []).filter(
+            (member): member is string => typeof member === "string"
+          )
+        )
+      }
+    }
+    const items = source.proxies
     for (const proxy of Array.isArray(items) ? items : []) {
       if (!isRecord(proxy) || typeof proxy.name !== "string") continue
       const name = uniqueNodeName(proxy.name, usedNames)
@@ -874,15 +939,42 @@ export const mergeClashProfiles = async (
     throw new PublicOperationError(400, "所有规则都没命中节点，未生成配置")
   }
 
+  const primaryGroup = groupIndex.has(MERGED_PRIMARY_GROUP)
+    ? `${MERGED_PRIMARY_GROUP}-合并`
+    : MERGED_PRIMARY_GROUP
+
+  // 继承第一个订阅的通用字段与分流规则（rule-providers 等靠它才完整）。
+  const inherited: Record<string, unknown> = {}
+  for (const key of MERGED_INHERIT_KEYS) {
+    const value = baseDocument === null ? undefined : baseDocument[key]
+    if (value !== undefined) inherited[key] = value
+  }
+  const rawRules = baseDocument === null ? undefined : baseDocument.rules
+  const rules = (Array.isArray(rawRules) ? rawRules : [])
+    .filter((rule): rule is string => typeof rule === "string")
+    .map((rule) => rewriteRuleGroup(rule, originalGroups, primaryGroup))
+  // 没有 MATCH 收尾就补一条，否则最后一段流量会落到不存在的组。
+  if (!rules.some((rule) => rule.startsWith("MATCH"))) {
+    rules.push(`MATCH,${primaryGroup}`)
+  }
+
   const mergedText = toYaml(
     {
+      ...inherited,
       proxies,
-      "proxy-groups": groups.map((group) => ({
-        name: group.name,
-        type: "select",
-        proxies: group.members,
-      })),
-      rules: [`MATCH,${groups[0].name}`],
+      "proxy-groups": [
+        {
+          name: primaryGroup,
+          type: "select",
+          proxies: groups.map((group) => group.name),
+        },
+        ...groups.map((group) => ({
+          name: group.name,
+          type: "select",
+          proxies: group.members,
+        })),
+      ],
+      rules,
     },
     { lineWidth: 0 }
   )
