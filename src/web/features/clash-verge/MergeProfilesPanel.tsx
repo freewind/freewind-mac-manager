@@ -162,12 +162,12 @@ export const MergeProfilesPanel = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>
+              <TableHead className="min-w-[60px]">
                 <span className="sr-only">选择</span>
               </TableHead>
-              <TableHead>订阅</TableHead>
-              <TableHead>节点数</TableHead>
-              <TableHead className="w-full">节点</TableHead>
+              <TableHead className="min-w-[60px]">订阅</TableHead>
+              <TableHead className="min-w-[60px]">节点数</TableHead>
+              <TableHead className="w-full min-w-[60px]">节点</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -234,11 +234,11 @@ export const MergeProfilesPanel = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-56">正则</TableHead>
-              <TableHead className="w-32">捕获项</TableHead>
-              <TableHead>捕获组</TableHead>
-              <TableHead>目标组名</TableHead>
-              <TableHead className="w-full">
+              <TableHead className="min-w-[120px]">正则</TableHead>
+              <TableHead className="min-w-[100px]">捕获项</TableHead>
+              <TableHead className="min-w-[60px]">捕获组</TableHead>
+              <TableHead className="min-w-[60px]">目标组名</TableHead>
+              <TableHead className="w-full min-w-[60px]">
                 <span className="sr-only">操作</span>
               </TableHead>
             </TableRow>
@@ -258,7 +258,7 @@ export const MergeProfilesPanel = () => {
                 const matches = previews[index] ?? []
                 return (
                   <TableRow key={rule.id}>
-                    <TableCell className="w-56">
+                    <TableCell>
                       <Input
                         value={rule.pattern}
                         aria-label={`第 ${index + 1} 条规则的正则`}
@@ -268,7 +268,7 @@ export const MergeProfilesPanel = () => {
                         }
                       />
                     </TableCell>
-                    <TableCell className="w-32">
+                    <TableCell>
                       <Input
                         value={rule.capture}
                         aria-label={`第 ${index + 1} 条规则的捕获项`}

@@ -219,26 +219,26 @@ export const ProfilesPanel = () => {
                         </p>
                       ) : (
                         <div className="mt-1 max-h-72 overflow-auto pr-1">
-                          {/* 表格统一规则：前面的列按内容宽度，最后一列占满剩余，全部左对齐。 */}
+                          {/* 表格统一规则：前面的列按内容宽度（每列至少 60px），最后一列占满剩余，全部左对齐。 */}
                           <Table>
                             <TableBody>
                               {profile.nodes.map((node, index) => (
                                 <TableRow key={`${node.name}-${node.server}`}>
-                                  <TableCell className="px-2 py-1 text-left text-muted-foreground">
+                                  <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground">
                                     {index + 1}
                                   </TableCell>
-                                  <TableCell className="px-2 py-1 text-left">
+                                  <TableCell className="min-w-[60px] px-2 py-1 text-left">
                                     {node.name}
                                   </TableCell>
-                                  <TableCell className="px-2 py-1 text-left text-muted-foreground">
+                                  <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground">
                                     {node.duplicateOf === null
                                       ? ""
                                       : `重复(${node.duplicateOf})`}
                                   </TableCell>
-                                  <TableCell className="px-2 py-1 text-left text-muted-foreground">
+                                  <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground">
                                     {node.type}
                                   </TableCell>
-                                  <TableCell className="w-full max-w-0 truncate px-2 py-1 text-left text-muted-foreground">
+                                  <TableCell className="w-full min-w-[60px] max-w-0 truncate px-2 py-1 text-left text-muted-foreground">
                                     {endpointOf(node.server, node.port)}
                                   </TableCell>
                                 </TableRow>
