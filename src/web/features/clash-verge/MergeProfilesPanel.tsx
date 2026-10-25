@@ -91,11 +91,23 @@ export const MergeProfilesPanel = () => {
                 </TableCell>
                 <TableCell className="text-left">{profile.name}</TableCell>
                 <TableCell className="w-full text-left whitespace-normal text-muted-foreground">
-                  {profile.nodes.length === 0
-                    ? "（没有节点）"
-                    : `${profile.nodes.length} 个：${profile.nodes
-                        .map((node) => node.name)
-                        .join("、")}`}
+                  {profile.nodes.length === 0 ? (
+                    "（没有节点）"
+                  ) : (
+                    <span className="flex flex-wrap items-center gap-1">
+                      <span className="shrink-0">
+                        {`${profile.nodes.length} 个：`}
+                      </span>
+                      {profile.nodes.map((node) => (
+                        <span
+                          key={`${node.name}-${node.server}`}
+                          className="inline-flex max-w-full items-center rounded-md border px-1.5 py-0.5 text-xs break-all"
+                        >
+                          {node.name}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
