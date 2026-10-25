@@ -6,6 +6,7 @@ import {
   ClashVergeProxiesResponseSchema,
   ClashVergeStatusSchema,
   SaveClashVergeMergeBodySchema,
+  SetClashVergeCurrentProfileBodySchema,
 } from "../schemas/clash-verge"
 import { ActionResponseSchema, ApiErrorSchema } from "../schemas/common"
 
@@ -52,6 +53,21 @@ export const clashVergeRoutes = {
       200: ClashVergeProfilesResponseSchema,
       404: ApiErrorSchema,
       ...readErrors,
+    },
+  },
+  // 切换订阅：改 current 并重启 Clash Verge 重新生成配置；409 表示已在该订阅或拒绝改写。
+  setClashVergeCurrentProfile: {
+    method: "PUT",
+    path: toContractPath(ApiPath.clashVergeProfileCurrent),
+    body: SetClashVergeCurrentProfileBodySchema,
+    responses: {
+      200: ActionResponseSchema,
+      400: ApiErrorSchema,
+      401: ApiErrorSchema,
+      404: ApiErrorSchema,
+      409: ApiErrorSchema,
+      429: ApiErrorSchema,
+      500: ApiErrorSchema,
     },
   },
   // 读全局 Merge（uid: Merge）：路径固定为 Clash Verge profiles/Merge.yaml，客户端不传路径。

@@ -1,5 +1,16 @@
+import type { ClashVergeProfile } from "@shared/api-contract"
 import { describeError, formatTimestamp } from "@shared/format"
+import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@web/components/ui/alert-dialog"
 import { Button } from "@web/components/ui/button"
 import {
   Collapsible,
@@ -7,9 +18,14 @@ import {
   CollapsibleTrigger,
 } from "@web/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
+import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { ChevronRight, CircleCheck, Copy } from "lucide-react"
+import { useState } from "react"
 import { toast } from "sonner"
-import { useClashVergeProfilesQuery } from "./queries"
+import {
+  useClashVergeProfilesQuery,
+  useSetClashVergeCurrentProfile,
+} from "./queries"
 
 /** 节点的服务器地址与端口：端口缺失时只显示地址，避免出现 `host:null`。 */
 const endpointOf = (server: string, port: number | null): string => {
@@ -28,6 +44,25 @@ const endpointOf = (server: string, port: number | null): string => {
 export const ProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
   const data = query.data
+  const switchProfile = useSetClashVergeCurrentProfile()
+  /** 待确认切换的订阅：非空时弹出确认框。 */
+  const [pending, setPending] = useState<ClashVergeProfile | null>(null)
+  const confirm = useDialogSubmit(
+    () => setPending(null),
+    switchProfile.isPending
+  )
+
+  const runSwitch = async (): Promise<boolean> => {
+    if (!pending) return false
+    try {
+      const result = await switchProfile.mutateAsync(pending.uid)
+      toast.success(result.message)
+      return true
+    } catch (error) {
+      toast.error(describeError(error))
+      return false
+    }
+  }
 
   const copyUrl = async (url: string, name: string) => {
     try {
@@ -95,6 +130,16 @@ export const ProfilesPanel = () => {
                       <Copy aria-hidden="true" />
                       复制
                     </Button>
+                    {profile.current ? null : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={confirm.busy}
+                        onClick={() => setPending(profile)}
+                      >
+                        使用当前
+                      </Button>
+                    )}
                   </div>
                   <p className="font-mono text-xs break-all text-muted-foreground">
                     {profile.url}
@@ -165,6 +210,36 @@ export const ProfilesPanel = () => {
           )}
         </>
       ) : null}
+
+      <AlertDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (!open && !confirm.busy) setPending(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {`切换到「${pending?.name ?? ""}」？`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              会改写 Clash Verge 订阅清单里的当前订阅并重启
+              App。重启期间系统代理与 TUN
+              短暂中断（数秒）：如果正通过这个代理远程访问本页，连接会断开。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={confirm.busy}>取消</AlertDialogCancel>
+            <ActionButton
+              busy={confirm.busy}
+              busyLabel="切换中…"
+              onClick={() => void confirm.submit(runSwitch)}
+            >
+              确认切换
+            </ActionButton>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }

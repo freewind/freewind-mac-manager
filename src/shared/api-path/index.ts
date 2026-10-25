@@ -11,6 +11,8 @@ export const ApiPath = {
   clashVergeMergeFile: `${API_BASE}/clash-verge/merge-file`,
   /** 订阅清单（只读）：Clash Verge 不提供订阅 API，内容来自 profiles.yaml。 */
   clashVergeProfiles: `${API_BASE}/clash-verge/profiles`,
+  /** 切换当前订阅：改 profiles.yaml 的 current 并重启 Clash Verge。 */
+  clashVergeProfileCurrent: `${API_BASE}/clash-verge/profile-current`,
   diskGrowthScans: `${API_BASE}/disk-growth/scans`,
   diskGrowthEntries: `${API_BASE}/disk-growth/entries`,
   diskGrowthTree: `${API_BASE}/disk-growth/tree`,

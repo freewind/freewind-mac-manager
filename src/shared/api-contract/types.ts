@@ -75,6 +75,7 @@ import type {
   ClashVergeProxySchema,
   ClashVergeStatusSchema,
   SaveClashVergeMergeBodySchema,
+  SetClashVergeCurrentProfileBodySchema,
 } from "./schemas/clash-verge"
 
 export type ClashVergeAvailability = z.infer<
@@ -97,6 +98,9 @@ export type ClashVergeProfilesResponse = z.infer<
 export type ClashVergeMergeFile = z.infer<typeof ClashVergeMergeFileSchema>
 export type SaveClashVergeMergeBody = z.infer<
   typeof SaveClashVergeMergeBodySchema
+>
+export type SetClashVergeCurrentProfileBody = z.infer<
+  typeof SetClashVergeCurrentProfileBodySchema
 >
 
 export type KillProcessesBody = z.infer<typeof KillProcessesBodySchema>

@@ -64,3 +64,14 @@ export const fetchClashVergeProfiles = async (options?: {
       fetchOptions: options?.signal ? { signal: options.signal } : undefined,
     })
   )
+
+/**
+ * 切换当前订阅：写操作，客户端不自动重试；服务端会重启 Clash Verge，
+ * 代理短暂中断，超时或断连时结果未知，必须重新读取清单核实。
+ */
+export const setClashVergeCurrentProfile = async (
+  uid: string
+): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(
+    await apiClient.setClashVergeCurrentProfile({ body: { uid } })
+  )

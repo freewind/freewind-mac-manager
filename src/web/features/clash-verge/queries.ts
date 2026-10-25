@@ -5,6 +5,7 @@ import {
   fetchClashVergeProxies,
   fetchClashVergeStatus,
   saveClashVergeMergeFile,
+  setClashVergeCurrentProfile,
 } from "@shared/client-api"
 import { describeError } from "@shared/format"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -103,6 +104,22 @@ export const useSaveClashVergeMerge = () => {
           queryKey: clashVergeKeys.mergeFile,
         })
       }
+    },
+  })
+}
+
+/**
+ * 切换当前订阅：写操作不重试、不排队。服务端会重启 Clash Verge，
+ * 超时或断连时结果未知，成功后刷新清单让「当前启用」跟着变。
+ */
+export const useSetClashVergeCurrentProfile = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (uid: string) => setClashVergeCurrentProfile(uid),
+    retry: false,
+    networkMode: "always",
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: clashVergeKeys.profiles })
     },
   })
 }

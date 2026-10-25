@@ -7,6 +7,7 @@ import {
   readClashVergeMergeFile,
   readClashVergeProfiles,
   saveClashVergeMergeFile,
+  setClashVergeCurrentProfile,
 } from "./service"
 
 /**
@@ -19,6 +20,7 @@ export const clashVergeContract = {
   getClashVergeProxies: contract.getClashVergeProxies,
   getClashVergeConnections: contract.getClashVergeConnections,
   getClashVergeProfiles: contract.getClashVergeProfiles,
+  setClashVergeCurrentProfile: contract.setClashVergeCurrentProfile,
   getClashVergeMergeFile: contract.getClashVergeMergeFile,
   saveClashVergeMergeFile: contract.saveClashVergeMergeFile,
 }
@@ -40,6 +42,17 @@ export const clashVergeRouter = {
   getClashVergeProfiles: async () => {
     try {
       return { status: 200 as const, body: await readClashVergeProfiles() }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  // 切换订阅：写操作 + 重启 App，当前订阅、订阅不存在、改写失败都按语义回显。
+  setClashVergeCurrentProfile: async ({ body }: { body: { uid: string } }) => {
+    try {
+      return {
+        status: 200 as const,
+        body: { message: await setClashVergeCurrentProfile(body.uid) },
+      }
     } catch (error) {
       return publicSystemError(error)
     }

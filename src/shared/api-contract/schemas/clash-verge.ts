@@ -132,3 +132,11 @@ export const ClashVergeProfilesResponseSchema = z.object({
   sampledAt: z.number().int(),
   profiles: z.array(ClashVergeProfileSchema).max(200),
 })
+
+/**
+ * 切换当前订阅：只接受清单里已存在的订阅 uid，服务端自己查证，
+ * 不信任客户端传来的名称与其他字段。
+ */
+export const SetClashVergeCurrentProfileBodySchema = z.object({
+  uid: z.string().min(1).max(64),
+})

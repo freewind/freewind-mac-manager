@@ -11,6 +11,7 @@ import {
   rm,
 } from "node:fs/promises"
 import path from "node:path"
+import { runCommand } from "@server/common/collect"
 import { PublicOperationError } from "@server/common/public-error"
 import {
   CLASH_VERGE_MERGE_FILE,
@@ -523,3 +524,151 @@ export const readClashVergeProfiles =
       profiles,
     }
   }
+
+/* ---------- 切换当前订阅 ---------- */
+
+/** Clash Verge 的 App 名：osascript 与 open 都按名字定位，装在哪都不影响。 */
+const CLASH_VERGE_APP_NAME = "Clash Verge"
+/** 进程名（二进制名）：pgrep -x 精确匹配，避免误命中其它进程。 */
+const CLASH_VERGE_PROCESS_NAME = "clash-verge"
+/** 等待退出/启动的单步间隔与步数：合计 12 秒。 */
+const RESTART_STEP_MS = 500
+const RESTART_STEPS = 24
+
+const delay = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+const isClashVergeRunning = async (): Promise<boolean> => {
+  try {
+    await runCommand("/usr/bin/pgrep", ["-x", CLASH_VERGE_PROCESS_NAME])
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 只替换 profiles.yaml 顶层的 current 行，保留注释、缩进与条目顺序。
+ * 找不到这行就返回 null，由调用方拒绕写，避免追加出重复键。
+ */
+const replaceCurrentLine = (text: string, uid: string): string | null => {
+  const pattern = /^current:[^\n]*$/m
+  if (!pattern.test(text)) return null
+  return text.replace(pattern, `current: ${uid}`)
+}
+
+/** 原子写：同目录临时文件 → fsync → rename，正式文件不会出现半截内容。 */
+const writeFileAtomic = async (
+  file: string,
+  content: string
+): Promise<void> => {
+  const info = await lstat(file)
+  const mode = info.mode & 0o777
+  const temp = path.join(
+    path.dirname(file),
+    `.profiles.${randomUUID().replace(/-/g, "").slice(0, 16)}.tmp`
+  )
+  try {
+    const handle = await open(temp, "wx", mode)
+    try {
+      await handle.writeFile(content, "utf8")
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    await chmod(temp, mode)
+    await rename(temp, file)
+  } finally {
+    await rm(temp, { force: true })
+  }
+}
+
+/**
+ * 重启 Clash Verge：它只在启动时按 current 重建 config.yaml 并加载。
+ * 退出迟迟不完成（例如弹了确认框）直接报错，不谎称已重启。
+ * 未运行时不动它，下次启动自己生效。
+ */
+const restartClashVerge = async (): Promise<boolean> => {
+  if (!(await isClashVergeRunning())) return false
+  await runCommand("/usr/bin/osascript", [
+    "-e",
+    `quit app "${CLASH_VERGE_APP_NAME}"`,
+  ])
+  for (let step = 0; step < RESTART_STEPS; step += 1) {
+    if (!(await isClashVergeRunning())) break
+    await delay(RESTART_STEP_MS)
+  }
+  if (await isClashVergeRunning()) {
+    throw new PublicOperationError(
+      409,
+      "current 已改写，但 Clash Verge 没有退出（可能在等确认）；手动重启 App 后生效"
+    )
+  }
+  await runCommand("/usr/bin/open", ["-a", CLASH_VERGE_APP_NAME])
+  for (let step = 0; step < RESTART_STEPS; step += 1) {
+    if (await isClashVergeRunning()) break
+    await delay(RESTART_STEP_MS)
+  }
+  return true
+}
+
+/**
+ * 切换当前订阅：只改 profiles.yaml 的 current，再重启 Clash Verge 让它重新
+ * 生成并加载配置（重启期系统代理与 TUN 短暂中断）。
+ *
+ * 不在服务端自己合成 config.yaml：Clash Verge 的「订阅 + 全局 Merge + Script」
+ * 合成逻辑含 JS 沙箱，复刻不了，强写会弄丢全局规则。
+ */
+export const setClashVergeCurrentProfile = async (
+  uid: string
+): Promise<string> => {
+  let text: string
+  try {
+    text = await readFile(CLASH_VERGE_PROFILES_FILE, "utf8")
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new PublicOperationError(
+        404,
+        `找不到 Clash Verge 订阅清单：${CLASH_VERGE_PROFILES_FILE}`
+      )
+    }
+    throw error
+  }
+  const document = parseYamlRecord(text)
+  const target = remoteProfiles(document.items).find(
+    (entry) => entry.uid === uid
+  )
+  if (!target) {
+    throw new PublicOperationError(
+      404,
+      "订阅不存在：只能切到清单里的 remote 订阅"
+    )
+  }
+  const currentUid =
+    typeof document.current === "string" ? document.current : ""
+  if (currentUid === uid) {
+    throw new PublicOperationError(
+      409,
+      `「${target.name}」已经是当前启用的订阅`
+    )
+  }
+  const updated = replaceCurrentLine(text, uid)
+  if (updated === null) {
+    throw new PublicOperationError(409, "订阅清单里没有 current 行，拒绝改写")
+  }
+  await writeFileAtomic(CLASH_VERGE_PROFILES_FILE, updated)
+  const restarted = await restartClashVerge()
+  // 回读核实：Clash Verge 启动时有可能写回订阅清单，不核实不报成功。
+  const after = await readFile(CLASH_VERGE_PROFILES_FILE, "utf8").catch(
+    () => ""
+  )
+  if (parseYamlRecord(after).current !== uid) {
+    throw new PublicOperationError(
+      500,
+      "已改写 current，但回读不一致；请在 Clash Verge 内确认当前订阅"
+    )
+  }
+  return restarted
+    ? `已切换到「${target.name}」，Clash Verge 正在重启；代理会短暂中断`
+    : `已切换到「${target.name}」；Clash Verge 未运行，下次启动生效`
+}
