@@ -25,6 +25,12 @@ export const DEFAULT_HEALTH_CHECK = {
 /** url-test 的容差：延迟差在这范围内视为持平，避免在两个节点间来回抖。 */
 export const MERGED_URL_TEST_TOLERANCE = 50
 /**
+ * 合并时自动补齐的固定规则：写在代码里，模板不用手写。
+ * GEOIP,CN 补 IP 层的直连：嗅探不到域名的国内连接靠它才不会误走代理。
+ */
+export const DEFAULT_MERGE_RULES = ["GEOIP,CN,DIRECT,no-resolve"] as const
+
+/**
  * 合并用的基座模板：合并产物里所有手写配置都从这里来。
  *
  * 订阅只提供节点，规则与各项行为全部由我们定义；页面生成的 proxies、
@@ -87,10 +93,13 @@ sniffer:
     HTTP:
       ports: ["80", "8080-8880"]
 
-# ===== 页面生成的规则插在这行之前；下面写的是固定规则 =====
-# 取消注释即可生效：
-#   - PROCESS-NAME,Telegram,DIRECT
-#   - AND,((DOMAIN-SUFFIX,example.com),(NETWORK,tcp)),节点选择
-rules:
-  - GEOIP,CN,DIRECT,no-resolve
+# ===== 页面生成：规则会填在这里，保持空列表即可 =====
+# 合并时依次填入：
+#   1. 页面上写的自定义域名规则
+#   2. 页面选的 GEO 分类
+#   3. 固定三条：GEOSITE CN / GEOLOCATION-CN → 直连，GEOLOCATION-!CN → 节点选择
+#   4. 固定一条：GEOIP,CN,DIRECT,no-resolve
+#   5. 你自己写在下面的规则（本列表的内容会接在它们后面）
+# 最后自动补一条 MATCH 收尾。
+rules: []
 `

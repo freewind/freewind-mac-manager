@@ -43,6 +43,7 @@ import {
   type ClashMergeGroupType,
   DEFAULT_GEOSITE_RULES,
   DEFAULT_HEALTH_CHECK,
+  DEFAULT_MERGE_RULES,
   DEFAULT_MERGE_TEMPLATE,
   MERGED_URL_TEST_TOLERANCE,
 } from "@shared/clash-merge-defaults"
@@ -1247,8 +1248,13 @@ export const mergeClashProfiles = async (
     geositeRules.push(`GEOSITE,${code},${geositeOutletOf[rule.target]}`)
   }
 
-  // 生成规则骨架：自定义 → GEO → 固定三条 → 模板里的固定规则 → MATCH。
-  const rules = [...customRules, ...geositeRules, ...template.rules]
+  // 生成规则骨架：自定义 → GEO → 固定三条 → 代码里的默认规则 → 模板里的规则 → MATCH。
+  const rules = [
+    ...customRules,
+    ...geositeRules,
+    ...DEFAULT_MERGE_RULES,
+    ...template.rules,
+  ]
   // 没有 MATCH 收尾就补一条，否则最后一段流量会落到不存在的组。
   if (!rules.some((rule) => rule.startsWith("MATCH"))) {
     rules.push(`MATCH,${outlets.primary}`)
