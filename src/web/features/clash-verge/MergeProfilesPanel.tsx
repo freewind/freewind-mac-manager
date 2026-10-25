@@ -82,6 +82,8 @@ export const MergeProfilesPanel = () => {
   const [editedSelected, setEditedSelected] = useState<string[]>([])
   const [editedRules, setEditedRules] = useState<GroupRule[] | null>(null)
   const selected = editedSelected
+  /** 规则行的勾选状态：仅为本地选择，未绑定具体批量动作。 */
+  const [checkedRules, setCheckedRules] = useState<string[]>([])
   const rules = useMemo<GroupRule[]>(
     () =>
       editedRules ?? [
@@ -147,6 +149,24 @@ export const MergeProfilesPanel = () => {
 
   const removeRule = (id: string) => {
     setEditedRules(rules.filter((rule) => rule.id !== id))
+    setCheckedRules((current) => current.filter((item) => item !== id))
+  }
+
+  const normalRules = rules.filter((rule) => !rule.fixed)
+  const allChecked =
+    normalRules.length > 0 &&
+    normalRules.every((rule) => checkedRules.includes(rule.id))
+
+  const toggleAllRules = (checked: boolean) => {
+    setCheckedRules(checked ? normalRules.map((rule) => rule.id) : [])
+  }
+
+  const toggleRule = (id: string, checked: boolean) => {
+    setCheckedRules(
+      checked
+        ? [...checkedRules.filter((item) => item !== id), id]
+        : checkedRules.filter((item) => item !== id)
+    )
   }
 
   const merge = () => {
@@ -264,6 +284,13 @@ export const MergeProfilesPanel = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="min-w-[60px]">
+                <Checkbox
+                  aria-label="全选分组规则"
+                  checked={allChecked}
+                  onCheckedChange={(checked) => toggleAllRules(checked)}
+                />
+              </TableHead>
               <TableHead className="min-w-[120px]">正则</TableHead>
               <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
               <TableHead className="min-w-[120px]">目标组名</TableHead>
@@ -277,6 +304,7 @@ export const MergeProfilesPanel = () => {
               if (rule.fixed) {
                 return (
                   <TableRow key={rule.id}>
+                    <TableCell />
                     <TableCell className="text-xs text-muted-foreground">
                       其余未匹配的节点
                     </TableCell>
@@ -297,6 +325,15 @@ export const MergeProfilesPanel = () => {
               const matches = previews[index] ?? []
               return (
                 <TableRow key={rule.id}>
+                  <TableCell>
+                    <Checkbox
+                      aria-label={`选择第 ${index + 1} 条分组规则`}
+                      checked={checkedRules.includes(rule.id)}
+                      onCheckedChange={(checked) =>
+                        toggleRule(rule.id, checked)
+                      }
+                    />
+                  </TableCell>
                   <TableCell>
                     <Input
                       value={rule.pattern}
