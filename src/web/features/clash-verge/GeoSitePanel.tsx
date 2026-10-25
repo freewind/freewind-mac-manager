@@ -16,9 +16,6 @@ import {
   useClashVergeGeositeQuery,
 } from "./queries"
 
-/** 一次最多渲染的分类数：总共一千多个，全渲染会卡。 */
-const CATEGORY_ROWS_LIMIT = 300
-
 /** 分类条目的分页大小：与服务端默认页大小一致。 */
 const PAGE_SIZE = 500
 
@@ -141,7 +138,6 @@ export const GeoSitePanel = () => {
         : data.categories.filter((item) =>
             item.code.toLowerCase().includes(needle)
           )
-  const rows = filtered.slice(0, CATEGORY_ROWS_LIMIT)
 
   return (
     <section className="space-y-3" aria-label="geosite 数据库">
@@ -181,7 +177,7 @@ export const GeoSitePanel = () => {
             <div className="max-h-[60vh] overflow-auto">
               <Table>
                 <TableBody>
-                  {rows.map((category) => (
+                  {filtered.map((category) => (
                     <TableRow key={category.code}>
                       <TableCell className="min-w-[60px] px-2 py-1 text-left">
                         {category.code}
@@ -207,11 +203,6 @@ export const GeoSitePanel = () => {
               </Table>
             </div>
           )}
-          {filtered.length > rows.length ? (
-            <p className="text-xs text-muted-foreground">
-              {`只显示前 ${CATEGORY_ROWS_LIMIT} 个分类，用搜索缩小范围`}
-            </p>
-          ) : null}
         </>
       )}
       <GeositeCategoryDialog
