@@ -148,7 +148,7 @@ export const EditableYaml = (props: {
 }) => {
   const backdropRef = useRef<HTMLDivElement>(null)
   return (
-    <div className="relative min-h-[320px] w-full overflow-hidden rounded-md border">
+    <div className="relative min-h-[160px] w-full overflow-hidden rounded-md border">
       <div
         ref={backdropRef}
         aria-hidden="true"
@@ -160,7 +160,7 @@ export const EditableYaml = (props: {
         value={props.value}
         aria-label={props.ariaLabel}
         spellCheck={false}
-        className="relative min-h-[320px] w-full resize-y bg-transparent p-3 font-mono text-xs leading-5 break-words whitespace-pre-wrap text-transparent caret-foreground outline-none selection:bg-primary/25"
+        className="relative min-h-[160px] w-full resize-y bg-transparent p-3 font-mono text-xs leading-5 break-words whitespace-pre-wrap text-transparent caret-foreground outline-none selection:bg-primary/25"
         onChange={(event) => props.onChange(event.target.value)}
         onScroll={(event) => {
           const backdrop = backdropRef.current

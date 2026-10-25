@@ -71,7 +71,6 @@ import type {
   ClashVergeConnectionsResponseSchema,
   ClashVergeGeositeCategorySchema,
   ClashVergeGeositeSchema,
-  ClashVergeMergeFileSchema,
   ClashVergeProfileFileSchema,
   ClashVergeProfileNodeSchema,
   ClashVergeProfileSchema,
@@ -83,7 +82,6 @@ import type {
   GeositeRuleSchema,
   MergeClashProfilesBodySchema,
   SaveClashMergeConfigBodySchema,
-  SaveClashVergeMergeBodySchema,
   SetClashVergeCurrentProfileBodySchema,
 } from "./schemas/clash-verge"
 
@@ -110,10 +108,6 @@ export type GeositeRule = z.infer<typeof GeositeRuleSchema>
 export type CustomRule = z.infer<typeof CustomRuleSchema>
 export type ClashVergeProfilesResponse = z.infer<
   typeof ClashVergeProfilesResponseSchema
->
-export type ClashVergeMergeFile = z.infer<typeof ClashVergeMergeFileSchema>
-export type SaveClashVergeMergeBody = z.infer<
-  typeof SaveClashVergeMergeBodySchema
 >
 export type SetClashVergeCurrentProfileBody = z.infer<
   typeof SetClashVergeCurrentProfileBodySchema

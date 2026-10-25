@@ -6,7 +6,6 @@ import { RefreshCw } from "lucide-react"
 import { ConfigDetailPanel } from "./ConfigDetailPanel"
 import { ConnectionsList } from "./ConnectionsList"
 import { GeoSitePanel } from "./GeoSitePanel"
-import { MergeFilePanel } from "./MergeFilePanel"
 import { MergeProfilesPanel } from "./MergeProfilesPanel"
 import { ProfilesPanel } from "./ProfilesPanel"
 import { ProxyGroups } from "./ProxyGroups"
@@ -94,9 +93,6 @@ export const ClashVergePage = () => {
                   : ""}
               </p>
             ) : null}
-            {/* 全局 Merge 是配置写入口，不是实时数据：放默认标签做常驻入口，
-                危险提示与冲突提示一并常驻可见，不埋进会频繁刷新的代理组/连接区。 */}
-            <MergeFilePanel />
           </div>
         ) : null}
         {tab === "profiles" ? <ProfilesPanel /> : null}

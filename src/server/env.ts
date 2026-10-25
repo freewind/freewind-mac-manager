@@ -69,15 +69,6 @@ export const CLASH_VERGE_PROFILE_DIR = path.resolve(
 )
 
 /**
- * 全局 Merge 文件：固定叫 Merge.yaml，路径由服务端推导，不接受客户端传路径；
- * 可用 CLASH_VERGE_MERGE_FILE 单独覆盖（测试与换机器用）。
- */
-export const CLASH_VERGE_MERGE_FILE = path.resolve(
-  process.env.CLASH_VERGE_MERGE_FILE ??
-    path.join(CLASH_VERGE_PROFILE_DIR, "Merge.yaml")
-)
-
-/**
  * profiles.yaml：Clash Verge 的订阅清单（订阅 URL 与流量信息都在里面），
  * 位于 profiles 目录的上一层。Clash Verge 不对外提供订阅 API，只能读这份文件。
  * 可用 CLASH_VERGE_PROFILES_FILE 单独覆盖（测试与换机器用）。

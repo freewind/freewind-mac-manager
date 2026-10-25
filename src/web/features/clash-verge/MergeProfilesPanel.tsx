@@ -22,7 +22,7 @@ import {
   DEFAULT_HEALTH_CHECK,
   DEFAULT_MERGE_TEMPLATE,
 } from "@shared/clash-merge-defaults"
-import { describeError, formatTimestamp } from "@shared/format"
+import { describeError } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
@@ -370,6 +370,8 @@ const NodeTags = (props: { nodes: string[] }) => {
 /**
  * 可折叠的卡片：合并页下面几块默认收起，点标题展开。
  * 标题右侧放一行摘要，收着也能看出里面大概有什么。
+ * 夹在 Card 与内部块之间时，这里负责补上卡片的纵向间距：
+ * Card 的 gap 只作用于直接子元素，套一层 Collapsible 后就不再生效。
  */
 const CollapsibleCard = (props: {
   title: string
@@ -380,7 +382,11 @@ const CollapsibleCard = (props: {
   const [open, setOpen] = useState(false)
   return (
     <Card size="sm">
-      <Collapsible open={open} onOpenChange={setOpen}>
+      <Collapsible
+        open={open}
+        onOpenChange={setOpen}
+        className="flex flex-col gap-(--card-spacing)"
+      >
         <CardHeader>
           <CardTitle>
             <CollapsibleTrigger
@@ -842,19 +848,6 @@ export const MergeProfilesPanel = () => {
         description="正则在节点名里匹配，右侧列出命中的节点；目标组名直接填。最后一行固定兜底，其余节点归到「其他」"
         summary={`${rules.filter((rule) => !rule.fixed).length} 条规则`}
       >
-        <div>
-          <p className="text-xs text-muted-foreground">
-            {configQuery.data?.updatedAt
-              ? `上次保存：${formatTimestamp(configQuery.data.updatedAt)}`
-              : "尚未保存到服务端"}
-          </p>
-          {chosen.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              先在上面勾选订阅，预览才有可匹配的节点
-            </p>
-          ) : null}
-        </div>
-
         {/* 测速参数全局一份：只有测速最快、按序兜底两种组用得上，放在表格上方。 */}
         <div className="flex flex-wrap items-end gap-2">
           <label htmlFor="health-url" className="space-y-1">
@@ -1038,8 +1031,8 @@ export const MergeProfilesPanel = () => {
       </CollapsibleCard>
 
       <CollapsibleCard
-        title="自定义规则"
-        description="手写域名规则，优先级最高：合并时排在 GEO 分类与固定规则之前；值为空的行不会写进配置"
+        title="自定义域名规则"
+        description="按域名后缀、完整域名或关键词匹配，命中就走你指定的出口；比下面的 GEO 分类先生效"
         summary={`${customRules.length} 条`}
       >
         <Table>
@@ -1355,10 +1348,9 @@ export const MergeProfilesPanel = () => {
         </div>
       </CollapsibleCard>
 
-      <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+      <div className="flex flex-wrap items-center justify-center gap-3 border-t pt-4">
         {/* 保存放在合并左边：这些都是我们自己维护的设置，合并生成的配置会覆盖文件，不会覆盖它们。 */}
         <ActionButton
-          size="sm"
           variant={dirty ? "default" : "outline"}
           busy={saveConfig.isPending}
           busyLabel="保存中…"

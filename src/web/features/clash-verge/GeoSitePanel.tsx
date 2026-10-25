@@ -90,7 +90,7 @@ const bytesText = (bytes: number): string =>
 /**
  * geosite 数据库面板（只读）：每个分类一行，域名直接列成标签。
  * 数据来自本机 geosite.dat，与 Clash Verge 内核使用同一份文件。
- * 单个分类动辄上万条，服务端只给前 100 条，剩余用「还有 N 条」标出。
+ * 单个分类动辄上万条，服务端只给前 30 条，剩余用「还有 N 条」标出。
  */
 export const GeoSitePanel = () => {
   const query = useClashVergeGeositeQuery()
@@ -186,7 +186,7 @@ export const GeoSitePanel = () => {
                     </TableHead>
                     <TableHead className="min-w-[60px]">
                       <HeaderHelp label="个数">
-                        该分类的域名条目数。页面只带前 100
+                        该分类的域名条目数。页面只带前 30
                         条用于展示，多出的用「还有 N 条」标出
                       </HeaderHelp>
                     </TableHead>

@@ -11,11 +11,9 @@ import {
   mergeClashProfiles,
   readClashMergeConfig,
   readClashVergeGeosite,
-  readClashVergeMergeFile,
   readClashVergeProfileFile,
   readClashVergeProfiles,
   saveClashMergeConfig,
-  saveClashVergeMergeFile,
   setClashVergeCurrentProfile,
 } from "./service"
 
@@ -35,8 +33,6 @@ export const clashVergeContract = {
   getClashMergeConfig: contract.getClashMergeConfig,
   saveClashMergeConfig: contract.saveClashMergeConfig,
   mergeClashProfiles: contract.mergeClashProfiles,
-  getClashVergeMergeFile: contract.getClashVergeMergeFile,
-  saveClashVergeMergeFile: contract.saveClashVergeMergeFile,
 }
 
 export const clashVergeRouter = {
@@ -115,24 +111,6 @@ export const clashVergeRouter = {
       return {
         status: 200 as const,
         body: { message: await mergeClashProfiles(body) },
-      }
-    } catch (error) {
-      return publicSystemError(error)
-    }
-  },
-  // Merge 文件读写：已知错误（404/403/400/409）按语义回显，其余异常走公共兜底。
-  getClashVergeMergeFile: async () => {
-    try {
-      return { status: 200 as const, body: await readClashVergeMergeFile() }
-    } catch (error) {
-      return publicSystemError(error)
-    }
-  },
-  saveClashVergeMergeFile: async ({ body }: { body: { content: string } }) => {
-    try {
-      return {
-        status: 200 as const,
-        body: { message: await saveClashVergeMergeFile(body.content) },
       }
     } catch (error) {
       return publicSystemError(error)
