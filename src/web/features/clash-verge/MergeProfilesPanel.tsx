@@ -116,13 +116,22 @@ export const MergeProfilesPanel = () => {
     [profiles, selected]
   )
   const nodeNames = useMemo(
-    () => chosen.flatMap((profile) => profile.nodes.map((node) => node.name)),
+    () => [
+      ...new Set(
+        chosen.flatMap((profile) => profile.nodes.map((node) => node.name))
+      ),
+    ],
     [chosen]
   )
   const previews = useMemo(
     () => rules.map((rule) => matchRule(rule, nodeNames)),
     [rules, nodeNames]
   )
+  /** 还没被任何规则命中的节点：写一条规则就少一批，用来盯分组进度。 */
+  const unmatchedNodes = useMemo(() => {
+    const matched = new Set(previews.flat().map((match) => match.node))
+    return nodeNames.filter((name) => !matched.has(name))
+  }, [nodeNames, previews])
   const nodeTotal = chosen.reduce(
     (total, profile) => total + profile.nodes.length,
     0
@@ -254,6 +263,33 @@ export const MergeProfilesPanel = () => {
               先在上面勾选订阅，预览才有可匹配的节点
             </p>
           ) : null}
+        </div>
+
+        <div className="space-y-2 rounded-lg border p-3">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h4 className="text-sm font-medium">待分组节点</h4>
+            <span className="text-xs text-muted-foreground">
+              {`${unmatchedNodes.length} / ${nodeNames.length}`}
+            </span>
+          </div>
+          {unmatchedNodes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {nodeNames.length === 0
+                ? "先在上面勾选订阅"
+                : "选中的节点都已分组"}
+            </p>
+          ) : (
+            <span className="flex flex-wrap items-center gap-1">
+              {unmatchedNodes.map((name) => (
+                <span
+                  key={name}
+                  className="inline-flex max-w-full items-center rounded-md border px-1.5 py-0.5 text-xs break-all"
+                >
+                  {name}
+                </span>
+              ))}
+            </span>
+          )}
         </div>
 
         <Table>
