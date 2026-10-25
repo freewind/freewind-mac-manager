@@ -1,16 +1,28 @@
 import { describeError, formatTimestamp } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@web/components/ui/collapsible"
 import { Copy } from "lucide-react"
 import { toast } from "sonner"
 import { useClashVergeProfilesQuery } from "./queries"
 
+/** 节点的服务器地址与端口：端口缺失时只显示地址，避免出现 `host:null`。 */
+const endpointOf = (server: string, port: number | null): string => {
+  if (server === "") return "地址未知"
+  return port === null ? server : `${server}:${port}`
+}
+
 /**
  * 订阅链接面板（只读）。
  *
- * Clash Verge 不对外提供订阅 API，内容只能解析 profiles.yaml：这里回显的是
- * 磁盘上的配置，不是内核运行状态，所以标出文件路径与读取时间。链接含订阅
- * token，页面本身有访问密码，故原样显示并提供一键复制，不做打码。
+ * Clash Verge 不对外提供订阅 API，内容只能解析 profiles.yaml 与各订阅的
+ * 配置文件：这里回显的是磁盘上的配置，不是内核运行状态，所以标出文件路径
+ * 与读取时间。链接含订阅 token，页面本身有访问密码，故原样显示并支持一键
+ * 复制，不做打码。节点信息默认收起，按需展开（订阅动辄上百节点）。
  */
 export const ProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
@@ -59,7 +71,7 @@ export const ProfilesPanel = () => {
               {data.profiles.map((profile) => (
                 <li
                   key={profile.uid || profile.url}
-                  className="space-y-1 rounded-lg border p-3"
+                  className="space-y-2 rounded-lg border p-3"
                 >
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -78,6 +90,49 @@ export const ProfilesPanel = () => {
                   <p className="font-mono text-xs break-all text-muted-foreground">
                     {profile.url}
                   </p>
+                  <Collapsible>
+                    <CollapsibleTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="text-xs text-primary underline-offset-4 hover:underline"
+                        >
+                          节点信息
+                        </button>
+                      }
+                    />
+                    <CollapsibleContent>
+                      {profile.nodes.length === 0 ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          没读到节点：该订阅的配置文件可能还没下载
+                        </p>
+                      ) : (
+                        <>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {`共 ${profile.nodes.length} 个节点`}
+                            {profile.nodesTruncated
+                              ? "（已截断，只显示前面的）"
+                              : ""}
+                          </p>
+                          <ul className="mt-1 max-h-72 space-y-1 overflow-auto pr-1">
+                            {profile.nodes.map((node) => (
+                              <li
+                                key={`${node.name}-${node.server}`}
+                                className="space-y-0.5"
+                              >
+                                <p className="text-xs break-words">
+                                  {node.name}
+                                </p>
+                                <p className="text-xs break-all text-muted-foreground">
+                                  {`${node.type} · ${endpointOf(node.server, node.port)}`}
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
                 </li>
               ))}
             </ul>

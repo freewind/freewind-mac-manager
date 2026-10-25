@@ -95,6 +95,17 @@ export const SaveClashVergeMergeBodySchema = z.object({
 })
 
 /**
+ * 订阅里的单个节点：只取排障需要的字段，不含密码、uuid 等凭据。
+ * server 是本机订阅里的服务器地址，页面已有访问密码，原样展示便于核对。
+ */
+export const ClashVergeProfileNodeSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  server: z.string(),
+  port: z.number().int().nullable(),
+})
+
+/**
  * 订阅清单条目：Clash Verge 的 profiles.yaml 里 type 为 remote 的记录。
  * 只读回显，不含编辑与切换能力；url 原样返回，由调用方决定展示方式。
  */
@@ -102,6 +113,9 @@ export const ClashVergeProfileSchema = z.object({
   uid: z.string(),
   name: z.string(),
   url: z.string(),
+  nodes: z.array(ClashVergeProfileNodeSchema).max(300),
+  /** 节点数超过上限时只回前 300 条，这里标出是否被截断。 */
+  nodesTruncated: z.boolean(),
 })
 
 export const ClashVergeProfilesResponseSchema = z.object({

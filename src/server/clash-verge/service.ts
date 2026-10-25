@@ -21,6 +21,7 @@ import type {
   ClashVergeConnection,
   ClashVergeConnectionsResponse,
   ClashVergeMergeFile,
+  ClashVergeProfileNode,
   ClashVergeProfilesResponse,
   ClashVergeProxiesResponse,
   ClashVergeProxy,
@@ -386,28 +387,72 @@ export const saveClashVergeMergeFile = async (
 
 /* ---------- 订阅清单（只读） ---------- */
 
+type RemoteProfileEntry = {
+  uid: string
+  name: string
+  url: string
+  /** 订阅在 profiles 目录里的配置文件名（如 R9qx7MBAX2DY.yaml），用来读节点。 */
+  file: string
+}
+
 /**
  * 从 profiles.yaml 的 items 里挑出订阅条目。只认 type 为 remote 的记录，
  * 其余 merge / script / rules 等都是内部配置项，不是订阅。
  * 名称缺失时退回文件名，再退回固定文案，不让界面出现空标题。
  */
-const remoteProfiles = (
-  items: unknown
-): ClashVergeProfilesResponse["profiles"] => {
-  const result: ClashVergeProfilesResponse["profiles"] = []
+const remoteProfiles = (items: unknown): RemoteProfileEntry[] => {
+  const result: RemoteProfileEntry[] = []
   for (const item of Array.isArray(items) ? items : []) {
     if (!isRecord(item)) continue
     const url = item.url
     if (item.type !== "remote" || typeof url !== "string") continue
+    const file = typeof item.file === "string" ? item.file : ""
     const trimmedName = typeof item.name === "string" ? item.name.trim() : ""
-    const fallbackName = typeof item.file === "string" ? item.file : ""
     result.push({
       uid: typeof item.uid === "string" ? item.uid : "",
-      name: trimmedName || fallbackName || "未命名订阅",
+      name: trimmedName || file || "未命名订阅",
       url,
+      file,
     })
   }
   return result
+}
+
+/** 单个订阅能回显的节点上限：订阅动辄上百节点，超过只回前面的。 */
+const PROFILE_NODES_LIMIT = 300
+
+/**
+ * 读单个订阅的节点：节点就在 profiles/<file> 的 proxies 里。
+ * 文件名来自 profiles.yaml 而非客户端，仍要求是单纯文件名（不含路径分隔符），
+ * 避免异常数据把读取路径带出 profiles 目录；读不到按空列表返回，不报错。
+ */
+const profileNodes = async (
+  file: string
+): Promise<{ nodes: ClashVergeProfileNode[]; nodesTruncated: boolean }> => {
+  if (file === "" || path.basename(file) !== file) {
+    return { nodes: [], nodesTruncated: false }
+  }
+  let text: string
+  try {
+    text = await readFile(path.join(CLASH_VERGE_PROFILE_DIR, file), "utf8")
+  } catch {
+    return { nodes: [], nodesTruncated: false }
+  }
+  const proxies = parseYamlRecord(text).proxies
+  const nodes: ClashVergeProfileNode[] = []
+  for (const item of Array.isArray(proxies) ? proxies : []) {
+    if (!isRecord(item) || typeof item.name !== "string") continue
+    nodes.push({
+      name: item.name,
+      type: typeof item.type === "string" ? item.type : "未知",
+      server: typeof item.server === "string" ? item.server : "",
+      port: typeof item.port === "number" ? item.port : null,
+    })
+  }
+  return {
+    nodes: nodes.slice(0, PROFILE_NODES_LIMIT),
+    nodesTruncated: nodes.length > PROFILE_NODES_LIMIT,
+  }
 }
 
 /**
@@ -429,9 +474,18 @@ export const readClashVergeProfiles =
       }
       throw error
     }
+    const entries = remoteProfiles(parseYamlRecord(text).items)
+    const profiles = await Promise.all(
+      entries.map(async (entry) => ({
+        uid: entry.uid,
+        name: entry.name,
+        url: entry.url,
+        ...(await profileNodes(entry.file)),
+      }))
+    )
     return {
       path: CLASH_VERGE_PROFILES_FILE,
       sampledAt: Math.floor(Date.now() / 1000),
-      profiles: remoteProfiles(parseYamlRecord(text).items),
+      profiles,
     }
   }
