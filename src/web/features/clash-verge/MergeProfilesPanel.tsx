@@ -2,6 +2,7 @@ import { describeError } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import { Checkbox } from "@web/components/ui/checkbox"
+import { Input } from "@web/components/ui/input"
 import {
   Table,
   TableBody,
@@ -14,15 +15,39 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { useClashVergeProfilesQuery } from "./queries"
 
+/** 一条自定义分组规则：正则在节点名里匹配，捕获项取分组拼出新名字。 */
+type GroupRule = { id: string; pattern: string; capture: string }
+
 /**
  * 合并订阅：本轮只做选择界面（勾选订阅、看各自节点数量）。
  * 合并结果要写到哪里、怎么和全局 Merge 叠加还没定，按钮先只回显范围，
  * 不写任何文件，避免造出半个可用状态。
+ *
+ * 自定义分组规则只提供编辑界面：不读任何节点内容、不做预览，
+ * 写成通用规则由合并逻辑使用。
  */
 export const MergeProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
   const profiles = query.data?.profiles ?? []
   const [selected, setSelected] = useState<string[]>([])
+  const [rules, setRules] = useState<GroupRule[]>([])
+
+  const addRule = () => {
+    setRules((current) => [
+      ...current,
+      { id: crypto.randomUUID(), pattern: "", capture: "" },
+    ])
+  }
+
+  const updateRule = (id: string, patch: Partial<GroupRule>) => {
+    setRules((current) =>
+      current.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule))
+    )
+  }
+
+  const removeRule = (id: string) => {
+    setRules((current) => current.filter((rule) => rule.id !== id))
+  }
 
   const toggle = (uid: string, checked: boolean) => {
     setSelected((current) =>
@@ -125,6 +150,57 @@ export const MergeProfilesPanel = () => {
             ? "至少选 2 个订阅"
             : `已选 ${chosen.length} 个订阅、${nodeTotal} 个节点`}
         </span>
+      </div>
+
+      <div className="space-y-2 border-t pt-3">
+        <div>
+          <h3 className="text-sm font-medium">自定义分组规则</h3>
+          <p className="text-xs text-muted-foreground">
+            每行一条：左边填正则去匹配节点名，右边填捕获项（如 $1、$2）
+          </p>
+        </div>
+
+        {rules.length === 0 ? (
+          <p className="text-sm text-muted-foreground">还没有规则</p>
+        ) : (
+          <ul className="space-y-2">
+            {rules.map((rule, index) => (
+              <li
+                key={rule.id}
+                className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]"
+              >
+                <Input
+                  value={rule.pattern}
+                  aria-label={`第 ${index + 1} 条规则的正则`}
+                  placeholder="正则，例如 ^(.+?)\\|"
+                  onChange={(event) =>
+                    updateRule(rule.id, { pattern: event.target.value })
+                  }
+                />
+                <Input
+                  value={rule.capture}
+                  aria-label={`第 ${index + 1} 条规则的捕获项`}
+                  placeholder="捕获项，例如 $1"
+                  onChange={(event) =>
+                    updateRule(rule.id, { capture: event.target.value })
+                  }
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`删除第 ${index + 1} 条分组规则`}
+                  onClick={() => removeRule(rule.id)}
+                >
+                  删除
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <Button variant="outline" size="sm" onClick={addRule}>
+          添加分组规则
+        </Button>
       </div>
     </section>
   )
