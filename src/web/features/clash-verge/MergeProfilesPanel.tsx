@@ -1,3 +1,20 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
 import type { GeositeRule } from "@shared/api-contract"
 import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -28,6 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import { GripVertical } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
@@ -51,6 +69,84 @@ const GEOSITE_TARGET_LABELS: Record<GeositeTarget, string> = {
   proxy: "走代理",
   direct: "直连",
   reject: "拒绝",
+}
+
+/**
+ * GEO 分流行：把手在左，可以上下拖动调整顺序；顺序就是规则生效顺序。
+ * 只用原生 button 做把手：拖拽需要原生 pointer 事件，交给自己控制更直接。
+ */
+const SortableGeositeRow = (props: {
+  rule: GeositeRow
+  count: number
+  onChangeTarget: (target: GeositeTarget) => void
+  onRemove: () => void
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.rule.id })
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={{
+        transform:
+          transform === null
+            ? undefined
+            : `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        transition,
+        opacity: isDragging ? 0.6 : undefined,
+      }}
+    >
+      <TableCell className="w-8">
+        <button
+          type="button"
+          aria-label={`拖动调整顺序：${props.rule.code}`}
+          className="inline-flex size-6 touch-none cursor-grab items-center justify-center rounded-md hover:bg-muted"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical aria-hidden="true" className="size-3" />
+        </button>
+      </TableCell>
+      <TableCell className="text-left">{props.rule.code}</TableCell>
+      <TableCell className="text-left text-muted-foreground tabular-nums">
+        {props.count}
+      </TableCell>
+      <TableCell className="text-left">
+        <Select
+          value={props.rule.target}
+          onValueChange={(next) => props.onChangeTarget(next as GeositeTarget)}
+        >
+          <SelectTrigger aria-label={`${props.rule.code} 的出口`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(GEOSITE_TARGET_LABELS) as GeositeTarget[]).map(
+              (target) => (
+                <SelectItem key={target} value={target}>
+                  {GEOSITE_TARGET_LABELS[target]}
+                </SelectItem>
+              )
+            )}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell className="w-full text-left">
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={`删除分类 ${props.rule.code}`}
+          onClick={props.onRemove}
+        >
+          删除
+        </Button>
+      </TableCell>
+    </TableRow>
+  )
 }
 
 /** 一条自定义分组规则：正则在节点名里匹配，目标组名直接填写。 */
@@ -231,6 +327,23 @@ export const MergeProfilesPanel = () => {
 
   const removeGeositeRule = (id: string) => {
     setEditedGeosite(geositeRules.filter((rule) => rule.id !== id))
+  }
+
+  // 按下拖动 5px 才激活，手机上下滑页面不会被当成拖拽。
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleGeositeDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over === null || active.id === over.id) return
+    const from = geositeRules.findIndex((rule) => rule.id === active.id)
+    const to = geositeRules.findIndex((rule) => rule.id === over.id)
+    if (from === -1 || to === -1) return
+    setEditedGeosite(arrayMove(geositeRules, from, to))
   }
 
   const normalRules = rules.filter((rule) => !rule.fixed)
@@ -537,6 +650,9 @@ export const MergeProfilesPanel = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <span className="sr-only">拖动排序</span>
+                  </TableHead>
                   <TableHead className="min-w-[120px]">分类</TableHead>
                   <TableHead className="min-w-[60px]">个数</TableHead>
                   <TableHead className="min-w-[120px]">出口</TableHead>
@@ -545,54 +661,34 @@ export const MergeProfilesPanel = () => {
                   </TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {geositeRules.map((rule) => {
-                  const count =
-                    geositeOptions.find((item) => item.code === rule.code)
-                      ?.count ?? 0
-                  return (
-                    <TableRow key={rule.id}>
-                      <TableCell className="text-left">{rule.code}</TableCell>
-                      <TableCell className="text-left text-muted-foreground tabular-nums">
-                        {count}
-                      </TableCell>
-                      <TableCell className="text-left">
-                        <Select
-                          value={rule.target}
-                          onValueChange={(next) =>
-                            updateGeositeTarget(rule.id, next as GeositeTarget)
-                          }
-                        >
-                          <SelectTrigger aria-label={`${rule.code} 的出口`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(
-                              Object.keys(
-                                GEOSITE_TARGET_LABELS
-                              ) as GeositeTarget[]
-                            ).map((target) => (
-                              <SelectItem key={target} value={target}>
-                                {GEOSITE_TARGET_LABELS[target]}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="text-left">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label={`删除分类 ${rule.code}`}
-                          onClick={() => removeGeositeRule(rule.id)}
-                        >
-                          删除
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToVerticalAxis]}
+                onDragEnd={handleGeositeDragEnd}
+              >
+                <SortableContext
+                  items={geositeRules.map((rule) => rule.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <TableBody>
+                    {geositeRules.map((rule) => (
+                      <SortableGeositeRow
+                        key={rule.id}
+                        rule={rule}
+                        count={
+                          geositeOptions.find((item) => item.code === rule.code)
+                            ?.count ?? 0
+                        }
+                        onChangeTarget={(target) =>
+                          updateGeositeTarget(rule.id, target)
+                        }
+                        onRemove={() => removeGeositeRule(rule.id)}
+                      />
+                    ))}
+                  </TableBody>
+                </SortableContext>
+              </DndContext>
             </Table>
           )}
         </div>
