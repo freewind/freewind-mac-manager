@@ -78,7 +78,7 @@ const NodeTable = (props: { nodes: ClashVergeProfile["nodes"] }) => (
 
 /** 纯文本展示：默认就是它，也是高亮不可用时的兼底。 */
 const PlainProfileText = (props: { content: string }) => (
-  <pre className="max-h-[70vh] overflow-auto rounded-md border p-2 text-xs">
+  <pre className="max-h-[70vh] w-full min-w-0 overflow-auto rounded-md border p-2 text-xs">
     {props.content}
   </pre>
 )
@@ -135,7 +135,7 @@ const ProfileFileBody = (props: {
   const [highlight, setHighlight] = useState(false)
   if (!highlight) {
     return (
-      <div className="space-y-2">
+      <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs text-muted-foreground">
             {`按纯文本显示，共 ${props.content.length} 字符`}
@@ -153,7 +153,7 @@ const ProfileFileBody = (props: {
     )
   }
   const fallback = (
-    <div className="space-y-1">
+    <div className="min-w-0 space-y-1">
       <p className="flex items-center gap-1 text-xs text-muted-foreground">
         <LoaderCircle
           className="size-3 animate-spin motion-reduce:animate-none"
@@ -165,23 +165,27 @@ const ProfileFileBody = (props: {
     </div>
   )
   return (
-    <HighlightBoundary fallback={<PlainProfileText content={props.content} />}>
-      <HighlightPool>
-        <Suspense fallback={fallback}>
-          <div className="max-h-[70vh] overflow-auto rounded-md border text-xs">
-            <File
-              key={props.themeType}
-              file={{ name: props.fileName, contents: props.content }}
-              options={{
-                theme: { dark: "github-dark", light: "github-light" },
-                themeType: props.themeType,
-                disableFileHeader: true,
-              }}
-            />
-          </div>
-        </Suspense>
-      </HighlightPool>
-    </HighlightBoundary>
+    <div className="min-w-0">
+      <HighlightBoundary
+        fallback={<PlainProfileText content={props.content} />}
+      >
+        <HighlightPool>
+          <Suspense fallback={fallback}>
+            <div className="max-h-[70vh] min-w-0 overflow-auto rounded-md border text-xs">
+              <File
+                key={props.themeType}
+                file={{ name: props.fileName, contents: props.content }}
+                options={{
+                  theme: { dark: "github-dark", light: "github-light" },
+                  themeType: props.themeType,
+                  disableFileHeader: true,
+                }}
+              />
+            </div>
+          </Suspense>
+        </HighlightPool>
+      </HighlightBoundary>
+    </div>
   )
 }
 
