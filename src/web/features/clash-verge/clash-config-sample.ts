@@ -17,15 +17,11 @@ mixed-port: 7890
 port: 7891
 # 纯 SOCKS5 端口，同上。
 socks-port: 7892
-# 是否接受来自局域网其他设备的连接。false 时内核只监听回环，别人连不上。
-# 这就是「本机代理不外传」的全部开关，不需要再写 bind-address。
+# 是否接受局域网其他设备的连接。false = 只有本机能用（默认）。
+#   想让手机也能用 → 改成 true，别的都不用动，本机继续用 127.0.0.1。
+#   想只暴露某块网卡、其他网卡不给用 → 再加 bind-address: 192.168.1.10，
+#   但这时回环不监听了，本机客户端也得改成这个 IP。
 allow-lan: false
-# 绑定地址（日常工作不用写）：
-#   不写 = 所有网卡，本机用 127.0.0.1、手机用局域网 IP，两边都通（推荐）。
-#   127.0.0.1 = 只绑回环，效果同 allow-lan: false。
-#   192.168.1.10 = 只绑这块网卡，但连回环也一起排除了，本机客户端要改用这个 IP。
-# 它只在 allow-lan: true 时才有意义；allow-lan: false 时写了也被忽略。
-# bind-address: 127.0.0.1
 # 运行模式：rule 按规则分流 / global 全部走代理 / direct 全部直连。
 mode: rule
 # 日志级别：silent / error / warning / info / debug。
@@ -45,10 +41,8 @@ external-controller-cors:
   allow-private-network: true
 
 # ---------- 二、自定义入站（需要多个监听地址时用） ----------
-# 主端口只能绑一个地址；想同时听多个地址/端口，就定义多个入站。
-# 每一项都是独立监听，name 唯一，type 支持 mixed / http / socks / tun 等。
-# 也可以把主端口写成 0 全关、只留 listeners；但 Clash Verge 的系统代理、
-# 面板都指向 mixed-port，关掉后这些功能会失效，所以实务上保留 mixed-port 更稳。
+# 主端口只能绑一个地址；要同时听多个地址/端口就定义多个入站。
+# 主端口写 0 可以全关，但 Clash Verge 的系统代理依赖 mixed-port，关了会失效。
 listeners:
   - name: lan-mixed
     type: mixed
