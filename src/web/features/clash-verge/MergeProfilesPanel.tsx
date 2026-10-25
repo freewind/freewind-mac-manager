@@ -74,10 +74,10 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { Textarea } from "@web/components/ui/textarea"
 import { ChevronRight, CircleHelp, GripVertical, Lock } from "lucide-react"
 import { type ReactNode, useMemo, useState } from "react"
 import { toast } from "sonner"
+import { EditableYaml } from "./editable-yaml"
 import {
   useClashMergeConfigQuery,
   useClashVergeGeositeQuery,
@@ -1339,12 +1339,10 @@ export const MergeProfilesPanel = () => {
         description="合并产物以它为底：proxies 与 proxy-groups 是占位，rules 列表会被自动填充"
         summary={`${template.length} 字符${templateDirty ? "，有未保存的修改" : ""}`}
       >
-        <Textarea
+        <EditableYaml
           value={template}
-          aria-label="基座模板 YAML"
-          spellCheck={false}
-          className="max-h-[60vh] min-h-[320px] font-mono text-xs"
-          onChange={(event) => setEditedTemplate(event.target.value)}
+          ariaLabel="基座模板 YAML"
+          onChange={(next) => setEditedTemplate(next)}
         />
         <div className="flex flex-wrap items-center gap-2">
           <Button
