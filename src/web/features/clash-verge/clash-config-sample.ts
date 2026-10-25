@@ -43,7 +43,24 @@ external-controller-cors:
   allow-origins: ["*"]
   allow-private-network: true
 
-# ---------- 二、TUN 模式（全局接管流量） ----------
+# ---------- 二、自定义入站（需要多个监听地址时用） ----------
+# 主端口只能绑一个地址；想同时听多个地址/端口，就定义多个入站。
+# 每一项都是独立监听，name 唯一，type 支持 mixed / http / socks / tun 等。
+listeners:
+  - name: lan-mixed
+    type: mixed
+    # 只绑这一块网卡，其他网卡上的设备连不进来。
+    listen: 127.0.0.1
+    port: 7893
+    # 是否转发 UDP（游戏、QUIC 需要）。
+    udp: true
+  - name: local-socks
+    type: socks
+    # 只给本机用，写回环；要对外就改成 * 或具体网卡 IP。
+    listen: 127.0.0.1
+    port: 7894
+
+# ---------- 三、TUN 模式（全局接管流量） ----------
 tun:
   # 开启后本机所有流量（含不认代理的 App）走 TUN 网卡。
   enable: false
@@ -61,7 +78,7 @@ tun:
     - 192.168.0.0/16
     - 127.0.0.0/8
 
-# ---------- 三、DNS ----------
+# ---------- 四、DNS ----------
 dns:
   # 关闭后只用系统 DNS，规则里的域名匹配会变弱。
   enable: true
@@ -101,7 +118,7 @@ dns:
     "geosite:cn": ["https://dns.alidns.com/dns-query"]
     "+.company.internal": ["192.168.1.1"]
 
-# ---------- 四、流量嗅探 ----------
+# ---------- 五、流量嗅探 ----------
 # 作用：从连接首个数据包里读出真实域名（TLS 的 SNI、HTTP 的 Host、QUIC 的 SNI），
 # 让域名类规则对「目标是 IP」的连接也能命中。
 sniffer:
@@ -127,7 +144,7 @@ sniffer:
   skip-domain:
     - "+.push.apple.com"
 
-# ---------- 五、性能与网络行为 ----------
+# ---------- 六、性能与网络行为 ----------
 # 用一次往返测延迟，避免不同节点因握手次数不同而排名失真。
 unified-delay: true
 # 同时向多个 IP 发起 TCP 连接，取最快的，提升首次连接速度。
@@ -141,7 +158,7 @@ keep-alive-idle: 600
 # TCP keep-alive 探测间隔（秒）。
 keep-alive-interval: 30
 
-# ---------- 六、订阅（节点来源之一） ----------
+# ---------- 七、订阅（节点来源之一） ----------
 # proxy-providers 提供的节点在运行时下载，配置里只留引用。
 proxy-providers:
   机场A:
@@ -163,7 +180,7 @@ proxy-providers:
       url: "http://www.gstatic.com/generate_204"
       interval: 300
 
-# ---------- 七、规则集（规则来源之一） ----------
+# ---------- 八、规则集（规则来源之一） ----------
 # rule-providers 把一长串域名/IP 规则放到单独文件里，按需加载。
 rule-providers:
   ads:
@@ -179,7 +196,7 @@ rule-providers:
     path: ./ruleset/cn-ip.yaml
     interval: 86400
 
-# ---------- 八、节点（每种协议只给最小字段） ----------
+# ---------- 九、节点（每种协议只给最小字段） ----------
 proxies:
   - name: "SS-示例"
     type: ss
@@ -225,7 +242,7 @@ proxies:
       # 不超过 8 字节的十六进制串。
       short-id: "0123456789abcdef"
 
-# ---------- 九、分组 ----------
+# ---------- 十、分组 ----------
 proxy-groups:
   # select：你自己在面板上点，节点变慢也不会自动换。
   - name: 节点选择
@@ -261,7 +278,7 @@ proxy-groups:
     use: [机场A]
     filter: "香港|HK|Hong"
 
-# ---------- 十、规则（自上而下，先命中先生效） ----------
+# ---------- 十一、规则（自上而下，先命中先生效） ----------
 rules:
   # 完全匹配一个域名。
   - DOMAIN,www.example.com,节点选择
@@ -294,7 +311,7 @@ rules:
   # 兜底：所有没命中的流量走这里。必须放最后，否则后面规则永远不生效。
   - MATCH,节点选择
 
-# ---------- 十一、其它 ----------
+# ---------- 十二、其它 ----------
 profile:
   # 记住你在面板上选过的节点，重启后恢复。
   store-selected: true
