@@ -612,8 +612,9 @@ export const MergeProfilesPanel = () => {
           <div>
             <h3 className="text-sm font-medium">GEO 分类分流</h3>
             <p className="text-xs text-muted-foreground">
-              前三行是固定规则（不可删改，分类不在 geosite.dat
-              里时自动跳过）；自定义分类排在它们之后生效，可拖动调整先后。合并时全部写到规则最前面，优先于订阅自带规则
+              上方选中即加入，可拖动调整先后；表格最后三行是固定规则（不可删改，分类不在
+              geosite.dat
+              里时自动跳过），排在自定义规则之后生效。合并时全部写到规则最前面，优先于订阅自带规则
             </p>
             {geositeQuery.isError ? (
               <p className="text-xs text-destructive">
@@ -662,8 +663,39 @@ export const MergeProfilesPanel = () => {
                 </TableHead>
               </TableRow>
             </TableHeader>
-            {/* 固定三行：不可拖动、不可删改，分类缺失时在最后一列标出。 */}
-            <TableBody>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToVerticalAxis]}
+              onDragEnd={handleGeositeDragEnd}
+            >
+              <SortableContext
+                items={geositeRules.map((rule) => rule.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <TableBody>
+                  {geositeRules.map((rule) => (
+                    <SortableGeositeRow
+                      key={rule.id}
+                      rule={rule}
+                      count={
+                        geositeOptions.find((item) => item.code === rule.code)
+                          ?.count ?? 0
+                      }
+                      onChangeTarget={(target) =>
+                        updateGeositeTarget(rule.id, target)
+                      }
+                      onRemove={() => removeGeositeRule(rule.id)}
+                    />
+                  ))}
+                </TableBody>
+              </SortableContext>
+            </DndContext>
+            {/* 固定三行放最后：实际生效顺序也是自定义在前、固定在后。
+                多个 tbody 之间那条分隔线单独补上，否则上一组末行会被去掉边框。 */}
+            <TableBody
+              className={geositeRules.length > 0 ? "border-t" : undefined}
+            >
               {DEFAULT_GEOSITE_RULES.map((rule) => {
                 const known = geositeQuery.data !== undefined
                 const info = geositeOptions.find(
@@ -699,34 +731,6 @@ export const MergeProfilesPanel = () => {
                 )
               })}
             </TableBody>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              modifiers={[restrictToVerticalAxis]}
-              onDragEnd={handleGeositeDragEnd}
-            >
-              <SortableContext
-                items={geositeRules.map((rule) => rule.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <TableBody>
-                  {geositeRules.map((rule) => (
-                    <SortableGeositeRow
-                      key={rule.id}
-                      rule={rule}
-                      count={
-                        geositeOptions.find((item) => item.code === rule.code)
-                          ?.count ?? 0
-                      }
-                      onChangeTarget={(target) =>
-                        updateGeositeTarget(rule.id, target)
-                      }
-                      onRemove={() => removeGeositeRule(rule.id)}
-                    />
-                  ))}
-                </TableBody>
-              </SortableContext>
-            </DndContext>
           </Table>
           {geositeRules.length === 0 ? (
             <p className="text-xs text-muted-foreground">
