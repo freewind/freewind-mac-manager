@@ -3,6 +3,7 @@ import type {
   ClashMergeConfig,
   ClashVergeConnectionsResponse,
   ClashVergeMergeFile,
+  ClashVergeProfileFile,
   ClashVergeProfilesResponse,
   ClashVergeProxiesResponse,
   ClashVergeStatus,
@@ -62,6 +63,18 @@ export const fetchClashVergeProfiles = async (options?: {
 }): Promise<ClashVergeProfilesResponse> =>
   unwrap<ClashVergeProfilesResponse>(
     await apiClient.getClashVergeProfiles({
+      fetchOptions: options?.signal ? { signal: options.signal } : undefined,
+    })
+  )
+
+/** 单个订阅的配置文件原文：只读，用于在页面里核对订阅文件内容。 */
+export const fetchClashVergeProfileFile = async (
+  uid: string,
+  options?: { signal?: AbortSignal }
+): Promise<ClashVergeProfileFile> =>
+  unwrap<ClashVergeProfileFile>(
+    await apiClient.getClashVergeProfileFile({
+      query: { uid },
       fetchOptions: options?.signal ? { signal: options.signal } : undefined,
     })
   )

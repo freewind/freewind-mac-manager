@@ -2,6 +2,7 @@ import {
   fetchClashMergeConfig,
   fetchClashVergeConnections,
   fetchClashVergeMergeFile,
+  fetchClashVergeProfileFile,
   fetchClashVergeProfiles,
   fetchClashVergeProxies,
   fetchClashVergeStatus,
@@ -19,6 +20,7 @@ export const clashVergeKeys = {
   connections: ["clash-verge", "connections"] as const,
   mergeFile: ["clash-verge", "merge-file"] as const,
   profiles: ["clash-verge", "profiles"] as const,
+  profileFile: (uid: string) => ["clash-verge", "profile-file", uid] as const,
   mergeConfig: ["clash-verge", "merge-config"] as const,
 }
 
@@ -54,6 +56,15 @@ export const useClashVergeProfilesQuery = () =>
   useQuery({
     queryKey: clashVergeKeys.profiles,
     queryFn: ({ signal }) => fetchClashVergeProfiles({ signal }),
+    retry: false,
+  })
+
+/** 单个订阅的配置文件：只在弹窗打开时读一次，不轮询。 */
+export const useClashVergeProfileFileQuery = (uid: string | null) =>
+  useQuery({
+    queryKey: clashVergeKeys.profileFile(uid ?? ""),
+    queryFn: ({ signal }) => fetchClashVergeProfileFile(uid ?? "", { signal }),
+    enabled: uid !== null,
     retry: false,
   })
 

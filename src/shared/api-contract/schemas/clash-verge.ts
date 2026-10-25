@@ -146,6 +146,25 @@ export const ClashVergeProfilesResponseSchema = z.object({
 })
 
 /**
+ * 订阅配置文件内容（只读）：用于在页面里核对订阅文件原文。
+ * 超过字符上限时截断，truncated 标出，不拒绝整份读取。
+ */
+export const ClashVergeProfileFileSchema = z.object({
+  /** 服务端解析出的路径，不接受客户端传入。 */
+  path: z.string(),
+  /** 订阅名，与清单里显示的一致。 */
+  name: z.string(),
+  size: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+  content: z.string(),
+})
+
+/** 读哪个订阅的配置文件：uid 必须是清单里已有的条目，服务端自己查证。 */
+export const ClashVergeProfileFileQuerySchema = z.object({
+  uid: z.string().min(1).max(64),
+})
+
+/**
  * 切换当前订阅：只接受清单里已存在的订阅 uid，服务端自己查证，
  * 不信任客户端传来的名称与其他字段。
  */

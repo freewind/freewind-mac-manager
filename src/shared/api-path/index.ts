@@ -13,6 +13,8 @@ export const ApiPath = {
   clashVergeProfiles: `${API_BASE}/clash-verge/profiles`,
   /** 切换当前订阅：改 profiles.yaml 的 current 并重启 Clash Verge。 */
   clashVergeProfileCurrent: `${API_BASE}/clash-verge/profile-current`,
+  /** 单个订阅的配置文件原文（只读）。 */
+  clashVergeProfileFile: `${API_BASE}/clash-verge/profile-file`,
   /** 合并订阅的长期设置（选中的订阅与分组规则）。 */
   clashMergeConfig: `${API_BASE}/clash-verge/merge-config`,
   /** 生成合并配置：写入 profiles 并登记为本地配置。 */

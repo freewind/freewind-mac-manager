@@ -3,6 +3,8 @@ import {
   ClashMergeConfigSchema,
   ClashVergeConnectionsResponseSchema,
   ClashVergeMergeFileSchema,
+  ClashVergeProfileFileQuerySchema,
+  ClashVergeProfileFileSchema,
   ClashVergeProfilesResponseSchema,
   ClashVergeProxiesResponseSchema,
   ClashVergeStatusSchema,
@@ -54,6 +56,18 @@ export const clashVergeRoutes = {
     path: toContractPath(ApiPath.clashVergeProfiles),
     responses: {
       200: ClashVergeProfilesResponseSchema,
+      404: ApiErrorSchema,
+      ...readErrors,
+    },
+  },
+  // 单个订阅的配置文件原文：只读，uid 由服务端在清单里查证。
+  getClashVergeProfileFile: {
+    method: "GET",
+    path: toContractPath(ApiPath.clashVergeProfileFile),
+    query: ClashVergeProfileFileQuerySchema,
+    responses: {
+      200: ClashVergeProfileFileSchema,
+      400: ApiErrorSchema,
       404: ApiErrorSchema,
       ...readErrors,
     },

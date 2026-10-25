@@ -23,6 +23,7 @@ import type {
   ClashVergeConnection,
   ClashVergeConnectionsResponse,
   ClashVergeMergeFile,
+  ClashVergeProfileFile,
   ClashVergeProfileNode,
   ClashVergeProfilesResponse,
   ClashVergeProxiesResponse,
@@ -515,6 +516,66 @@ const profileNodes = async (
   }
 }
 
+const readClashVergeIndex = async (): Promise<{
+  text: string
+  document: Record<string, unknown>
+}> => {
+  let text: string
+  try {
+    text = await readFile(CLASH_VERGE_PROFILES_FILE, "utf8")
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new PublicOperationError(
+        404,
+        `找不到 Clash Verge 订阅清单：${CLASH_VERGE_PROFILES_FILE}（请先在 Clash Verge 中添加订阅）`
+      )
+    }
+    throw error
+  }
+  return { text, document: parseYamlRecord(text) }
+}
+
+/** 配置文件正文字符上限：超出就截断（本机最大约 900 KB，实际不会触发）。 */
+const CLASH_VERGE_PROFILE_FILE_MAX_CHARS = 2_000_000
+
+/**
+ * 读单个订阅的配置文件原文（只读），用于在页面里核对订阅文件内容。
+ * uid 由服务端在清单里查证，文件名仍要求是单纯文件名，
+ * 防止异常数据把读取路径带出 profiles 目录。
+ */
+export const readClashVergeProfileFile = async (
+  uid: string
+): Promise<ClashVergeProfileFile> => {
+  const { document } = await readClashVergeIndex()
+  const entry = profileEntries(document.items).find((item) => item.uid === uid)
+  if (entry === undefined) {
+    throw new PublicOperationError(404, "订阅不存在：清单里没有这个 uid")
+  }
+  if (entry.file === "" || path.basename(entry.file) !== entry.file) {
+    throw new PublicOperationError(400, "该订阅没有可读的配置文件")
+  }
+  const filePath = path.join(CLASH_VERGE_PROFILE_DIR, entry.file)
+  let content: string
+  try {
+    content = await readFile(filePath, "utf8")
+  } catch {
+    throw new PublicOperationError(
+      404,
+      "订阅配置文件还没下载到本地，先在 Clash Verge 里更新该订阅"
+    )
+  }
+  const truncated = content.length > CLASH_VERGE_PROFILE_FILE_MAX_CHARS
+  return {
+    path: filePath,
+    name: entry.name,
+    size: Buffer.byteLength(content, "utf8"),
+    truncated,
+    content: truncated
+      ? content.slice(0, CLASH_VERGE_PROFILE_FILE_MAX_CHARS)
+      : content,
+  }
+}
+
 /**
  * 读订阅清单：Clash Verge 不对外提供订阅 API，只能解析 profiles.yaml。
  * 这里回显磁盘上的配置内容，不是内核运行状态；文件不存在给 404，
@@ -522,19 +583,7 @@ const profileNodes = async (
  */
 export const readClashVergeProfiles =
   async (): Promise<ClashVergeProfilesResponse> => {
-    let text: string
-    try {
-      text = await readFile(CLASH_VERGE_PROFILES_FILE, "utf8")
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        throw new PublicOperationError(
-          404,
-          `找不到 Clash Verge 订阅清单：${CLASH_VERGE_PROFILES_FILE}（请先在 Clash Verge 中添加订阅）`
-        )
-      }
-      throw error
-    }
-    const document = parseYamlRecord(text)
+    const { document } = await readClashVergeIndex()
     const entries = profileEntries(document.items)
     // 顶层 current 是被启用订阅的 uid：只有一个订阅会被标记为当前启用。
     const currentUid =

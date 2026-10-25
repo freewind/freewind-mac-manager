@@ -7,6 +7,7 @@ import {
   mergeClashProfiles,
   readClashMergeConfig,
   readClashVergeMergeFile,
+  readClashVergeProfileFile,
   readClashVergeProfiles,
   saveClashMergeConfig,
   saveClashVergeMergeFile,
@@ -23,6 +24,7 @@ export const clashVergeContract = {
   getClashVergeProxies: contract.getClashVergeProxies,
   getClashVergeConnections: contract.getClashVergeConnections,
   getClashVergeProfiles: contract.getClashVergeProfiles,
+  getClashVergeProfileFile: contract.getClashVergeProfileFile,
   setClashVergeCurrentProfile: contract.setClashVergeCurrentProfile,
   getClashMergeConfig: contract.getClashMergeConfig,
   saveClashMergeConfig: contract.saveClashMergeConfig,
@@ -48,6 +50,17 @@ export const clashVergeRouter = {
   getClashVergeProfiles: async () => {
     try {
       return { status: 200 as const, body: await readClashVergeProfiles() }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  // 单个订阅的配置文件原文：只读，uid 由服务端查证，404/400 按语义回显。
+  getClashVergeProfileFile: async ({ query }: { query: { uid: string } }) => {
+    try {
+      return {
+        status: 200 as const,
+        body: await readClashVergeProfileFile(query.uid),
+      }
     } catch (error) {
       return publicSystemError(error)
     }

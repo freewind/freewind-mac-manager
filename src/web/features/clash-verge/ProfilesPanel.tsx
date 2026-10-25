@@ -1,3 +1,4 @@
+import { File } from "@pierre/diffs/react"
 import type { ClashVergeProfile } from "@shared/api-contract"
 import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -17,12 +18,21 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@web/components/ui/collapsible"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@web/components/ui/dialog"
 import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
-import { ChevronRight, CircleCheck, Copy } from "lucide-react"
+import { useThemeType } from "@web/hooks/use-theme-type"
+import { ChevronRight, CircleCheck, Copy, FileCode } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import {
+  useClashVergeProfileFileQuery,
   useClashVergeProfilesQuery,
   useSetClashVergeCurrentProfile,
 } from "./queries"
@@ -61,6 +71,60 @@ const NodeTable = (props: { nodes: ClashVergeProfile["nodes"] }) => (
 )
 
 /**
+ * 配置文件弹窗：只在打开时读一次，正文用 File 组件做 YAML 高亮。
+ * 文件可能很大（接近 1 MB），所以整块限高滚动，不做额外处理。
+ */
+const ProfileFileDialog = (props: {
+  profile: ClashVergeProfile | null
+  onClose: () => void
+}) => {
+  const query = useClashVergeProfileFileQuery(props.profile?.uid ?? null)
+  const themeType = useThemeType()
+  return (
+    <Dialog
+      open={props.profile !== null}
+      onOpenChange={(open) => {
+        if (!open) props.onClose()
+      }}
+    >
+      <DialogContent className="w-[min(96vw,1100px)] sm:max-w-[1100px]">
+        <DialogHeader>
+          <DialogTitle>{props.profile?.name ?? ""}</DialogTitle>
+          <DialogDescription className="break-all">
+            {query.data === undefined
+              ? "正在读取配置文件"
+              : `${query.data.path} · ${query.data.size} 字节${query.data.truncated ? "（超出上限，只显示前 200 万字符）" : ""}`}
+          </DialogDescription>
+        </DialogHeader>
+        {query.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>读取配置文件失败</AlertTitle>
+            <AlertDescription>{describeError(query.error)}</AlertDescription>
+          </Alert>
+        ) : query.data === undefined ? (
+          <p className="text-sm text-muted-foreground">读取中…</p>
+        ) : (
+          <div className="max-h-[70vh] overflow-auto rounded-md border text-xs">
+            <File
+              key={themeType}
+              file={{
+                name: query.data.path.split("/").pop() ?? "profile.yaml",
+                contents: query.data.content,
+              }}
+              options={{
+                theme: { dark: "github-dark", light: "github-light" },
+                themeType,
+                disableFileHeader: true,
+              }}
+            />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
  * 订阅链接面板（只读）。
  *
  * Clash Verge 不对外提供订阅 API，内容只能解析 profiles.yaml 与各订阅的
@@ -74,6 +138,8 @@ export const ProfilesPanel = () => {
   const switchProfile = useSetClashVergeCurrentProfile()
   /** 待确认切换的订阅：非空时弹出确认框。 */
   const [pending, setPending] = useState<ClashVergeProfile | null>(null)
+  /** 正在看配置文件的订阅：非空时弹出文件弹窗。 */
+  const [fileProfile, setFileProfile] = useState<ClashVergeProfile | null>(null)
   const confirm = useDialogSubmit(
     () => setPending(null),
     switchProfile.isPending
@@ -171,6 +237,15 @@ export const ProfilesPanel = () => {
                         使用当前
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={`查看配置文件：${profile.name}`}
+                      onClick={() => setFileProfile(profile)}
+                    >
+                      <FileCode aria-hidden="true" />
+                      文件
+                    </Button>
                   </div>
                   <p className="font-mono text-xs break-all text-muted-foreground">
                     {profile.url ?? "（本地配置，没有订阅链接）"}
@@ -280,6 +355,11 @@ export const ProfilesPanel = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ProfileFileDialog
+        profile={fileProfile}
+        onClose={() => setFileProfile(null)}
+      />
     </section>
   )
 }

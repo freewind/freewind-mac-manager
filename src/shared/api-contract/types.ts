@@ -70,6 +70,7 @@ import type {
   ClashVergeConnectionSchema,
   ClashVergeConnectionsResponseSchema,
   ClashVergeMergeFileSchema,
+  ClashVergeProfileFileSchema,
   ClashVergeProfileNodeSchema,
   ClashVergeProfileSchema,
   ClashVergeProfilesResponseSchema,
@@ -96,6 +97,7 @@ export type ClashVergeConnectionsResponse = z.infer<
 >
 export type ClashVergeProfileNode = z.infer<typeof ClashVergeProfileNodeSchema>
 export type ClashVergeProfile = z.infer<typeof ClashVergeProfileSchema>
+export type ClashVergeProfileFile = z.infer<typeof ClashVergeProfileFileSchema>
 export type ClashVergeProfilesResponse = z.infer<
   typeof ClashVergeProfilesResponseSchema
 >
