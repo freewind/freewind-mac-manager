@@ -28,8 +28,14 @@ import {
 import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
 import { useThemeType } from "@web/hooks/use-theme-type"
-import { ChevronRight, CircleCheck, Copy, FileCode } from "lucide-react"
-import { useState } from "react"
+import {
+  ChevronRight,
+  CircleCheck,
+  Copy,
+  FileCode,
+  LoaderCircle,
+} from "lucide-react"
+import { type ReactNode, Suspense, use, useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
   useClashVergeProfileFileQuery,
@@ -71,15 +77,101 @@ const NodeTable = (props: { nodes: ClashVergeProfile["nodes"] }) => (
 )
 
 /**
- * 高亮是同步渲染的，成本随字符数增长；haitta 那种 88 万字符的配置会卡主线程。
- * 超过这个长度就退化成纯文本：仍可滚动与复制，只是没有颜色。
+ * 高亮是同步渲染的，成本随字符数增长；haitta 那种 88 万字符的配置要算很久。
+ * 超过这个长度不自动加高亮，先给纯文本，需要时手动点。
  */
-const FILE_HIGHLIGHT_MAX_CHARS = 120_000
+const FILE_HIGHLIGHT_AUTO_MAX_CHARS = 200_000
 
 /**
- * 配置文件弹窗：只在打开时读一次，正文用 File 组件做 YAML 高亮。
- * 超过高亮上限的文件直接用 pre 显示，避免整页卡死。
+ * 等一小段时间再渲染子内容，用作 Suspense 的一次挂起。
+ *
+ * 直接在弹窗里挂 File 会让高亮同步吃掉主线程，用户看到的就是卡死；这里让先提交
+ * 一帧（原文与旋转提示），再挂上去，旋转由合成线程驱动，不会停。
  */
+const DeferredRender = (props: { delayMs: number; children: ReactNode }) => {
+  const gate = useMemo(
+    () =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, props.delayMs)
+      }),
+    [props.delayMs]
+  )
+  use(gate)
+  return <>{props.children}</>
+}
+
+/** 高亮前的占位：原文直接可读，旋转图标在合成线程转。 */
+const FileFallback = (props: { content: string; note: string }) => (
+  <div className="space-y-1">
+    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+      <LoaderCircle
+        className="size-3 animate-spin motion-reduce:animate-none"
+        aria-hidden="true"
+      />
+      {props.note}
+    </p>
+    <pre className="max-h-[70vh] overflow-auto rounded-md border p-2 text-xs">
+      {props.content}
+    </pre>
+  </div>
+)
+
+/**
+ * 配置文件正文：先出纯文本，再补 YAML 高亮；超大文件不自动高亮，改成手动触发。
+ * 组件用 key 随订阅重挂，所以初始状态可以直接由内容长度推导，不需要 effect 同步。
+ */
+const ProfileFileBody = (props: {
+  content: string
+  fileName: string
+  themeType: ReturnType<typeof useThemeType>
+}) => {
+  const [highlight, setHighlight] = useState(
+    props.content.length <= FILE_HIGHLIGHT_AUTO_MAX_CHARS
+  )
+  if (!highlight) {
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            {`文件较大（${props.content.length} 字符），先按纯文本显示`}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setHighlight(true)}
+          >
+            添加高亮
+          </Button>
+        </div>
+        <pre className="max-h-[70vh] overflow-auto rounded-md border p-2 text-xs">
+          {props.content}
+        </pre>
+      </div>
+    )
+  }
+  return (
+    <Suspense
+      fallback={
+        <FileFallback content={props.content} note="正在添加语法高亮…" />
+      }
+    >
+      <DeferredRender delayMs={150}>
+        <div className="max-h-[70vh] overflow-auto rounded-md border text-xs">
+          <File
+            key={props.themeType}
+            file={{ name: props.fileName, contents: props.content }}
+            options={{
+              theme: { dark: "github-dark", light: "github-light" },
+              themeType: props.themeType,
+              disableFileHeader: true,
+            }}
+          />
+        </div>
+      </DeferredRender>
+    </Suspense>
+  )
+}
+
 const ProfileFileDialog = (props: {
   profile: ClashVergeProfile | null
   onClose: () => void
@@ -109,30 +201,13 @@ const ProfileFileDialog = (props: {
           </Alert>
         ) : query.data === undefined ? (
           <p className="text-sm text-muted-foreground">读取中…</p>
-        ) : query.data.content.length > FILE_HIGHLIGHT_MAX_CHARS ? (
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">
-              {`文件较大（${query.data.content.length} 字符），已关闭语法高亮以保证滚动顺畅`}
-            </p>
-            <pre className="max-h-[70vh] overflow-auto rounded-md border p-2 text-xs">
-              {query.data.content}
-            </pre>
-          </div>
         ) : (
-          <div className="max-h-[70vh] overflow-auto rounded-md border text-xs">
-            <File
-              key={themeType}
-              file={{
-                name: query.data.path.split("/").pop() ?? "profile.yaml",
-                contents: query.data.content,
-              }}
-              options={{
-                theme: { dark: "github-dark", light: "github-light" },
-                themeType,
-                disableFileHeader: true,
-              }}
-            />
-          </div>
+          <ProfileFileBody
+            key={`${props.profile?.uid ?? ""}:${query.data.content.length}`}
+            content={query.data.content}
+            fileName={query.data.path.split("/").pop() ?? "profile.yaml"}
+            themeType={themeType}
+          />
         )}
       </DialogContent>
     </Dialog>
