@@ -5,6 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { RefreshCw } from "lucide-react"
 import { ConnectionsList } from "./ConnectionsList"
 import { MergeFilePanel } from "./MergeFilePanel"
+import { MergeProfilesPanel } from "./MergeProfilesPanel"
 import { ProfilesPanel } from "./ProfilesPanel"
 import { ProxyGroups } from "./ProxyGroups"
 import { StatusCards } from "./StatusCards"
@@ -97,6 +98,7 @@ export const ClashVergePage = () => {
           </div>
         ) : null}
         {tab === "profiles" ? <ProfilesPanel /> : null}
+        {tab === "merge" ? <MergeProfilesPanel /> : null}
         {tab === "proxies" ? (
           <ProxyGroups
             proxies={model.proxies?.proxies ?? []}
