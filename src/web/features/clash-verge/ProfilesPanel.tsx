@@ -307,7 +307,7 @@ export const ProfilesPanel = () => {
               {data.profiles.map((profile) => (
                 <li
                   key={profile.uid || profile.url}
-                  className="space-y-2 rounded-lg border p-3"
+                  className="space-y-2 rounded-lg border p-3 transition-colors hover:border-ring/40 hover:bg-muted/40"
                 >
                   <div className="flex items-center gap-2">
                     <span className="flex min-w-0 flex-1 items-center gap-1">
