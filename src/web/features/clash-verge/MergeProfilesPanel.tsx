@@ -76,7 +76,7 @@ export const MergeProfilesPanel = () => {
                 <span className="sr-only">选择</span>
               </TableHead>
               <TableHead>订阅</TableHead>
-              <TableHead className="w-full">节点数</TableHead>
+              <TableHead className="w-full">节点</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -90,8 +90,12 @@ export const MergeProfilesPanel = () => {
                   />
                 </TableCell>
                 <TableCell className="text-left">{profile.name}</TableCell>
-                <TableCell className="w-full text-left text-muted-foreground tabular-nums">
-                  {profile.nodes.length}
+                <TableCell className="w-full text-left whitespace-normal text-muted-foreground">
+                  {profile.nodes.length === 0
+                    ? "（没有节点）"
+                    : `${profile.nodes.length} 个：${profile.nodes
+                        .map((node) => node.name)
+                        .join("、")}`}
                 </TableCell>
               </TableRow>
             ))}
