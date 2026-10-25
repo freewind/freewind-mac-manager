@@ -301,7 +301,6 @@ export const MergeProfilesPanel = () => {
                     <Input
                       value={rule.pattern}
                       aria-label={`第 ${index + 1} 条规则的正则`}
-                      placeholder="例如 香港"
                       onChange={(event) =>
                         updateRule(rule.id, { pattern: event.target.value })
                       }
