@@ -123,7 +123,9 @@ const SortableGeositeRow = (props: {
           onValueChange={(next) => props.onChangeTarget(next as GeositeTarget)}
         >
           <SelectTrigger aria-label={`${props.rule.code} 的出口`}>
-            <SelectValue />
+            <SelectValue>
+              {GEOSITE_TARGET_LABELS[props.rule.target]}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {(Object.keys(GEOSITE_TARGET_LABELS) as GeositeTarget[]).map(
@@ -610,56 +612,14 @@ export const MergeProfilesPanel = () => {
           <div>
             <h3 className="text-sm font-medium">GEO 分类分流</h3>
             <p className="text-xs text-muted-foreground">
-              选分类，再选它走代理、直连还是拒绝；合并时写到规则最前面，优先于订阅自带规则
+              前三行是固定规则（不可删改，分类不在 geosite.dat
+              里时自动跳过）；自定义分类排在它们之后生效，可拖动调整先后。合并时全部写到规则最前面，优先于订阅自带规则
             </p>
             {geositeQuery.isError ? (
               <p className="text-xs text-destructive">
                 {`读取 GEO 分类失败：${describeError(geositeQuery.error)}`}
               </p>
             ) : null}
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">
-              固定规则（不参与编辑，分类不在 geosite.dat
-              里时自动跳过；排在自定义规则之后）
-            </p>
-            <Table>
-              <TableBody>
-                {DEFAULT_GEOSITE_RULES.map((rule) => {
-                  const exists = geositeOptions.some(
-                    (item) =>
-                      item.code.toUpperCase() === rule.code.toUpperCase()
-                  )
-                  const known = geositeQuery.data !== undefined
-                  return (
-                    <TableRow key={rule.code}>
-                      <TableCell className="w-8">
-                        <Lock
-                          aria-hidden="true"
-                          className="size-3 text-muted-foreground"
-                        />
-                      </TableCell>
-                      <TableCell className="text-left">{rule.code}</TableCell>
-                      <TableCell className="text-left text-muted-foreground">
-                        {GEOSITE_TARGET_LABELS[rule.target]}
-                      </TableCell>
-                      <TableCell className="w-full text-left text-xs">
-                        {known && !exists ? (
-                          <span className="text-destructive">
-                            geosite.dat 里已经没有这个分类，合并时会跳过
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">
-                            {known ? "分类有效" : "检查中…"}
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
           </div>
 
           <Combobox
@@ -688,53 +648,91 @@ export const MergeProfilesPanel = () => {
             </ComboboxContent>
           </Combobox>
 
-          {geositeRules.length === 0 ? (
-            <p className="text-xs text-muted-foreground">还没有添加分类</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8">
-                    <span className="sr-only">拖动排序</span>
-                  </TableHead>
-                  <TableHead className="min-w-[120px]">分类</TableHead>
-                  <TableHead className="min-w-[60px]">个数</TableHead>
-                  <TableHead className="min-w-[120px]">出口</TableHead>
-                  <TableHead className="w-full min-w-[60px]">
-                    <span className="sr-only">操作</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                modifiers={[restrictToVerticalAxis]}
-                onDragEnd={handleGeositeDragEnd}
-              >
-                <SortableContext
-                  items={geositeRules.map((rule) => rule.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <TableBody>
-                    {geositeRules.map((rule) => (
-                      <SortableGeositeRow
-                        key={rule.id}
-                        rule={rule}
-                        count={
-                          geositeOptions.find((item) => item.code === rule.code)
-                            ?.count ?? 0
-                        }
-                        onChangeTarget={(target) =>
-                          updateGeositeTarget(rule.id, target)
-                        }
-                        onRemove={() => removeGeositeRule(rule.id)}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8">
+                  <span className="sr-only">拖动排序</span>
+                </TableHead>
+                <TableHead className="min-w-[120px]">分类</TableHead>
+                <TableHead className="min-w-[60px]">个数</TableHead>
+                <TableHead className="min-w-[120px]">出口</TableHead>
+                <TableHead className="w-full min-w-[60px]">
+                  <span className="sr-only">状态与操作</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            {/* 固定三行：不可拖动、不可删改，分类缺失时在最后一列标出。 */}
+            <TableBody>
+              {DEFAULT_GEOSITE_RULES.map((rule) => {
+                const known = geositeQuery.data !== undefined
+                const info = geositeOptions.find(
+                  (item) => item.code.toUpperCase() === rule.code.toUpperCase()
+                )
+                return (
+                  <TableRow key={rule.code}>
+                    <TableCell className="w-8">
+                      <Lock
+                        aria-hidden="true"
+                        className="size-3 text-muted-foreground"
                       />
-                    ))}
-                  </TableBody>
-                </SortableContext>
-              </DndContext>
-            </Table>
-          )}
+                    </TableCell>
+                    <TableCell className="text-left">{rule.code}</TableCell>
+                    <TableCell className="text-left text-muted-foreground tabular-nums">
+                      {info?.count ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-left">
+                      {GEOSITE_TARGET_LABELS[rule.target]}
+                    </TableCell>
+                    <TableCell className="w-full text-left text-xs">
+                      {known && info === undefined ? (
+                        <span className="text-destructive">
+                          geosite.dat 里已经没有这个分类，合并时会跳过
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {known ? "固定规则" : "检查中…"}
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToVerticalAxis]}
+              onDragEnd={handleGeositeDragEnd}
+            >
+              <SortableContext
+                items={geositeRules.map((rule) => rule.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <TableBody>
+                  {geositeRules.map((rule) => (
+                    <SortableGeositeRow
+                      key={rule.id}
+                      rule={rule}
+                      count={
+                        geositeOptions.find((item) => item.code === rule.code)
+                          ?.count ?? 0
+                      }
+                      onChangeTarget={(target) =>
+                        updateGeositeTarget(rule.id, target)
+                      }
+                      onRemove={() => removeGeositeRule(rule.id)}
+                    />
+                  ))}
+                </TableBody>
+              </SortableContext>
+            </DndContext>
+          </Table>
+          {geositeRules.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              还没有添加自定义分类，当前只有上面三条固定规则
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-3">
