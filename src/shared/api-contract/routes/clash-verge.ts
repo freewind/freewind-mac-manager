@@ -2,9 +2,6 @@ import { ApiPath, toContractPath } from "@shared/api-path"
 import {
   ClashMergeConfigSchema,
   ClashVergeConnectionsResponseSchema,
-  ClashVergeGeositeCategoryDetailSchema,
-  ClashVergeGeositeCategoryQuerySchema,
-  ClashVergeGeositeCodeParamsSchema,
   ClashVergeGeositeSchema,
   ClashVergeMergeFileSchema,
   ClashVergeProfileFileQuerySchema,
@@ -82,17 +79,6 @@ export const clashVergeRoutes = {
     path: toContractPath(ApiPath.clashVergeGeosite),
     responses: {
       200: ClashVergeGeositeSchema,
-      404: ApiErrorSchema,
-      ...readErrors,
-    },
-  },
-  getClashVergeGeositeCategory: {
-    method: "GET",
-    path: toContractPath(ApiPath.clashVergeGeositeCategory),
-    pathParams: ClashVergeGeositeCodeParamsSchema,
-    query: ClashVergeGeositeCategoryQuerySchema,
-    responses: {
-      200: ClashVergeGeositeCategoryDetailSchema,
       404: ApiErrorSchema,
       ...readErrors,
     },

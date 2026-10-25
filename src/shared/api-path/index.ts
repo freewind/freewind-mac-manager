@@ -15,9 +15,8 @@ export const ApiPath = {
   clashVergeProfileCurrent: `${API_BASE}/clash-verge/profile-current`,
   /** 单个订阅的配置文件原文（只读）。 */
   clashVergeProfileFile: `${API_BASE}/clash-verge/profile-file`,
-  /** geosite 数据库：分类列表与单个分类的条目。 */
+  /** geosite 数据库：全部分类与域名预览。 */
   clashVergeGeosite: `${API_BASE}/clash-verge/geosite`,
-  clashVergeGeositeCategory: `${API_BASE}/clash-verge/geosite/:code`,
   /** 合并订阅的长期设置（选中的订阅与分组规则）。 */
   clashMergeConfig: `${API_BASE}/clash-verge/merge-config`,
   /** 生成合并配置：写入 profiles 并登记为本地配置。 */

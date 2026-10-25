@@ -23,7 +23,6 @@ import type {
   ClashVergeConnection,
   ClashVergeConnectionsResponse,
   ClashVergeGeosite,
-  ClashVergeGeositeCategoryDetail,
   ClashVergeMergeFile,
   ClashVergeProfileFile,
   ClashVergeProfileNode,
@@ -583,8 +582,8 @@ const CLASH_VERGE_GEOSITE_FILE = path.join(
   "geosite.dat"
 )
 
-/** 分类条目一页的条数：页面按页翻，一次不拉十几万条。 */
-const GEOSITE_PAGE_SIZE = 500
+/** 每个分类返回给页面的域名预览条数：页面直接把它们列成标签。 */
+const GEOSITE_PREVIEW_LIMIT = 100
 
 /** protobuf 里的类型枚举顺序：Plain / Regex / RootDomain / Full。 */
 const GEOSITE_DOMAIN_TYPES = ["plain", "regex", "rootdomain", "full"] as const
@@ -727,27 +726,10 @@ export const readClashVergeGeosite = async (): Promise<ClashVergeGeosite> => {
     categories: categories.map((category) => ({
       code: category.code,
       count: category.domains.length,
+      preview: category.domains
+        .slice(0, GEOSITE_PREVIEW_LIMIT)
+        .map((domain) => domain.value),
     })),
-  }
-}
-
-/** 单个分类的域名条目：分类名大小写不敏感，查不到给 404；按 offset/limit 分页。 */
-export const readClashVergeGeositeCategory = async (
-  code: string,
-  offset = 0,
-  limit = GEOSITE_PAGE_SIZE
-): Promise<ClashVergeGeositeCategoryDetail> => {
-  const { categories } = await loadGeosite()
-  const upper = code.toUpperCase()
-  const category = categories.find((item) => item.code.toUpperCase() === upper)
-  if (category === undefined) {
-    throw new PublicOperationError(404, `geosite 里没有这个分类：${code}`)
-  }
-  return {
-    code: category.code,
-    total: category.domains.length,
-    offset,
-    domains: category.domains.slice(offset, offset + limit),
   }
 }
 

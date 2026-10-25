@@ -2,7 +2,6 @@ import {
   fetchClashMergeConfig,
   fetchClashVergeConnections,
   fetchClashVergeGeosite,
-  fetchClashVergeGeositeCategory,
   fetchClashVergeMergeFile,
   fetchClashVergeProfileFile,
   fetchClashVergeProfiles,
@@ -24,8 +23,6 @@ export const clashVergeKeys = {
   profiles: ["clash-verge", "profiles"] as const,
   profileFile: (uid: string) => ["clash-verge", "profile-file", uid] as const,
   geosite: ["clash-verge", "geosite"] as const,
-  geositeCategory: (code: string, offset: number) =>
-    ["clash-verge", "geosite-category", code, offset] as const,
   mergeConfig: ["clash-verge", "merge-config"] as const,
 }
 
@@ -78,19 +75,6 @@ export const useClashVergeGeositeQuery = () =>
   useQuery({
     queryKey: clashVergeKeys.geosite,
     queryFn: ({ signal }) => fetchClashVergeGeosite({ signal }),
-    retry: false,
-  })
-
-/** 单个分类的条目：按页读，翻页时换 offset。 */
-export const useClashVergeGeositeCategoryQuery = (
-  code: string | null,
-  offset = 0
-) =>
-  useQuery({
-    queryKey: clashVergeKeys.geositeCategory(code ?? "", offset),
-    queryFn: ({ signal }) =>
-      fetchClashVergeGeositeCategory(code ?? "", { offset, signal }),
-    enabled: code !== null,
     retry: false,
   })
 

@@ -69,7 +69,6 @@ import type {
   ClashVergeAvailabilitySchema,
   ClashVergeConnectionSchema,
   ClashVergeConnectionsResponseSchema,
-  ClashVergeGeositeCategoryDetailSchema,
   ClashVergeGeositeCategorySchema,
   ClashVergeGeositeSchema,
   ClashVergeMergeFileSchema,
@@ -104,9 +103,6 @@ export type ClashVergeProfileFile = z.infer<typeof ClashVergeProfileFileSchema>
 export type ClashVergeGeosite = z.infer<typeof ClashVergeGeositeSchema>
 export type ClashVergeGeositeCategory = z.infer<
   typeof ClashVergeGeositeCategorySchema
->
-export type ClashVergeGeositeCategoryDetail = z.infer<
-  typeof ClashVergeGeositeCategoryDetailSchema
 >
 export type ClashVergeProfilesResponse = z.infer<
   typeof ClashVergeProfilesResponseSchema

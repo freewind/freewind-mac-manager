@@ -193,13 +193,15 @@ export const SaveClashMergeConfigBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
 })
 
-/** geosite 数据库里的单个分类：只有名字与条目数，正文按需另取。 */
+/** geosite 数据库里的单个分类：名字、条目数与前面一段域名（页面直接列成标签）。 */
 export const ClashVergeGeositeCategorySchema = z.object({
   code: z.string(),
   count: z.number().int().nonnegative(),
+  /** 该分类的前若干条域名，数量受上限控制，不足的部分由 count 体现。 */
+  preview: z.array(z.string()).max(100),
 })
 
-/** geosite 数据库概览：文件信息 + 全部分类名与条目数。 */
+/** geosite 数据库概览：文件信息 + 全部分类名、条目数与域名预览。 */
 export const ClashVergeGeositeSchema = z.object({
   path: z.string(),
   size: z.number().int().nonnegative(),
@@ -208,32 +210,6 @@ export const ClashVergeGeositeSchema = z.object({
   totalCategories: z.number().int().nonnegative(),
   totalDomains: z.number().int().nonnegative(),
   categories: z.array(ClashVergeGeositeCategorySchema).max(4000),
-})
-
-/** 单个分类下的域名条目：类型与值，类型对应内核的 Plain/RootDomain/Full/Regex。 */
-export const ClashVergeGeositeDomainSchema = z.object({
-  type: z.enum(["plain", "rootdomain", "full", "regex"]),
-  value: z.string(),
-})
-
-/** 单个分类的正文：按 offset/limit 分页，一页最多 1000 条。 */
-export const ClashVergeGeositeCategoryDetailSchema = z.object({
-  code: z.string(),
-  total: z.number().int().nonnegative(),
-  /** 本次返回的起始下标（0 起）。 */
-  offset: z.number().int().nonnegative(),
-  domains: z.array(ClashVergeGeositeDomainSchema).max(1000),
-})
-
-/** 分类条目的分页参数：GET 传字符串，交给 zod 转数字。 */
-export const ClashVergeGeositeCategoryQuerySchema = z.object({
-  offset: z.coerce.number().int().min(0).max(200_000).optional(),
-  limit: z.coerce.number().int().min(1).max(1000).optional(),
-})
-
-/** 分类名走路径参数：大小写不敏感，服务端自己查证。 */
-export const ClashVergeGeositeCodeParamsSchema = z.object({
-  code: z.string().min(1).max(64),
 })
 
 /** 合并订阅：选中的订阅 uid 与已勾选的分组规则（按顺序生效）。 */

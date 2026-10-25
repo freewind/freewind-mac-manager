@@ -3,7 +3,6 @@ import type {
   ClashMergeConfig,
   ClashVergeConnectionsResponse,
   ClashVergeGeosite,
-  ClashVergeGeositeCategoryDetail,
   ClashVergeMergeFile,
   ClashVergeProfileFile,
   ClashVergeProfilesResponse,
@@ -87,19 +86,6 @@ export const fetchClashVergeGeosite = async (options?: {
 }): Promise<ClashVergeGeosite> =>
   unwrap<ClashVergeGeosite>(
     await apiClient.getClashVergeGeosite({
-      fetchOptions: options?.signal ? { signal: options.signal } : undefined,
-    })
-  )
-
-/** 单个分类的域名条目：分类名大小写不敏感，按 offset/limit 分页。 */
-export const fetchClashVergeGeositeCategory = async (
-  code: string,
-  options?: { offset?: number; limit?: number; signal?: AbortSignal }
-): Promise<ClashVergeGeositeCategoryDetail> =>
-  unwrap<ClashVergeGeositeCategoryDetail>(
-    await apiClient.getClashVergeGeositeCategory({
-      params: { code },
-      query: { offset: options?.offset, limit: options?.limit },
       fetchOptions: options?.signal ? { signal: options.signal } : undefined,
     })
   )
