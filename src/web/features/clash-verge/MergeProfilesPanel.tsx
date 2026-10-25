@@ -524,7 +524,7 @@ export const MergeProfilesPanel = () => {
                 <TableCell className="text-left text-muted-foreground tabular-nums">
                   {profile.nodes.length}
                 </TableCell>
-                <TableCell className="w-full text-left whitespace-normal text-muted-foreground">
+                <TableCell className="w-full max-w-0 text-left whitespace-normal text-muted-foreground">
                   {profile.nodes.length === 0 ? (
                     "（没有节点）"
                   ) : (
