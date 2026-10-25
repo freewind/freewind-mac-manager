@@ -3,6 +3,7 @@ import { PageHeader } from "@web/components/PageHeader"
 import { Button } from "@web/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { RefreshCw } from "lucide-react"
+import { ConfigDetailPanel } from "./ConfigDetailPanel"
 import { ConnectionsList } from "./ConnectionsList"
 import { GeoSitePanel } from "./GeoSitePanel"
 import { MergeFilePanel } from "./MergeFilePanel"
@@ -116,6 +117,7 @@ export const ClashVergePage = () => {
           />
         ) : null}
         {tab === "geosite" ? <GeoSitePanel /> : null}
+        {tab === "config" ? <ConfigDetailPanel /> : null}
       </div>
     </div>
   )

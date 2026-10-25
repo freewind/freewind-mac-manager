@@ -1,4 +1,3 @@
-import { File, WorkerPoolContextProvider } from "@pierre/diffs/react"
 import type { ClashVergeProfile } from "@shared/api-contract"
 import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -27,21 +26,15 @@ import {
 } from "@web/components/ui/dialog"
 import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
 import { useDialogSubmit } from "@web/hooks/use-dialog-submit"
-import { useThemeType } from "@web/hooks/use-theme-type"
-import {
-  ChevronRight,
-  CircleCheck,
-  Copy,
-  FileCode,
-  LoaderCircle,
-} from "lucide-react"
-import { Component, type ReactNode, Suspense, useState } from "react"
+import { ChevronRight, CircleCheck, Copy, FileCode } from "lucide-react"
+import { useState } from "react"
 import { toast } from "sonner"
 import {
   useClashVergeProfileFileQuery,
   useClashVergeProfilesQuery,
   useSetClashVergeCurrentProfile,
 } from "./queries"
+import { PlainYaml, YamlHighlight } from "./yaml-highlight"
 
 /** 节点的服务器地址与端口：端口缺失时只显示地址，避免出现 `host:null`。 */
 const endpointOf = (server: string, port: number | null): string => {
@@ -76,62 +69,12 @@ const NodeTable = (props: { nodes: ClashVergeProfile["nodes"] }) => (
   </Table>
 )
 
-/** 纯文本展示：默认就是它，也是高亮不可用时的兼底。 */
-const PlainProfileText = (props: { content: string }) => (
-  <pre className="max-h-[70vh] w-full min-w-0 overflow-auto rounded-md border p-2 text-xs">
-    {props.content}
-  </pre>
-)
-
-/**
- * File 高亮会挂起（语法包异步加载）也可能直接抛错，两层都兜住：
- * Suspense 接住挂起，ErrorBoundary 接住异常，两者都回退到纯文本，不会变空白。
- */
-class HighlightBoundary extends Component<
-  { fallback: ReactNode; children: ReactNode },
-  { failed: boolean }
-> {
-  state = { failed: false }
-
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-
-  render() {
-    return this.state.failed ? this.props.fallback : this.props.children
-  }
-}
-
-/**
- * 高亮放 worker 里算，主线程只管渲染：haitta 那种 88 万字符的配置也不会把界面堵死。
- * worker 起不来时库会自己退回主线程，外面还有纯文本兜底。
- */
-const HighlightPool = (props: { children: ReactNode }) => (
-  <WorkerPoolContextProvider
-    poolOptions={{
-      workerFactory: () =>
-        new Worker(new URL("@pierre/diffs/worker/worker.js", import.meta.url), {
-          type: "module",
-        }),
-      poolSize: 2,
-    }}
-    highlighterOptions={{ langs: ["yaml"] }}
-  >
-    {props.children}
-  </WorkerPoolContextProvider>
-)
-
 /**
  * 配置文件正文：默认按纯文本显示，点了「添加高亮」才走高亮。
  *
- * 高亮会占 CPU（尤其几十万字符的配置），所以不自动触发，把选择权留给使用者。
- * 外面用 Suspense + ErrorBoundary 兜住挂起与异常，不论哪种情况都退回纯文本。
+ * 高亮会占 CPU（尤其几十万字符的配置），所以不自动触发。
  */
-const ProfileFileBody = (props: {
-  content: string
-  fileName: string
-  themeType: ReturnType<typeof useThemeType>
-}) => {
+const ProfileFileBody = (props: { content: string; fileName: string }) => {
   const [highlight, setHighlight] = useState(false)
   if (!highlight) {
     return (
@@ -148,45 +91,11 @@ const ProfileFileBody = (props: {
             添加高亮
           </Button>
         </div>
-        <PlainProfileText content={props.content} />
+        <PlainYaml content={props.content} />
       </div>
     )
   }
-  const fallback = (
-    <div className="min-w-0 space-y-1">
-      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-        <LoaderCircle
-          className="size-3 animate-spin motion-reduce:animate-none"
-          aria-hidden="true"
-        />
-        正在添加语法高亮…
-      </p>
-      <PlainProfileText content={props.content} />
-    </div>
-  )
-  return (
-    <div className="min-w-0">
-      <HighlightBoundary
-        fallback={<PlainProfileText content={props.content} />}
-      >
-        <HighlightPool>
-          <Suspense fallback={fallback}>
-            <div className="max-h-[70vh] min-w-0 overflow-auto rounded-md border text-xs">
-              <File
-                key={props.themeType}
-                file={{ name: props.fileName, contents: props.content }}
-                options={{
-                  theme: { dark: "github-dark", light: "github-light" },
-                  themeType: props.themeType,
-                  disableFileHeader: true,
-                }}
-              />
-            </div>
-          </Suspense>
-        </HighlightPool>
-      </HighlightBoundary>
-    </div>
-  )
+  return <YamlHighlight content={props.content} fileName={props.fileName} />
 }
 
 const ProfileFileDialog = (props: {
@@ -194,7 +103,6 @@ const ProfileFileDialog = (props: {
   onClose: () => void
 }) => {
   const query = useClashVergeProfileFileQuery(props.profile?.uid ?? null)
-  const themeType = useThemeType()
   return (
     <Dialog
       open={props.profile !== null}
@@ -223,7 +131,6 @@ const ProfileFileDialog = (props: {
             key={`${props.profile?.uid ?? ""}:${query.data.content.length}`}
             content={query.data.content}
             fileName={query.data.path.split("/").pop() ?? "profile.yaml"}
-            themeType={themeType}
           />
         )}
       </DialogContent>
