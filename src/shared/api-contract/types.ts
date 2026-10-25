@@ -76,6 +76,7 @@ import type {
   ClashVergeProxiesResponseSchema,
   ClashVergeProxySchema,
   ClashVergeStatusSchema,
+  MergeClashProfilesBodySchema,
   SaveClashMergeConfigBodySchema,
   SaveClashVergeMergeBodySchema,
   SetClashVergeCurrentProfileBodySchema,
@@ -109,6 +110,9 @@ export type ClashMergeRule = z.infer<typeof ClashMergeRuleSchema>
 export type ClashMergeConfig = z.infer<typeof ClashMergeConfigSchema>
 export type SaveClashMergeConfigBody = z.infer<
   typeof SaveClashMergeConfigBodySchema
+>
+export type MergeClashProfilesBody = z.infer<
+  typeof MergeClashProfilesBodySchema
 >
 
 export type KillProcessesBody = z.infer<typeof KillProcessesBodySchema>

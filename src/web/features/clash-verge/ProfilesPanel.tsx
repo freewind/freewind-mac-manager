@@ -160,15 +160,19 @@ export const ProfilesPanel = () => {
                         </span>
                       ) : null}
                     </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      aria-label={`复制订阅链接：${profile.name}`}
-                      onClick={() => void copyUrl(profile.url, profile.name)}
-                    >
-                      <Copy aria-hidden="true" />
-                      复制
-                    </Button>
+                    {profile.url === null ? null : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        aria-label={`复制订阅链接：${profile.name}`}
+                        onClick={() =>
+                          void copyUrl(profile.url ?? "", profile.name)
+                        }
+                      >
+                        <Copy aria-hidden="true" />
+                        复制
+                      </Button>
+                    )}
                     {profile.current ? null : (
                       <Button
                         size="sm"
@@ -181,7 +185,7 @@ export const ProfilesPanel = () => {
                     )}
                   </div>
                   <p className="font-mono text-xs break-all text-muted-foreground">
-                    {profile.url}
+                    {profile.url ?? "（本地配置，没有订阅链接）"}
                   </p>
                   <Collapsible>
                     {/* 节点数常驻显示在按钮右侧，不随展开/收缩变化。 */}

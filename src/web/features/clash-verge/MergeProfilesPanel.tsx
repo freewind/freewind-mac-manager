@@ -17,6 +17,7 @@ import { toast } from "sonner"
 import {
   useClashMergeConfigQuery,
   useClashVergeProfilesQuery,
+  useMergeClashProfiles,
   useSaveClashMergeConfig,
 } from "./queries"
 
@@ -77,6 +78,7 @@ export const MergeProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
   const configQuery = useClashMergeConfigQuery()
   const saveConfig = useSaveClashMergeConfig()
+  const mergeProfiles = useMergeClashProfiles()
   const profiles = useMemo(() => query.data?.profiles ?? [], [query.data])
   /** 只记住本地勾选；选中的订阅不保存，每次进来重新勾。 */
   const [editedSelected, setEditedSelected] = useState<string[]>([])
@@ -177,10 +179,23 @@ export const MergeProfilesPanel = () => {
     )
   }
 
-  const merge = () => {
-    toast.message(
-      `合并写入还没实现：已选 ${chosen.length} 个订阅、${nodeTotal} 个节点`
-    )
+  /**
+   * 合并：只传勾选中的规则（按表内顺序），兜底的「其他」由服务端放在最后。
+   * 命中 0 个节点的组由服务端跳过。
+   */
+  const merge = async () => {
+    const chosenRules = rules
+      .filter((rule) => !rule.fixed && checkedRules.includes(rule.id))
+      .map((rule) => ({ pattern: rule.pattern, target: rule.target }))
+    try {
+      const result = await mergeProfiles.mutateAsync({
+        selected,
+        rules: chosenRules,
+      })
+      toast.success(result.message)
+    } catch (error) {
+      toast.error(describeError(error))
+    }
   }
 
   /** 保存到服务端：只存用户填的正则与目标组名，兑底行与订阅选择都不存。 */
@@ -263,17 +278,6 @@ export const MergeProfilesPanel = () => {
           </TableBody>
         </Table>
       ) : null}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button disabled={chosen.length < 2} onClick={merge}>
-          合并订阅
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          {chosen.length < 2
-            ? "至少选 2 个订阅"
-            : `已选 ${chosen.length} 个订阅、${nodeTotal} 个节点`}
-        </span>
-      </div>
 
       <div className="space-y-2 border-t pt-3">
         <div>
@@ -407,6 +411,22 @@ export const MergeProfilesPanel = () => {
               {`读取已保存设置失败：${describeError(configQuery.error)}`}
             </span>
           ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+          <ActionButton
+            disabled={chosen.length < 2}
+            busy={mergeProfiles.isPending}
+            busyLabel="生成中…"
+            onClick={() => void merge()}
+          >
+            合并订阅
+          </ActionButton>
+          <span className="text-xs text-muted-foreground">
+            {chosen.length < 2
+              ? "先在上面勾选至少 2 个订阅"
+              : `已选 ${chosen.length} 个订阅、${nodeTotal} 个节点；参与合并的分组 ${checkedRules.length} 个`}
+          </span>
         </div>
       </div>
     </section>

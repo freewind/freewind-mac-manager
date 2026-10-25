@@ -15,6 +15,8 @@ export const ApiPath = {
   clashVergeProfileCurrent: `${API_BASE}/clash-verge/profile-current`,
   /** 合并订阅的长期设置（选中的订阅与分组规则）。 */
   clashMergeConfig: `${API_BASE}/clash-verge/merge-config`,
+  /** 生成合并配置：写入 profiles 并登记为本地配置。 */
+  clashMergeProfiles: `${API_BASE}/clash-verge/merge-profiles`,
   diskGrowthScans: `${API_BASE}/disk-growth/scans`,
   diskGrowthEntries: `${API_BASE}/disk-growth/entries`,
   diskGrowthTree: `${API_BASE}/disk-growth/tree`,

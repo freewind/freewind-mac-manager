@@ -4,6 +4,7 @@ import {
   getClashVergeConnections,
   getClashVergeProxies,
   getClashVergeStatus,
+  mergeClashProfiles,
   readClashMergeConfig,
   readClashVergeMergeFile,
   readClashVergeProfiles,
@@ -25,6 +26,7 @@ export const clashVergeContract = {
   setClashVergeCurrentProfile: contract.setClashVergeCurrentProfile,
   getClashMergeConfig: contract.getClashMergeConfig,
   saveClashMergeConfig: contract.saveClashMergeConfig,
+  mergeClashProfiles: contract.mergeClashProfiles,
   getClashVergeMergeFile: contract.getClashVergeMergeFile,
   saveClashVergeMergeFile: contract.saveClashVergeMergeFile,
 }
@@ -75,6 +77,21 @@ export const clashVergeRouter = {
       return {
         status: 200 as const,
         body: { message: saveClashMergeConfig(body) },
+      }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  // 生成合并配置：写 Profiles 目录并登记，已知错误按语义回显。
+  mergeClashProfiles: async ({
+    body,
+  }: {
+    body: { selected: string[]; rules: { pattern: string; target: string }[] }
+  }) => {
+    try {
+      return {
+        status: 200 as const,
+        body: { message: await mergeClashProfiles(body) },
       }
     } catch (error) {
       return publicSystemError(error)

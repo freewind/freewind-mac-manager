@@ -28,6 +28,7 @@ import type {
   ClashVergeProxiesResponse,
   ClashVergeProxy,
   ClashVergeStatus,
+  MergeClashProfilesBody,
   SaveClashMergeConfigBody,
 } from "@shared/api-contract"
 import {
@@ -36,6 +37,7 @@ import {
   ClashVergeProxiesResponseSchema,
   ClashVergeStatusSchema,
 } from "@shared/api-contract/schemas/clash-verge"
+import { stringify as toYaml } from "yaml"
 import {
   ControllerError,
   connectionLimit,
@@ -391,31 +393,31 @@ export const saveClashVergeMergeFile = async (
 
 /* ---------- 订阅清单（只读） ---------- */
 
-type RemoteProfileEntry = {
+type ProfileEntry = {
   uid: string
   name: string
-  url: string
-  /** 订阅在 profiles 目录里的配置文件名（如 R9qx7MBAX2DY.yaml），用来读节点。 */
+  /** 订阅链接；本地配置（如合并结果）没有链接。 */
+  url: string | null
+  /** 配置在 profiles 目录里的文件名（如 R9qx7MBAX2DY.yaml），用来读节点。 */
   file: string
 }
 
 /**
- * 从 profiles.yaml 的 items 里挑出订阅条目。只认 type 为 remote 的记录，
- * 其余 merge / script / rules 等都是内部配置项，不是订阅。
+ * 从 profiles.yaml 的 items 里挑出订阅与本地配置（remote / local）。
+ * 其余 merge / script / rules 等都是内部配置项，不是可选的配置。
  * 名称缺失时退回文件名，再退回固定文案，不让界面出现空标题。
  */
-const remoteProfiles = (items: unknown): RemoteProfileEntry[] => {
-  const result: RemoteProfileEntry[] = []
+const profileEntries = (items: unknown): ProfileEntry[] => {
+  const result: ProfileEntry[] = []
   for (const item of Array.isArray(items) ? items : []) {
     if (!isRecord(item)) continue
-    const url = item.url
-    if (item.type !== "remote" || typeof url !== "string") continue
+    if (item.type !== "remote" && item.type !== "local") continue
     const file = typeof item.file === "string" ? item.file : ""
     const trimmedName = typeof item.name === "string" ? item.name.trim() : ""
     result.push({
       uid: typeof item.uid === "string" ? item.uid : "",
-      name: trimmedName || file || "未命名订阅",
-      url,
+      name: trimmedName || file || "未命名配置",
+      url: typeof item.url === "string" ? item.url : null,
       file,
     })
   }
@@ -508,7 +510,7 @@ export const readClashVergeProfiles =
       throw error
     }
     const document = parseYamlRecord(text)
-    const entries = remoteProfiles(document.items)
+    const entries = profileEntries(document.items)
     // 顶层 current 是被启用订阅的 uid：只有一个订阅会被标记为当前启用。
     const currentUid =
       typeof document.current === "string" ? document.current : ""
@@ -560,13 +562,16 @@ const replaceCurrentLine = (text: string, uid: string): string | null => {
   return text.replace(pattern, `current: ${uid}`)
 }
 
-/** 原子写：同目录临时文件 → fsync → rename，正式文件不会出现半截内容。 */
+/** 原子写：同目录临时文件 → fsync → rename，正式文件不会出现半截内容。
+ * 目标不存在时按默认权限新建（首次生成合并配置就是这种情况）。
+ */
 const writeFileAtomic = async (
   file: string,
   content: string
 ): Promise<void> => {
-  const info = await lstat(file)
-  const mode = info.mode & 0o777
+  const mode = await lstat(file)
+    .then((info) => info.mode & 0o777)
+    .catch(() => 0o644)
   const temp = path.join(
     path.dirname(file),
     `.profiles.${randomUUID().replace(/-/g, "").slice(0, 16)}.tmp`
@@ -638,7 +643,7 @@ export const setClashVergeCurrentProfile = async (
     throw error
   }
   const document = parseYamlRecord(text)
-  const target = remoteProfiles(document.items).find(
+  const target = profileEntries(document.items).find(
     (entry) => entry.uid === uid
   )
   if (!target) {
@@ -688,4 +693,199 @@ export const saveClashMergeConfig = (
 ): string => {
   const updatedAt = getClashMergeStore().save(input)
   return `已保存 ${input.rules.length} 条分组规则（${new Date(updatedAt * 1000).toLocaleString()}）`
+}
+
+/* ---------- 生成合并配置 ---------- */
+
+/** 合并结果的固定文件名与展示名：重复合并只覆盖文件，不重复登记。 */
+const MERGED_FILE = "freewind-merged.yaml"
+const MERGED_NAME = "freewind-merged"
+/** 兑底分组名：与页面上的兑底行保持一致。 */
+const MERGED_FALLBACK_GROUP = "其他"
+
+/** 节点名必须唯一：重名时依次加 -2、-3 后缀。 */
+const uniqueNodeName = (name: string, used: Set<string>): string => {
+  if (!used.has(name)) return name
+  let index = 2
+  while (used.has(`${name}-${index}`)) index += 1
+  return `${name}-${index}`
+}
+
+/** 编译正则：非法或为空都返回 null，由调用方跳过这条规则。 */
+const compileRule = (pattern: string): RegExp | null => {
+  const trimmed = pattern.trim()
+  if (trimmed === "") return null
+  try {
+    return new RegExp(trimmed)
+  } catch {
+    return null
+  }
+}
+
+/** 生成一个不与现有 uid 冲突的短 id，与 Clash Verge 的 uid 长度一致。 */
+const newProfileUid = (existing: Set<string>): string => {
+  for (;;) {
+    const uid = randomUUID().replace(/-/g, "").slice(0, 12)
+    if (!existing.has(uid)) return uid
+  }
+}
+
+/**
+ * 在 items 列表末尾追加一条 local 条目。
+ * 只做文本追加，保留原有缩进与注释；items 之后还有其它顶层键时拒绕，不自作主张。
+ */
+const appendLocalItem = (text: string, uid: string): string => {
+  const lines = text.split("\n")
+  const itemsLine = lines.findIndex((line) => line.startsWith("items:"))
+  if (itemsLine === -1) {
+    throw new PublicOperationError(
+      409,
+      "订阅清单里没有 items 段落，拒绝自动登记"
+    )
+  }
+  const hasLaterKey = lines
+    .slice(itemsLine + 1)
+    .some((line) => /^[A-Za-z_][\w-]*:/.test(line))
+  if (hasLaterKey) {
+    throw new PublicOperationError(
+      409,
+      "订阅清单 items 之后还有其它字段，拒绝自动登记"
+    )
+  }
+  const block = [
+    `- uid: ${uid}`,
+    "  type: local",
+    `  name: ${MERGED_NAME}`,
+    `  file: ${MERGED_FILE}`,
+    `  updated: ${Math.floor(Date.now() / 1000)}`,
+  ].join("\n")
+  return `${text.replace(/\n+$/, "")}\n${block}\n`
+}
+
+/**
+ * 生成合并配置：把选中订阅的节点合到一份新配置里，按分组规则建 select 组。
+ *
+ * 规则按传入顺序生效，一个节点只归第一个命中它的组；命中 0 个节点的组跳过；
+ * 没被任何规则命中的节点归到最后的「其他」组（也是 0 个就不建）。
+ * 结果写到 profiles/freewind-merged.yaml，并在订阅清单里登记为 local 配置。
+ */
+export const mergeClashProfiles = async (
+  input: MergeClashProfilesBody
+): Promise<string> => {
+  let indexText: string
+  try {
+    indexText = await readFile(CLASH_VERGE_PROFILES_FILE, "utf8")
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new PublicOperationError(
+        404,
+        `找不到 Clash Verge 订阅清单：${CLASH_VERGE_PROFILES_FILE}`
+      )
+    }
+    throw error
+  }
+  const document = parseYamlRecord(indexText)
+  const entries = profileEntries(document.items).filter((entry) =>
+    input.selected.includes(entry.uid)
+  )
+  if (entries.length === 0) {
+    throw new PublicOperationError(400, "没有选中可合并的订阅")
+  }
+
+  // 收集节点：重名节点加后缀，否则整份配置会因重名失效。
+  const proxies: Record<string, unknown>[] = []
+  const usedNames = new Set<string>()
+  for (const entry of entries) {
+    if (entry.file === "" || path.basename(entry.file) !== entry.file) continue
+    let text: string
+    try {
+      text = await readFile(
+        path.join(CLASH_VERGE_PROFILE_DIR, entry.file),
+        "utf8"
+      )
+    } catch {
+      continue
+    }
+    const items = parseYamlRecord(text).proxies
+    for (const proxy of Array.isArray(items) ? items : []) {
+      if (!isRecord(proxy) || typeof proxy.name !== "string") continue
+      const name = uniqueNodeName(proxy.name, usedNames)
+      usedNames.add(name)
+      proxies.push({ ...proxy, name })
+    }
+  }
+  if (proxies.length === 0) {
+    throw new PublicOperationError(400, "选中的订阅里没有可用节点")
+  }
+
+  // 分组：按规则顺序先匹配先归属，命中 0 个的组跳过。
+  const assigned = new Set<string>()
+  const groups: { name: string; members: string[] }[] = []
+  const groupIndex = new Map<string, number>()
+  for (const rule of input.rules) {
+    const target = rule.target.trim()
+    if (target === "") continue
+    const regex = compileRule(rule.pattern)
+    if (regex === null) continue
+    const members = [...usedNames].filter(
+      (name) => !assigned.has(name) && regex.exec(name) !== null
+    )
+    if (members.length === 0) continue
+    for (const name of members) assigned.add(name)
+    const existing = groupIndex.get(target)
+    if (existing === undefined) {
+      groupIndex.set(target, groups.length)
+      groups.push({ name: target, members })
+    } else {
+      groups[existing].members.push(...members)
+    }
+  }
+  // 「其余」始终排在最后一组；没有剩余节点就不建。
+  const rest = [...usedNames].filter((name) => !assigned.has(name))
+  if (rest.length > 0 && !groupIndex.has(MERGED_FALLBACK_GROUP)) {
+    groups.push({ name: MERGED_FALLBACK_GROUP, members: rest })
+  }
+  if (groups.length === 0) {
+    throw new PublicOperationError(400, "所有规则都没命中节点，未生成配置")
+  }
+
+  const mergedText = toYaml(
+    {
+      proxies,
+      "proxy-groups": groups.map((group) => ({
+        name: group.name,
+        type: "select",
+        proxies: group.members,
+      })),
+      rules: [`MATCH,${groups[0].name}`],
+    },
+    { lineWidth: 0 }
+  )
+  await writeFileAtomic(
+    path.join(CLASH_VERGE_PROFILE_DIR, MERGED_FILE),
+    mergedText
+  )
+
+  // 登记：已有同名 local 条目就复用 uid，不再重复追加。
+  const existingEntry = (
+    Array.isArray(document.items) ? document.items : []
+  ).find((item) => isRecord(item) && item.name === MERGED_NAME)
+  const existingUid =
+    isRecord(existingEntry) && typeof existingEntry.uid === "string"
+      ? existingEntry.uid
+      : null
+  if (existingUid === null) {
+    const uids = new Set(
+      profileEntries(document.items).map((entry) => entry.uid)
+    )
+    await writeFileAtomic(
+      CLASH_VERGE_PROFILES_FILE,
+      appendLocalItem(indexText, newProfileUid(uids))
+    )
+  }
+
+  const summary = groups
+    .map((group) => `${group.name}(${group.members.length})`)
+    .join("、")
+  return `已生成 ${MERGED_FILE}：${proxies.length} 个节点、${groups.length} 个分组（${summary}）；回到订阅列表即可看到「${MERGED_NAME}」`
 }

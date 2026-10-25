@@ -92,3 +92,13 @@ export const saveClashMergeConfig = async (input: {
   rules: { pattern: string; target: string }[]
 }): Promise<ActionResponse> =>
   unwrap<ActionResponse>(await apiClient.saveClashMergeConfig({ body: input }))
+
+/**
+ * 生成合并配置：写操作，客户端不重试；服务端会新建/覆盖
+ * freewind-merged 配置并登记到订阅清单。
+ */
+export const mergeClashProfiles = async (input: {
+  selected: string[]
+  rules: { pattern: string; target: string }[]
+}): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(await apiClient.mergeClashProfiles({ body: input }))

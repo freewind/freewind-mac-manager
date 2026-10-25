@@ -117,7 +117,8 @@ export const ClashVergeProfileNodeSchema = z.object({
 export const ClashVergeProfileSchema = z.object({
   uid: z.string(),
   name: z.string(),
-  url: z.string(),
+  /** 订阅链接；本地生成的配置（如合并结果）没有链接。 */
+  url: z.string().nullable(),
   /** 是否 Clash Verge 当前正在使用的订阅（profiles.yaml 顶层的 current）。 */
   current: z.boolean(),
   nodes: z.array(ClashVergeProfileNodeSchema).max(300),
@@ -159,5 +160,11 @@ export const ClashMergeConfigSchema = z.object({
 
 /** 保存时只接受分组规则，保存时间由服务端写。 */
 export const SaveClashMergeConfigBodySchema = z.object({
+  rules: z.array(ClashMergeRuleSchema).max(200),
+})
+
+/** 合并订阅：选中的订阅 uid 与已勾选的分组规则（按顺序生效）。 */
+export const MergeClashProfilesBodySchema = z.object({
+  selected: z.array(z.string().max(64)).min(1).max(200),
   rules: z.array(ClashMergeRuleSchema).max(200),
 })

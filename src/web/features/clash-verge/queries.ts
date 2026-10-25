@@ -5,6 +5,7 @@ import {
   fetchClashVergeProfiles,
   fetchClashVergeProxies,
   fetchClashVergeStatus,
+  mergeClashProfiles,
   saveClashMergeConfig,
   saveClashVergeMergeFile,
   setClashVergeCurrentProfile,
@@ -147,6 +148,25 @@ export const useSaveClashMergeConfig = () => {
       void queryClient.invalidateQueries({
         queryKey: clashVergeKeys.mergeConfig,
       })
+    },
+  })
+}
+
+/**
+ * 生成合并配置：写操作不重试；成功后刷新订阅清单，
+ * 让新生成的 freewind-merged 出现在列表里。
+ */
+export const useMergeClashProfiles = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      selected: string[]
+      rules: { pattern: string; target: string }[]
+    }) => mergeClashProfiles(input),
+    retry: false,
+    networkMode: "always",
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: clashVergeKeys.profiles })
     },
   })
 }
