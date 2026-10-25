@@ -28,7 +28,7 @@ export const ProfilesPanel = () => {
   return (
     <section className="space-y-3" aria-label="订阅链接">
       <div>
-        <h2 className="text-sm font-medium">订阅链接</h2>
+        <h2 className="text-sm font-medium">订阅清单</h2>
         <p className="text-xs text-muted-foreground">
           只读：内容来自 Clash Verge 订阅清单文件，不是内核运行状态
         </p>
