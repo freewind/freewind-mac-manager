@@ -256,6 +256,112 @@ const SortableGeositeRow = (props: {
   )
 }
 
+/**
+ * 分组规则行：把手在左，可上下拖动调整组的先后，顺序就是生成配置里的顺序。
+ * 兜底行不参与拖拽，单独渲染在最后一行。
+ */
+const SortableRuleRow = (props: {
+  rule: GroupRule
+  index: number
+  matches: string[]
+  onToggle: (checked: boolean) => void
+  onChange: (patch: Partial<GroupRule>) => void
+  onRemove: () => void
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.rule.id })
+  const label = `第 ${props.index + 1} 条分组规则`
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={{
+        transform:
+          transform === null
+            ? undefined
+            : `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        transition,
+        opacity: isDragging ? 0.6 : undefined,
+      }}
+    >
+      <TableCell>
+        <span className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label={`拖动调整顺序：${label}`}
+            className="inline-flex size-6 touch-none cursor-grab items-center justify-center rounded-md hover:bg-muted"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical aria-hidden="true" className="size-3" />
+          </button>
+          <Checkbox
+            aria-label={`选择${label}`}
+            checked={props.rule.enabled}
+            onCheckedChange={(checked) => props.onToggle(checked)}
+          />
+        </span>
+      </TableCell>
+      <TableCell>
+        <Input
+          value={props.rule.pattern}
+          aria-label={`${label}的正则`}
+          onChange={(event) => props.onChange({ pattern: event.target.value })}
+        />
+      </TableCell>
+      <TableCell className="text-left tabular-nums text-muted-foreground">
+        {props.matches.length}
+      </TableCell>
+      <TableCell className="align-top text-xs whitespace-normal">
+        <NodeTags nodes={props.matches} />
+      </TableCell>
+      <TableCell>
+        <Input
+          value={props.rule.target}
+          aria-label={`${label}的目标组名`}
+          onChange={(event) => props.onChange({ target: event.target.value })}
+        />
+      </TableCell>
+      <TableCell className="text-left">
+        <Select
+          value={props.rule.type}
+          onValueChange={(next) =>
+            props.onChange({ type: next as ClashMergeGroupType })
+          }
+        >
+          <SelectTrigger aria-label={`${label}的类型`}>
+            <SelectValue>{GROUP_TYPE_LABELS[props.rule.type]}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(GROUP_TYPE_LABELS) as ClashMergeGroupType[]).map(
+              (type) => (
+                <SelectItem key={type} value={type}>
+                  {GROUP_TYPE_LABELS[type]}
+                </SelectItem>
+              )
+            )}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={`删除${label}`}
+          onClick={props.onRemove}
+        >
+          删除
+        </Button>
+      </TableCell>
+    </TableRow>
+  )
+}
+
 /** 一条自定义分组规则：正则在节点名里匹配，目标组名直接填写。 */
 type GroupRule = {
   id: string
@@ -263,15 +369,18 @@ type GroupRule = {
   target: string
   /** 生成的组类型：手动选、测速最快或按序兜底。 */
   type: ClashMergeGroupType
+  /** 这条规则参与合并吗：勾选框控制，未勾选的只留在页面上。 */
+  enabled: boolean
   fixed?: boolean
 }
 
-/** 兜底规则：固定目标组名「其他」，不可删除，聚合其余规则没命中的节点。 */
+/** 兜底规则：固定目标组名「其他」，不可删除、固定在最后，聚合其余规则没命中的节点。 */
 const FALLBACK_RULE: GroupRule = {
   id: "fallback",
   pattern: "",
   target: "其他",
   type: "select",
+  enabled: true,
   fixed: true,
 }
 
@@ -445,23 +554,23 @@ export const MergeProfilesPanel = () => {
   const saveConfig = useSaveClashMergeConfig()
   const mergeProfiles = useMergeClashProfiles()
   const profiles = useMemo(() => query.data?.profiles ?? [], [query.data])
-  /** 只记住本地勾选；选中的订阅不保存，每次进来重新勾。 */
-  const [editedSelected, setEditedSelected] = useState<string[]>([])
+  /** 勾选的订阅：本地改动优先后保存的 uid；清单里已删掉的自动失效。 */
+  const [editedSelected, setEditedSelected] = useState<string[] | null>(null)
+  const selected = editedSelected ?? configQuery.data?.selectedProfiles ?? []
   const [editedRules, setEditedRules] = useState<GroupRule[] | null>(null)
-  const selected = editedSelected
-  /** 规则行的勾选状态：兜底的「其他」默认勾上，可手动取消。 */
-  const [checkedRules, setCheckedRules] = useState<string[]>([FALLBACK_RULE.id])
   const rules = useMemo<GroupRule[]>(
     () =>
       editedRules ?? [
-        FALLBACK_RULE,
         ...(configQuery.data?.rules ?? []).map((rule, index) => ({
           ...rule,
           id: `saved-${index}`,
         })),
+        // 兜底行固定在最后：新规则加在它前面。
+        FALLBACK_RULE,
       ],
     [editedRules, configQuery.data]
   )
+  const fallbackRule = rules.find((rule) => rule.fixed) ?? FALLBACK_RULE
 
   /** GEO 分流行：本地编辑优先，否则回显服务端保存的。 */
   const [editedGeosite, setEditedGeosite] = useState<GeositeRow[] | null>(null)
@@ -537,6 +646,7 @@ export const MergeProfilesPanel = () => {
           pattern: rule.pattern,
           target: rule.target,
           type: rule.type,
+          enabled: rule.enabled,
         })),
       geositeRules: geositeRules.map((rule) => ({
         code: rule.code,
@@ -554,6 +664,9 @@ export const MergeProfilesPanel = () => {
         url: health.url.trim(),
         interval: Number(health.interval),
       },
+      // 订阅的勾选顺序无意义，比之前先排序。
+      selectedProfiles: [...selected].sort(),
+      includeFallback: fallbackRule.enabled,
     })
     const stored = JSON.stringify({
       rules: saved.rules,
@@ -561,9 +674,20 @@ export const MergeProfilesPanel = () => {
       customRules: saved.customRules,
       template: saved.template,
       healthCheck: saved.healthCheck,
+      selectedProfiles: [...saved.selectedProfiles].sort(),
+      includeFallback: saved.includeFallback,
     })
     return current !== stored
-  }, [rules, geositeRules, customRules, template, health, configQuery.data])
+  }, [
+    rules,
+    geositeRules,
+    customRules,
+    template,
+    health,
+    selected,
+    fallbackRule,
+    configQuery.data,
+  ])
 
   const chosen = useMemo(
     () => profiles.filter((profile) => selected.includes(profile.uid)),
@@ -580,6 +704,19 @@ export const MergeProfilesPanel = () => {
   const previews = useMemo(
     () => rules.map((rule) => matchNodes(rule.pattern, nodeNames)),
     [rules, nodeNames]
+  )
+  /** 按规则 id 取命中节点：拖拽后顺序会变，用 id 取比用下标稳。 */
+  const matchesById = useMemo(
+    () => new Map(rules.map((rule, index) => [rule.id, previews[index] ?? []])),
+    [rules, previews]
+  )
+  const normalRules = useMemo(
+    () => rules.filter((rule) => !rule.fixed),
+    [rules]
+  )
+  const sortableRuleIds = useMemo(
+    () => normalRules.map((rule) => rule.id),
+    [normalRules]
   )
   /** 还没被任何规则命中的节点：兜底规则兜的就是它们。 */
   const unmatchedNodes = useMemo(() => {
@@ -608,13 +745,18 @@ export const MergeProfilesPanel = () => {
   }
 
   const addRule = () => {
-    // 兜底行固定在表头下方第一行，新规则追加到末尾。
-    const fixed = rules.filter((rule) => rule.fixed)
+    // 新规则插在兜底行前面：兜底永远留着收尾。
     const normal = rules.filter((rule) => !rule.fixed)
     setEditedRules([
-      ...fixed,
       ...normal,
-      { id: crypto.randomUUID(), pattern: "", target: "", type: "select" },
+      {
+        id: crypto.randomUUID(),
+        pattern: "",
+        target: "",
+        type: "select",
+        enabled: true,
+      },
+      ...rules.filter((rule) => rule.fixed),
     ])
   }
 
@@ -626,7 +768,20 @@ export const MergeProfilesPanel = () => {
 
   const removeRule = (id: string) => {
     setEditedRules(rules.filter((rule) => rule.id !== id))
-    setCheckedRules((current) => current.filter((item) => item !== id))
+  }
+
+  /** 拖动后按新顺序重写普通规则，兜底行始终留在最后。 */
+  const handleRuleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over === null || active.id === over.id) return
+    const normal = rules.filter((rule) => !rule.fixed)
+    const from = normal.findIndex((rule) => rule.id === active.id)
+    const to = normal.findIndex((rule) => rule.id === over.id)
+    if (from === -1 || to === -1) return
+    setEditedRules([
+      ...arrayMove(normal, from, to),
+      ...rules.filter((rule) => rule.fixed),
+    ])
   }
 
   const addGeositeRule = (code: string) => {
@@ -696,19 +851,14 @@ export const MergeProfilesPanel = () => {
     setEditedGeosite(arrayMove(geositeRules, from, to))
   }
 
-  const allChecked =
-    rules.length > 0 && rules.every((rule) => checkedRules.includes(rule.id))
+  const allChecked = rules.length > 0 && rules.every((rule) => rule.enabled)
 
   const toggleAllRules = (checked: boolean) => {
-    setCheckedRules(checked ? rules.map((rule) => rule.id) : [])
+    setEditedRules(rules.map((rule) => ({ ...rule, enabled: checked })))
   }
 
   const toggleRule = (id: string, checked: boolean) => {
-    setCheckedRules(
-      checked
-        ? [...checkedRules.filter((item) => item !== id), id]
-        : checkedRules.filter((item) => item !== id)
-    )
+    updateRule(id, { enabled: checked })
   }
 
   /**
@@ -717,13 +867,14 @@ export const MergeProfilesPanel = () => {
    */
   const merge = async () => {
     const chosenRules = rules
-      .filter((rule) => !rule.fixed && checkedRules.includes(rule.id))
+      .filter((rule) => !rule.fixed && rule.enabled)
       .map((rule) => ({
         pattern: rule.pattern,
         target: rule.target,
         type: rule.type,
+        enabled: true,
       }))
-    const includeFallback = checkedRules.includes(FALLBACK_RULE.id)
+    const includeFallback = fallbackRule.enabled
     try {
       const result = await mergeProfiles.mutateAsync({
         selected,
@@ -762,6 +913,7 @@ export const MergeProfilesPanel = () => {
             pattern: rule.pattern,
             target: rule.target,
             type: rule.type,
+            enabled: rule.enabled,
           })),
         geositeRules: geositeRules.map((rule) => ({
           code: rule.code,
@@ -779,6 +931,8 @@ export const MergeProfilesPanel = () => {
           url: health.url.trim(),
           interval: Number(health.interval),
         },
+        selectedProfiles: selected,
+        includeFallback: fallbackRule.enabled,
       })
       toast.success(result.message)
     } catch (error) {
@@ -905,149 +1059,93 @@ export const MergeProfilesPanel = () => {
           </p>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[60px]">
-                <Checkbox
-                  aria-label="全选分组规则"
-                  checked={allChecked}
-                  onCheckedChange={(checked) => toggleAllRules(checked)}
-                />
-              </TableHead>
-              <TableHead className="min-w-[120px]">正则</TableHead>
-              <TableHead className="min-w-[60px]">匹配数</TableHead>
-              <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
-              <TableHead className="min-w-[120px]">目标组名</TableHead>
-              <TableHead className="min-w-[100px]">类型</TableHead>
-              <TableHead className="min-w-[60px]">
-                <span className="sr-only">操作</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rules.map((rule, index) => {
-              if (rule.fixed) {
-                return (
-                  <TableRow key={rule.id}>
-                    <TableCell>
-                      <Checkbox
-                        aria-label="生成兜底的「其他」组"
-                        checked={checkedRules.includes(rule.id)}
-                        onCheckedChange={(checked) =>
-                          toggleRule(rule.id, checked)
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      其余未匹配的节点
-                    </TableCell>
-                    <TableCell className="text-left tabular-nums text-muted-foreground">
-                      {unmatchedNodes.length}
-                    </TableCell>
-                    <TableCell className="align-top text-xs whitespace-normal">
-                      <NodeTags nodes={unmatchedNodes} />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        value={rule.target}
-                        disabled
-                        aria-label="兜底分组的目标组名"
-                      />
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      手动选择
-                    </TableCell>
-                    <TableCell />
-                  </TableRow>
-                )
-              }
-              const matches = previews[index] ?? []
-              return (
-                <TableRow key={rule.id}>
-                  <TableCell>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={handleRuleDragEnd}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[90px]">
+                  <span className="flex items-center gap-1">
                     <Checkbox
-                      aria-label={`选择第 ${index + 1} 条分组规则`}
-                      checked={checkedRules.includes(rule.id)}
+                      aria-label="全选分组规则"
+                      checked={allChecked}
+                      onCheckedChange={(checked) => toggleAllRules(checked)}
+                    />
+                    全选
+                  </span>
+                </TableHead>
+                <TableHead className="min-w-[120px]">正则</TableHead>
+                <TableHead className="min-w-[60px]">匹配数</TableHead>
+                <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
+                <TableHead className="min-w-[120px]">目标组名</TableHead>
+                <TableHead className="min-w-[100px]">类型</TableHead>
+                {/* 添加按钮放最后一列：新行插在兜底行前面。 */}
+                <TableHead className="min-w-[80px]">
+                  <Button variant="outline" size="sm" onClick={addRule}>
+                    添加
+                  </Button>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <SortableContext
+                items={sortableRuleIds}
+                strategy={verticalListSortingStrategy}
+              >
+                {normalRules.map((rule, index) => (
+                  <SortableRuleRow
+                    key={rule.id}
+                    rule={rule}
+                    index={index}
+                    matches={matchesById.get(rule.id) ?? []}
+                    onToggle={(checked) => toggleRule(rule.id, checked)}
+                    onChange={(patch) => updateRule(rule.id, patch)}
+                    onRemove={() => removeRule(rule.id)}
+                  />
+                ))}
+              </SortableContext>
+              {/* 兜底行固定最后一行：它兜其余规则没命中的节点，不参与拖拽。 */}
+              <TableRow>
+                <TableCell>
+                  <span className="flex items-center gap-1">
+                    <span className="size-6" aria-hidden="true" />
+                    <Checkbox
+                      aria-label="生成兜底的「其他」组"
+                      checked={fallbackRule.enabled}
                       onCheckedChange={(checked) =>
-                        toggleRule(rule.id, checked)
+                        toggleRule(fallbackRule.id, checked)
                       }
                     />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      value={rule.pattern}
-                      aria-label={`第 ${index + 1} 条规则的正则`}
-                      onChange={(event) =>
-                        updateRule(rule.id, { pattern: event.target.value })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="text-left tabular-nums text-muted-foreground">
-                    {matches.length}
-                  </TableCell>
-                  <TableCell className="align-top text-xs whitespace-normal">
-                    <NodeTags nodes={matches} />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      value={rule.target}
-                      aria-label={`第 ${index + 1} 条规则的目标组名`}
-                      onChange={(event) =>
-                        updateRule(rule.id, { target: event.target.value })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="text-left">
-                    <Select
-                      value={rule.type}
-                      onValueChange={(next) =>
-                        updateRule(rule.id, {
-                          type: next as ClashMergeGroupType,
-                        })
-                      }
-                    >
-                      <SelectTrigger
-                        aria-label={`第 ${index + 1} 条规则的类型`}
-                      >
-                        <SelectValue>
-                          {GROUP_TYPE_LABELS[rule.type]}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(
-                          Object.keys(
-                            GROUP_TYPE_LABELS
-                          ) as ClashMergeGroupType[]
-                        ).map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {GROUP_TYPE_LABELS[type]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      aria-label={`删除第 ${index + 1} 条分组规则`}
-                      onClick={() => removeRule(rule.id)}
-                    >
-                      删除
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={addRule}>
-            添加分组规则
-          </Button>
-        </div>
+                  </span>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  其余未匹配的节点
+                </TableCell>
+                <TableCell className="text-left tabular-nums text-muted-foreground">
+                  {unmatchedNodes.length}
+                </TableCell>
+                <TableCell className="align-top text-xs whitespace-normal">
+                  <NodeTags nodes={unmatchedNodes} />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    value={fallbackRule.target}
+                    disabled
+                    aria-label="兜底分组的目标组名"
+                  />
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  手动选择
+                </TableCell>
+                <TableCell />
+              </TableRow>
+            </TableBody>
+          </Table>
+        </DndContext>
       </CollapsibleCard>
 
       <CollapsibleCard
@@ -1396,7 +1494,7 @@ export const MergeProfilesPanel = () => {
         <span className="text-xs text-muted-foreground">
           {chosen.length < 2
             ? "先在上面勾选至少 2 个订阅"
-            : `已选 ${chosen.length} 个订阅、${nodeTotal} 个节点；参与合并的分组 ${checkedRules.length} 个`}
+            : `已选 ${chosen.length} 个订阅、${nodeTotal} 个节点；参与合并的分组 ${rules.filter((rule) => !rule.fixed && rule.enabled).length} 个`}
         </span>
         {configQuery.isError ? (
           <span className="text-xs text-destructive">

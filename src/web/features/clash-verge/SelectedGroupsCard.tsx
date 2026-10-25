@@ -1,4 +1,8 @@
-import type { ClashVergeProxiesResponse } from "@shared/api-contract"
+import type {
+  ClashVergeProxiesResponse,
+  ClashVergeProxy,
+} from "@shared/api-contract"
+import { SortableTableHead } from "@web/components/SortableTableHead"
 import {
   Card,
   CardContent,
@@ -13,10 +17,21 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import { useTableSort } from "@web/hooks/use-table-sort"
 
 /** 只剩一个选项的组（比如只有单个节点的直连）不必占一张表。 */
 const groupsOf = (proxies: ClashVergeProxiesResponse | undefined) =>
   (proxies?.proxies ?? []).filter((proxy) => proxy.members.length > 0)
+
+type GroupSortKey = "name" | "members"
+
+const GROUP_SORT_COLUMNS: Record<
+  GroupSortKey,
+  (group: ClashVergeProxy) => number | string
+> = {
+  name: (group) => group.name,
+  members: (group) => group.members.length,
+}
 
 /**
  * 代理组概览：一眼看清每个组当前选中哪个节点。
@@ -26,7 +41,12 @@ export const SelectedGroupsCard = (props: {
   proxies: ClashVergeProxiesResponse | undefined
   isError: boolean
 }) => {
-  const groups = groupsOf(props.proxies)
+  const { items: groups, sort } = useTableSort<GroupSortKey, ClashVergeProxy>({
+    items: groupsOf(props.proxies),
+    columns: GROUP_SORT_COLUMNS,
+    initialKey: "name",
+    descendingOnSwitch: () => false,
+  })
 
   return (
     <Card size="sm" className="min-w-0">
@@ -46,10 +66,20 @@ export const SelectedGroupsCard = (props: {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[100px]">组名</TableHead>
+                <SortableTableHead
+                  sort={sort}
+                  column="name"
+                  label="组名"
+                  className="min-w-[100px]"
+                />
                 <TableHead className="min-w-[80px]">类型</TableHead>
                 <TableHead className="min-w-[120px]">当前选中</TableHead>
-                <TableHead className="w-full min-w-[60px]">成员数</TableHead>
+                <SortableTableHead
+                  sort={sort}
+                  column="members"
+                  label="成员数"
+                  className="w-full min-w-[60px]"
+                />
               </TableRow>
             </TableHeader>
             <TableBody>

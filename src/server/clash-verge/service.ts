@@ -830,6 +830,8 @@ export const readClashMergeConfig = (): ClashMergeConfig =>
     customRules: [],
     template: DEFAULT_MERGE_TEMPLATE,
     healthCheck: DEFAULT_HEALTH_CHECK,
+    selectedProfiles: [],
+    includeFallback: true,
     updatedAt: null,
   }
 
@@ -1009,6 +1011,8 @@ export const mergeClashProfiles = async (
   }[] = []
   const groupIndex = new Map<string, number>()
   for (const rule of input.rules) {
+    // 页面上未勾选的规则不参与合并；这里再挡一次，不靠前端保证。
+    if (!rule.enabled) continue
     const target = rule.target.trim()
     if (target === "") continue
     const regex = compileRule(rule.pattern)

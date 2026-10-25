@@ -170,6 +170,8 @@ export const ClashMergeRuleSchema = z.object({
   target: z.string().max(60),
   /** 生成的组类型：早期版本没有这个字段，读旧记录时是手动选择。 */
   type: ClashMergeGroupTypeSchema.default("select"),
+  /** 是否参与合并：未勾选的行留在页面上，但不写进配置。 */
+  enabled: z.boolean().default(true),
 })
 
 /** GEO 分类分流的出口：只有三个固定选项，对应合并后的三个组。 */
@@ -231,17 +233,23 @@ export const ClashMergeConfigSchema = z.object({
   template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   /** 测速参数：早期版本没有这个字段，读旧记录时用默认值。 */
   healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
+  /** 上次勾选的订阅 uid；清单里已不存在的由界面忽略。 */
+  selectedProfiles: z.array(z.string().max(64)).max(200).default([]),
+  /** 是否生成兜底的「其他」组。 */
+  includeFallback: z.boolean().default(true),
   /** 上次保存时间，秒级；null 表示从未保存过。 */
   updatedAt: z.number().int().nullable(),
 })
 
-/** 保存时只接受规则，保存时间由服务端写。 */
+/** 保存时只接受设置本身，保存时间由服务端写。 */
 export const SaveClashMergeConfigBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   customRules: z.array(CustomRuleSchema).max(200).default([]),
   template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
+  selectedProfiles: z.array(z.string().max(64)).max(200).default([]),
+  includeFallback: z.boolean().default(true),
 })
 
 /** geosite 里的单个域名：类型、值与属性标记（如 ads、cn）。 */
