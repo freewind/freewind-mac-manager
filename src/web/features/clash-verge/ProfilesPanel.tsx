@@ -116,12 +116,15 @@ export const ProfilesPanel = () => {
                         </p>
                       ) : (
                         <div className="mt-1 max-h-72 overflow-auto pr-1">
-                          {/* 自动布局：前三列按内容宽度（节点名超过一半时截断，
+                          {/* 自动布局：前四列按内容宽度（节点名超过一半时截断，
                               留出地址列），最后一列 w-full 吃满剩余宽度并单行截断。 */}
                           <Table>
                             <TableBody>
-                              {profile.nodes.map((node) => (
+                              {profile.nodes.map((node, index) => (
                                 <TableRow key={`${node.name}-${node.server}`}>
+                                  <TableCell className="px-2 py-1 text-left text-muted-foreground">
+                                    {index + 1}
+                                  </TableCell>
                                   <TableCell className="max-w-[50%] truncate px-2 py-1 text-left">
                                     {node.name}
                                   </TableCell>
