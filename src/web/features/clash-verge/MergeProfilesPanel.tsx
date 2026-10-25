@@ -25,6 +25,7 @@ import {
 import { describeError } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
+import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
@@ -495,6 +496,7 @@ const NodeTags = (props: { nodes: string[] }) => {
 const CollapsibleCard = (props: {
   title: string
   description: string
+  /** 标题旁的计数徽标，如「3 条」。 */
   summary?: string
   children: ReactNode
 }) => {
@@ -512,7 +514,7 @@ const CollapsibleCard = (props: {
               render={
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-2 text-left"
+                  className="flex w-full flex-wrap items-center gap-2 text-left"
                 >
                   <span className="flex items-center gap-1">
                     <ChevronRight
@@ -522,9 +524,9 @@ const CollapsibleCard = (props: {
                     {props.title}
                   </span>
                   {props.summary === undefined ? null : (
-                    <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                    <Badge variant="secondary" className="font-normal">
                       {props.summary}
-                    </span>
+                    </Badge>
                   )}
                 </button>
               }
@@ -946,7 +948,14 @@ export const MergeProfilesPanel = () => {
 
       <Card size="sm">
         <CardHeader>
-          <CardTitle>订阅</CardTitle>
+          <CardTitle className="flex flex-wrap items-center gap-2">
+            订阅
+            {profiles.length === 0 ? null : (
+              <Badge variant="secondary" className="font-normal">
+                {`已选 ${chosen.length}/${profiles.length}`}
+              </Badge>
+            )}
+          </CardTitle>
           <CardDescription>
             勾选要合并的订阅，合并后这些订阅的节点会写进同一份配置
           </CardDescription>
@@ -1020,7 +1029,7 @@ export const MergeProfilesPanel = () => {
       <CollapsibleCard
         title="自定义分组规则"
         description="正则在节点名里匹配，右侧列出命中的节点；目标组名直接填。最后一行固定兜底，其余节点归到「其他」"
-        summary={`${rules.filter((rule) => !rule.fixed).length} 条规则`}
+        summary={`${rules.filter((rule) => !rule.fixed).length} 条`}
       >
         {/* 测速参数全局一份：只有测速最快、按序兜底两种组用得上，放在表格上方。 */}
         <div className="flex flex-wrap items-end gap-2">
@@ -1328,7 +1337,7 @@ export const MergeProfilesPanel = () => {
       <CollapsibleCard
         title="GEO 分类分流"
         description="上方选中即加入，可拖动调整先后；表格最后三行是固定规则（不可删改，分类不在 geosite.dat 里时自动跳过），排在自定义规则之后生效。合并时全部写到规则最前面"
-        summary={`${geositeRules.length} 个自定义分类`}
+        summary={`${geositeRules.length} 个`}
       >
         {geositeQuery.isError ? (
           <p className="text-xs text-destructive">
@@ -1455,7 +1464,7 @@ export const MergeProfilesPanel = () => {
       <CollapsibleCard
         title="基座模板"
         description="合并产物以它为底：proxies 与 proxy-groups 是占位，rules 列表会被自动填充"
-        summary={`${template.length} 字符${templateDirty ? "，有未保存的修改" : ""}`}
+        summary={`${template.length} 字符${templateDirty ? " · 未保存" : ""}`}
       >
         <EditableYaml
           value={template}
