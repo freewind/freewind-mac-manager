@@ -30,7 +30,14 @@ export const MERGED_URL_TEST_TOLERANCE = 50
  * 订阅只提供节点，规则与各项行为全部由我们定义；页面生成的 proxies、
  * proxy-groups 与规则骨架会拼接到它上面，模板里的 rules 追加在 MATCH 之前。
  */
-export const DEFAULT_MERGE_TEMPLATE = `mode: rule
+export const DEFAULT_MERGE_TEMPLATE = `# ===== 合并产物的底稿：下面写着什么，产物就是什么 =====
+# 会被替换或拼接的三处：
+#   proxies       ← 页面按勾选的订阅生成，这里写了也会被忽略
+#   proxy-groups  ← 页面生成（节点选择 / 地区组 / 直连 / 拒绝）
+#   rules         ← 会拼接：页面生成的规则在前，下面列出的规则紧随其后，最后自动补 MATCH
+# 其余键（mode、dns、sniffer、geodata 等）原样写进产物。
+
+mode: rule
 log-level: info
 ipv6: false
 udp: true
@@ -73,7 +80,8 @@ sniffer:
       ports: ["443", "8443"]
     HTTP:
       ports: ["80", "8080-8880"]
-# 固定规则：排在页面生成的规则之后、MATCH 之前。
+# ↓ 这里列出的规则会接在页面生成的规则（自定义 → GEO → 固定三条）之后、MATCH 之前。
+# 想加固定规则就写在这里，例如 PROCESS-NAME、AND、RULE-SET。
 rules:
   - GEOIP,CN,DIRECT,no-resolve
 `
