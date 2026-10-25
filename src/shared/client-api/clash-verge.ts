@@ -1,5 +1,6 @@
 import type {
   ActionResponse,
+  ClashMergeConfig,
   ClashVergeConnectionsResponse,
   ClashVergeMergeFile,
   ClashVergeProfilesResponse,
@@ -75,3 +76,20 @@ export const setClashVergeCurrentProfile = async (
   unwrap<ActionResponse>(
     await apiClient.setClashVergeCurrentProfile({ body: { uid } })
   )
+
+/** 合并订阅设置：选中的订阅与分组规则，存在服务端。 */
+export const fetchClashMergeConfig = async (options?: {
+  signal?: AbortSignal
+}): Promise<ClashMergeConfig> =>
+  unwrap<ClashMergeConfig>(
+    await apiClient.getClashMergeConfig({
+      fetchOptions: options?.signal ? { signal: options.signal } : undefined,
+    })
+  )
+
+/** 保存合并设置：整份替换，写操作不自动重试。 */
+export const saveClashMergeConfig = async (input: {
+  selected: string[]
+  rules: { pattern: string; target: string }[]
+}): Promise<ActionResponse> =>
+  unwrap<ActionResponse>(await apiClient.saveClashMergeConfig({ body: input }))

@@ -19,6 +19,7 @@ import {
   CLASH_VERGE_PROFILES_FILE,
 } from "@server/env"
 import type {
+  ClashMergeConfig,
   ClashVergeConnection,
   ClashVergeConnectionsResponse,
   ClashVergeMergeFile,
@@ -27,6 +28,7 @@ import type {
   ClashVergeProxiesResponse,
   ClashVergeProxy,
   ClashVergeStatus,
+  SaveClashMergeConfigBody,
 } from "@shared/api-contract"
 import {
   CLASH_VERGE_MERGE_MAX_CHARS,
@@ -40,6 +42,7 @@ import {
   requestControllerJson,
 } from "./controller"
 import { parseYamlRecord } from "./discovery"
+import { getClashMergeStore } from "./store"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -671,4 +674,21 @@ export const setClashVergeCurrentProfile = async (
   return restarted
     ? `已切换到「${target.name}」，Clash Verge 正在重启；代理会短暂中断`
     : `已切换到「${target.name}」；Clash Verge 未运行，下次启动生效`
+}
+
+/* ---------- 合并订阅设置（本应用自己的库） ---------- */
+
+/** 读合并设置：从未保存时给空配置，页面按空态渲染。 */
+export const readClashMergeConfig = (): ClashMergeConfig =>
+  getClashMergeStore().read() ?? { selected: [], rules: [], updatedAt: null }
+
+/** 保存合并设置；整份替换，不做局部合并。 */
+export const saveClashMergeConfig = (
+  input: SaveClashMergeConfigBody
+): string => {
+  const updatedAt = getClashMergeStore().save({
+    selected: input.selected,
+    rules: input.rules,
+  })
+  return `已保存 ${input.rules.length} 条分组规则、${input.selected.length} 个订阅（${new Date(updatedAt * 1000).toLocaleString()}）`
 }

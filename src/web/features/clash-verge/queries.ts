@@ -1,9 +1,11 @@
 import {
+  fetchClashMergeConfig,
   fetchClashVergeConnections,
   fetchClashVergeMergeFile,
   fetchClashVergeProfiles,
   fetchClashVergeProxies,
   fetchClashVergeStatus,
+  saveClashMergeConfig,
   saveClashVergeMergeFile,
   setClashVergeCurrentProfile,
 } from "@shared/client-api"
@@ -16,6 +18,7 @@ export const clashVergeKeys = {
   connections: ["clash-verge", "connections"] as const,
   mergeFile: ["clash-verge", "merge-file"] as const,
   profiles: ["clash-verge", "profiles"] as const,
+  mergeConfig: ["clash-verge", "merge-config"] as const,
 }
 
 const isPageVisible = () =>
@@ -120,6 +123,32 @@ export const useSetClashVergeCurrentProfile = () => {
     networkMode: "always",
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: clashVergeKeys.profiles })
+    },
+  })
+}
+
+/** 合并订阅设置：进面板读一次，不轮询。 */
+export const useClashMergeConfigQuery = () =>
+  useQuery({
+    queryKey: clashVergeKeys.mergeConfig,
+    queryFn: ({ signal }) => fetchClashMergeConfig({ signal }),
+    retry: false,
+  })
+
+/** 保存合并设置：写操作不重试、不排队，成功后把服务端副本拉回来。 */
+export const useSaveClashMergeConfig = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      selected: string[]
+      rules: { pattern: string; target: string }[]
+    }) => saveClashMergeConfig(input),
+    retry: false,
+    networkMode: "always",
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: clashVergeKeys.mergeConfig,
+      })
     },
   })
 }

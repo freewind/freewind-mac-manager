@@ -4,8 +4,10 @@ import {
   getClashVergeConnections,
   getClashVergeProxies,
   getClashVergeStatus,
+  readClashMergeConfig,
   readClashVergeMergeFile,
   readClashVergeProfiles,
+  saveClashMergeConfig,
   saveClashVergeMergeFile,
   setClashVergeCurrentProfile,
 } from "./service"
@@ -21,6 +23,8 @@ export const clashVergeContract = {
   getClashVergeConnections: contract.getClashVergeConnections,
   getClashVergeProfiles: contract.getClashVergeProfiles,
   setClashVergeCurrentProfile: contract.setClashVergeCurrentProfile,
+  getClashMergeConfig: contract.getClashMergeConfig,
+  saveClashMergeConfig: contract.saveClashMergeConfig,
   getClashVergeMergeFile: contract.getClashVergeMergeFile,
   saveClashVergeMergeFile: contract.saveClashVergeMergeFile,
 }
@@ -52,6 +56,25 @@ export const clashVergeRouter = {
       return {
         status: 200 as const,
         body: { message: await setClashVergeCurrentProfile(body.uid) },
+      }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  // 合并订阅设置：写本应用的库，不碰 Clash Verge 的配置。
+  getClashMergeConfig: async () => ({
+    status: 200 as const,
+    body: readClashMergeConfig(),
+  }),
+  saveClashMergeConfig: async ({
+    body,
+  }: {
+    body: { selected: string[]; rules: { pattern: string; target: string }[] }
+  }) => {
+    try {
+      return {
+        status: 200 as const,
+        body: { message: saveClashMergeConfig(body) },
       }
     } catch (error) {
       return publicSystemError(error)

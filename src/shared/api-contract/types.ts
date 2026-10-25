@@ -64,6 +64,8 @@ export type TrafficSnapshotResponse = z.infer<
 export type TrafficGroupsResponse = z.infer<typeof TrafficGroupsResponseSchema>
 
 import type {
+  ClashMergeConfigSchema,
+  ClashMergeRuleSchema,
   ClashVergeAvailabilitySchema,
   ClashVergeConnectionSchema,
   ClashVergeConnectionsResponseSchema,
@@ -74,6 +76,7 @@ import type {
   ClashVergeProxiesResponseSchema,
   ClashVergeProxySchema,
   ClashVergeStatusSchema,
+  SaveClashMergeConfigBodySchema,
   SaveClashVergeMergeBodySchema,
   SetClashVergeCurrentProfileBodySchema,
 } from "./schemas/clash-verge"
@@ -101,6 +104,11 @@ export type SaveClashVergeMergeBody = z.infer<
 >
 export type SetClashVergeCurrentProfileBody = z.infer<
   typeof SetClashVergeCurrentProfileBodySchema
+>
+export type ClashMergeRule = z.infer<typeof ClashMergeRuleSchema>
+export type ClashMergeConfig = z.infer<typeof ClashMergeConfigSchema>
+export type SaveClashMergeConfigBody = z.infer<
+  typeof SaveClashMergeConfigBodySchema
 >
 
 export type KillProcessesBody = z.infer<typeof KillProcessesBodySchema>

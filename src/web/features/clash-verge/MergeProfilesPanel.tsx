@@ -1,4 +1,5 @@
-import { describeError } from "@shared/format"
+import { describeError, formatTimestamp } from "@shared/format"
+import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import { Checkbox } from "@web/components/ui/checkbox"
@@ -13,7 +14,11 @@ import {
 } from "@web/components/ui/table"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
-import { useClashVergeProfilesQuery } from "./queries"
+import {
+  useClashMergeConfigQuery,
+  useClashVergeProfilesQuery,
+  useSaveClashMergeConfig,
+} from "./queries"
 
 /** 一条自定义分组规则：正则在节点名里匹配，目标组名直接填写。 */
 type GroupRule = {
@@ -70,9 +75,24 @@ const NodeTags = (props: { nodes: string[] }) => {
  */
 export const MergeProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
+  const configQuery = useClashMergeConfigQuery()
+  const saveConfig = useSaveClashMergeConfig()
   const profiles = useMemo(() => query.data?.profiles ?? [], [query.data])
-  const [selected, setSelected] = useState<string[]>([])
-  const [rules, setRules] = useState<GroupRule[]>([FALLBACK_RULE])
+  /** 本地编辑优先；没改过就用服务端已保存的值（纯推导，不用 effect 回填）。 */
+  const [editedSelected, setEditedSelected] = useState<string[] | null>(null)
+  const [editedRules, setEditedRules] = useState<GroupRule[] | null>(null)
+  const selected = editedSelected ?? configQuery.data?.selected ?? []
+  const rules = useMemo<GroupRule[]>(
+    () =>
+      editedRules ?? [
+        ...(configQuery.data?.rules ?? []).map((rule, index) => ({
+          ...rule,
+          id: `saved-${index}`,
+        })),
+        FALLBACK_RULE,
+      ],
+    [editedRules, configQuery.data]
+  )
 
   const chosen = useMemo(
     () => profiles.filter((profile) => selected.includes(profile.uid)),
@@ -101,40 +121,53 @@ export const MergeProfilesPanel = () => {
   )
 
   const toggle = (uid: string, checked: boolean) => {
-    setSelected((current) =>
+    setEditedSelected(
       checked
-        ? [...current.filter((item) => item !== uid), uid]
-        : current.filter((item) => item !== uid)
+        ? [...selected.filter((item) => item !== uid), uid]
+        : selected.filter((item) => item !== uid)
     )
   }
 
   const addRule = () => {
     // 新规则插在兜底行之前，兜底行始终在最后。
-    setRules((current) => {
-      const fixed = current.filter((rule) => rule.fixed)
-      const normal = current.filter((rule) => !rule.fixed)
-      return [
-        ...normal,
-        { id: crypto.randomUUID(), pattern: "", target: "" },
-        ...fixed,
-      ]
-    })
+    const fixed = rules.filter((rule) => rule.fixed)
+    const normal = rules.filter((rule) => !rule.fixed)
+    setEditedRules([
+      ...normal,
+      { id: crypto.randomUUID(), pattern: "", target: "" },
+      ...fixed,
+    ])
   }
 
   const updateRule = (id: string, patch: Partial<GroupRule>) => {
-    setRules((current) =>
-      current.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule))
+    setEditedRules(
+      rules.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule))
     )
   }
 
   const removeRule = (id: string) => {
-    setRules((current) => current.filter((rule) => rule.id !== id))
+    setEditedRules(rules.filter((rule) => rule.id !== id))
   }
 
   const merge = () => {
     toast.message(
       `合并写入还没实现：已选 ${chosen.length} 个订阅、${nodeTotal} 个节点`
     )
+  }
+
+  /** 保存到服务端：兑底行是固定规则，不存。 */
+  const save = async () => {
+    try {
+      const result = await saveConfig.mutateAsync({
+        selected,
+        rules: rules
+          .filter((rule) => !rule.fixed)
+          .map((rule) => ({ pattern: rule.pattern, target: rule.target })),
+      })
+      toast.success(result.message)
+    } catch (error) {
+      toast.error(describeError(error))
+    }
   }
 
   return (
@@ -216,6 +249,11 @@ export const MergeProfilesPanel = () => {
           <h3 className="text-sm font-medium">自定义分组规则</h3>
           <p className="text-xs text-muted-foreground">
             正则在节点名里匹配，右侧列出命中的节点；目标组名直接填。最后一行固定兜底，其余节点归到「其他」
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {configQuery.data?.updatedAt
+              ? `上次保存：${formatTimestamp(configQuery.data.updatedAt)}`
+              : "尚未保存到服务端"}
           </p>
           {chosen.length === 0 ? (
             <p className="text-xs text-muted-foreground">
@@ -317,9 +355,24 @@ export const MergeProfilesPanel = () => {
           </TableBody>
         </Table>
 
-        <Button variant="outline" size="sm" onClick={addRule}>
-          添加分组规则
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={addRule}>
+            添加分组规则
+          </Button>
+          <ActionButton
+            size="sm"
+            busy={saveConfig.isPending}
+            busyLabel="保存中…"
+            onClick={() => void save()}
+          >
+            保存分组设置
+          </ActionButton>
+          {configQuery.isError ? (
+            <span className="text-xs text-destructive">
+              {`读取已保存设置失败：${describeError(configQuery.error)}`}
+            </span>
+          ) : null}
+        </div>
       </div>
     </section>
   )

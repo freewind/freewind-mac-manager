@@ -1,10 +1,12 @@
 import { ApiPath, toContractPath } from "@shared/api-path"
 import {
+  ClashMergeConfigSchema,
   ClashVergeConnectionsResponseSchema,
   ClashVergeMergeFileSchema,
   ClashVergeProfilesResponseSchema,
   ClashVergeProxiesResponseSchema,
   ClashVergeStatusSchema,
+  SaveClashMergeConfigBodySchema,
   SaveClashVergeMergeBodySchema,
   SetClashVergeCurrentProfileBodySchema,
 } from "../schemas/clash-verge"
@@ -66,6 +68,24 @@ export const clashVergeRoutes = {
       401: ApiErrorSchema,
       404: ApiErrorSchema,
       409: ApiErrorSchema,
+      429: ApiErrorSchema,
+      500: ApiErrorSchema,
+    },
+  },
+  // 合并订阅设置：读写应用自己的库，不碰 Clash Verge 配置文件。
+  getClashMergeConfig: {
+    method: "GET",
+    path: toContractPath(ApiPath.clashMergeConfig),
+    responses: { 200: ClashMergeConfigSchema, ...readErrors },
+  },
+  saveClashMergeConfig: {
+    method: "PUT",
+    path: toContractPath(ApiPath.clashMergeConfig),
+    body: SaveClashMergeConfigBodySchema,
+    responses: {
+      200: ActionResponseSchema,
+      400: ApiErrorSchema,
+      401: ApiErrorSchema,
       429: ApiErrorSchema,
       500: ApiErrorSchema,
     },
