@@ -1,14 +1,27 @@
 import { randomUUID } from "node:crypto"
 import type { Stats } from "node:fs"
 import { constants } from "node:fs"
-import { chmod, lstat, open, realpath, rename, rm } from "node:fs/promises"
+import {
+  chmod,
+  lstat,
+  open,
+  readFile,
+  realpath,
+  rename,
+  rm,
+} from "node:fs/promises"
 import path from "node:path"
 import { PublicOperationError } from "@server/common/public-error"
-import { CLASH_VERGE_MERGE_FILE, CLASH_VERGE_PROFILE_DIR } from "@server/env"
+import {
+  CLASH_VERGE_MERGE_FILE,
+  CLASH_VERGE_PROFILE_DIR,
+  CLASH_VERGE_PROFILES_FILE,
+} from "@server/env"
 import type {
   ClashVergeConnection,
   ClashVergeConnectionsResponse,
   ClashVergeMergeFile,
+  ClashVergeProfilesResponse,
   ClashVergeProxiesResponse,
   ClashVergeProxy,
   ClashVergeStatus,
@@ -24,6 +37,7 @@ import {
   connectionLimit,
   requestControllerJson,
 } from "./controller"
+import { parseYamlRecord } from "./discovery"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -369,3 +383,55 @@ export const saveClashVergeMergeFile = async (
   }
   return `已写入 ${CLASH_VERGE_MERGE_FILE}（${Buffer.byteLength(content, "utf8")} 字节）；需在 Clash Verge 中重载配置后生效`
 }
+
+/* ---------- 订阅清单（只读） ---------- */
+
+/**
+ * 从 profiles.yaml 的 items 里挑出订阅条目。只认 type 为 remote 的记录，
+ * 其余 merge / script / rules 等都是内部配置项，不是订阅。
+ * 名称缺失时退回文件名，再退回固定文案，不让界面出现空标题。
+ */
+const remoteProfiles = (
+  items: unknown
+): ClashVergeProfilesResponse["profiles"] => {
+  const result: ClashVergeProfilesResponse["profiles"] = []
+  for (const item of Array.isArray(items) ? items : []) {
+    if (!isRecord(item)) continue
+    const url = item.url
+    if (item.type !== "remote" || typeof url !== "string") continue
+    const trimmedName = typeof item.name === "string" ? item.name.trim() : ""
+    const fallbackName = typeof item.file === "string" ? item.file : ""
+    result.push({
+      uid: typeof item.uid === "string" ? item.uid : "",
+      name: trimmedName || fallbackName || "未命名订阅",
+      url,
+    })
+  }
+  return result
+}
+
+/**
+ * 读订阅清单：Clash Verge 不对外提供订阅 API，只能解析 profiles.yaml。
+ * 这里回显磁盘上的配置内容，不是内核运行状态；文件不存在给 404，
+ * 解析不出条目时返回空列表，不伪造订阅。
+ */
+export const readClashVergeProfiles =
+  async (): Promise<ClashVergeProfilesResponse> => {
+    let text: string
+    try {
+      text = await readFile(CLASH_VERGE_PROFILES_FILE, "utf8")
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new PublicOperationError(
+          404,
+          `找不到 Clash Verge 订阅清单：${CLASH_VERGE_PROFILES_FILE}（请先在 Clash Verge 中添加订阅）`
+        )
+      }
+      throw error
+    }
+    return {
+      path: CLASH_VERGE_PROFILES_FILE,
+      sampledAt: Math.floor(Date.now() / 1000),
+      profiles: remoteProfiles(parseYamlRecord(text).items),
+    }
+  }

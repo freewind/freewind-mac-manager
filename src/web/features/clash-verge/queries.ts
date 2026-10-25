@@ -1,6 +1,7 @@
 import {
   fetchClashVergeConnections,
   fetchClashVergeMergeFile,
+  fetchClashVergeProfiles,
   fetchClashVergeProxies,
   fetchClashVergeStatus,
   saveClashVergeMergeFile,
@@ -13,6 +14,7 @@ export const clashVergeKeys = {
   proxies: ["clash-verge", "proxies"] as const,
   connections: ["clash-verge", "connections"] as const,
   mergeFile: ["clash-verge", "merge-file"] as const,
+  profiles: ["clash-verge", "profiles"] as const,
 }
 
 const isPageVisible = () =>
@@ -39,6 +41,14 @@ export const useClashVergeConnectionsQuery = () =>
     queryKey: clashVergeKeys.connections,
     queryFn: ({ signal }) => fetchClashVergeConnections({ signal }),
     refetchInterval: () => (isPageVisible() ? 5000 : false),
+    retry: false,
+  })
+
+/** 订阅清单：本地静态配置，随面板挂载读取，不轮询。 */
+export const useClashVergeProfilesQuery = () =>
+  useQuery({
+    queryKey: clashVergeKeys.profiles,
+    queryFn: ({ signal }) => fetchClashVergeProfiles({ signal }),
     retry: false,
   })
 

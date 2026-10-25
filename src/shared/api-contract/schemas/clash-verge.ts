@@ -93,3 +93,21 @@ export const ClashVergeMergeFileSchema = z.object({
 export const SaveClashVergeMergeBodySchema = z.object({
   content: z.string().max(CLASH_VERGE_MERGE_MAX_CHARS),
 })
+
+/**
+ * 订阅清单条目：Clash Verge 的 profiles.yaml 里 type 为 remote 的记录。
+ * 只读回显，不含编辑与切换能力；url 原样返回，由调用方决定展示方式。
+ */
+export const ClashVergeProfileSchema = z.object({
+  uid: z.string(),
+  name: z.string(),
+  url: z.string(),
+})
+
+export const ClashVergeProfilesResponseSchema = z.object({
+  /** 服务端固定路径（Clash Verge profiles.yaml），只回显、不接受客户端传入。 */
+  path: z.string(),
+  /** 读取时间，秒级时间戳。 */
+  sampledAt: z.number().int(),
+  profiles: z.array(ClashVergeProfileSchema).max(200),
+})

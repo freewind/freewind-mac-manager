@@ -5,6 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { RefreshCw } from "lucide-react"
 import { ConnectionsList } from "./ConnectionsList"
 import { MergeFilePanel } from "./MergeFilePanel"
+import { ProfilesPanel } from "./ProfilesPanel"
 import { ProxyGroups } from "./ProxyGroups"
 import { StatusCards } from "./StatusCards"
 import { CLASH_TABS, type ClashTab, useClashTab } from "./useClashTab"
@@ -90,6 +91,7 @@ export const ClashVergePage = () => {
                   : ""}
               </p>
             ) : null}
+            <ProfilesPanel />
             {/* 全局 Merge 是配置写入口，不是实时数据：放默认标签做常驻入口，
                 危险提示与冲突提示一并常驻可见，不埋进会频繁刷新的代理组/连接区。 */}
             <MergeFilePanel />

@@ -2,6 +2,7 @@ import type {
   ActionResponse,
   ClashVergeConnectionsResponse,
   ClashVergeMergeFile,
+  ClashVergeProfilesResponse,
   ClashVergeProxiesResponse,
   ClashVergeStatus,
 } from "@shared/api-contract"
@@ -52,4 +53,14 @@ export const saveClashVergeMergeFile = async (
 ): Promise<ActionResponse> =>
   unwrap<ActionResponse>(
     await apiClient.saveClashVergeMergeFile({ body: { content } })
+  )
+
+/** 订阅清单：只读回显 profiles.yaml 里的订阅名称与链接。 */
+export const fetchClashVergeProfiles = async (options?: {
+  signal?: AbortSignal
+}): Promise<ClashVergeProfilesResponse> =>
+  unwrap<ClashVergeProfilesResponse>(
+    await apiClient.getClashVergeProfiles({
+      fetchOptions: options?.signal ? { signal: options.signal } : undefined,
+    })
   )

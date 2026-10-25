@@ -77,6 +77,16 @@ export const CLASH_VERGE_MERGE_FILE = path.resolve(
     path.join(CLASH_VERGE_PROFILE_DIR, "Merge.yaml")
 )
 
+/**
+ * profiles.yaml：Clash Verge 的订阅清单（订阅 URL 与流量信息都在里面），
+ * 位于 profiles 目录的上一层。Clash Verge 不对外提供订阅 API，只能读这份文件。
+ * 可用 CLASH_VERGE_PROFILES_FILE 单独覆盖（测试与换机器用）。
+ */
+export const CLASH_VERGE_PROFILES_FILE = path.resolve(
+  process.env.CLASH_VERGE_PROFILES_FILE ??
+    path.join(path.dirname(CLASH_VERGE_PROFILE_DIR), "profiles.yaml")
+)
+
 /** 登录密码只从 .env 读取；未配置时返回空串，由调用方按“未配置”处理。 */
 export const getAuthPassword = (): string =>
   process.env.MAC_MANAGER_PASSWORD ?? ""

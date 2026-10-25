@@ -9,6 +9,8 @@ export const ApiPath = {
   clashVergeConnections: `${API_BASE}/clash-verge/connections`,
   /** 全局 Merge 文件（uid: Merge）读写：路径固定为 Clash Verge profiles/Merge.yaml，客户端不传路径。 */
   clashVergeMergeFile: `${API_BASE}/clash-verge/merge-file`,
+  /** 订阅清单（只读）：Clash Verge 不提供订阅 API，内容来自 profiles.yaml。 */
+  clashVergeProfiles: `${API_BASE}/clash-verge/profiles`,
   diskGrowthScans: `${API_BASE}/disk-growth/scans`,
   diskGrowthEntries: `${API_BASE}/disk-growth/entries`,
   diskGrowthTree: `${API_BASE}/disk-growth/tree`,

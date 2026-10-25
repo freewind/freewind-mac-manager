@@ -5,6 +5,7 @@ import {
   getClashVergeProxies,
   getClashVergeStatus,
   readClashVergeMergeFile,
+  readClashVergeProfiles,
   saveClashVergeMergeFile,
 } from "./service"
 
@@ -17,6 +18,7 @@ export const clashVergeContract = {
   getClashVergeStatus: contract.getClashVergeStatus,
   getClashVergeProxies: contract.getClashVergeProxies,
   getClashVergeConnections: contract.getClashVergeConnections,
+  getClashVergeProfiles: contract.getClashVergeProfiles,
   getClashVergeMergeFile: contract.getClashVergeMergeFile,
   saveClashVergeMergeFile: contract.saveClashVergeMergeFile,
 }
@@ -34,6 +36,14 @@ export const clashVergeRouter = {
     status: 200 as const,
     body: await getClashVergeConnections(),
   }),
+  // 订阅清单：只读解析本地 profiles.yaml，404/500 按语义回显。
+  getClashVergeProfiles: async () => {
+    try {
+      return { status: 200 as const, body: await readClashVergeProfiles() }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
   // Merge 文件读写：已知错误（404/403/400/409）按语义回显，其余异常走公共兜底。
   getClashVergeMergeFile: async () => {
     try {

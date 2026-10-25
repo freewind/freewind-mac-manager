@@ -2,6 +2,7 @@ import { ApiPath, toContractPath } from "@shared/api-path"
 import {
   ClashVergeConnectionsResponseSchema,
   ClashVergeMergeFileSchema,
+  ClashVergeProfilesResponseSchema,
   ClashVergeProxiesResponseSchema,
   ClashVergeStatusSchema,
   SaveClashVergeMergeBodySchema,
@@ -42,6 +43,16 @@ export const clashVergeRoutes = {
     method: "GET",
     path: toContractPath(ApiPath.clashVergeConnections),
     responses: { 200: ClashVergeConnectionsResponseSchema, ...readErrors },
+  },
+  // 订阅清单只读：Clash Verge 不对外提供订阅 API，内容来自 profiles.yaml。
+  getClashVergeProfiles: {
+    method: "GET",
+    path: toContractPath(ApiPath.clashVergeProfiles),
+    responses: {
+      200: ClashVergeProfilesResponseSchema,
+      404: ApiErrorSchema,
+      ...readErrors,
+    },
   },
   // 读全局 Merge（uid: Merge）：路径固定为 Clash Verge profiles/Merge.yaml，客户端不传路径。
   getClashVergeMergeFile: {
