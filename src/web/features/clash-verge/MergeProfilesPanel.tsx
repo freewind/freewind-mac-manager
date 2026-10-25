@@ -35,6 +35,11 @@ import {
 } from "@web/components/ui/card"
 import { Checkbox } from "@web/components/ui/checkbox"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@web/components/ui/collapsible"
+import {
   Combobox,
   ComboboxContent,
   ComboboxEmpty,
@@ -71,8 +76,8 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import { Textarea } from "@web/components/ui/textarea"
-import { CircleHelp, GripVertical, Lock } from "lucide-react"
-import { useMemo, useState } from "react"
+import { ChevronRight, CircleHelp, GripVertical, Lock } from "lucide-react"
+import { type ReactNode, useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
   useClashMergeConfigQuery,
@@ -361,6 +366,54 @@ const NodeTags = (props: { nodes: string[] }) => {
         </span>
       ))}
     </span>
+  )
+}
+
+/**
+ * 可折叠的卡片：合并页下面几块默认收起，点标题展开。
+ * 标题右侧放一行摘要，收着也能看出里面大概有什么。
+ */
+const CollapsibleCard = (props: {
+  title: string
+  description: string
+  summary?: string
+  children: ReactNode
+}) => {
+  const [open, setOpen] = useState(false)
+  return (
+    <Card size="sm">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CardHeader>
+          <CardTitle>
+            <CollapsibleTrigger
+              render={
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <span className="flex items-center gap-1">
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="size-3 transition-transform [&[aria-expanded=true]>svg]:rotate-90"
+                    />
+                    {props.title}
+                  </span>
+                  {props.summary === undefined ? null : (
+                    <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                      {props.summary}
+                    </span>
+                  )}
+                </button>
+              }
+            />
+          </CardTitle>
+          <CardDescription>{props.description}</CardDescription>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="space-y-3">{props.children}</CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
   )
 }
 
@@ -790,527 +843,509 @@ export const MergeProfilesPanel = () => {
         </CardContent>
       </Card>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>自定义分组规则</CardTitle>
-          <CardDescription>
-            正则在节点名里匹配，右侧列出命中的节点；目标组名直接填。最后一行固定兜底，其余节点归到「其他」
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
+      <CollapsibleCard
+        title="自定义分组规则"
+        description="正则在节点名里匹配，右侧列出命中的节点；目标组名直接填。最后一行固定兜底，其余节点归到「其他」"
+        summary={`${rules.filter((rule) => !rule.fixed).length} 条规则`}
+      >
+        <div>
+          <p className="text-xs text-muted-foreground">
+            {configQuery.data?.updatedAt
+              ? `上次保存：${formatTimestamp(configQuery.data.updatedAt)}`
+              : "尚未保存到服务端"}
+          </p>
+          {chosen.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              {configQuery.data?.updatedAt
-                ? `上次保存：${formatTimestamp(configQuery.data.updatedAt)}`
-                : "尚未保存到服务端"}
+              先在上面勾选订阅，预览才有可匹配的节点
             </p>
-            {chosen.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                先在上面勾选订阅，预览才有可匹配的节点
-              </p>
-            ) : null}
-          </div>
+          ) : null}
+        </div>
 
-          {/* 测速参数全局一份：只有测速最快、按序兜底两种组用得上，放在表格上方。 */}
-          <div className="flex flex-wrap items-end gap-2">
-            <label htmlFor="health-url" className="space-y-1">
-              <span className="block text-xs text-muted-foreground">
-                测速地址
-              </span>
-              <Input
-                id="health-url"
-                value={health.url}
-                aria-label="测速地址"
-                className="w-[min(70vw,320px)]"
-                onChange={(event) =>
-                  setEditedHealth({ ...health, url: event.target.value })
-                }
-              />
-            </label>
-            <label htmlFor="health-interval" className="space-y-1">
-              <span className="block text-xs text-muted-foreground">
-                间隔（秒）
-              </span>
-              <Input
-                id="health-interval"
-                value={health.interval}
-                inputMode="numeric"
-                aria-label="测速间隔（秒）"
-                className="w-24"
-                onChange={(event) =>
-                  setEditedHealth({ ...health, interval: event.target.value })
-                }
-              />
-            </label>
-            <p className="pb-1 text-xs text-muted-foreground">
-              仅「测速最快」「按序兜底」两种组使用；地址要选你的线路也能访问的
-              204 地址，否则组里会一个可用节点都没有
-            </p>
-          </div>
+        {/* 测速参数全局一份：只有测速最快、按序兜底两种组用得上，放在表格上方。 */}
+        <div className="flex flex-wrap items-end gap-2">
+          <label htmlFor="health-url" className="space-y-1">
+            <span className="block text-xs text-muted-foreground">
+              测速地址
+            </span>
+            <Input
+              id="health-url"
+              value={health.url}
+              aria-label="测速地址"
+              className="w-[min(70vw,320px)]"
+              onChange={(event) =>
+                setEditedHealth({ ...health, url: event.target.value })
+              }
+            />
+          </label>
+          <label htmlFor="health-interval" className="space-y-1">
+            <span className="block text-xs text-muted-foreground">
+              间隔（秒）
+            </span>
+            <Input
+              id="health-interval"
+              value={health.interval}
+              inputMode="numeric"
+              aria-label="测速间隔（秒）"
+              className="w-24"
+              onChange={(event) =>
+                setEditedHealth({ ...health, interval: event.target.value })
+              }
+            />
+          </label>
+          <p className="pb-1 text-xs text-muted-foreground">
+            仅「测速最快」「按序兜底」两种组使用；地址要选你的线路也能访问的 204
+            地址，否则组里会一个可用节点都没有
+          </p>
+        </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="min-w-[60px]">
-                  <Checkbox
-                    aria-label="全选分组规则"
-                    checked={allChecked}
-                    onCheckedChange={(checked) => toggleAllRules(checked)}
-                  />
-                </TableHead>
-                <TableHead className="min-w-[120px]">正则</TableHead>
-                <TableHead className="min-w-[60px]">匹配数</TableHead>
-                <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
-                <TableHead className="min-w-[120px]">目标组名</TableHead>
-                <TableHead className="min-w-[100px]">类型</TableHead>
-                <TableHead className="min-w-[60px]">
-                  <span className="sr-only">操作</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rules.map((rule, index) => {
-                if (rule.fixed) {
-                  return (
-                    <TableRow key={rule.id}>
-                      <TableCell>
-                        <Checkbox
-                          aria-label="生成兜底的「其他」组"
-                          checked={checkedRules.includes(rule.id)}
-                          onCheckedChange={(checked) =>
-                            toggleRule(rule.id, checked)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        其余未匹配的节点
-                      </TableCell>
-                      <TableCell className="text-left tabular-nums text-muted-foreground">
-                        {unmatchedNodes.length}
-                      </TableCell>
-                      <TableCell className="align-top text-xs whitespace-normal">
-                        <NodeTags nodes={unmatchedNodes} />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={rule.target}
-                          disabled
-                          aria-label="兜底分组的目标组名"
-                        />
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        手动选择
-                      </TableCell>
-                      <TableCell />
-                    </TableRow>
-                  )
-                }
-                const matches = previews[index] ?? []
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-[60px]">
+                <Checkbox
+                  aria-label="全选分组规则"
+                  checked={allChecked}
+                  onCheckedChange={(checked) => toggleAllRules(checked)}
+                />
+              </TableHead>
+              <TableHead className="min-w-[120px]">正则</TableHead>
+              <TableHead className="min-w-[60px]">匹配数</TableHead>
+              <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
+              <TableHead className="min-w-[120px]">目标组名</TableHead>
+              <TableHead className="min-w-[100px]">类型</TableHead>
+              <TableHead className="min-w-[60px]">
+                <span className="sr-only">操作</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rules.map((rule, index) => {
+              if (rule.fixed) {
                 return (
                   <TableRow key={rule.id}>
                     <TableCell>
                       <Checkbox
-                        aria-label={`选择第 ${index + 1} 条分组规则`}
+                        aria-label="生成兜底的「其他」组"
                         checked={checkedRules.includes(rule.id)}
                         onCheckedChange={(checked) =>
                           toggleRule(rule.id, checked)
                         }
                       />
                     </TableCell>
-                    <TableCell>
-                      <Input
-                        value={rule.pattern}
-                        aria-label={`第 ${index + 1} 条规则的正则`}
-                        onChange={(event) =>
-                          updateRule(rule.id, { pattern: event.target.value })
-                        }
-                      />
+                    <TableCell className="text-xs text-muted-foreground">
+                      其余未匹配的节点
                     </TableCell>
                     <TableCell className="text-left tabular-nums text-muted-foreground">
-                      {matches.length}
+                      {unmatchedNodes.length}
                     </TableCell>
                     <TableCell className="align-top text-xs whitespace-normal">
-                      <NodeTags nodes={matches} />
+                      <NodeTags nodes={unmatchedNodes} />
                     </TableCell>
                     <TableCell>
                       <Input
                         value={rule.target}
-                        aria-label={`第 ${index + 1} 条规则的目标组名`}
-                        onChange={(event) =>
-                          updateRule(rule.id, { target: event.target.value })
-                        }
+                        disabled
+                        aria-label="兜底分组的目标组名"
                       />
                     </TableCell>
-                    <TableCell className="text-left">
-                      <Select
-                        value={rule.type}
-                        onValueChange={(next) =>
-                          updateRule(rule.id, {
-                            type: next as ClashMergeGroupType,
-                          })
-                        }
-                      >
-                        <SelectTrigger
-                          aria-label={`第 ${index + 1} 条规则的类型`}
-                        >
-                          <SelectValue>
-                            {GROUP_TYPE_LABELS[rule.type]}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(
-                            Object.keys(
-                              GROUP_TYPE_LABELS
-                            ) as ClashMergeGroupType[]
-                          ).map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {GROUP_TYPE_LABELS[type]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <TableCell className="text-xs text-muted-foreground">
+                      手动选择
                     </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        aria-label={`删除第 ${index + 1} 条分组规则`}
-                        onClick={() => removeRule(rule.id)}
-                      >
-                        删除
-                      </Button>
-                    </TableCell>
+                    <TableCell />
                   </TableRow>
                 )
-              })}
-            </TableBody>
-          </Table>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={addRule}>
-              添加分组规则
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>自定义规则</CardTitle>
-          <CardDescription>
-            手写域名规则，优先级最高：合并时排在 GEO
-            分类与固定规则之前；值为空的行不会写进配置
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="min-w-[140px]">
-                  <span className="flex items-center gap-1">
-                    类型
-                    <Popover>
-                      <PopoverTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            aria-label="说明三种规则类型的区别"
-                          >
-                            <CircleHelp aria-hidden="true" />
-                          </Button>
-                        }
-                      />
-                      <PopoverContent className="w-[min(92vw,520px)] text-xs">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="min-w-[120px]">
-                                类型
-                              </TableHead>
-                              <TableHead className="min-w-[120px]">
-                                含义
-                              </TableHead>
-                              <TableHead className="w-full min-w-[120px]">
-                                例子
-                              </TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            <TableRow>
-                              <TableCell className="align-top font-mono">
-                                DOMAIN
-                              </TableCell>
-                              <TableCell className="align-top whitespace-normal">
-                                只匹配这个域名本身，不含子域名
-                              </TableCell>
-                              <TableCell className="w-full align-top font-mono whitespace-normal">
-                                DOMAIN,example.com
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell className="align-top font-mono">
-                                DOMAIN-SUFFIX
-                              </TableCell>
-                              <TableCell className="align-top whitespace-normal">
-                                匹配这个域名及其所有子域名
-                              </TableCell>
-                              <TableCell className="w-full align-top font-mono whitespace-normal">
-                                DOMAIN-SUFFIX,example.com
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell className="align-top font-mono">
-                                DOMAIN-KEYWORD
-                              </TableCell>
-                              <TableCell className="align-top whitespace-normal">
-                                域名里包含这个词就命中
-                              </TableCell>
-                              <TableCell className="w-full align-top font-mono whitespace-normal">
-                                DOMAIN-KEYWORD,ads
-                              </TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      </PopoverContent>
-                    </Popover>
-                  </span>
-                </TableHead>
-                <TableHead className="w-full min-w-[160px]">值</TableHead>
-                <TableHead className="min-w-[120px]">出口</TableHead>
-                <TableHead className="min-w-[60px]">
-                  <span className="sr-only">操作</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {customRules.map((rule, index) => (
+              }
+              const matches = previews[index] ?? []
+              return (
                 <TableRow key={rule.id}>
-                  <TableCell className="text-left">
-                    <Select
-                      value={rule.type}
-                      onValueChange={(next) =>
-                        updateCustomRule(rule.id, {
-                          type: next as CustomRule["type"],
-                        })
+                  <TableCell>
+                    <Checkbox
+                      aria-label={`选择第 ${index + 1} 条分组规则`}
+                      checked={checkedRules.includes(rule.id)}
+                      onCheckedChange={(checked) =>
+                        toggleRule(rule.id, checked)
                       }
-                    >
-                      <SelectTrigger
-                        aria-label={`第 ${index + 1} 条自定义规则的类型`}
-                      >
-                        <SelectValue>{rule.type}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CUSTOM_RULE_TYPES.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </TableCell>
-                  <TableCell className="text-left">
+                  <TableCell>
                     <Input
-                      value={rule.value}
-                      placeholder="example.com"
-                      aria-label={`第 ${index + 1} 条自定义规则的值`}
+                      value={rule.pattern}
+                      aria-label={`第 ${index + 1} 条规则的正则`}
                       onChange={(event) =>
-                        updateCustomRule(rule.id, { value: event.target.value })
+                        updateRule(rule.id, { pattern: event.target.value })
+                      }
+                    />
+                  </TableCell>
+                  <TableCell className="text-left tabular-nums text-muted-foreground">
+                    {matches.length}
+                  </TableCell>
+                  <TableCell className="align-top text-xs whitespace-normal">
+                    <NodeTags nodes={matches} />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      value={rule.target}
+                      aria-label={`第 ${index + 1} 条规则的目标组名`}
+                      onChange={(event) =>
+                        updateRule(rule.id, { target: event.target.value })
                       }
                     />
                   </TableCell>
                   <TableCell className="text-left">
                     <Select
-                      value={rule.target}
+                      value={rule.type}
                       onValueChange={(next) =>
-                        updateCustomRule(rule.id, {
-                          target: next as GeositeTarget,
+                        updateRule(rule.id, {
+                          type: next as ClashMergeGroupType,
                         })
                       }
                     >
                       <SelectTrigger
-                        aria-label={`第 ${index + 1} 条自定义规则的出口`}
+                        aria-label={`第 ${index + 1} 条规则的类型`}
                       >
                         <SelectValue>
-                          {GEOSITE_TARGET_LABELS[rule.target]}
+                          {GROUP_TYPE_LABELS[rule.type]}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {(
-                          Object.keys(GEOSITE_TARGET_LABELS) as GeositeTarget[]
-                        ).map((target) => (
-                          <SelectItem key={target} value={target}>
-                            {GEOSITE_TARGET_LABELS[target]}
+                          Object.keys(
+                            GROUP_TYPE_LABELS
+                          ) as ClashMergeGroupType[]
+                        ).map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {GROUP_TYPE_LABELS[type]}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell className="text-left">
+                  <TableCell>
                     <Button
                       variant="outline"
                       size="sm"
-                      aria-label={`删除第 ${index + 1} 条自定义规则`}
-                      onClick={() => removeCustomRule(rule.id)}
+                      aria-label={`删除第 ${index + 1} 条分组规则`}
+                      onClick={() => removeRule(rule.id)}
                     >
                       删除
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {customRules.length === 0 ? (
-            <p className="text-xs text-muted-foreground">还没有自定义规则</p>
-          ) : null}
-          <Button variant="outline" size="sm" onClick={addCustomRule}>
-            添加规则
+              )
+            })}
+          </TableBody>
+        </Table>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={addRule}>
+            添加分组规则
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>GEO 分类分流</CardTitle>
-          <CardDescription>
-            上方选中即加入，可拖动调整先后；表格最后三行是固定规则（不可删改，分类不在
-            geosite.dat
-            里时自动跳过），排在自定义规则之后生效。合并时全部写到规则最前面
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {geositeQuery.isError ? (
-            <p className="text-xs text-destructive">
-              {`读取 GEO 分类失败：${describeError(geositeQuery.error)}`}
-            </p>
-          ) : null}
-
-          <Combobox
-            items={geositeOptions}
-            value={null as GeositeOption | null}
-            itemToStringValue={(item: GeositeOption) => item.code}
-            disabled={geositeOptions.length === 0}
-            onValueChange={(item: GeositeOption | null) => {
-              if (item !== null) addGeositeRule(item.code)
-            }}
-          >
-            <ComboboxInput
-              placeholder="搜索并添加分类"
-              aria-label="搜索并添加 GEO 分类"
-              className="max-w-sm"
-              showClear
-            />
-            <ComboboxContent>
-              <ComboboxEmpty>没有匹配的分类</ComboboxEmpty>
-              <ComboboxList>
-                {(item) => (
-                  <ComboboxItem key={item.code} value={item}>
-                    {`${item.code}（${item.count}）`}
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8">
-                  <span className="sr-only">拖动排序</span>
-                </TableHead>
-                <TableHead className="min-w-[120px]">分类</TableHead>
-                <TableHead className="min-w-[60px]">个数</TableHead>
-                <TableHead className="min-w-[120px]">出口</TableHead>
-                <TableHead className="w-full min-w-[60px]">
-                  <span className="sr-only">状态与操作</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              modifiers={[restrictToVerticalAxis]}
-              onDragEnd={handleGeositeDragEnd}
-            >
-              <SortableContext
-                items={geositeRules.map((rule) => rule.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <TableBody>
-                  {geositeRules.map((rule) => (
-                    <SortableGeositeRow
-                      key={rule.id}
-                      rule={rule}
-                      option={geositeOptions.find(
-                        (item) => item.code === rule.code
-                      )}
-                      onChangeTarget={(target) =>
-                        updateGeositeTarget(rule.id, target)
+      <CollapsibleCard
+        title="自定义规则"
+        description="手写域名规则，优先级最高：合并时排在 GEO 分类与固定规则之前；值为空的行不会写进配置"
+        summary={`${customRules.length} 条`}
+      >
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-[140px]">
+                <span className="flex items-center gap-1">
+                  类型
+                  <Popover>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label="说明三种规则类型的区别"
+                        >
+                          <CircleHelp aria-hidden="true" />
+                        </Button>
                       }
-                      onRemove={() => removeGeositeRule(rule.id)}
                     />
-                  ))}
-                </TableBody>
-              </SortableContext>
-            </DndContext>
-            {/* 固定三行放最后：实际生效顺序也是自定义在前、固定在后。
-                多个 tbody 之间那条分隔线单独补上，否则上一组末行会被去掉边框。 */}
-            <TableBody
-              className={geositeRules.length > 0 ? "border-t" : undefined}
-            >
-              {DEFAULT_GEOSITE_RULES.map((rule) => {
-                const known = geositeQuery.data !== undefined
-                const info = geositeOptions.find(
-                  (item) => item.code.toUpperCase() === rule.code.toUpperCase()
-                )
-                return (
-                  <TableRow key={rule.code}>
-                    <TableCell className="w-8">
-                      <Lock
-                        aria-hidden="true"
-                        className="size-3 text-muted-foreground"
-                      />
-                    </TableCell>
-                    <TableCell className="text-left">{rule.code}</TableCell>
-                    <TableCell className="text-left text-muted-foreground tabular-nums">
-                      <CategoryCountCell code={rule.code} option={info} />
-                    </TableCell>
-                    <TableCell className="text-left">
-                      {GEOSITE_TARGET_LABELS[rule.target]}
-                    </TableCell>
-                    <TableCell className="w-full text-left text-xs">
-                      {known && info === undefined ? (
-                        <span className="text-destructive">
-                          geosite.dat 里已经没有这个分类，合并时会跳过
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">
-                          {known ? "固定规则" : "检查中…"}
-                        </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-          {geositeRules.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              还没有添加自定义分类，当前只有上面三条固定规则
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
+                    <PopoverContent className="w-[min(92vw,520px)] text-xs">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="min-w-[120px]">
+                              类型
+                            </TableHead>
+                            <TableHead className="min-w-[120px]">
+                              含义
+                            </TableHead>
+                            <TableHead className="w-full min-w-[120px]">
+                              例子
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="align-top font-mono">
+                              DOMAIN
+                            </TableCell>
+                            <TableCell className="align-top whitespace-normal">
+                              只匹配这个域名本身，不含子域名
+                            </TableCell>
+                            <TableCell className="w-full align-top font-mono whitespace-normal">
+                              DOMAIN,example.com
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="align-top font-mono">
+                              DOMAIN-SUFFIX
+                            </TableCell>
+                            <TableCell className="align-top whitespace-normal">
+                              匹配这个域名及其所有子域名
+                            </TableCell>
+                            <TableCell className="w-full align-top font-mono whitespace-normal">
+                              DOMAIN-SUFFIX,example.com
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="align-top font-mono">
+                              DOMAIN-KEYWORD
+                            </TableCell>
+                            <TableCell className="align-top whitespace-normal">
+                              域名里包含这个词就命中
+                            </TableCell>
+                            <TableCell className="w-full align-top font-mono whitespace-normal">
+                              DOMAIN-KEYWORD,ads
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </PopoverContent>
+                  </Popover>
+                </span>
+              </TableHead>
+              <TableHead className="w-full min-w-[160px]">值</TableHead>
+              <TableHead className="min-w-[120px]">出口</TableHead>
+              <TableHead className="min-w-[60px]">
+                <span className="sr-only">操作</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {customRules.map((rule, index) => (
+              <TableRow key={rule.id}>
+                <TableCell className="text-left">
+                  <Select
+                    value={rule.type}
+                    onValueChange={(next) =>
+                      updateCustomRule(rule.id, {
+                        type: next as CustomRule["type"],
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      aria-label={`第 ${index + 1} 条自定义规则的类型`}
+                    >
+                      <SelectValue>{rule.type}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CUSTOM_RULE_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell className="text-left">
+                  <Input
+                    value={rule.value}
+                    placeholder="example.com"
+                    aria-label={`第 ${index + 1} 条自定义规则的值`}
+                    onChange={(event) =>
+                      updateCustomRule(rule.id, { value: event.target.value })
+                    }
+                  />
+                </TableCell>
+                <TableCell className="text-left">
+                  <Select
+                    value={rule.target}
+                    onValueChange={(next) =>
+                      updateCustomRule(rule.id, {
+                        target: next as GeositeTarget,
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      aria-label={`第 ${index + 1} 条自定义规则的出口`}
+                    >
+                      <SelectValue>
+                        {GEOSITE_TARGET_LABELS[rule.target]}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(
+                        Object.keys(GEOSITE_TARGET_LABELS) as GeositeTarget[]
+                      ).map((target) => (
+                        <SelectItem key={target} value={target}>
+                          {GEOSITE_TARGET_LABELS[target]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell className="text-left">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label={`删除第 ${index + 1} 条自定义规则`}
+                    onClick={() => removeCustomRule(rule.id)}
+                  >
+                    删除
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {customRules.length === 0 ? (
+          <p className="text-xs text-muted-foreground">还没有自定义规则</p>
+        ) : null}
+        <Button variant="outline" size="sm" onClick={addCustomRule}>
+          添加规则
+        </Button>
+      </CollapsibleCard>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>基座模板</CardTitle>
-          <CardDescription>
-            合并产物以它为底：proxies 与 proxy-groups 是占位，rules
-            列表会被自动填充
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2">
+      <CollapsibleCard
+        title="GEO 分类分流"
+        description="上方选中即加入，可拖动调整先后；表格最后三行是固定规则（不可删改，分类不在 geosite.dat 里时自动跳过），排在自定义规则之后生效。合并时全部写到规则最前面"
+        summary={`${geositeRules.length} 个自定义分类`}
+      >
+        {geositeQuery.isError ? (
+          <p className="text-xs text-destructive">
+            {`读取 GEO 分类失败：${describeError(geositeQuery.error)}`}
+          </p>
+        ) : null}
+
+        <Combobox
+          items={geositeOptions}
+          value={null as GeositeOption | null}
+          itemToStringValue={(item: GeositeOption) => item.code}
+          disabled={geositeOptions.length === 0}
+          onValueChange={(item: GeositeOption | null) => {
+            if (item !== null) addGeositeRule(item.code)
+          }}
+        >
+          <ComboboxInput
+            placeholder="搜索并添加分类"
+            aria-label="搜索并添加 GEO 分类"
+            className="max-w-sm"
+            showClear
+          />
+          <ComboboxContent>
+            <ComboboxEmpty>没有匹配的分类</ComboboxEmpty>
+            <ComboboxList>
+              {(item) => (
+                <ComboboxItem key={item.code} value={item}>
+                  {`${item.code}（${item.count}）`}
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-8">
+                <span className="sr-only">拖动排序</span>
+              </TableHead>
+              <TableHead className="min-w-[120px]">分类</TableHead>
+              <TableHead className="min-w-[60px]">个数</TableHead>
+              <TableHead className="min-w-[120px]">出口</TableHead>
+              <TableHead className="w-full min-w-[60px]">
+                <span className="sr-only">状态与操作</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
+            onDragEnd={handleGeositeDragEnd}
+          >
+            <SortableContext
+              items={geositeRules.map((rule) => rule.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <TableBody>
+                {geositeRules.map((rule) => (
+                  <SortableGeositeRow
+                    key={rule.id}
+                    rule={rule}
+                    option={geositeOptions.find(
+                      (item) => item.code === rule.code
+                    )}
+                    onChangeTarget={(target) =>
+                      updateGeositeTarget(rule.id, target)
+                    }
+                    onRemove={() => removeGeositeRule(rule.id)}
+                  />
+                ))}
+              </TableBody>
+            </SortableContext>
+          </DndContext>
+          {/* 固定三行放最后：实际生效顺序也是自定义在前、固定在后。
+                多个 tbody 之间那条分隔线单独补上，否则上一组末行会被去掉边框。 */}
+          <TableBody
+            className={geositeRules.length > 0 ? "border-t" : undefined}
+          >
+            {DEFAULT_GEOSITE_RULES.map((rule) => {
+              const known = geositeQuery.data !== undefined
+              const info = geositeOptions.find(
+                (item) => item.code.toUpperCase() === rule.code.toUpperCase()
+              )
+              return (
+                <TableRow key={rule.code}>
+                  <TableCell className="w-8">
+                    <Lock
+                      aria-hidden="true"
+                      className="size-3 text-muted-foreground"
+                    />
+                  </TableCell>
+                  <TableCell className="text-left">{rule.code}</TableCell>
+                  <TableCell className="text-left text-muted-foreground tabular-nums">
+                    <CategoryCountCell code={rule.code} option={info} />
+                  </TableCell>
+                  <TableCell className="text-left">
+                    {GEOSITE_TARGET_LABELS[rule.target]}
+                  </TableCell>
+                  <TableCell className="w-full text-left text-xs">
+                    {known && info === undefined ? (
+                      <span className="text-destructive">
+                        geosite.dat 里已经没有这个分类，合并时会跳过
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {known ? "固定规则" : "检查中…"}
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+        {geositeRules.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            还没有添加自定义分类，当前只有上面三条固定规则
+          </p>
+        ) : null}
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title="基座模板"
+        description="合并产物以它为底：proxies 与 proxy-groups 是占位，rules 列表会被自动填充"
+        summary={`${template.length} 字符${templateDirty ? "，有未保存的修改" : ""}`}
+      >
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -1318,11 +1353,8 @@ export const MergeProfilesPanel = () => {
           >
             查看或编辑基座模板
           </Button>
-          <span className="text-xs text-muted-foreground">
-            {`${template.length} 字符${templateDirty ? "，有未保存的修改" : ""}`}
-          </span>
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       <div className="flex flex-wrap items-center gap-2 border-t pt-3">
         {/* 保存放在合并左边：这些都是我们自己维护的设置，合并生成的配置会覆盖文件，不会覆盖它们。 */}
