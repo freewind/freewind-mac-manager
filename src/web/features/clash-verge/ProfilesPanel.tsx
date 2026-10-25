@@ -7,7 +7,7 @@ import {
   CollapsibleTrigger,
 } from "@web/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
-import { Copy } from "lucide-react"
+import { ChevronRight, Copy } from "lucide-react"
 import { toast } from "sonner"
 import { useClashVergeProfilesQuery } from "./queries"
 
@@ -98,8 +98,12 @@ export const ProfilesPanel = () => {
                         render={
                           <button
                             type="button"
-                            className="text-xs text-primary underline-offset-4 hover:underline"
+                            className="flex items-center gap-1 text-xs text-primary underline-offset-4 hover:underline [&[aria-expanded=true]>svg]:rotate-90"
                           >
+                            <ChevronRight
+                              aria-hidden="true"
+                              className="size-3 transition-transform"
+                            />
                             节点信息
                           </button>
                         }
