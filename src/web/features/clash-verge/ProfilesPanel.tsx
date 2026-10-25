@@ -118,14 +118,14 @@ export const ProfilesPanel = () => {
                             {profile.nodes.map((node) => (
                               <li
                                 key={`${node.name}-${node.server}`}
-                                className="space-y-0.5"
+                                className="flex items-baseline gap-2 text-xs"
                               >
-                                <p className="text-xs break-words">
+                                <span className="min-w-0 flex-1 truncate">
                                   {node.name}
-                                </p>
-                                <p className="text-xs break-all text-muted-foreground">
+                                </span>
+                                <span className="min-w-0 max-w-[55%] shrink-0 truncate text-muted-foreground">
                                   {`${node.type} · ${endpointOf(node.server, node.port)}`}
-                                </p>
+                                </span>
                               </li>
                             ))}
                           </ul>
