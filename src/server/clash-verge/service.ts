@@ -822,35 +822,18 @@ export const setClashVergeCurrentProfile = async (
 
 /* ---------- 合并订阅设置（本应用自己的库） ---------- */
 
-/**
- * 旧版默认模板：dns 里带 fallback（境外 DoH）却没有 proxy-server-nameserver，
- * 会让节点域名解析失败、全部测速超时。带占位标记说明它来自我们的默认模板，
- * 这种就当作没改过，读回时换成当前默认；真正手改过的不动。
- */
-const isLegacyDefaultTemplate = (template: string): boolean =>
-  template.includes("===== 页面生成：勾选订阅的全部节点") &&
-  template.includes("fallback") &&
-  !template.includes("proxy-server-nameserver")
-
 /** 读合并设置：从未保存时给空配置，页面按空态渲染。 */
-export const readClashMergeConfig = (): ClashMergeConfig => {
-  const saved = getClashMergeStore().read()
-  if (saved === null) {
-    return {
-      rules: [],
-      geositeRules: [],
-      customRules: [],
-      template: DEFAULT_MERGE_TEMPLATE,
-      healthCheck: DEFAULT_HEALTH_CHECK,
-      selectedProfiles: [],
-      includeFallback: true,
-      updatedAt: null,
-    }
+export const readClashMergeConfig = (): ClashMergeConfig =>
+  getClashMergeStore().read() ?? {
+    rules: [],
+    geositeRules: [],
+    customRules: [],
+    template: DEFAULT_MERGE_TEMPLATE,
+    healthCheck: DEFAULT_HEALTH_CHECK,
+    selectedProfiles: [],
+    includeFallback: true,
+    updatedAt: null,
   }
-  return isLegacyDefaultTemplate(saved.template)
-    ? { ...saved, template: DEFAULT_MERGE_TEMPLATE }
-    : saved
-}
 
 /** 保存合并设置；整份替换，不做局部合并。 */
 export const saveClashMergeConfig = (
