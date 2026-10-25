@@ -219,8 +219,7 @@ export const ProfilesPanel = () => {
                         </p>
                       ) : (
                         <div className="mt-1 max-h-72 overflow-auto pr-1">
-                          {/* 自动布局：前四列按内容宽度（节点名超过一半时截断，
-                              留出地址列），最后一列 w-full 吃满剩余宽度并单行截断。 */}
+                          {/* 表格统一规则：前面的列按内容宽度，最后一列占满剩余，全部左对齐。 */}
                           <Table>
                             <TableBody>
                               {profile.nodes.map((node, index) => (
@@ -228,7 +227,7 @@ export const ProfilesPanel = () => {
                                   <TableCell className="px-2 py-1 text-left text-muted-foreground">
                                     {index + 1}
                                   </TableCell>
-                                  <TableCell className="max-w-[50%] truncate px-2 py-1 text-left">
+                                  <TableCell className="px-2 py-1 text-left">
                                     {node.name}
                                   </TableCell>
                                   <TableCell className="px-2 py-1 text-left text-muted-foreground">

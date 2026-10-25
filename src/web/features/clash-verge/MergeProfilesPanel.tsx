@@ -72,27 +72,25 @@ export const MergeProfilesPanel = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-8">
+              <TableHead>
                 <span className="sr-only">选择</span>
               </TableHead>
               <TableHead>订阅</TableHead>
-              <TableHead className="text-right">节点数</TableHead>
+              <TableHead className="w-full">节点数</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {profiles.map((profile) => (
               <TableRow key={profile.uid || profile.url}>
-                <TableCell className="w-8">
+                <TableCell>
                   <Checkbox
                     aria-label={`选择订阅：${profile.name}`}
                     checked={selected.includes(profile.uid)}
                     onCheckedChange={(checked) => toggle(profile.uid, checked)}
                   />
                 </TableCell>
-                <TableCell className="max-w-[60%] truncate text-left">
-                  {profile.name}
-                </TableCell>
-                <TableCell className="text-right text-muted-foreground tabular-nums">
+                <TableCell className="text-left">{profile.name}</TableCell>
+                <TableCell className="w-full text-left text-muted-foreground tabular-nums">
                   {profile.nodes.length}
                 </TableCell>
               </TableRow>
