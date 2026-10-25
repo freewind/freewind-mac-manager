@@ -62,17 +62,18 @@ dns:
   ipv6: false
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
+  use-hosts: true
   default-nameserver:
     - 223.5.5.5
     - 119.29.29.29
   nameserver:
     - https://dns.alidns.com/dns-query
     - https://doh.pub/dns-query
-  fallback:
-    - https://dns.cloudflare.com/dns-query
-  fallback-filter:
-    geoip: true
-    geoip-code: CN
+  # 节点服务器的域名用国内纯 IP 解析：没这一条时内核会走下面那套 fallback，
+  # 而境外 DoH 在境内会被 reset，结果是所有节点都连不上（表现为全部测速超时）。
+  proxy-server-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
 
 # ===== 页面生成：勾选订阅的全部节点（内容会被替换，位置保留）=====
 proxies: []
