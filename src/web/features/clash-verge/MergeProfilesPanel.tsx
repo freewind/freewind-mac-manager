@@ -76,7 +76,7 @@ const PreviewList = (props: { items: string[]; empty: string }) => {
 /**
  * 合并订阅：勾选要合并的订阅，再写自定义分组规则。
  *
- * 规则表第三列显示正则命中的捕获组，第四列显示按捕获项拼出的目标组名，
+ * 规则表第三列显示正则命中的节点名，第四列显示按捕获项拼出的目标组名，
  * 用于边写边核对；预览只读已勾选订阅的节点名，不写任何文件。
  * 合并写入还没定稿，按钮只回显范围。
  */
@@ -222,7 +222,7 @@ export const MergeProfilesPanel = () => {
           <h3 className="text-sm font-medium">自定义分组规则</h3>
           <p className="text-xs text-muted-foreground">
             正则在节点名里匹配，捕获项用 $1、$2
-            取分组；右侧实时显示捕获组与目标组名
+            取分组；右侧实时显示命中的节点与目标组名
           </p>
           {chosen.length === 0 ? (
             <p className="text-xs text-muted-foreground">
@@ -236,7 +236,7 @@ export const MergeProfilesPanel = () => {
             <TableRow>
               <TableHead className="min-w-[120px]">正则</TableHead>
               <TableHead className="min-w-[100px]">捕获项</TableHead>
-              <TableHead className="min-w-[60px]">捕获组</TableHead>
+              <TableHead className="min-w-[60px]">匹配节点</TableHead>
               <TableHead className="min-w-[60px]">目标组名</TableHead>
               <TableHead className="w-full min-w-[60px]">
                 <span className="sr-only">操作</span>
@@ -280,9 +280,7 @@ export const MergeProfilesPanel = () => {
                     </TableCell>
                     <TableCell className="align-top text-xs whitespace-normal">
                       <PreviewList
-                        items={matches.map(
-                          (match) => `[${match.groups.join(" / ")}]`
-                        )}
+                        items={matches.map((match) => match.node)}
                         empty={
                           rule.pattern.trim() === ""
                             ? "等待填写正则"
