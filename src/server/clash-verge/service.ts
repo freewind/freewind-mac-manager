@@ -39,6 +39,7 @@ import {
   ClashVergeProxiesResponseSchema,
   ClashVergeStatusSchema,
 } from "@shared/api-contract/schemas/clash-verge"
+import { DEFAULT_GEOSITE_RULES } from "@shared/clash-merge-defaults"
 import { stringify as toYaml } from "yaml"
 import {
   ControllerError,
@@ -1201,30 +1202,45 @@ export const mergeClashProfiles = async (
     const value = baseDocument === null ? undefined : baseDocument[key]
     if (value !== undefined) inherited[key] = value
   }
-  // GEO 分类分流：写在 rules 最前面，优先于继承来的订阅规则。
+  // GEO 分类分流：用户自定义的在前，固定三条在后，都优先于继承来的订阅规则。
   // 分类名先在本机 geosite.dat 里核实：写错的分类会让内核拒绝整份配置，
-  // 不能等它到内核那一步才报错，所以在合并前就拦下。
+  // 用户自己选的缺失直接报错，固定规则缺失则跳过。
   const geositeRules: string[] = []
-  if (input.geositeRules.length > 0) {
+  const geositeOutletOf: Record<"proxy" | "direct" | "reject", string> = {
+    proxy: outlets.primary,
+    direct: outlets.direct,
+    reject: outlets.reject,
+  }
+  let geositeCodeOf: Map<string, string> | null = null
+  try {
     const { categories } = await loadGeosite()
-    const codeOf = new Map(
+    geositeCodeOf = new Map(
       categories.map((category) => [category.code.toUpperCase(), category.code])
     )
-    const outletOf: Record<"proxy" | "direct" | "reject", string> = {
-      proxy: outlets.primary,
-      direct: outlets.direct,
-      reject: outlets.reject,
+  } catch {
+    geositeCodeOf = null
+  }
+  for (const rule of input.geositeRules) {
+    if (geositeCodeOf === null) {
+      throw new PublicOperationError(
+        404,
+        `找不到 geosite 数据库，无法校验 GEO 分类：${CLASH_VERGE_GEOSITE_FILE}`
+      )
     }
-    for (const rule of input.geositeRules) {
-      const code = codeOf.get(rule.code.trim().toUpperCase())
-      if (code === undefined) {
-        throw new PublicOperationError(
-          400,
-          `GEO 分类不存在：${rule.code}（写进配置会让内核拒绝加载，已在合并前拦下）`
-        )
-      }
-      geositeRules.push(`GEOSITE,${code},${outletOf[rule.target]}`)
+    const code = geositeCodeOf.get(rule.code.trim().toUpperCase())
+    if (code === undefined) {
+      throw new PublicOperationError(
+        400,
+        `GEO 分类不存在：${rule.code}（写进配置会让内核拒绝加载，已在合并前拦下）`
+      )
     }
+    geositeRules.push(`GEOSITE,${code},${geositeOutletOf[rule.target]}`)
+  }
+  // 固定规则：分类已经不在 geosite.dat 里就跳过，不让它挡住合并。
+  for (const rule of DEFAULT_GEOSITE_RULES) {
+    const code = geositeCodeOf?.get(rule.code.toUpperCase())
+    if (code === undefined) continue
+    geositeRules.push(`GEOSITE,${code},${geositeOutletOf[rule.target]}`)
   }
 
   const rawRules = baseDocument === null ? undefined : baseDocument.rules

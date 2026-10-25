@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import type { GeositeRule } from "@shared/api-contract"
+import { DEFAULT_GEOSITE_RULES } from "@shared/clash-merge-defaults"
 import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -45,7 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { GripVertical } from "lucide-react"
+import { GripVertical, Lock } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
@@ -616,6 +617,49 @@ export const MergeProfilesPanel = () => {
                 {`读取 GEO 分类失败：${describeError(geositeQuery.error)}`}
               </p>
             ) : null}
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">
+              固定规则（不参与编辑，分类不在 geosite.dat
+              里时自动跳过；排在自定义规则之后）
+            </p>
+            <Table>
+              <TableBody>
+                {DEFAULT_GEOSITE_RULES.map((rule) => {
+                  const exists = geositeOptions.some(
+                    (item) =>
+                      item.code.toUpperCase() === rule.code.toUpperCase()
+                  )
+                  const known = geositeQuery.data !== undefined
+                  return (
+                    <TableRow key={rule.code}>
+                      <TableCell className="w-8">
+                        <Lock
+                          aria-hidden="true"
+                          className="size-3 text-muted-foreground"
+                        />
+                      </TableCell>
+                      <TableCell className="text-left">{rule.code}</TableCell>
+                      <TableCell className="text-left text-muted-foreground">
+                        {GEOSITE_TARGET_LABELS[rule.target]}
+                      </TableCell>
+                      <TableCell className="w-full text-left text-xs">
+                        {known && !exists ? (
+                          <span className="text-destructive">
+                            geosite.dat 里已经没有这个分类，合并时会跳过
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {known ? "分类有效" : "检查中…"}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
           </div>
 
           <Combobox
