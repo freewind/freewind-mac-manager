@@ -369,7 +369,6 @@ export const MergeProfilesPanel = () => {
                     <Input
                       value={rule.target}
                       aria-label={`第 ${index + 1} 条规则的目标组名`}
-                      placeholder="例如 香港"
                       onChange={(event) =>
                         updateRule(rule.id, { target: event.target.value })
                       }
