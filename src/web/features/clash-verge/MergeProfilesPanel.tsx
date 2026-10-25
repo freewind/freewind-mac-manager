@@ -803,37 +803,57 @@ export const MergeProfilesPanel = () => {
                           </Button>
                         }
                       />
-                      <PopoverContent className="w-80 text-xs">
-                        <ul className="space-y-2">
-                          <li>
-                            <span className="font-mono">DOMAIN</span>
-                            ：只匹配这个域名本身，不含子域名。例：
-                            <span className="font-mono">
-                              DOMAIN,example.com
-                            </span>
-                            不匹配
-                            <span className="font-mono">a.example.com</span>
-                          </li>
-                          <li>
-                            <span className="font-mono">DOMAIN-SUFFIX</span>
-                            ：匹配这个域名及其所有子域名。例：
-                            <span className="font-mono">
-                              DOMAIN-SUFFIX,example.com
-                            </span>
-                            同时匹配
-                            <span className="font-mono">a.example.com</span>、
-                            <span className="font-mono">a.b.example.com</span>
-                          </li>
-                          <li>
-                            <span className="font-mono">DOMAIN-KEYWORD</span>
-                            ：域名里包含这个词就命中。例：
-                            <span className="font-mono">
-                              DOMAIN-KEYWORD,ads
-                            </span>
-                            匹配<span className="font-mono">ads.foo.com</span>、
-                            <span className="font-mono">my-ads-bar.net</span>
-                          </li>
-                        </ul>
+                      <PopoverContent className="w-[min(92vw,520px)] text-xs">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="min-w-[120px]">
+                                类型
+                              </TableHead>
+                              <TableHead className="min-w-[120px]">
+                                含义
+                              </TableHead>
+                              <TableHead className="w-full min-w-[120px]">
+                                例子
+                              </TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell className="align-top font-mono">
+                                DOMAIN
+                              </TableCell>
+                              <TableCell className="align-top whitespace-normal">
+                                只匹配这个域名本身，不含子域名
+                              </TableCell>
+                              <TableCell className="w-full align-top font-mono whitespace-normal">
+                                DOMAIN,example.com
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell className="align-top font-mono">
+                                DOMAIN-SUFFIX
+                              </TableCell>
+                              <TableCell className="align-top whitespace-normal">
+                                匹配这个域名及其所有子域名
+                              </TableCell>
+                              <TableCell className="w-full align-top font-mono whitespace-normal">
+                                DOMAIN-SUFFIX,example.com
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell className="align-top font-mono">
+                                DOMAIN-KEYWORD
+                              </TableCell>
+                              <TableCell className="align-top whitespace-normal">
+                                域名里包含这个词就命中
+                              </TableCell>
+                              <TableCell className="w-full align-top font-mono whitespace-normal">
+                                DOMAIN-KEYWORD,ads
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
                       </PopoverContent>
                     </Popover>
                   </span>
