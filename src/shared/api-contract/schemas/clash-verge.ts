@@ -178,19 +178,31 @@ export const ClashMergeRuleSchema = z.object({
   target: z.string().max(60),
 })
 
+/** GEO 分类分流的出口：只有三个固定选项，对应合并后的三个组。 */
+export const GeositeTargetSchema = z.enum(["proxy", "direct", "reject"])
+
+/** 一条 GEO 分类分流：分类名 + 出口，不写具体域名。 */
+export const GeositeRuleSchema = z.object({
+  code: z.string().min(1).max(64),
+  target: GeositeTargetSchema,
+})
+
 /**
  * 合并订阅的分组规则：只存用户手输的正则与目标组名，
  * 选中哪些订阅、命中哪些节点都是实时算出来的，不落库。
  */
 export const ClashMergeConfigSchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
+  /** GEO 分类分流：早期版本没有这个字段，读旧记录时默认为空。 */
+  geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   /** 上次保存时间，秒级；null 表示从未保存过。 */
   updatedAt: z.number().int().nullable(),
 })
 
-/** 保存时只接受分组规则，保存时间由服务端写。 */
+/** 保存时只接受规则，保存时间由服务端写。 */
 export const SaveClashMergeConfigBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
+  geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
 })
 
 /** geosite 数据库里的单个分类：名字、条目数与前面一段域名（页面直接列成标签）。 */
@@ -216,4 +228,5 @@ export const ClashVergeGeositeSchema = z.object({
 export const MergeClashProfilesBodySchema = z.object({
   selected: z.array(z.string().max(64)).min(1).max(200),
   rules: z.array(ClashMergeRuleSchema).max(200),
+  geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
 })

@@ -1,9 +1,25 @@
+import type { GeositeRule } from "@shared/api-contract"
 import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
 import { Checkbox } from "@web/components/ui/checkbox"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
 import { Input } from "@web/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@web/components/ui/select"
 import {
   Table,
   TableBody,
@@ -16,10 +32,26 @@ import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
   useClashMergeConfigQuery,
+  useClashVergeGeositeQuery,
   useClashVergeProfilesQuery,
   useMergeClashProfiles,
   useSaveClashMergeConfig,
 } from "./queries"
+
+/** GEO 分类分流的出口：只有三个固定选项，对应合并后的三个组。 */
+type GeositeTarget = GeositeRule["target"]
+
+/** 一行 GEO 分流：分类名 + 出口，id 只用于 React key。 */
+type GeositeRow = GeositeRule & { id: string }
+
+/** 下拉里的分类选项：名字 + 条目数。 */
+type GeositeOption = { code: string; count: number }
+
+const GEOSITE_TARGET_LABELS: Record<GeositeTarget, string> = {
+  proxy: "走代理",
+  direct: "直连",
+  reject: "拒绝",
+}
 
 /** 一条自定义分组规则：正则在节点名里匹配，目标组名直接填写。 */
 type GroupRule = {
@@ -77,6 +109,7 @@ const NodeTags = (props: { nodes: string[] }) => {
 export const MergeProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
   const configQuery = useClashMergeConfigQuery()
+  const geositeQuery = useClashVergeGeositeQuery()
   const saveConfig = useSaveClashMergeConfig()
   const mergeProfiles = useMergeClashProfiles()
   const profiles = useMemo(() => query.data?.profiles ?? [], [query.data])
@@ -96,6 +129,26 @@ export const MergeProfilesPanel = () => {
         })),
       ],
     [editedRules, configQuery.data]
+  )
+
+  /** GEO 分流行：本地编辑优先，否则回显服务端保存的。 */
+  const [editedGeosite, setEditedGeosite] = useState<GeositeRow[] | null>(null)
+  const geositeRules = useMemo<GeositeRow[]>(
+    () =>
+      editedGeosite ??
+      (configQuery.data?.geositeRules ?? []).map((rule, index) => ({
+        ...rule,
+        id: `saved-geosite-${index}`,
+      })),
+    [editedGeosite, configQuery.data]
+  )
+  /** 分类选项：条目多的排前面，与 GEO 数据页同一个顺序。 */
+  const geositeOptions = useMemo<GeositeOption[]>(
+    () =>
+      [...(geositeQuery.data?.categories ?? [])].sort(
+        (left, right) => right.count - left.count
+      ),
+    [geositeQuery.data]
   )
 
   const chosen = useMemo(
@@ -162,6 +215,24 @@ export const MergeProfilesPanel = () => {
     setCheckedRules((current) => current.filter((item) => item !== id))
   }
 
+  const addGeositeRule = (code: string) => {
+    if (geositeRules.some((rule) => rule.code === code)) return
+    setEditedGeosite([
+      ...geositeRules,
+      { id: crypto.randomUUID(), code, target: "proxy" },
+    ])
+  }
+
+  const updateGeositeTarget = (id: string, target: GeositeTarget) => {
+    setEditedGeosite(
+      geositeRules.map((rule) => (rule.id === id ? { ...rule, target } : rule))
+    )
+  }
+
+  const removeGeositeRule = (id: string) => {
+    setEditedGeosite(geositeRules.filter((rule) => rule.id !== id))
+  }
+
   const normalRules = rules.filter((rule) => !rule.fixed)
   const allChecked =
     normalRules.length > 0 &&
@@ -191,6 +262,10 @@ export const MergeProfilesPanel = () => {
       const result = await mergeProfiles.mutateAsync({
         selected,
         rules: chosenRules,
+        geositeRules: geositeRules.map((rule) => ({
+          code: rule.code,
+          target: rule.target,
+        })),
       })
       toast.success(result.message)
     } catch (error) {
@@ -205,6 +280,10 @@ export const MergeProfilesPanel = () => {
         rules: rules
           .filter((rule) => !rule.fixed)
           .map((rule) => ({ pattern: rule.pattern, target: rule.target })),
+        geositeRules: geositeRules.map((rule) => ({
+          code: rule.code,
+          target: rule.target,
+        })),
       })
       toast.success(result.message)
     } catch (error) {
@@ -411,6 +490,111 @@ export const MergeProfilesPanel = () => {
               {`读取已保存设置失败：${describeError(configQuery.error)}`}
             </span>
           ) : null}
+        </div>
+
+        <div className="space-y-2 border-t pt-3">
+          <div>
+            <h3 className="text-sm font-medium">GEO 分类分流</h3>
+            <p className="text-xs text-muted-foreground">
+              选分类，再选它走代理、直连还是拒绝；合并时写到规则最前面，优先于订阅自带规则
+            </p>
+            {geositeQuery.isError ? (
+              <p className="text-xs text-destructive">
+                {`读取 GEO 分类失败：${describeError(geositeQuery.error)}`}
+              </p>
+            ) : null}
+          </div>
+
+          <Combobox
+            items={geositeOptions}
+            value={null as GeositeOption | null}
+            itemToStringValue={(item: GeositeOption) => item.code}
+            disabled={geositeOptions.length === 0}
+            onValueChange={(item: GeositeOption | null) => {
+              if (item !== null) addGeositeRule(item.code)
+            }}
+          >
+            <ComboboxInput
+              placeholder="搜索并添加分类"
+              aria-label="搜索并添加 GEO 分类"
+              className="max-w-sm"
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>没有匹配的分类</ComboboxEmpty>
+              <ComboboxList>
+                {(item) => (
+                  <ComboboxItem key={item.code} value={item}>
+                    {`${item.code}（${item.count}）`}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+
+          {geositeRules.length === 0 ? (
+            <p className="text-xs text-muted-foreground">还没有添加分类</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[120px]">分类</TableHead>
+                  <TableHead className="min-w-[60px]">个数</TableHead>
+                  <TableHead className="min-w-[120px]">出口</TableHead>
+                  <TableHead className="w-full min-w-[60px]">
+                    <span className="sr-only">操作</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {geositeRules.map((rule) => {
+                  const count =
+                    geositeOptions.find((item) => item.code === rule.code)
+                      ?.count ?? 0
+                  return (
+                    <TableRow key={rule.id}>
+                      <TableCell className="text-left">{rule.code}</TableCell>
+                      <TableCell className="text-left text-muted-foreground tabular-nums">
+                        {count}
+                      </TableCell>
+                      <TableCell className="text-left">
+                        <Select
+                          value={rule.target}
+                          onValueChange={(next) =>
+                            updateGeositeTarget(rule.id, next as GeositeTarget)
+                          }
+                        >
+                          <SelectTrigger aria-label={`${rule.code} 的出口`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(
+                              Object.keys(
+                                GEOSITE_TARGET_LABELS
+                              ) as GeositeTarget[]
+                            ).map((target) => (
+                              <SelectItem key={target} value={target}>
+                                {GEOSITE_TARGET_LABELS[target]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="text-left">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`删除分类 ${rule.code}`}
+                          onClick={() => removeGeositeRule(rule.id)}
+                        >
+                          删除
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-3">

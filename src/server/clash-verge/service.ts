@@ -915,7 +915,11 @@ export const setClashVergeCurrentProfile = async (
 
 /** 读合并设置：从未保存时给空配置，页面按空态渲染。 */
 export const readClashMergeConfig = (): ClashMergeConfig =>
-  getClashMergeStore().read() ?? { rules: [], updatedAt: null }
+  getClashMergeStore().read() ?? {
+    rules: [],
+    geositeRules: [],
+    updatedAt: null,
+  }
 
 /** 保存合并设置；整份替换，不做局部合并。 */
 export const saveClashMergeConfig = (
@@ -1197,10 +1201,39 @@ export const mergeClashProfiles = async (
     const value = baseDocument === null ? undefined : baseDocument[key]
     if (value !== undefined) inherited[key] = value
   }
+  // GEO 分类分流：写在 rules 最前面，优先于继承来的订阅规则。
+  // 分类名先在本机 geosite.dat 里核实：写错的分类会让内核拒绝整份配置，
+  // 不能等它到内核那一步才报错，所以在合并前就拦下。
+  const geositeRules: string[] = []
+  if (input.geositeRules.length > 0) {
+    const { categories } = await loadGeosite()
+    const codeOf = new Map(
+      categories.map((category) => [category.code.toUpperCase(), category.code])
+    )
+    const outletOf: Record<"proxy" | "direct" | "reject", string> = {
+      proxy: outlets.primary,
+      direct: outlets.direct,
+      reject: outlets.reject,
+    }
+    for (const rule of input.geositeRules) {
+      const code = codeOf.get(rule.code.trim().toUpperCase())
+      if (code === undefined) {
+        throw new PublicOperationError(
+          400,
+          `GEO 分类不存在：${rule.code}（写进配置会让内核拒绝加载，已在合并前拦下）`
+        )
+      }
+      geositeRules.push(`GEOSITE,${code},${outletOf[rule.target]}`)
+    }
+  }
+
   const rawRules = baseDocument === null ? undefined : baseDocument.rules
-  const rules = (Array.isArray(rawRules) ? rawRules : [])
-    .filter((rule): rule is string => typeof rule === "string")
-    .map((rule) => rewriteRuleGroup(rule, originalGroups, outlets))
+  const rules = [
+    ...geositeRules,
+    ...(Array.isArray(rawRules) ? rawRules : [])
+      .filter((rule): rule is string => typeof rule === "string")
+      .map((rule) => rewriteRuleGroup(rule, originalGroups, outlets)),
+  ]
   // 没有 MATCH 收尾就补一条，否则最后一段流量会落到不存在的组。
   if (!rules.some((rule) => rule.startsWith("MATCH"))) {
     rules.push(`MATCH,${outlets.primary}`)

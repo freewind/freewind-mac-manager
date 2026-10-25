@@ -94,7 +94,10 @@ export const clashVergeRouter = {
   saveClashMergeConfig: async ({
     body,
   }: {
-    body: { rules: { pattern: string; target: string }[] }
+    body: {
+      rules: { pattern: string; target: string }[]
+      geositeRules: { code: string; target: "proxy" | "direct" | "reject" }[]
+    }
   }) => {
     try {
       return {
@@ -109,7 +112,11 @@ export const clashVergeRouter = {
   mergeClashProfiles: async ({
     body,
   }: {
-    body: { selected: string[]; rules: { pattern: string; target: string }[] }
+    body: {
+      selected: string[]
+      rules: { pattern: string; target: string }[]
+      geositeRules: { code: string; target: "proxy" | "direct" | "reject" }[]
+    }
   }) => {
     try {
       return {

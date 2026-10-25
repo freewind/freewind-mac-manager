@@ -8,6 +8,7 @@ import type {
   ClashVergeProfilesResponse,
   ClashVergeProxiesResponse,
   ClashVergeStatus,
+  GeositeRule,
 } from "@shared/api-contract"
 import { apiClient, unwrap } from "./client"
 
@@ -111,9 +112,10 @@ export const fetchClashMergeConfig = async (options?: {
     })
   )
 
-/** 保存合并设置：只存分组规则，整份替换，不自动重试。 */
+/** 保存合并设置：只存规则，整份替换，不自动重试。 */
 export const saveClashMergeConfig = async (input: {
   rules: { pattern: string; target: string }[]
+  geositeRules: GeositeRule[]
 }): Promise<ActionResponse> =>
   unwrap<ActionResponse>(await apiClient.saveClashMergeConfig({ body: input }))
 
@@ -124,5 +126,6 @@ export const saveClashMergeConfig = async (input: {
 export const mergeClashProfiles = async (input: {
   selected: string[]
   rules: { pattern: string; target: string }[]
+  geositeRules: GeositeRule[]
 }): Promise<ActionResponse> =>
   unwrap<ActionResponse>(await apiClient.mergeClashProfiles({ body: input }))
