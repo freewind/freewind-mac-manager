@@ -116,17 +116,20 @@ export const ProfilesPanel = () => {
                               : ""}
                           </p>
                           <div className="mt-1 max-h-72 overflow-auto pr-1">
-                            {/* 固定布局：节点名与详情各占一列，详情列吃满剩余宽度，
-                                单行截断，宽度窄的屏幕也不会横向滚动。 */}
+                            {/* 固定布局：节点名、类型、地址端口各占一列，最后一列吃满
+                                剩余宽度，单行截断，宽度窄的屏幕也不会横向滚动。 */}
                             <Table className="table-fixed">
                               <TableBody>
                                 {profile.nodes.map((node) => (
                                   <TableRow key={`${node.name}-${node.server}`}>
-                                    <TableCell className="w-[55%] truncate px-2 py-1 text-left">
+                                    <TableCell className="w-[40%] truncate px-2 py-1 text-left">
                                       {node.name}
                                     </TableCell>
+                                    <TableCell className="w-[18%] truncate px-2 py-1 text-left text-muted-foreground">
+                                      {node.type}
+                                    </TableCell>
                                     <TableCell className="truncate px-2 py-1 text-left text-muted-foreground">
-                                      {`${node.type} · ${endpointOf(node.server, node.port)}`}
+                                      {endpointOf(node.server, node.port)}
                                     </TableCell>
                                   </TableRow>
                                 ))}
