@@ -1,16 +1,9 @@
 import { describeError, formatTimestamp } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@web/components/ui/dialog"
 import { Input } from "@web/components/ui/input"
 import { Table, TableBody, TableCell, TableRow } from "@web/components/ui/table"
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import {
   useClashVergeGeositeCategoryQuery,
   useClashVergeGeositeQuery,
@@ -32,102 +25,92 @@ const bytesText = (bytes: number): string =>
     ? `${(bytes / 1024).toFixed(1)} KB`
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
-/** 正在查看的分类与页码：整块放外面，弹窗组件自己不存 state。 */
-type CategoryView = { code: string; offset: number }
+/** 正在展开的分类与它的页码：整块放外面，展开区自己不存 state。 */
+type OpenCategory = { code: string; offset: number }
 
-/** 单个分类的条目弹窗：按页翻，一页 500 条。 */
-const GeositeCategoryDialog = (props: {
-  view: CategoryView | null
+/** 分类条目：直接嵌在表格行下面，按页翻。 */
+const CategoryDomains = (props: {
+  view: OpenCategory
   onChangeOffset: (offset: number) => void
-  onClose: () => void
 }) => {
   const query = useClashVergeGeositeCategoryQuery(
-    props.view?.code ?? null,
-    props.view?.offset ?? 0
+    props.view.code,
+    props.view.offset
   )
   const total = query.data?.total ?? 0
-  const offset = props.view?.offset ?? 0
+  const offset = props.view.offset
+  if (query.isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>读取分类失败</AlertTitle>
+        <AlertDescription>{describeError(query.error)}</AlertDescription>
+      </Alert>
+    )
+  }
+  if (query.data === undefined) {
+    return <p className="text-xs text-muted-foreground">读取中…</p>
+  }
   return (
-    <Dialog
-      open={props.view !== null}
-      onOpenChange={(open) => {
-        if (!open) props.onClose()
-      }}
-    >
-      <DialogContent className="w-[min(96vw,760px)] sm:max-w-[760px]">
-        <DialogHeader>
-          <DialogTitle>{props.view?.code ?? ""}</DialogTitle>
-          <DialogDescription>
-            {query.data === undefined
-              ? "正在读取条目"
-              : `共 ${total} 条 · 显示第 ${offset + 1}-${offset + query.data.domains.length} 条`}
-          </DialogDescription>
-        </DialogHeader>
-        {query.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>读取分类失败</AlertTitle>
-            <AlertDescription>{describeError(query.error)}</AlertDescription>
-          </Alert>
-        ) : query.data === undefined ? (
-          <p className="text-sm text-muted-foreground">读取中…</p>
-        ) : (
-          <div className="max-h-[60vh] overflow-auto">
-            {/* 表格统一规则：类型列按内容宽度，域名列占满剩余并截断。 */}
-            <Table>
-              <TableBody>
-                {query.data.domains.map((domain) => (
-                  <TableRow key={`${domain.type}-${domain.value}`}>
-                    <TableCell className="min-w-[60px] px-2 py-1 text-left text-xs text-muted-foreground">
-                      {DOMAIN_TYPE_LABEL[domain.type] ?? domain.type}
-                    </TableCell>
-                    <TableCell className="w-full max-w-0 min-w-[60px] truncate px-2 py-1 text-left text-xs">
-                      {domain.value}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-muted-foreground">
-            {`共 ${Math.max(1, Math.ceil(total / PAGE_SIZE))} 页`}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={offset === 0}
-              onClick={() =>
-                props.onChangeOffset(Math.max(0, offset - PAGE_SIZE))
-              }
-            >
-              上一页
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={offset + PAGE_SIZE >= total}
-              onClick={() => props.onChangeOffset(offset + PAGE_SIZE)}
-            >
-              下一页
-            </Button>
-          </div>
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        {`共 ${total} 条 · 显示第 ${offset + 1}-${offset + query.data.domains.length} 条`}
+      </p>
+      {/* 表格统一规则：类型列按内容宽度，域名列占满剩余并截断。 */}
+      <div className="max-h-[50vh] overflow-auto rounded-md border">
+        <Table>
+          <TableBody>
+            {query.data.domains.map((domain) => (
+              <TableRow key={`${domain.type}-${domain.value}`}>
+                <TableCell className="min-w-[60px] px-2 py-1 text-left text-xs text-muted-foreground">
+                  {DOMAIN_TYPE_LABEL[domain.type] ?? domain.type}
+                </TableCell>
+                <TableCell className="w-full max-w-0 min-w-[60px] truncate px-2 py-1 text-left text-xs">
+                  {domain.value}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">
+          {`共 ${Math.max(1, Math.ceil(total / PAGE_SIZE))} 页`}
+        </span>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={offset === 0}
+            onClick={() =>
+              props.onChangeOffset(Math.max(0, offset - PAGE_SIZE))
+            }
+          >
+            上一页
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={offset + PAGE_SIZE >= total}
+            onClick={() => props.onChangeOffset(offset + PAGE_SIZE)}
+          >
+            下一页
+          </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 }
 
 /**
- * geosite 数据库面板（只读）：列出全部分类与条目数，点「全部显示」翻页看域名。
+ * geosite 数据库面板（只读）：列出全部分类与条目数，
+ * 点「全部显示」把该分类的域名直接展开在表格里，不跳弹窗。
  * 数据来自本机 geosite.dat，与 Clash Verge 内核使用同一份文件。
  */
 export const GeoSitePanel = () => {
   const query = useClashVergeGeositeQuery()
   const data = query.data
   const [keyword, setKeyword] = useState("")
-  const [view, setView] = useState<CategoryView | null>(null)
+  const [open, setOpen] = useState<OpenCategory | null>(null)
 
   const needle = keyword.trim().toLowerCase()
   const filtered =
@@ -174,30 +157,48 @@ export const GeoSitePanel = () => {
           {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground">没有匹配的分类</p>
           ) : (
-            <div className="max-h-[60vh] overflow-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <Table>
                 <TableBody>
                   {filtered.map((category) => (
-                    <TableRow key={category.code}>
-                      <TableCell className="min-w-[60px] px-2 py-1 text-left">
-                        {category.code}
-                      </TableCell>
-                      <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground tabular-nums">
-                        {category.count}
-                      </TableCell>
-                      <TableCell className="w-full min-w-[60px] px-2 py-1 text-left">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label={`全部显示：${category.code}`}
-                          onClick={() =>
-                            setView({ code: category.code, offset: 0 })
-                          }
-                        >
-                          全部显示
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <Fragment key={category.code}>
+                      <TableRow>
+                        <TableCell className="min-w-[60px] px-2 py-1 text-left">
+                          {category.code}
+                        </TableCell>
+                        <TableCell className="min-w-[60px] px-2 py-1 text-left text-muted-foreground tabular-nums">
+                          {category.count}
+                        </TableCell>
+                        <TableCell className="w-full min-w-[60px] px-2 py-1 text-left">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            aria-label={`${open?.code === category.code ? "收起" : "全部显示"}：${category.code}`}
+                            onClick={() =>
+                              setOpen((current) =>
+                                current?.code === category.code
+                                  ? null
+                                  : { code: category.code, offset: 0 }
+                              )
+                            }
+                          >
+                            {open?.code === category.code ? "收起" : "全部显示"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {open?.code === category.code ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="p-2">
+                            <CategoryDomains
+                              view={open}
+                              onChangeOffset={(offset) =>
+                                setOpen({ code: open.code, offset })
+                              }
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </Fragment>
                   ))}
                 </TableBody>
               </Table>
@@ -205,15 +206,6 @@ export const GeoSitePanel = () => {
           )}
         </>
       )}
-      <GeositeCategoryDialog
-        view={view}
-        onChangeOffset={(offset) =>
-          setView((current) =>
-            current === null ? null : { ...current, offset }
-          )
-        }
-        onClose={() => setView(null)}
-      />
     </section>
   )
 }
