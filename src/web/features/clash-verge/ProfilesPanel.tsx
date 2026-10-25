@@ -116,19 +116,19 @@ export const ProfilesPanel = () => {
                               : ""}
                           </p>
                           <div className="mt-1 max-h-72 overflow-auto pr-1">
-                            {/* 固定布局：节点名、类型、地址端口各占一列，最后一列吃满
-                                剩余宽度，单行截断，宽度窄的屏幕也不会横向滚动。 */}
-                            <Table className="table-fixed">
+                            {/* 自动布局：前两列按内容宽度（节点名超过一半时截断，
+                                留出地址列），最后一列 w-full 吃满剩余宽度并单行截断。 */}
+                            <Table>
                               <TableBody>
                                 {profile.nodes.map((node) => (
                                   <TableRow key={`${node.name}-${node.server}`}>
-                                    <TableCell className="w-[40%] truncate px-2 py-1 text-left">
+                                    <TableCell className="max-w-[50%] truncate px-2 py-1 text-left">
                                       {node.name}
                                     </TableCell>
-                                    <TableCell className="w-[18%] truncate px-2 py-1 text-left text-muted-foreground">
+                                    <TableCell className="px-2 py-1 text-left text-muted-foreground">
                                       {node.type}
                                     </TableCell>
-                                    <TableCell className="truncate px-2 py-1 text-left text-muted-foreground">
+                                    <TableCell className="w-full max-w-0 truncate px-2 py-1 text-left text-muted-foreground">
                                       {endpointOf(node.server, node.port)}
                                     </TableCell>
                                   </TableRow>
