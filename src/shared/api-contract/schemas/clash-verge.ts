@@ -187,6 +187,20 @@ export const GeositeRuleSchema = z.object({
   target: GeositeTargetSchema,
 })
 
+/** 自定义域名规则的匹配类型：只开常用的三种，不够用再加。 */
+export const CustomRuleTypeSchema = z.enum([
+  "DOMAIN",
+  "DOMAIN-SUFFIX",
+  "DOMAIN-KEYWORD",
+])
+
+/** 一条自定义规则：类型 + 值 + 出口，出口与 GEO 分类共用三个选项。 */
+export const CustomRuleSchema = z.object({
+  type: CustomRuleTypeSchema,
+  value: z.string().min(1).max(200),
+  target: GeositeTargetSchema,
+})
+
 /**
  * 合并订阅的分组规则：只存用户手输的正则与目标组名，
  * 选中哪些订阅、命中哪些节点都是实时算出来的，不落库。
@@ -195,6 +209,8 @@ export const ClashMergeConfigSchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   /** GEO 分类分流：早期版本没有这个字段，读旧记录时默认为空。 */
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
+  /** 自定义域名规则：优先级最高，排在 GEO 规则之前。 */
+  customRules: z.array(CustomRuleSchema).max(200).default([]),
   /** 上次保存时间，秒级；null 表示从未保存过。 */
   updatedAt: z.number().int().nullable(),
 })
@@ -203,6 +219,7 @@ export const ClashMergeConfigSchema = z.object({
 export const SaveClashMergeConfigBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
+  customRules: z.array(CustomRuleSchema).max(200).default([]),
 })
 
 /** geosite 数据库里的单个分类：名字、条目数与前面一段域名（页面直接列成标签）。 */
@@ -229,4 +246,5 @@ export const MergeClashProfilesBodySchema = z.object({
   selected: z.array(z.string().max(64)).min(1).max(200),
   rules: z.array(ClashMergeRuleSchema).max(200),
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
+  customRules: z.array(CustomRuleSchema).max(200).default([]),
 })

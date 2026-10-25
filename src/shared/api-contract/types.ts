@@ -79,6 +79,7 @@ import type {
   ClashVergeProxiesResponseSchema,
   ClashVergeProxySchema,
   ClashVergeStatusSchema,
+  CustomRuleSchema,
   GeositeRuleSchema,
   MergeClashProfilesBodySchema,
   SaveClashMergeConfigBodySchema,
@@ -106,6 +107,7 @@ export type ClashVergeGeositeCategory = z.infer<
   typeof ClashVergeGeositeCategorySchema
 >
 export type GeositeRule = z.infer<typeof GeositeRuleSchema>
+export type CustomRule = z.infer<typeof CustomRuleSchema>
 export type ClashVergeProfilesResponse = z.infer<
   typeof ClashVergeProfilesResponseSchema
 >

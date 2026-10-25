@@ -15,7 +15,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import type { GeositeRule } from "@shared/api-contract"
+import type { CustomRule, GeositeRule } from "@shared/api-contract"
 import { DEFAULT_GEOSITE_RULES } from "@shared/clash-merge-defaults"
 import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -62,6 +62,16 @@ import {
   useMergeClashProfiles,
   useSaveClashMergeConfig,
 } from "./queries"
+
+/** 一行自定义规则：类型 + 值 + 出口，id 只用于 React key。 */
+type CustomRow = CustomRule & { id: string }
+
+/** 可选的规则类型：只开常用的三种。 */
+const CUSTOM_RULE_TYPES: CustomRule["type"][] = [
+  "DOMAIN-SUFFIX",
+  "DOMAIN",
+  "DOMAIN-KEYWORD",
+]
 
 /** GEO 分类分流的出口：只有三个固定选项，对应合并后的三个组。 */
 type GeositeTarget = GeositeRule["target"]
@@ -313,6 +323,18 @@ export const MergeProfilesPanel = () => {
     [geositeQuery.data]
   )
 
+  /** 自定义域名规则：本地编辑优先，否则回显服务端保存的。 */
+  const [editedCustom, setEditedCustom] = useState<CustomRow[] | null>(null)
+  const customRules = useMemo<CustomRow[]>(
+    () =>
+      editedCustom ??
+      (configQuery.data?.customRules ?? []).map((rule, index) => ({
+        ...rule,
+        id: `saved-custom-${index}`,
+      })),
+    [editedCustom, configQuery.data]
+  )
+
   const chosen = useMemo(
     () => profiles.filter((profile) => selected.includes(profile.uid)),
     [profiles, selected]
@@ -395,6 +417,28 @@ export const MergeProfilesPanel = () => {
     setEditedGeosite(geositeRules.filter((rule) => rule.id !== id))
   }
 
+  const addCustomRule = () => {
+    setEditedCustom([
+      ...customRules,
+      {
+        id: crypto.randomUUID(),
+        type: "DOMAIN-SUFFIX",
+        value: "",
+        target: "proxy",
+      },
+    ])
+  }
+
+  const updateCustomRule = (id: string, patch: Partial<CustomRule>) => {
+    setEditedCustom(
+      customRules.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule))
+    )
+  }
+
+  const removeCustomRule = (id: string) => {
+    setEditedCustom(customRules.filter((rule) => rule.id !== id))
+  }
+
   // 按下拖动 5px 才激活，手机上下滑页面不会被当成拖拽。
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -445,6 +489,13 @@ export const MergeProfilesPanel = () => {
           code: rule.code,
           target: rule.target,
         })),
+        customRules: customRules
+          .filter((rule) => rule.value.trim() !== "")
+          .map((rule) => ({
+            type: rule.type,
+            value: rule.value.trim(),
+            target: rule.target,
+          })),
       })
       toast.success(result.message)
     } catch (error) {
@@ -463,6 +514,13 @@ export const MergeProfilesPanel = () => {
           code: rule.code,
           target: rule.target,
         })),
+        customRules: customRules
+          .filter((rule) => rule.value.trim() !== "")
+          .map((rule) => ({
+            type: rule.type,
+            value: rule.value.trim(),
+            target: rule.target,
+          })),
       })
       toast.success(result.message)
     } catch (error) {
@@ -672,6 +730,111 @@ export const MergeProfilesPanel = () => {
               {`读取已保存设置失败：${describeError(configQuery.error)}`}
             </span>
           ) : null}
+        </div>
+
+        <div className="space-y-2 border-t pt-3">
+          <div>
+            <h3 className="text-sm font-medium">自定义规则</h3>
+            <p className="text-xs text-muted-foreground">
+              手写域名规则，优先级最高：合并时排在 GEO
+              分类与订阅规则之前；值为空的行不会写进配置
+            </p>
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[140px]">类型</TableHead>
+                <TableHead className="w-full min-w-[160px]">值</TableHead>
+                <TableHead className="min-w-[120px]">出口</TableHead>
+                <TableHead className="min-w-[60px]">
+                  <span className="sr-only">操作</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {customRules.map((rule, index) => (
+                <TableRow key={rule.id}>
+                  <TableCell className="text-left">
+                    <Select
+                      value={rule.type}
+                      onValueChange={(next) =>
+                        updateCustomRule(rule.id, {
+                          type: next as CustomRule["type"],
+                        })
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label={`第 ${index + 1} 条自定义规则的类型`}
+                      >
+                        <SelectValue>{rule.type}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CUSTOM_RULE_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <Input
+                      value={rule.value}
+                      placeholder="example.com"
+                      aria-label={`第 ${index + 1} 条自定义规则的值`}
+                      onChange={(event) =>
+                        updateCustomRule(rule.id, { value: event.target.value })
+                      }
+                    />
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <Select
+                      value={rule.target}
+                      onValueChange={(next) =>
+                        updateCustomRule(rule.id, {
+                          target: next as GeositeTarget,
+                        })
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label={`第 ${index + 1} 条自定义规则的出口`}
+                      >
+                        <SelectValue>
+                          {GEOSITE_TARGET_LABELS[rule.target]}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(
+                          Object.keys(GEOSITE_TARGET_LABELS) as GeositeTarget[]
+                        ).map((target) => (
+                          <SelectItem key={target} value={target}>
+                            {GEOSITE_TARGET_LABELS[target]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label={`删除第 ${index + 1} 条自定义规则`}
+                      onClick={() => removeCustomRule(rule.id)}
+                    >
+                      删除
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {customRules.length === 0 ? (
+            <p className="text-xs text-muted-foreground">还没有自定义规则</p>
+          ) : null}
+          <Button variant="outline" size="sm" onClick={addCustomRule}>
+            添加规则
+          </Button>
         </div>
 
         <div className="space-y-2 border-t pt-3">

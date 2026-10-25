@@ -919,6 +919,7 @@ export const readClashMergeConfig = (): ClashMergeConfig =>
   getClashMergeStore().read() ?? {
     rules: [],
     geositeRules: [],
+    customRules: [],
     updatedAt: null,
   }
 
@@ -1202,15 +1203,24 @@ export const mergeClashProfiles = async (
     const value = baseDocument === null ? undefined : baseDocument[key]
     if (value !== undefined) inherited[key] = value
   }
-  // GEO 分类分流：用户自定义的在前，固定三条在后，都优先于继承来的订阅规则。
-  // 分类名先在本机 geosite.dat 里核实：写错的分类会让内核拒绝整份配置，
-  // 用户自己选的缺失直接报错，固定规则缺失则跳过。
-  const geositeRules: string[] = []
-  const geositeOutletOf: Record<"proxy" | "direct" | "reject", string> = {
+  /** 三个固定出口组：自定义规则与 GEO 分类共用。 */
+  const outletOf: Record<"proxy" | "direct" | "reject", string> = {
     proxy: outlets.primary,
     direct: outlets.direct,
     reject: outlets.reject,
   }
+
+  // 自定义规则：优先级最高，排在最前面；值为空的行不写进配置。
+  const customRules = input.customRules
+    .map((rule) => ({ ...rule, value: rule.value.trim() }))
+    .filter((rule) => rule.value !== "")
+    .map((rule) => `${rule.type},${rule.value},${outletOf[rule.target]}`)
+
+  // GEO 分类分流：用户自定义的在前，固定三条在后，都优先于继承来的订阅规则。
+  // 分类名先在本机 geosite.dat 里核实：写错的分类会让内核拒绝整份配置，
+  // 用户自己选的缺失直接报错，固定规则缺失则跳过。
+  const geositeRules: string[] = []
+  const geositeOutletOf = outletOf
   let geositeCodeOf: Map<string, string> | null = null
   try {
     const { categories } = await loadGeosite()
@@ -1245,6 +1255,7 @@ export const mergeClashProfiles = async (
 
   const rawRules = baseDocument === null ? undefined : baseDocument.rules
   const rules = [
+    ...customRules,
     ...geositeRules,
     ...(Array.isArray(rawRules) ? rawRules : [])
       .filter((rule): rule is string => typeof rule === "string")

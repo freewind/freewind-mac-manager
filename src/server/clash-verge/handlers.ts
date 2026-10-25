@@ -1,4 +1,5 @@
 import { publicSystemError } from "@server/common/public-error"
+import type { CustomRule } from "@shared/api-contract"
 import { contract } from "@shared/api-contract"
 import {
   getClashVergeConnections,
@@ -97,6 +98,7 @@ export const clashVergeRouter = {
     body: {
       rules: { pattern: string; target: string }[]
       geositeRules: { code: string; target: "proxy" | "direct" | "reject" }[]
+      customRules: CustomRule[]
     }
   }) => {
     try {
@@ -116,6 +118,7 @@ export const clashVergeRouter = {
       selected: string[]
       rules: { pattern: string; target: string }[]
       geositeRules: { code: string; target: "proxy" | "direct" | "reject" }[]
+      customRules: CustomRule[]
     }
   }) => {
     try {
