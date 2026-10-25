@@ -236,9 +236,9 @@ export const MergeProfilesPanel = () => {
             <TableRow>
               <TableHead className="min-w-[120px]">正则</TableHead>
               <TableHead className="min-w-[100px]">捕获项</TableHead>
-              <TableHead className="min-w-[60px]">匹配节点</TableHead>
+              <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
               <TableHead className="min-w-[60px]">目标组名</TableHead>
-              <TableHead className="w-full min-w-[60px]">
+              <TableHead className="min-w-[60px]">
                 <span className="sr-only">操作</span>
               </TableHead>
             </TableRow>
@@ -278,7 +278,7 @@ export const MergeProfilesPanel = () => {
                         }
                       />
                     </TableCell>
-                    <TableCell className="align-top text-xs whitespace-normal">
+                    <TableCell className="w-full align-top text-xs whitespace-normal">
                       <PreviewList
                         items={matches.map((match) => match.node)}
                         empty={
