@@ -130,6 +130,14 @@ export const MergeProfilesPanel = () => {
     )
   }
 
+  const allProfilesChecked =
+    profiles.length > 0 &&
+    profiles.every((profile) => selected.includes(profile.uid))
+
+  const toggleAllProfiles = (checked: boolean) => {
+    setEditedSelected(checked ? profiles.map((profile) => profile.uid) : [])
+  }
+
   const addRule = () => {
     // 兜底行固定在表头下方第一行，新规则追加到末尾。
     const fixed = rules.filter((rule) => rule.fixed)
@@ -218,7 +226,11 @@ export const MergeProfilesPanel = () => {
           <TableHeader>
             <TableRow>
               <TableHead className="min-w-[60px]">
-                <span className="sr-only">选择</span>
+                <Checkbox
+                  aria-label="全选订阅"
+                  checked={allProfilesChecked}
+                  onCheckedChange={(checked) => toggleAllProfiles(checked)}
+                />
               </TableHead>
               <TableHead className="min-w-[60px]">订阅</TableHead>
               <TableHead className="min-w-[60px]">节点数</TableHead>
