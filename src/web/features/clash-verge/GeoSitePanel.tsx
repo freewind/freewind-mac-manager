@@ -55,10 +55,14 @@ export const GeoSitePanel = () => {
             item.code.toLowerCase().includes(needle)
           )
 
+  // 默认按条目数从多到少：条目多的分类往往是常用的那几个。
+  // 复制一份再排，不改动查询缓存里的原数组。
+  const sorted = [...filtered].sort((left, right) => right.count - left.count)
+
   // 搜索把结果变短时页码可能越界，按当前总页数夹一下，不再额外存一份状态。
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
-  const pageRows = filtered.slice(
+  const pageRows = sorted.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
   )
@@ -138,7 +142,7 @@ export const GeoSitePanel = () => {
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">
-              {`第 ${currentPage} / ${totalPages} 页 · 共 ${filtered.length} 个分类`}
+              {`第 ${currentPage} / ${totalPages} 页 · 共 ${sorted.length} 个分类`}
             </span>
             <div className="flex flex-wrap items-center gap-1">
               <Button
