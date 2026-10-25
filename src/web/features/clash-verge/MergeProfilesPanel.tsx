@@ -811,6 +811,43 @@ export const MergeProfilesPanel = () => {
             ) : null}
           </div>
 
+          {/* 测速参数全局一份：只有测速最快、按序兜底两种组用得上，放在表格上方。 */}
+          <div className="flex flex-wrap items-end gap-2">
+            <label htmlFor="health-url" className="space-y-1">
+              <span className="block text-xs text-muted-foreground">
+                测速地址
+              </span>
+              <Input
+                id="health-url"
+                value={health.url}
+                aria-label="测速地址"
+                className="w-[min(70vw,320px)]"
+                onChange={(event) =>
+                  setEditedHealth({ ...health, url: event.target.value })
+                }
+              />
+            </label>
+            <label htmlFor="health-interval" className="space-y-1">
+              <span className="block text-xs text-muted-foreground">
+                间隔（秒）
+              </span>
+              <Input
+                id="health-interval"
+                value={health.interval}
+                inputMode="numeric"
+                aria-label="测速间隔（秒）"
+                className="w-24"
+                onChange={(event) =>
+                  setEditedHealth({ ...health, interval: event.target.value })
+                }
+              />
+            </label>
+            <p className="pb-1 text-xs text-muted-foreground">
+              仅「测速最快」「按序兜底」两种组使用；地址要选你的线路也能访问的
+              204 地址，否则组里会一个可用节点都没有
+            </p>
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -953,43 +990,6 @@ export const MergeProfilesPanel = () => {
             <Button variant="outline" size="sm" onClick={addRule}>
               添加分组规则
             </Button>
-          </div>
-
-          {/* 测速参数全局一份：只有测速最快、按序兜底两种组用得上。 */}
-          <div className="flex flex-wrap items-end gap-2">
-            <label htmlFor="health-url" className="space-y-1">
-              <span className="block text-xs text-muted-foreground">
-                测速地址
-              </span>
-              <Input
-                id="health-url"
-                value={health.url}
-                aria-label="测速地址"
-                className="w-[min(70vw,320px)]"
-                onChange={(event) =>
-                  setEditedHealth({ ...health, url: event.target.value })
-                }
-              />
-            </label>
-            <label htmlFor="health-interval" className="space-y-1">
-              <span className="block text-xs text-muted-foreground">
-                间隔（秒）
-              </span>
-              <Input
-                id="health-interval"
-                value={health.interval}
-                inputMode="numeric"
-                aria-label="测速间隔（秒）"
-                className="w-24"
-                onChange={(event) =>
-                  setEditedHealth({ ...health, interval: event.target.value })
-                }
-              />
-            </label>
-            <p className="pb-1 text-xs text-muted-foreground">
-              仅「测速最快」「按序兜底」两种组使用；地址要选你的线路也能访问的
-              204 地址，否则组里会一个可用节点都没有
-            </p>
           </div>
         </CardContent>
       </Card>
