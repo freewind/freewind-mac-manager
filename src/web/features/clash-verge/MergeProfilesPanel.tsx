@@ -30,6 +30,12 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@web/components/ui/combobox"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@web/components/ui/dialog"
 import { Input } from "@web/components/ui/input"
 import {
   Select,
@@ -179,6 +185,63 @@ const matchNodes = (pattern: string, nodeNames: string[]): string[] => {
     return []
   }
   return nodeNames.filter((node) => regex.exec(node) !== null)
+}
+
+/** 一行能放下的节点标签个数：超过就收进「全部」弹窗。 */
+const NODE_TAGS_INLINE = 6
+
+/**
+ * 订阅表里的节点列：只显示一行，超出部分被裁掉，由「全部」按钮在弹窗里看。
+ * 节点多时逐个撑开会把行高拉得很高，也把下面的内容挤到屏幕外。
+ */
+const NodeTagsCell = (props: { label: string; nodes: string[] }) => {
+  const [open, setOpen] = useState(false)
+  if (props.nodes.length === 0) return null
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden">
+        {props.nodes.map((node) => (
+          <span
+            key={node}
+            className="inline-flex max-w-full shrink-0 items-center rounded-md border px-1.5 py-0.5 text-xs"
+          >
+            {node}
+          </span>
+        ))}
+      </span>
+      {props.nodes.length > NODE_TAGS_INLINE ? (
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={`查看全部节点：${props.label}`}
+          onClick={() => setOpen(true)}
+        >
+          全部
+        </Button>
+      ) : null}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="w-[min(96vw,760px)] sm:max-w-[760px]">
+          <DialogHeader>
+            <DialogTitle>
+              {`${props.label}（${props.nodes.length} 个节点）`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-auto">
+            <span className="flex flex-wrap gap-1">
+              {props.nodes.map((node) => (
+                <span
+                  key={node}
+                  className="inline-flex max-w-full items-center rounded-md border px-1.5 py-0.5 text-xs break-all"
+                >
+                  {node}
+                </span>
+              ))}
+            </span>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
 }
 
 /** 节点标签：与订阅表同一种样式；没有节点时留空，不占位。 */
@@ -465,7 +528,10 @@ export const MergeProfilesPanel = () => {
                   {profile.nodes.length === 0 ? (
                     "（没有节点）"
                   ) : (
-                    <NodeTags nodes={profile.nodes.map((node) => node.name)} />
+                    <NodeTagsCell
+                      label={profile.name}
+                      nodes={profile.nodes.map((node) => node.name)}
+                    />
                   )}
                 </TableCell>
               </TableRow>
