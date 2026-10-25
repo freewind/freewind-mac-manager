@@ -1,4 +1,4 @@
-import { File } from "@pierre/diffs/react"
+import { File, WorkerPoolContextProvider } from "@pierre/diffs/react"
 import type { ClashVergeProfile } from "@shared/api-contract"
 import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
@@ -35,7 +35,7 @@ import {
   FileCode,
   LoaderCircle,
 } from "lucide-react"
-import { useRef, useState } from "react"
+import { Component, type ReactNode, Suspense, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   useClashVergeProfileFileQuery,
@@ -85,11 +85,74 @@ const FILE_HIGHLIGHT_EAGER_MAX_CHARS = 20_000
  */
 const FILE_HIGHLIGHT_AUTO_MAX_CHARS = 200_000
 
+/** 纯文本展示：高亮不可用、或还没算出来时用它，保证内容总能读。 */
+const PlainProfileText = (props: {
+  content: string
+  note?: string
+  preRef?: (node: HTMLPreElement | null) => void
+}) => (
+  <div className="space-y-1">
+    {props.note === undefined ? null : (
+      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+        <LoaderCircle
+          className="size-3 animate-spin motion-reduce:animate-none"
+          aria-hidden="true"
+        />
+        {props.note}
+      </p>
+    )}
+    <pre
+      ref={props.preRef}
+      className="max-h-[70vh] overflow-auto rounded-md border p-2 text-xs"
+    >
+      {props.content}
+    </pre>
+  </div>
+)
+
+/**
+ * File 高亮会挂起（语法包异步加载）也可能直接抛错，两层都兜住：
+ * Suspense 接住挂起，ErrorBoundary 接住异常，两者都回退到纯文本，不会变空白。
+ */
+class HighlightBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
+}
+
+/**
+ * 高亮放 worker 里算，主线程只管渲染：haitta 那种 88 万字符的配置也不会把界面堵死。
+ * worker 起不来时库会自己退回主线程，外面还有纯文本兜底。
+ */
+const HighlightPool = (props: { children: ReactNode }) => (
+  <WorkerPoolContextProvider
+    poolOptions={{
+      workerFactory: () =>
+        new Worker(new URL("@pierre/diffs/worker/worker.js", import.meta.url), {
+          type: "module",
+        }),
+      poolSize: 2,
+    }}
+    highlighterOptions={{ langs: ["yaml"] }}
+  >
+    {props.children}
+  </WorkerPoolContextProvider>
+)
+
 /**
  * 配置文件正文：先出纯文本，再补 YAML 高亮。
  *
- * 高亮是同步计算，一挂上就占住主线程，所以不在首帧直接渲染：先用 pre 把原文
- * 提交到页面（ref 回调在提交后运行），再推后 150ms 切到高亮。超大文件不自动切换，
+ * 高亮会让主线程算很久，所以不在首帧直接渲染：先用 pre 把原文提交到页面
+ * （ref 回调在提交后运行），再推后 150ms 切到高亮。超大文件不自动切换，
  * 改成手动点。
  */
 const ProfileFileBody = (props: {
@@ -111,17 +174,11 @@ const ProfileFileBody = (props: {
   if (!highlight) {
     return (
       <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <LoaderCircle
-              className="size-3 animate-spin motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-            {autoHighlight
-              ? "正在添加语法高亮…"
-              : `文件较大（${props.content.length} 字符），先按纯文本显示`}
-          </p>
-          {autoHighlight ? null : (
+        {autoHighlight ? null : (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              {`文件较大（${props.content.length} 字符），先按纯文本显示`}
+            </p>
             <Button
               variant="outline"
               size="sm"
@@ -129,29 +186,35 @@ const ProfileFileBody = (props: {
             >
               添加高亮
             </Button>
-          )}
-        </div>
-        <pre
-          ref={scheduleHighlight}
-          className="max-h-[70vh] overflow-auto rounded-md border p-2 text-xs"
-        >
-          {props.content}
-        </pre>
+          </div>
+        )}
+        <PlainProfileText
+          content={props.content}
+          note={autoHighlight ? "正在添加语法高亮…" : undefined}
+          preRef={scheduleHighlight}
+        />
       </div>
     )
   }
+  const fallback = <PlainProfileText content={props.content} />
   return (
-    <div className="max-h-[70vh] overflow-auto rounded-md border text-xs">
-      <File
-        key={props.themeType}
-        file={{ name: props.fileName, contents: props.content }}
-        options={{
-          theme: { dark: "github-dark", light: "github-light" },
-          themeType: props.themeType,
-          disableFileHeader: true,
-        }}
-      />
-    </div>
+    <HighlightBoundary fallback={fallback}>
+      <HighlightPool>
+        <Suspense fallback={fallback}>
+          <div className="max-h-[70vh] overflow-auto rounded-md border text-xs">
+            <File
+              key={props.themeType}
+              file={{ name: props.fileName, contents: props.content }}
+              options={{
+                theme: { dark: "github-dark", light: "github-light" },
+                themeType: props.themeType,
+                disableFileHeader: true,
+              }}
+            />
+          </div>
+        </Suspense>
+      </HighlightPool>
+    </HighlightBoundary>
   )
 }
 
