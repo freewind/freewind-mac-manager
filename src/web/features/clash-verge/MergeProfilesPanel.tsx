@@ -785,19 +785,6 @@ export const MergeProfilesPanel = () => {
           <Button variant="outline" size="sm" onClick={addRule}>
             添加分组规则
           </Button>
-          <ActionButton
-            size="sm"
-            busy={saveConfig.isPending}
-            busyLabel="保存中…"
-            onClick={() => void save()}
-          >
-            保存分组设置
-          </ActionButton>
-          {configQuery.isError ? (
-            <span className="text-xs text-destructive">
-              {`读取已保存设置失败：${describeError(configQuery.error)}`}
-            </span>
-          ) : null}
         </div>
 
         <div className="space-y-2 border-t pt-3">
@@ -1106,6 +1093,16 @@ export const MergeProfilesPanel = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+          {/* 保存放在合并左边：这些都是我们自己维护的设置，合并生成的配置会覆盖文件，不会覆盖它们。 */}
+          <ActionButton
+            size="sm"
+            variant="outline"
+            busy={saveConfig.isPending}
+            busyLabel="保存中…"
+            onClick={() => void save()}
+          >
+            保存设置
+          </ActionButton>
           <ActionButton
             disabled={chosen.length < 2}
             busy={mergeProfiles.isPending}
@@ -1119,6 +1116,11 @@ export const MergeProfilesPanel = () => {
               ? "先在上面勾选至少 2 个订阅"
               : `已选 ${chosen.length} 个订阅、${nodeTotal} 个节点；参与合并的分组 ${checkedRules.length} 个`}
           </span>
+          {configQuery.isError ? (
+            <span className="text-xs text-destructive">
+              {`读取已保存设置失败：${describeError(configQuery.error)}`}
+            </span>
+          ) : null}
         </div>
       </div>
     </section>
