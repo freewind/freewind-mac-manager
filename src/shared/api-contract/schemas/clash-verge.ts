@@ -1,3 +1,7 @@
+import {
+  DEFAULT_HEALTH_CHECK,
+  DEFAULT_SNIFFER_PORTS,
+} from "@shared/clash-merge-defaults"
 import { z } from "zod"
 
 export const ClashVergeAvailabilitySchema = z.object({
@@ -172,10 +176,19 @@ export const SetClashVergeCurrentProfileBodySchema = z.object({
   uid: z.string().min(1).max(64),
 })
 
+/** 合并后可选的组类型：默认手动选择，另两种交给内核自动决定。 */
+export const ClashMergeGroupTypeSchema = z.enum([
+  "select",
+  "url-test",
+  "fallback",
+])
+
 /** 一条分组规则：正则匹配节点名，目标组名直接填写。 */
 export const ClashMergeRuleSchema = z.object({
   pattern: z.string().max(500),
   target: z.string().max(60),
+  /** 生成的组类型：早期版本没有这个字段，读旧记录时是手动选择。 */
+  type: ClashMergeGroupTypeSchema.default("select"),
 })
 
 /** GEO 分类分流的出口：只有三个固定选项，对应合并后的三个组。 */
@@ -202,6 +215,31 @@ export const CustomRuleSchema = z.object({
 })
 
 /**
+ * 嗅探端口配置：三项都是逗号分隔的端口或范围，服务端合并前逐项校验。
+ * 默认值来自 shared/clash-merge-defaults，读写旧记录时自动补齐。
+ */
+export const SnifferPortsSchema = z.object({
+  tls: z.string().trim().max(200),
+  quic: z.string().trim().max(200),
+  http: z.string().trim().max(200),
+})
+
+/**
+ * 测速地址与间隔：url-test 与 fallback 组共用。
+ * 只接受 http/https，其余 scheme 内核不认，合并前就拦下。
+ */
+export const ClashHealthCheckSchema = z.object({
+  url: z
+    .string()
+    .trim()
+    .max(300)
+    .refine((value) => /^https?:\/\/\S+$/i.test(value), {
+      message: "测速地址必须以 http:// 或 https:// 开头",
+    }),
+  interval: z.number().int().min(10).max(86400),
+})
+
+/**
  * 合并订阅的分组规则：只存用户手输的正则与目标组名，
  * 选中哪些订阅、命中哪些节点都是实时算出来的，不落库。
  */
@@ -211,6 +249,10 @@ export const ClashMergeConfigSchema = z.object({
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   /** 自定义域名规则：优先级最高，排在 GEO 规则之前。 */
   customRules: z.array(CustomRuleSchema).max(200).default([]),
+  /** 嗅探端口：早期版本没有这个字段，读旧记录时用默认值。 */
+  snifferPorts: SnifferPortsSchema.default(DEFAULT_SNIFFER_PORTS),
+  /** 测速参数：早期版本没有这个字段，读旧记录时用默认值。 */
+  healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
   /** 上次保存时间，秒级；null 表示从未保存过。 */
   updatedAt: z.number().int().nullable(),
 })
@@ -220,6 +262,8 @@ export const SaveClashMergeConfigBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   customRules: z.array(CustomRuleSchema).max(200).default([]),
+  snifferPorts: SnifferPortsSchema.default(DEFAULT_SNIFFER_PORTS),
+  healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
 })
 
 /** geosite 里的单个域名：类型、值与属性标记（如 ads、cn）。 */
@@ -255,4 +299,6 @@ export const MergeClashProfilesBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   customRules: z.array(CustomRuleSchema).max(200).default([]),
+  snifferPorts: SnifferPortsSchema.default(DEFAULT_SNIFFER_PORTS),
+  healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
 })

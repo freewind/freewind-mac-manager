@@ -8,8 +8,8 @@ import type {
   ClashVergeProfilesResponse,
   ClashVergeProxiesResponse,
   ClashVergeStatus,
-  CustomRule,
-  GeositeRule,
+  MergeClashProfilesBody,
+  SaveClashMergeConfigBody,
 } from "@shared/api-contract"
 import { apiClient, unwrap } from "./client"
 
@@ -113,22 +113,17 @@ export const fetchClashMergeConfig = async (options?: {
     })
   )
 
-/** 保存合并设置：只存规则，整份替换，不自动重试。 */
-export const saveClashMergeConfig = async (input: {
-  rules: { pattern: string; target: string }[]
-  geositeRules: GeositeRule[]
-  customRules: CustomRule[]
-}): Promise<ActionResponse> =>
+/** 保存合并设置：规则、嗅探端口与测速参数，整份替换，不自动重试。 */
+export const saveClashMergeConfig = async (
+  input: SaveClashMergeConfigBody
+): Promise<ActionResponse> =>
   unwrap<ActionResponse>(await apiClient.saveClashMergeConfig({ body: input }))
 
 /**
  * 生成合并配置：写操作，客户端不重试；服务端会新建/覆盖
  * freewind-merged 配置并登记到订阅清单。
  */
-export const mergeClashProfiles = async (input: {
-  selected: string[]
-  rules: { pattern: string; target: string }[]
-  geositeRules: GeositeRule[]
-  customRules: CustomRule[]
-}): Promise<ActionResponse> =>
+export const mergeClashProfiles = async (
+  input: MergeClashProfilesBody
+): Promise<ActionResponse> =>
   unwrap<ActionResponse>(await apiClient.mergeClashProfiles({ body: input }))

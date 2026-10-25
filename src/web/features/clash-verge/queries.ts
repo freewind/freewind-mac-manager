@@ -1,4 +1,7 @@
-import type { CustomRule, GeositeRule } from "@shared/api-contract"
+import type {
+  MergeClashProfilesBody,
+  SaveClashMergeConfigBody,
+} from "@shared/api-contract"
 import {
   fetchClashMergeConfig,
   fetchClashVergeConnections,
@@ -162,11 +165,8 @@ export const useClashMergeConfigQuery = () =>
 export const useSaveClashMergeConfig = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: {
-      rules: { pattern: string; target: string }[]
-      geositeRules: GeositeRule[]
-      customRules: CustomRule[]
-    }) => saveClashMergeConfig(input),
+    mutationFn: (input: SaveClashMergeConfigBody) =>
+      saveClashMergeConfig(input),
     retry: false,
     networkMode: "always",
     onSuccess: () => {
@@ -184,12 +184,7 @@ export const useSaveClashMergeConfig = () => {
 export const useMergeClashProfiles = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: {
-      selected: string[]
-      rules: { pattern: string; target: string }[]
-      geositeRules: GeositeRule[]
-      customRules: CustomRule[]
-    }) => mergeClashProfiles(input),
+    mutationFn: (input: MergeClashProfilesBody) => mergeClashProfiles(input),
     retry: false,
     networkMode: "always",
     onSuccess: () => {

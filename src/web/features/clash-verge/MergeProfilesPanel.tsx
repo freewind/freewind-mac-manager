@@ -16,7 +16,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import type { CustomRule, GeositeRule } from "@shared/api-contract"
-import { DEFAULT_GEOSITE_RULES } from "@shared/clash-merge-defaults"
+import {
+  type ClashMergeGroupType,
+  DEFAULT_GEOSITE_RULES,
+  DEFAULT_HEALTH_CHECK,
+  DEFAULT_SNIFFER_PORTS,
+  type SnifferPorts,
+} from "@shared/clash-merge-defaults"
 import { describeError, formatTimestamp } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
@@ -233,6 +239,8 @@ type GroupRule = {
   id: string
   pattern: string
   target: string
+  /** 生成的组类型：手动选、测速最快或按序兜底。 */
+  type: ClashMergeGroupType
   fixed?: boolean
 }
 
@@ -241,7 +249,15 @@ const FALLBACK_RULE: GroupRule = {
   id: "fallback",
   pattern: "",
   target: "其他",
+  type: "select",
   fixed: true,
+}
+
+/** 组类型的中文叫法：直接说清选中后会发生什么。 */
+const GROUP_TYPE_LABELS: Record<ClashMergeGroupType, string> = {
+  select: "手动选择",
+  "url-test": "测速最快",
+  fallback: "按序兜底",
 }
 
 /** 在节点名上跑一条规则：正则非法或为空时返回空结果，不让界面崩。 */
@@ -403,6 +419,23 @@ export const MergeProfilesPanel = () => {
     [editedCustom, configQuery.data]
   )
 
+  /** 嗅探端口：本地编辑优先，否则回显服务端保存的。 */
+  const [editedSniffer, setEditedSniffer] = useState<SnifferPorts | null>(null)
+  const snifferPorts =
+    editedSniffer ?? configQuery.data?.snifferPorts ?? DEFAULT_SNIFFER_PORTS
+
+  /** 测速参数：间隔存成字符串，允许输入过程中被清空。 */
+  const [editedHealth, setEditedHealth] = useState<{
+    url: string
+    interval: string
+  } | null>(null)
+  const health = editedHealth ?? {
+    url: configQuery.data?.healthCheck.url ?? DEFAULT_HEALTH_CHECK.url,
+    interval: String(
+      configQuery.data?.healthCheck.interval ?? DEFAULT_HEALTH_CHECK.interval
+    ),
+  }
+
   const chosen = useMemo(
     () => profiles.filter((profile) => selected.includes(profile.uid)),
     [profiles, selected]
@@ -452,7 +485,7 @@ export const MergeProfilesPanel = () => {
     setEditedRules([
       ...fixed,
       ...normal,
-      { id: crypto.randomUUID(), pattern: "", target: "" },
+      { id: crypto.randomUUID(), pattern: "", target: "", type: "select" },
     ])
   }
 
@@ -548,7 +581,11 @@ export const MergeProfilesPanel = () => {
   const merge = async () => {
     const chosenRules = rules
       .filter((rule) => !rule.fixed && checkedRules.includes(rule.id))
-      .map((rule) => ({ pattern: rule.pattern, target: rule.target }))
+      .map((rule) => ({
+        pattern: rule.pattern,
+        target: rule.target,
+        type: rule.type,
+      }))
     try {
       const result = await mergeProfiles.mutateAsync({
         selected,
@@ -564,6 +601,11 @@ export const MergeProfilesPanel = () => {
             value: rule.value.trim(),
             target: rule.target,
           })),
+        snifferPorts,
+        healthCheck: {
+          url: health.url.trim(),
+          interval: Number(health.interval),
+        },
       })
       toast.success(result.message)
     } catch (error) {
@@ -577,7 +619,11 @@ export const MergeProfilesPanel = () => {
       const result = await saveConfig.mutateAsync({
         rules: rules
           .filter((rule) => !rule.fixed)
-          .map((rule) => ({ pattern: rule.pattern, target: rule.target })),
+          .map((rule) => ({
+            pattern: rule.pattern,
+            target: rule.target,
+            type: rule.type,
+          })),
         geositeRules: geositeRules.map((rule) => ({
           code: rule.code,
           target: rule.target,
@@ -589,6 +635,11 @@ export const MergeProfilesPanel = () => {
             value: rule.value.trim(),
             target: rule.target,
           })),
+        snifferPorts,
+        healthCheck: {
+          url: health.url.trim(),
+          interval: Number(health.interval),
+        },
       })
       toast.success(result.message)
     } catch (error) {
@@ -698,6 +749,7 @@ export const MergeProfilesPanel = () => {
               <TableHead className="min-w-[60px]">匹配数</TableHead>
               <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
               <TableHead className="min-w-[120px]">目标组名</TableHead>
+              <TableHead className="min-w-[100px]">类型</TableHead>
               <TableHead className="min-w-[60px]">
                 <span className="sr-only">操作</span>
               </TableHead>
@@ -724,6 +776,9 @@ export const MergeProfilesPanel = () => {
                         disabled
                         aria-label="兜底分组的目标组名"
                       />
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      手动选择
                     </TableCell>
                     <TableCell />
                   </TableRow>
@@ -765,6 +820,35 @@ export const MergeProfilesPanel = () => {
                       }
                     />
                   </TableCell>
+                  <TableCell className="text-left">
+                    <Select
+                      value={rule.type}
+                      onValueChange={(next) =>
+                        updateRule(rule.id, {
+                          type: next as ClashMergeGroupType,
+                        })
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label={`第 ${index + 1} 条规则的类型`}
+                      >
+                        <SelectValue>
+                          {GROUP_TYPE_LABELS[rule.type]}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(
+                          Object.keys(
+                            GROUP_TYPE_LABELS
+                          ) as ClashMergeGroupType[]
+                        ).map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {GROUP_TYPE_LABELS[type]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
                   <TableCell>
                     <Button
                       variant="outline"
@@ -785,6 +869,43 @@ export const MergeProfilesPanel = () => {
           <Button variant="outline" size="sm" onClick={addRule}>
             添加分组规则
           </Button>
+        </div>
+
+        {/* 测速参数全局一份：只有测速最快、按序兜底两种组用得上。 */}
+        <div className="flex flex-wrap items-end gap-2">
+          <label htmlFor="health-url" className="space-y-1">
+            <span className="block text-xs text-muted-foreground">
+              测速地址
+            </span>
+            <Input
+              id="health-url"
+              value={health.url}
+              aria-label="测速地址"
+              className="w-[min(70vw,320px)]"
+              onChange={(event) =>
+                setEditedHealth({ ...health, url: event.target.value })
+              }
+            />
+          </label>
+          <label htmlFor="health-interval" className="space-y-1">
+            <span className="block text-xs text-muted-foreground">
+              间隔（秒）
+            </span>
+            <Input
+              id="health-interval"
+              value={health.interval}
+              inputMode="numeric"
+              aria-label="测速间隔（秒）"
+              className="w-24"
+              onChange={(event) =>
+                setEditedHealth({ ...health, interval: event.target.value })
+              }
+            />
+          </label>
+          <p className="pb-1 text-xs text-muted-foreground">
+            仅「测速最快」「按序兜底」两种组使用；地址要选你的线路也能访问的 204
+            地址，否则组里会一个可用节点都没有
+          </p>
         </div>
 
         <div className="space-y-2 border-t pt-3">
@@ -1090,6 +1211,65 @@ export const MergeProfilesPanel = () => {
               还没有添加自定义分类，当前只有上面三条固定规则
             </p>
           ) : null}
+        </div>
+
+        <div className="space-y-2 border-t pt-3">
+          <div>
+            <h3 className="text-sm font-medium">流量嗅探</h3>
+            <p className="text-xs text-muted-foreground">
+              合并时固定写入：开启嗅探、强制 DNS
+              映射、嗅探到域名后改写目标地址；不写域名白名单。
+              端口写逗号分隔的端口或范围，留空表示该协议不嗅探
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <label htmlFor="sniffer-tls" className="space-y-1">
+              <span className="block text-xs text-muted-foreground">TLS</span>
+              <Input
+                id="sniffer-tls"
+                value={snifferPorts.tls}
+                aria-label="TLS 嗅探端口"
+                className="w-[min(60vw,200px)]"
+                onChange={(event) =>
+                  setEditedSniffer({ ...snifferPorts, tls: event.target.value })
+                }
+              />
+            </label>
+            <label htmlFor="sniffer-quic" className="space-y-1">
+              <span className="block text-xs text-muted-foreground">QUIC</span>
+              <Input
+                id="sniffer-quic"
+                value={snifferPorts.quic}
+                aria-label="QUIC 嗅探端口"
+                className="w-[min(60vw,200px)]"
+                onChange={(event) =>
+                  setEditedSniffer({
+                    ...snifferPorts,
+                    quic: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <label htmlFor="sniffer-http" className="space-y-1">
+              <span className="block text-xs text-muted-foreground">HTTP</span>
+              <Input
+                id="sniffer-http"
+                value={snifferPorts.http}
+                aria-label="HTTP 嗅探端口"
+                className="w-[min(60vw,200px)]"
+                onChange={(event) =>
+                  setEditedSniffer({
+                    ...snifferPorts,
+                    http: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <p className="pb-1 text-xs text-muted-foreground">
+              TLS 与 HTTP 可以全端口，盖住非常规端口的网站；QUIC
+              别开全端口，对游戏、BT 的 UDP 流量做解密尝试很费 CPU
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-3">

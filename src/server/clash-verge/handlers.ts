@@ -1,5 +1,8 @@
 import { publicSystemError } from "@server/common/public-error"
-import type { CustomRule } from "@shared/api-contract"
+import type {
+  MergeClashProfilesBody,
+  SaveClashMergeConfigBody,
+} from "@shared/api-contract"
 import { contract } from "@shared/api-contract"
 import {
   getClashVergeConnections,
@@ -95,11 +98,7 @@ export const clashVergeRouter = {
   saveClashMergeConfig: async ({
     body,
   }: {
-    body: {
-      rules: { pattern: string; target: string }[]
-      geositeRules: { code: string; target: "proxy" | "direct" | "reject" }[]
-      customRules: CustomRule[]
-    }
+    body: SaveClashMergeConfigBody
   }) => {
     try {
       return {
@@ -111,16 +110,7 @@ export const clashVergeRouter = {
     }
   },
   // 生成合并配置：写 Profiles 目录并登记，已知错误按语义回显。
-  mergeClashProfiles: async ({
-    body,
-  }: {
-    body: {
-      selected: string[]
-      rules: { pattern: string; target: string }[]
-      geositeRules: { code: string; target: "proxy" | "direct" | "reject" }[]
-      customRules: CustomRule[]
-    }
-  }) => {
+  mergeClashProfiles: async ({ body }: { body: MergeClashProfilesBody }) => {
     try {
       return {
         status: 200 as const,

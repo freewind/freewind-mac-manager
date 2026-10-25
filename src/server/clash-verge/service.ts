@@ -39,7 +39,13 @@ import {
   ClashVergeProxiesResponseSchema,
   ClashVergeStatusSchema,
 } from "@shared/api-contract/schemas/clash-verge"
-import { DEFAULT_GEOSITE_RULES } from "@shared/clash-merge-defaults"
+import {
+  type ClashMergeGroupType,
+  DEFAULT_GEOSITE_RULES,
+  DEFAULT_HEALTH_CHECK,
+  DEFAULT_SNIFFER_PORTS,
+  MERGED_URL_TEST_TOLERANCE,
+} from "@shared/clash-merge-defaults"
 import { stringify as toYaml } from "yaml"
 import {
   ControllerError,
@@ -957,6 +963,8 @@ export const readClashMergeConfig = (): ClashMergeConfig =>
     rules: [],
     geositeRules: [],
     customRules: [],
+    snifferPorts: DEFAULT_SNIFFER_PORTS,
+    healthCheck: DEFAULT_HEALTH_CHECK,
     updatedAt: null,
   }
 
@@ -1056,6 +1064,36 @@ const uniqueNodeName = (name: string, used: Set<string>): string => {
   let index = 2
   while (used.has(`${name}-${index}`)) index += 1
   return `${name}-${index}`
+}
+
+/**
+ * 解析嗅探端口文本：逗号分隔，每项是端口或端口范围。
+ *
+ * 写错会让内核拒绝整份配置，所以合并前逐项校验；空串表示这个协议不嗅探。
+ */
+const parseSnifferPorts = (text: string, label: string): string[] => {
+  const items = text
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "")
+  for (const item of items) {
+    const matched = /^(\d{1,5})(?:-(\d{1,5}))?$/.exec(item)
+    if (matched === null) {
+      throw new PublicOperationError(
+        400,
+        `嗅探端口写法不对（${label}）：${item}，应形如 443 或 8080-8880`
+      )
+    }
+    const start = Number(matched[1])
+    const end = matched[2] === undefined ? start : Number(matched[2])
+    if (start < 1 || end > 65535 || start > end) {
+      throw new PublicOperationError(
+        400,
+        `嗅探端口超出范围（${label}）：${item}，应在 1-65535 内且起始不大于结束`
+      )
+    }
+  }
+  return items
 }
 
 /** 编译正则：非法或为空都返回 null，由调用方跳过这条规则。 */
@@ -1186,7 +1224,11 @@ export const mergeClashProfiles = async (
 
   // 分组：按规则顺序先匹配先归属，命中 0 个的组跳过。
   const assigned = new Set<string>()
-  const groups: { name: string; members: string[] }[] = []
+  const groups: {
+    name: string
+    members: string[]
+    type: ClashMergeGroupType
+  }[] = []
   const groupIndex = new Map<string, number>()
   for (const rule of input.rules) {
     const target = rule.target.trim()
@@ -1201,7 +1243,7 @@ export const mergeClashProfiles = async (
     const existing = groupIndex.get(target)
     if (existing === undefined) {
       groupIndex.set(target, groups.length)
-      groups.push({ name: target, members })
+      groups.push({ name: target, members, type: rule.type })
     } else {
       groups[existing].members.push(...members)
     }
@@ -1209,7 +1251,11 @@ export const mergeClashProfiles = async (
   // 「其余」始终排在最后一组；没有剩余节点就不建。
   const rest = [...usedNames].filter((name) => !assigned.has(name))
   if (rest.length > 0 && !groupIndex.has(MERGED_FALLBACK_GROUP)) {
-    groups.push({ name: MERGED_FALLBACK_GROUP, members: rest })
+    groups.push({
+      name: MERGED_FALLBACK_GROUP,
+      members: rest,
+      type: "select",
+    })
   }
   if (groups.length === 0) {
     throw new PublicOperationError(400, "所有规则都没命中节点，未生成配置")
@@ -1246,6 +1292,21 @@ export const mergeClashProfiles = async (
     direct: outlets.direct,
     reject: outlets.reject,
   }
+
+  // 嗅探自己写死，不从订阅继承：很多订阅没写这段，而我们大量规则靠域名命中。
+  // skip-domain 故意留空：不带任何域名白名单，避免别家订阅的白名单带进自己的配置。
+  const sniffer = {
+    enable: true,
+    "force-dns-mapping": true,
+    "override-destination": true,
+    "parse-pure-ip": true,
+    sniff: {
+      TLS: { ports: parseSnifferPorts(input.snifferPorts.tls, "TLS") },
+      QUIC: { ports: parseSnifferPorts(input.snifferPorts.quic, "QUIC") },
+      HTTP: { ports: parseSnifferPorts(input.snifferPorts.http, "HTTP") },
+    },
+  }
+  const healthCheck = input.healthCheck
 
   // 自定义规则：优先级最高，排在最前面；值为空的行不写进配置。
   const customRules = input.customRules
@@ -1306,6 +1367,7 @@ export const mergeClashProfiles = async (
   const mergedText = toYaml(
     {
       ...inherited,
+      sniffer,
       proxies,
       "proxy-groups": [
         {
@@ -1313,9 +1375,16 @@ export const mergeClashProfiles = async (
           type: "select",
           proxies: groups.map((group) => group.name),
         },
+        // 地区组按用户选的类型生成：非 select 的要带测速参数，否则内核用自身默认值。
         ...groups.map((group) => ({
           name: group.name,
-          type: "select",
+          type: group.type,
+          ...(group.type === "select"
+            ? {}
+            : { url: healthCheck.url, interval: healthCheck.interval }),
+          ...(group.type === "url-test"
+            ? { tolerance: MERGED_URL_TEST_TOLERANCE }
+            : {}),
           proxies: group.members,
         })),
         // 两个开关组：默认与写死一致，需要时在面板上一键改道。
