@@ -209,8 +209,9 @@ export const getClashVergeProxies =
     }
   }
 
+/** 空字符串当成缺失：内核经常把没取到的字段写成空串，不能当有效值展示。 */
 const nullableString = (value: unknown): string | null =>
-  typeof value === "string" ? value.slice(0, 2048) : null
+  typeof value === "string" && value !== "" ? value.slice(0, 2048) : null
 
 const mapConnection = (value: unknown): ClashVergeConnection | null => {
   if (!isRecord(value) || !isRecord(value.metadata)) return null
@@ -218,7 +219,9 @@ const mapConnection = (value: unknown): ClashVergeConnection | null => {
   return {
     id: typeof value.id === "string" ? value.id.slice(0, 256) : "",
     source: nullableString(metadata.sourceIP),
-    destination: nullableString(metadata.destinationIP ?? metadata.host),
+    // 域名比 IP 好认，优先用它；纯 IP 连接没有 host 时才回退到 IP。
+    destination:
+      nullableString(metadata.host) ?? nullableString(metadata.destinationIP),
     network: nullableString(metadata.network),
     process: nullableString(metadata.process),
     upload: nullableNumber(value.upload) ?? 0,
