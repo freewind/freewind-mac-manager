@@ -2,7 +2,9 @@ import type {
   ActionResponse,
   ClashMergeConfig,
   ClashVergeConnectionsResponse,
+  ClashVergeGeoip,
   ClashVergeGeosite,
+  ClashVergeMmdb,
   ClashVergeProfileFile,
   ClashVergeProfilesResponse,
   ClashVergeProxiesResponse,
@@ -67,6 +69,36 @@ export const fetchClashVergeGeosite = async (options?: {
 }): Promise<ClashVergeGeosite> =>
   unwrap<ClashVergeGeosite>(
     await apiClient.getClashVergeGeosite({
+      fetchOptions: options?.signal ? { signal: options.signal } : undefined,
+    })
+  )
+
+/** geoip.dat 概览：只读各国网段数与预览。 */
+export const fetchClashVergeGeoip = async (options?: {
+  signal?: AbortSignal
+}): Promise<ClashVergeGeoip> =>
+  unwrap<ClashVergeGeoip>(
+    await apiClient.getClashVergeGeoip({
+      fetchOptions: options?.signal ? { signal: options.signal } : undefined,
+    })
+  )
+
+/** Country.mmdb：按国家聚合的网段。 */
+export const fetchClashVergeCountry = async (options?: {
+  signal?: AbortSignal
+}): Promise<ClashVergeMmdb> =>
+  unwrap<ClashVergeMmdb>(
+    await apiClient.getClashVergeCountry({
+      fetchOptions: options?.signal ? { signal: options.signal } : undefined,
+    })
+  )
+
+/** ASN.mmdb：按 ASN 聚合的网段。 */
+export const fetchClashVergeAsn = async (options?: {
+  signal?: AbortSignal
+}): Promise<ClashVergeMmdb> =>
+  unwrap<ClashVergeMmdb>(
+    await apiClient.getClashVergeAsn({
       fetchOptions: options?.signal ? { signal: options.signal } : undefined,
     })
   )

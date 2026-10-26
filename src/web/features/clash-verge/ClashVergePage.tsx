@@ -6,8 +6,10 @@ import { RefreshCw } from "lucide-react"
 import { ConfigDetailPanel } from "./ConfigDetailPanel"
 import { ConnectionsList } from "./ConnectionsList"
 import { CurrentProfileCard } from "./CurrentProfileCard"
+import { GeoIpPanel } from "./GeoIpPanel"
 import { GeoSitePanel } from "./GeoSitePanel"
 import { MergeProfilesPanel } from "./MergeProfilesPanel"
+import { AsnPanel, CountryPanel } from "./MmdbPanel"
 import { ProfilesPanel } from "./ProfilesPanel"
 import { ProxyGroups } from "./ProxyGroups"
 import { SelectedGroupsCard } from "./SelectedGroupsCard"
@@ -116,6 +118,9 @@ export const ClashVergePage = () => {
           />
         ) : null}
         {tab === "geosite" ? <GeoSitePanel /> : null}
+        {tab === "geoip" ? <GeoIpPanel /> : null}
+        {tab === "country" ? <CountryPanel /> : null}
+        {tab === "asn" ? <AsnPanel /> : null}
         {tab === "config" ? <ConfigDetailPanel /> : null}
       </div>
     </div>

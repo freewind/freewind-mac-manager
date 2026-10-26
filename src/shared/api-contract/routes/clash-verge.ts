@@ -2,7 +2,9 @@ import { ApiPath, toContractPath } from "@shared/api-path"
 import {
   ClashMergeConfigSchema,
   ClashVergeConnectionsResponseSchema,
+  ClashVergeGeoipSchema,
   ClashVergeGeositeSchema,
+  ClashVergeMmdbSchema,
   ClashVergeProfileFileQuerySchema,
   ClashVergeProfileFileSchema,
   ClashVergeProfilesResponseSchema,
@@ -66,7 +68,37 @@ export const clashVergeRoutes = {
       ...readErrors,
     },
   },
-  // 切换订阅：改 current 并重启 Clash Verge 重新生成配置；409 表示已在该订阅或拒绝改写。
+  // geoip.dat：只读本地文件，用于查看各国网段。
+  getClashVergeGeoip: {
+    method: "GET",
+    path: toContractPath(ApiPath.clashVergeGeoip),
+    responses: {
+      200: ClashVergeGeoipSchema,
+      404: ApiErrorSchema,
+      ...readErrors,
+    },
+  },
+  // Country.mmdb：只读本地文件，按国家聚合网段。
+  getClashVergeCountry: {
+    method: "GET",
+    path: toContractPath(ApiPath.clashVergeCountry),
+    responses: {
+      200: ClashVergeMmdbSchema,
+      404: ApiErrorSchema,
+      ...readErrors,
+    },
+  },
+  // ASN.mmdb：只读本地文件，按 ASN 聚合网段。
+  getClashVergeAsn: {
+    method: "GET",
+    path: toContractPath(ApiPath.clashVergeAsn),
+    responses: {
+      200: ClashVergeMmdbSchema,
+      404: ApiErrorSchema,
+      ...readErrors,
+    },
+  },
+  // 切换订阅：改 current 并重启 Clash Verge 重新生成配置；409 表示已在该订阅或拒绕改写。
   setClashVergeCurrentProfile: {
     method: "PUT",
     path: toContractPath(ApiPath.clashVergeProfileCurrent),

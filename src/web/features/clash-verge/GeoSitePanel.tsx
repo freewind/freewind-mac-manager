@@ -1,17 +1,11 @@
 import { describeError, formatTimestamp } from "@shared/format"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
-import { Button } from "@web/components/ui/button"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
 } from "@web/components/ui/input-group"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@web/components/ui/popover"
 import {
   Table,
   TableBody,
@@ -20,32 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { CircleHelp, X } from "lucide-react"
-import { type ReactNode, useState } from "react"
+import { X } from "lucide-react"
+import { useState } from "react"
+import { bytesText, GeoPageNav, HeaderHelp, PAGE_SIZE } from "./geo-shared"
 import { useClashVergeGeositeQuery } from "./queries"
-
-/**
- * 要显示的页码：当前页前后各 1 个，加上第一页与最后一页；
- * 中间不连续的地方用 "gap" 表示省略号。
- */
-const pageItems = (current: number, total: number): (number | string)[] => {
-  const wanted = new Set<number>([1, total, current - 1, current, current + 1])
-  const pages = [...wanted]
-    .filter((page) => page >= 1 && page <= total)
-    .sort((left, right) => left - right)
-  const items: (number | string)[] = []
-  let previous = 0
-  for (const page of pages) {
-    // 省略号以左边那一页命名，兼作 React key。
-    if (previous !== 0 && page - previous > 1) items.push(`gap-${previous}`)
-    items.push(page)
-    previous = page
-  }
-  return items
-}
-
-/** 分页大小：数据一次性拿到前端，只是展示时分页。 */
-const PAGE_SIZE = 100
 
 /** protobuf 里的类型：页面显示中文，免得看不懂 plain / rootdomain。 */
 const DOMAIN_TYPE_LABEL: Record<string, string> = {
@@ -55,37 +27,9 @@ const DOMAIN_TYPE_LABEL: Record<string, string> = {
   regex: "正则",
 }
 
-/** 表头说明：标题旁一个问号，点开看这一列是什么。 */
-const HeaderHelp = (props: { label: string; children: ReactNode }) => (
-  <span className="flex items-center gap-1">
-    {props.label}
-    <Popover>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`说明：${props.label}`}
-          >
-            <CircleHelp aria-hidden="true" />
-          </Button>
-        }
-      />
-      <PopoverContent className="w-[min(92vw,360px)] text-xs">
-        {props.children}
-      </PopoverContent>
-    </Popover>
-  </span>
-)
-
 /** 属性标注显示成 @ads 这种形式，与上游写法一致。 */
 const attributeText = (attributes: string[]): string =>
   attributes.map((attribute) => `@${attribute}`).join(" ")
-
-const bytesText = (bytes: number): string =>
-  bytes < 1024 * 1024
-    ? `${(bytes / 1024).toFixed(1)} KB`
-    : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
 /**
  * geosite 数据库面板（只读）：每个分类一行，域名直接列成标签。
@@ -239,51 +183,12 @@ export const GeoSitePanel = () => {
               </Table>
             </div>
           )}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground">
-              {`第 ${currentPage} / ${totalPages} 页 · 共 ${sorted.length} 个分类`}
-            </span>
-            <div className="flex flex-wrap items-center gap-1">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={currentPage === 1}
-                onClick={() => setPage(currentPage - 1)}
-              >
-                上一页
-              </Button>
-              {pageItems(currentPage, totalPages).map((item) =>
-                typeof item === "string" ? (
-                  <span
-                    key={item}
-                    aria-hidden="true"
-                    className="px-1 text-xs text-muted-foreground"
-                  >
-                    …
-                  </span>
-                ) : (
-                  <Button
-                    key={item}
-                    size="sm"
-                    variant={item === currentPage ? "default" : "outline"}
-                    aria-label={`第 ${item} 页`}
-                    aria-current={item === currentPage ? "page" : undefined}
-                    onClick={() => setPage(item)}
-                  >
-                    {item}
-                  </Button>
-                )
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={currentPage === totalPages}
-                onClick={() => setPage(currentPage + 1)}
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
+          <GeoPageNav
+            page={currentPage}
+            totalPages={totalPages}
+            summary={`第 ${currentPage} / ${totalPages} 页 · 共 ${sorted.length} 个分类`}
+            onChange={setPage}
+          />
         </>
       )}
     </section>

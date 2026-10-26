@@ -15,6 +15,12 @@ export const ApiPath = {
   clashVergeProfileFile: `${API_BASE}/clash-verge/profile-file`,
   /** geosite 数据库：全部分类与域名预览。 */
   clashVergeGeosite: `${API_BASE}/clash-verge/geosite`,
+  /** geoip.dat：全部国家的网段统计与预览。 */
+  clashVergeGeoip: `${API_BASE}/clash-verge/geoip`,
+  /** Country.mmdb：按国家聚合的网段。 */
+  clashVergeCountry: `${API_BASE}/clash-verge/country`,
+  /** ASN.mmdb：按 ASN 聚合的网段。 */
+  clashVergeAsn: `${API_BASE}/clash-verge/asn`,
   /** 合并订阅的长期设置（选中的订阅与分组规则）。 */
   clashMergeConfig: `${API_BASE}/clash-verge/merge-config`,
   /** 生成合并配置：写入 profiles 并登记为本地配置。 */

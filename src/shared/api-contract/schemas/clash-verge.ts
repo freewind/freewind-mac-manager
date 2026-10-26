@@ -279,6 +279,56 @@ export const ClashVergeGeositeSchema = z.object({
   categories: z.array(ClashVergeGeositeCategorySchema).max(4000),
 })
 
+/** geoip.dat 里的单个分类：国家码、网段总数与前若干条网段。 */
+export const ClashVergeGeoipCategorySchema = z.object({
+  code: z.string(),
+  count: z.number().int().nonnegative(),
+  /** 该分类的前若干条网段，数量受上限控制，不足的部分由 count 体现。 */
+  preview: z.array(z.string()).max(100),
+})
+
+/** geoip.dat 概览：文件信息 + 全部国家的网段数与网段预览。 */
+export const ClashVergeGeoipSchema = z.object({
+  path: z.string(),
+  size: z.number().int().nonnegative(),
+  modified: z.number().int().nonnegative(),
+  totalCategories: z.number().int().nonnegative(),
+  totalCidrs: z.number().int().nonnegative(),
+  categories: z.array(ClashVergeGeoipCategorySchema).max(4000),
+})
+
+/** mmdb 文件自身的元信息：数据库类型、构建时间、节点数与 IP 版本。 */
+export const ClashVergeMmdbMetaSchema = z.object({
+  databaseType: z.string(),
+  /** 构建时间，秒级时间戳。 */
+  buildTime: z.number().int().nonnegative(),
+  nodeCount: z.number().int().nonnegative(),
+  recordSize: z.number().int().nonnegative(),
+  ipVersion: z.number().int().nonnegative(),
+  languages: z.array(z.string()).max(20),
+})
+
+/** 聚合后的一个分组：国家码或 ASN 编号，带网段数与前若干条网段。 */
+export const ClashVergeMmdbGroupSchema = z.object({
+  /** 分组键：国家码（CN）或 ASN 编号（AS4134）。 */
+  key: z.string(),
+  /** 分组说明：国家英文名或 ASN 组织名，可能为空串。 */
+  label: z.string(),
+  count: z.number().int().nonnegative(),
+  preview: z.array(z.string()).max(100),
+})
+
+/** Country.mmdb / ASN.mmdb 概览：元信息 + 按国家或 ASN 聚合的网段。 */
+export const ClashVergeMmdbSchema = z.object({
+  path: z.string(),
+  size: z.number().int().nonnegative(),
+  modified: z.number().int().nonnegative(),
+  meta: ClashVergeMmdbMetaSchema,
+  totalNetworks: z.number().int().nonnegative(),
+  totalGroups: z.number().int().nonnegative(),
+  groups: z.array(ClashVergeMmdbGroupSchema).max(2000),
+})
+
 /** 合并订阅：选中的订阅 uid 与已勾选的分组规则（按顺序生效）。 */
 export const MergeClashProfilesBodySchema = z.object({
   selected: z.array(z.string().max(64)).min(1).max(200),

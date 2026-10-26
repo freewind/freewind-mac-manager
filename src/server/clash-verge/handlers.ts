@@ -10,6 +10,9 @@ import {
   getClashVergeStatus,
   mergeClashProfiles,
   readClashMergeConfig,
+  readClashVergeAsn,
+  readClashVergeCountry,
+  readClashVergeGeoip,
   readClashVergeGeosite,
   readClashVergeProfileFile,
   readClashVergeProfiles,
@@ -29,6 +32,9 @@ export const clashVergeContract = {
   getClashVergeProfiles: contract.getClashVergeProfiles,
   getClashVergeProfileFile: contract.getClashVergeProfileFile,
   getClashVergeGeosite: contract.getClashVergeGeosite,
+  getClashVergeGeoip: contract.getClashVergeGeoip,
+  getClashVergeCountry: contract.getClashVergeCountry,
+  getClashVergeAsn: contract.getClashVergeAsn,
   setClashVergeCurrentProfile: contract.setClashVergeCurrentProfile,
   getClashMergeConfig: contract.getClashMergeConfig,
   saveClashMergeConfig: contract.saveClashMergeConfig,
@@ -71,6 +77,30 @@ export const clashVergeRouter = {
   getClashVergeGeosite: async () => {
     try {
       return { status: 200 as const, body: await readClashVergeGeosite() }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  // geoip.dat：只读本地文件，返回各国的网段统计。
+  getClashVergeGeoip: async () => {
+    try {
+      return { status: 200 as const, body: await readClashVergeGeoip() }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  // Country.mmdb：只读本地文件，按国家聚合网段。
+  getClashVergeCountry: async () => {
+    try {
+      return { status: 200 as const, body: await readClashVergeCountry() }
+    } catch (error) {
+      return publicSystemError(error)
+    }
+  },
+  // ASN.mmdb：只读本地文件，按 ASN 聚合网段。
+  getClashVergeAsn: async () => {
+    try {
+      return { status: 200 as const, body: await readClashVergeAsn() }
     } catch (error) {
       return publicSystemError(error)
     }

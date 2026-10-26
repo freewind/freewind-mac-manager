@@ -4,7 +4,10 @@ import type {
 } from "@shared/api-contract"
 import {
   fetchClashMergeConfig,
+  fetchClashVergeAsn,
   fetchClashVergeConnections,
+  fetchClashVergeCountry,
+  fetchClashVergeGeoip,
   fetchClashVergeGeosite,
   fetchClashVergeProfileFile,
   fetchClashVergeProfiles,
@@ -23,6 +26,9 @@ export const clashVergeKeys = {
   profiles: ["clash-verge", "profiles"] as const,
   profileFile: (uid: string) => ["clash-verge", "profile-file", uid] as const,
   geosite: ["clash-verge", "geosite"] as const,
+  geoip: ["clash-verge", "geoip"] as const,
+  country: ["clash-verge", "country"] as const,
+  asn: ["clash-verge", "asn"] as const,
   mergeConfig: ["clash-verge", "merge-config"] as const,
 }
 
@@ -75,6 +81,30 @@ export const useClashVergeGeositeQuery = () =>
   useQuery({
     queryKey: clashVergeKeys.geosite,
     queryFn: ({ signal }) => fetchClashVergeGeosite({ signal }),
+    retry: false,
+  })
+
+/** geoip.dat 概览：本地文件，读一次，不轮询。 */
+export const useClashVergeGeoipQuery = () =>
+  useQuery({
+    queryKey: clashVergeKeys.geoip,
+    queryFn: ({ signal }) => fetchClashVergeGeoip({ signal }),
+    retry: false,
+  })
+
+/** Country.mmdb：首次要遍历全库，进入页面时读一次。 */
+export const useClashVergeCountryQuery = () =>
+  useQuery({
+    queryKey: clashVergeKeys.country,
+    queryFn: ({ signal }) => fetchClashVergeCountry({ signal }),
+    retry: false,
+  })
+
+/** ASN.mmdb：与 Country.mmdb 同样的读取方式。 */
+export const useClashVergeAsnQuery = () =>
+  useQuery({
+    queryKey: clashVergeKeys.asn,
+    queryFn: ({ signal }) => fetchClashVergeAsn({ signal }),
     retry: false,
   })
 

@@ -9,7 +9,9 @@ import type {
   ClashMergeConfig,
   ClashVergeConnection,
   ClashVergeConnectionsResponse,
+  ClashVergeGeoip,
   ClashVergeGeosite,
+  ClashVergeMmdb,
   ClashVergeProfileFile,
   ClashVergeProfileNode,
   ClashVergeProfilesResponse,
@@ -39,6 +41,9 @@ import {
   requestControllerJson,
 } from "./controller"
 import { parseYamlRecord } from "./discovery"
+import { parseGeoipDat } from "./geo-dat"
+import { pickNumber, pickString, readMmdbMeta, walkMmdb } from "./mmdb"
+import { readVarint } from "./protobuf"
 import { getClashMergeStore } from "./store"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -453,8 +458,7 @@ const CLASH_VERGE_GEOSITE_FILE = path.join(
   "geosite.dat"
 )
 
-/** 每个分类返回给页面的域名预览条数：页面直接把它们列成标签。 */
-/** 每个分类预览多少条域名：够看清内容即可，不把全部几万条塞给页面。 */
+/** 每个分类预览多少条：够看清内容即可，不把几万条全塞给页面。 */
 const GEOSITE_PREVIEW_LIMIT = 30
 
 /** protobuf 里的类型枚举顺序：Plain / Regex / RootDomain / Full。 */
@@ -470,24 +474,6 @@ type GeositeCategory = {
 /** 解析结果缓存：文件 mtime 变了才重解，否则每次请求都要重读 4 MB。 */
 let geositeCache: { modified: number; categories: GeositeCategory[] } | null =
   null
-
-/** 读一个 protobuf varint：返回数值与下一个字节位置。 */
-const readVarint = (
-  buffer: Buffer,
-  start: number
-): { value: number; next: number } => {
-  let value = 0
-  let shift = 0
-  let offset = start
-  while (offset < buffer.length) {
-    const byte = buffer[offset] ?? 0
-    offset += 1
-    value += (byte & 0x7f) * 2 ** shift
-    if ((byte & 0x80) === 0) break
-    shift += 7
-  }
-  return { value, next: offset }
-}
 
 /** 读一条 Domain 的 attribute key：Attribute 的 key 在字段 1，其余值跳过。 */
 const readAttributeKey = (
@@ -639,6 +625,174 @@ export const readClashVergeGeosite = async (): Promise<ClashVergeGeosite> => {
           attributes: domain.attributes,
         })),
     })),
+  }
+}
+
+/** geoip.dat、Country.mmdb、ASN.mmdb：与 geosite.dat 同目录，同样由 Clash Verge 维护。 */
+const CLASH_VERGE_GEO_DIR = path.dirname(CLASH_VERGE_PROFILES_FILE)
+const CLASH_VERGE_GEOIP_FILE = path.join(CLASH_VERGE_GEO_DIR, "geoip.dat")
+const CLASH_VERGE_COUNTRY_FILE = path.join(CLASH_VERGE_GEO_DIR, "Country.mmdb")
+const CLASH_VERGE_ASN_FILE = path.join(CLASH_VERGE_GEO_DIR, "ASN.mmdb")
+/** ASN 动辄八万多个，全给页面没意义：按网段数取前 500 个。 */
+const MMDB_GROUP_LIMIT = 500
+
+/** geoip.dat 解析结果缓存：文件 mtime 变了才重解。 */
+let geoipCache: {
+  modified: number
+  categories: ReturnType<typeof parseGeoipDat>
+} | null = null
+
+/** mmdb 聚合结果缓存：键是文件路径，值为 mtime 与分组。 */
+const mmdbCache = new Map<
+  string,
+  {
+    modified: number
+    size: number
+    meta: ReturnType<typeof readMmdbMeta>
+    totalNetworks: number
+    totalGroups: number
+    groups: { key: string; label: string; count: number; preview: string[] }[]
+  }
+>()
+
+/** 报 404 时把文件名带上，方便看出是哪份 GEO 数据缺了。 */
+const geoFileMissing = (file: string): PublicOperationError =>
+  new PublicOperationError(
+    404,
+    `找不到 ${path.basename(file)}：${file}（在 Clash Verge 里更新一次 GEO 数据）`
+  )
+
+/** geoip.dat 概览：国家码、网段总数与前几条网段。 */
+export const readClashVergeGeoip = async (): Promise<ClashVergeGeoip> => {
+  let info: Stats
+  try {
+    info = await lstat(CLASH_VERGE_GEOIP_FILE)
+  } catch {
+    throw geoFileMissing(CLASH_VERGE_GEOIP_FILE)
+  }
+  const modified = Math.floor(info.mtimeMs / 1000)
+  if (geoipCache === null || geoipCache.modified !== modified) {
+    geoipCache = {
+      modified,
+      categories: parseGeoipDat(
+        await readFile(CLASH_VERGE_GEOIP_FILE),
+        GEOSITE_PREVIEW_LIMIT
+      ),
+    }
+  }
+  const categories = geoipCache.categories
+  return {
+    path: CLASH_VERGE_GEOIP_FILE,
+    size: info.size,
+    modified,
+    totalCategories: categories.length,
+    totalCidrs: categories.reduce((sum, item) => sum + item.count, 0),
+    categories,
+  }
+}
+
+/**
+ * 把 mmdb 的网段按国家或 ASN 聚合：遍历一次全库，只留下分组计数与
+ * 每组前几条网段。首次遍历要一两秒，之后按 mtime 复用结果。
+ */
+const loadMmdbGroups = async (
+  file: string,
+  kind: "country" | "asn"
+): Promise<{
+  size: number
+  modified: number
+  meta: ReturnType<typeof readMmdbMeta>
+  totalNetworks: number
+  totalGroups: number
+  groups: { key: string; label: string; count: number; preview: string[] }[]
+}> => {
+  let info: Stats
+  try {
+    info = await lstat(file)
+  } catch {
+    throw geoFileMissing(file)
+  }
+  const modified = Math.floor(info.mtimeMs / 1000)
+  const cached = mmdbCache.get(file)
+  if (cached !== undefined && cached.modified === modified) return cached
+
+  const buffer = await readFile(file)
+  const meta = readMmdbMeta(buffer)
+  const accumulator = new Map<
+    string | number,
+    { label: string; count: number; preview: string[] }
+  >()
+  let totalNetworks = 0
+  walkMmdb(buffer, meta, (cidr, data) => {
+    totalNetworks += 1
+    // ASN 用数字作键：几百万次拼 "AS12345" 字符串会让首次遍历明显变慢。
+    const key =
+      kind === "country"
+        ? pickString(data, "country.iso_code") ||
+          pickString(data, "registered_country.iso_code") ||
+          "未知"
+        : (pickNumber(data, "autonomous_system_number") ?? 0)
+    const label =
+      kind === "country"
+        ? pickString(data, "country.names.en")
+        : pickString(data, "autonomous_system_organization")
+    const existing = accumulator.get(key)
+    if (existing === undefined) {
+      accumulator.set(key, { label, count: 1, preview: [cidr] })
+      return
+    }
+    existing.count += 1
+    if (existing.preview.length < GEOSITE_PREVIEW_LIMIT) {
+      existing.preview.push(cidr)
+    }
+  })
+
+  const groups = [...accumulator.entries()]
+    .map(([key, item]) => ({
+      key: kind === "country" ? String(key) : `AS${key}`,
+      ...item,
+    }))
+    .sort((left, right) => right.count - left.count)
+    .slice(0, MMDB_GROUP_LIMIT)
+  const result = {
+    size: info.size,
+    modified,
+    meta,
+    totalNetworks,
+    groups,
+    totalGroups: accumulator.size,
+  }
+  mmdbCache.set(file, result)
+  return result
+}
+
+/** Country.mmdb 概览：按国家聚合的网段。 */
+export const readClashVergeCountry = async (): Promise<ClashVergeMmdb> => {
+  const { size, modified, meta, totalNetworks, groups, totalGroups } =
+    await loadMmdbGroups(CLASH_VERGE_COUNTRY_FILE, "country")
+  return {
+    path: CLASH_VERGE_COUNTRY_FILE,
+    size,
+    modified,
+    meta,
+    totalNetworks,
+    totalGroups,
+    groups,
+  }
+}
+
+/** ASN.mmdb 概览：按 ASN 聚合的网段。 */
+export const readClashVergeAsn = async (): Promise<ClashVergeMmdb> => {
+  const { size, modified, meta, totalNetworks, groups, totalGroups } =
+    await loadMmdbGroups(CLASH_VERGE_ASN_FILE, "asn")
+  return {
+    path: CLASH_VERGE_ASN_FILE,
+    size,
+    modified,
+    meta,
+    totalNetworks,
+    totalGroups,
+    groups,
   }
 }
 
