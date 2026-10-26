@@ -38,7 +38,7 @@ import {
   TabsTrigger,
 } from "@web/components/ui/tabs"
 import { CircleHelp, Plus, X } from "lucide-react"
-import { memo, useCallback, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { useClashMergeConfigQuery, useSaveClashMergeConfig } from "./queries"
 
@@ -211,6 +211,12 @@ export const CustomRulesPanel = () => {
   )
   const rows = edited ?? savedRows
 
+  /** 回调里要读最新的行，用 ref 存住，免得 onChange 随 rows 变化而换引用。 */
+  const rowsRef = useRef(rows)
+  useEffect(() => {
+    rowsRef.current = rows
+  }, [rows])
+
   /** 可选的具体分组名：来自分组规则里的目标组名，去重且不含内置别名。 */
   const targetOptions = useMemo(() => {
     const names = new Set<string>()
@@ -269,9 +275,27 @@ export const CustomRulesPanel = () => {
 
   const onChange = useCallback(
     (id: string, patch: Partial<CustomRule>) => {
-      setEdited((current) =>
-        (current ?? savedRows).map((rule) =>
-          rule.id === id ? { ...rule, ...patch } : rule
+      const current = rowsRef.current
+      const row = current.find((item) => item.id === id)
+      const nextTarget = patch.target
+      if (row !== undefined && nextTarget !== undefined) {
+        const to = bucketOf(nextTarget)
+        if (to !== bucketOf(row.target)) {
+          // 换了出口就换分区：把用户带到它现在所在的位置，否则改完像消失了。
+          const index = current.findIndex((item) => item.id === id)
+          const position = current
+            .slice(0, index)
+            .filter((item) => bucketOf(item.target) === to).length
+          setBucket(to)
+          setPages((pages) => ({
+            ...pages,
+            [to]: Math.floor(position / PAGE_SIZE) + 1,
+          }))
+        }
+      }
+      setEdited((editedRows) =>
+        (editedRows ?? savedRows).map((item) =>
+          item.id === id ? { ...item, ...patch } : item
         )
       )
     },
