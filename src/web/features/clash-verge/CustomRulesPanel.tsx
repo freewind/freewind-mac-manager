@@ -2,7 +2,10 @@ import type { CustomRule } from "@shared/api-contract"
 import { customRuleTargetRank } from "@shared/clash-merge-defaults"
 import { describeError } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
-import { TablePagination } from "@web/components/TablePagination"
+import {
+  TABLE_PAGE_SIZE,
+  TablePagination,
+} from "@web/components/TablePagination"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
@@ -90,9 +93,6 @@ type Bucket = (typeof BUCKETS)[number]["key"]
 const BUCKET_BY_RANK: Bucket[] = ["group", "reject", "direct", "proxy"]
 const bucketOf = (target: string): Bucket =>
   BUCKET_BY_RANK[customRuleTargetRank(target)]
-
-/** 一页最多显示的规则行数：上千行一次铺开既慢也找不到东西。 */
-const PAGE_SIZE = 50
 
 const FIRST_PAGES: Record<Bucket, number> = {
   reject: 1,
@@ -270,6 +270,7 @@ export const CustomRulesPanel = () => {
   const saveConfig = useSaveClashMergeConfig()
   const [edited, setEdited] = useState<CustomRow[] | null>(null)
   const [bucket, setBucket] = useState<Bucket>("group")
+  const [pageSize, setPageSize] = useState(TABLE_PAGE_SIZE)
   const [query, setQuery] = useState("")
   const [pages, setPages] = useState<Record<Bucket, number>>(FIRST_PAGES)
 
@@ -410,7 +411,7 @@ export const CustomRulesPanel = () => {
         1,
         Math.ceil(
           nextRows.filter((rule) => bucketOf(rule.target) === bucket).length /
-            PAGE_SIZE
+            pageSize
         )
       ),
     })
@@ -502,12 +503,9 @@ export const CustomRulesPanel = () => {
 
           {BUCKETS.map((item) => {
             const list = grouped[item.key]
-            const pageCount = Math.max(1, Math.ceil(list.length / PAGE_SIZE))
+            const pageCount = Math.max(1, Math.ceil(list.length / pageSize))
             const page = Math.min(pages[item.key], pageCount)
-            const pageRows = list.slice(
-              (page - 1) * PAGE_SIZE,
-              page * PAGE_SIZE
-            )
+            const pageRows = list.slice((page - 1) * pageSize, page * pageSize)
             return (
               <TabsContent
                 key={item.key}
@@ -581,7 +579,7 @@ export const CustomRulesPanel = () => {
                       <CustomRuleRow
                         key={rule.id}
                         rule={rule}
-                        index={(page - 1) * PAGE_SIZE + index + 1}
+                        index={(page - 1) * pageSize + index + 1}
                         targetOptions={targetOptions}
                         geositeChoices={geositeChoices}
                         onChange={onChange}
@@ -596,7 +594,7 @@ export const CustomRulesPanel = () => {
                     {keyword === "" ? "这个分区还没有规则" : "没有匹配的规则"}
                   </p>
                 ) : (
-                  /* 分页跟表格一起：换到别的表格时这两件也一起搬。 */
+                  /* 分页跟表格一起：换到别的表格时这几件也一起搬。 */
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">
                       {`共 ${list.length} 条`}
@@ -604,12 +602,18 @@ export const CustomRulesPanel = () => {
                     <TablePagination
                       page={page}
                       pageCount={pageCount}
+                      pageSize={pageSize}
                       onPageChange={(next) =>
                         setPages((current) => ({
                           ...current,
                           [item.key]: next,
                         }))
                       }
+                      onPageSizeChange={(next) => {
+                        // 每页条数变了页码会越界，四个分区统一从头开始。
+                        setPageSize(next)
+                        setPages(FIRST_PAGES)
+                      }}
                     />
                   </div>
                 )}
