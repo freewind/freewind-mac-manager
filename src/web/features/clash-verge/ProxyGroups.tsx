@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@web/components/ui/table"
 import { useTableSort } from "@web/hooks/use-table-sort"
-import { Fragment, useState } from "react"
+import { useState } from "react"
 
 type ProxyGroupsProps = {
   proxies: ClashVergeProxiesResponse | undefined
@@ -111,54 +111,46 @@ export const ProxyGroups = ({ proxies, isError }: ProxyGroupsProps) => {
               {groups.map((group) => {
                 const open = openNames.includes(group.name)
                 return (
-                  <Fragment key={group.name}>
-                    <TableRow>
-                      <TableCell className="max-w-0 truncate text-left">
-                        {group.name}
-                      </TableCell>
-                      <TableCell className="text-left text-muted-foreground">
-                        {group.type}
-                      </TableCell>
-                      {/* 节点名要完整可读：不截断，宁可换行 */}
-                      <TableCell className="text-left break-all">
-                        {group.selected ?? "未选择"}
-                      </TableCell>
-                      <TableCell className="text-left tabular-nums text-muted-foreground">
-                        {group.members.length}
-                      </TableCell>
-                      <TableCell className="w-full text-left">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-expanded={open}
-                          aria-label={`${open ? "收起" : "展开"}「${group.name}」的节点`}
-                          onClick={() => toggle(group.name)}
-                        >
-                          {open ? "收起节点" : "展开节点"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    {open ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={5}
-                          className="bg-muted/30 whitespace-normal"
-                        >
-                          <div className="flex flex-wrap gap-2">
-                            {group.members.map((member) => (
-                              <span
-                                key={member}
-                                className="max-w-full break-all rounded-md border px-2 py-1 text-xs"
-                              >
-                                {member}
-                                {group.selected === member ? " · 当前" : ""}
-                              </span>
-                            ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                  </Fragment>
+                  <TableRow key={group.name}>
+                    <TableCell className="max-w-0 truncate text-left">
+                      {group.name}
+                    </TableCell>
+                    <TableCell className="text-left text-muted-foreground">
+                      {group.type}
+                    </TableCell>
+                    {/* 节点名要完整可读：不截断，宁可换行 */}
+                    <TableCell className="text-left break-all">
+                      {group.selected ?? "未选择"}
+                    </TableCell>
+                    <TableCell className="text-left tabular-nums text-muted-foreground">
+                      {group.members.length}
+                    </TableCell>
+                    <TableCell className="w-full text-left align-top">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-expanded={open}
+                        aria-label={`${open ? "收起" : "展开"}「${group.name}」的节点`}
+                        onClick={() => toggle(group.name)}
+                      >
+                        {open ? "收起节点" : "展开节点"}
+                      </Button>
+                      {/* 节点开在这一列里，不另起一行，行高自己长 */}
+                      {open ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {group.members.map((member) => (
+                            <span
+                              key={member}
+                              className="max-w-full break-all rounded-md border px-2 py-1 text-xs font-normal"
+                            >
+                              {member}
+                              {group.selected === member ? " · 当前" : ""}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
                 )
               })}
             </TableBody>
