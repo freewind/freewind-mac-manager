@@ -857,14 +857,6 @@ const MERGED_DIRECT_GROUP = "直连"
 /** 拦截开关组：默认 REJECT，可切到直接直连或总组。 */
 const MERGED_REJECT_GROUP = "拒绝"
 
-/** 节点名必须唯一：重名时依次加 -2、-3 后缀。 */
-const uniqueNodeName = (name: string, used: Set<string>): string => {
-  if (!used.has(name)) return name
-  let index = 2
-  while (used.has(`${name}-${index}`)) index += 1
-  return `${name}-${index}`
-}
-
 /**
  * 解析基座模板：必须是 YAML 对象，语法错要直接报出原因。
  *
@@ -975,7 +967,7 @@ export const mergeClashProfiles = async (
     throw new PublicOperationError(400, "没有选中可合并的订阅")
   }
 
-  // 收集节点：名字前带上订阅名，重名时再加后缀，否则整份配置会因重名失效。
+  // 收集节点：名字前带上订阅名，跨订阅同名靠前缀区分。
   const proxies: Record<string, unknown>[] = []
   const usedNames = new Set<string>()
   /** 新名字 → 订阅里的原名：分组规则里的正则按原名匹配，带 `^` 锚定也不会失效。 */
@@ -995,7 +987,8 @@ export const mergeClashProfiles = async (
     const items = source.proxies
     for (const proxy of Array.isArray(items) ? items : []) {
       if (!isRecord(proxy) || typeof proxy.name !== "string") continue
-      const name = uniqueNodeName(`${entry.name} · ${proxy.name}`, usedNames)
+      // 节点名前面挂上订阅名：跨订阅同名靠前缀区分，不再做去重。
+      const name = `${entry.name} · ${proxy.name}`
       usedNames.add(name)
       originalNameOf.set(name, proxy.name)
       proxies.push({ ...proxy, name })
