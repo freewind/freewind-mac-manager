@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react"
 
-/** Clash 页的主体分区：状态快照、订阅信息、合并订阅、代理组、活动连接、四份 GEO 数据与配置详解。 */
+/** Clash 页的主体分区：状态快照、订阅信息、合并订阅、域名规则、代理组、活动连接、规则数据库与配置详解。 */
 export const CLASH_TABS = [
   { key: "status", label: "状态" },
   { key: "profiles", label: "订阅信息" },
@@ -8,11 +8,8 @@ export const CLASH_TABS = [
   { key: "customRules", label: "域名规则" },
   { key: "proxies", label: "代理组" },
   { key: "connections", label: "活动连接" },
-  // 四份 GEO 数据直接用文件名作标签：名字本身就是判断依据，不需要再解释。
-  { key: "geosite", label: "geosite.dat" },
-  { key: "geoip", label: "geoip.dat" },
-  { key: "country", label: "Country.mmdb" },
-  { key: "asn", label: "ASN.mmdb" },
+  // 四份 GEO 数据合在一页，页内再用 tab 分开：它们属于同一类东西。
+  { key: "geoData", label: "规则数据库" },
   { key: "config", label: "配置详解" },
 ] as const
 
