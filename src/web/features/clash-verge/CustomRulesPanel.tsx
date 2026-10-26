@@ -217,6 +217,9 @@ export const CustomRulesPanel = () => {
     rowsRef.current = rows
   }, [rows])
 
+  /** 本次编辑里最后一个换过分区的出口：保存后再切过去。 */
+  const pendingBucket = useRef<Bucket | null>(null)
+
   /** 可选的具体分组名：来自分组规则里的目标组名，去重且不含内置别名。 */
   const targetOptions = useMemo(() => {
     const names = new Set<string>()
@@ -275,23 +278,11 @@ export const CustomRulesPanel = () => {
 
   const onChange = useCallback(
     (id: string, patch: Partial<CustomRule>) => {
-      const current = rowsRef.current
-      const row = current.find((item) => item.id === id)
-      const nextTarget = patch.target
-      if (row !== undefined && nextTarget !== undefined) {
-        const to = bucketOf(nextTarget)
-        if (to !== bucketOf(row.target)) {
-          // 换了出口就换分区：把用户带到它现在所在的位置，否则改完像消失了。
-          const index = current.findIndex((item) => item.id === id)
-          const position = current
-            .slice(0, index)
-            .filter((item) => bucketOf(item.target) === to).length
-          setBucket(to)
-          setPages((pages) => ({
-            ...pages,
-            [to]: Math.floor(position / PAGE_SIZE) + 1,
-          }))
-        }
+      const row = rowsRef.current.find((item) => item.id === id)
+      if (row !== undefined && patch.target !== undefined) {
+        const to = bucketOf(patch.target)
+        // 先记着，等保存完再切过去：改的过程中不打扰。
+        if (to !== bucketOf(row.target)) pendingBucket.current = to
       }
       setEdited((editedRows) =>
         (editedRows ?? savedRows).map((item) =>
@@ -368,8 +359,11 @@ export const CustomRulesPanel = () => {
         selectedProfiles: saved.selectedProfiles,
       })
       toast.success(result.message)
-      // 清掉本地编辑，回显服务端保存后的值。
+      // 保存后行已经归到新分区，再把用户带到那个分区。
+      const pending = pendingBucket.current
+      pendingBucket.current = null
       setEdited(null)
+      if (pending !== null) setBucket(pending)
     } catch (error) {
       toast.error(describeError(error))
     }
