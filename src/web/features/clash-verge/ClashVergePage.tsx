@@ -11,7 +11,6 @@ import { GeoDatabasesPanel } from "./GeoDatabasesPanel"
 import { MergeProfilesPanel } from "./MergeProfilesPanel"
 import { ProfilesPanel } from "./ProfilesPanel"
 import { ProxyGroups } from "./ProxyGroups"
-import { SelectedGroupsCard } from "./SelectedGroupsCard"
 import { StatusCards } from "./StatusCards"
 import { CLASH_TABS, type ClashTab, useClashTab } from "./useClashTab"
 import { useClashVerge } from "./useClashVerge"
@@ -87,19 +86,13 @@ export const ClashVergePage = () => {
               </p>
             ) : null}
             <StatusCards status={model.status} />
-            <div className="grid gap-3 lg:grid-cols-2">
-              <CurrentProfileCard
-                profiles={model.profiles}
-                isError={model.profilesQueryIsError}
-              />
-              <SelectedGroupsCard
-                proxies={model.proxies}
-                isError={model.proxiesQueryIsError}
-              />
-            </div>
+            <CurrentProfileCard
+              profiles={model.profiles}
+              isError={model.profilesQueryIsError}
+            />
             <ProxyGroups
-              proxies={model.proxies?.proxies ?? []}
-              sampledAt={model.proxies?.sampledAt}
+              proxies={model.proxies}
+              isError={model.proxiesQueryIsError}
             />
             <ConnectionsList
               connections={model.connections?.connections ?? []}
