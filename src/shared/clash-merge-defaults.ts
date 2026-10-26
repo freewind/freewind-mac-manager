@@ -1,15 +1,3 @@
-/**
- * 合并配置里固定的三条 GEO 分流：国内直连、国外走代理。
- *
- * 页面固定展示、不入库；用户自定义的分类规则排在它们前面，方便先命中特例。
- * 分类在 geosite.dat 里不存在时直接跳过，不让默认规则挡住合并。
- */
-export const DEFAULT_GEOSITE_RULES = [
-  { code: "CN", target: "direct" },
-  { code: "GEOLOCATION-CN", target: "direct" },
-  { code: "GEOLOCATION-!CN", target: "proxy" },
-] as const
-
 /** 合并后可选的组类型：手动选、延迟最低、按序兜底。 */
 export type ClashMergeGroupType = "select" | "url-test" | "fallback"
 
@@ -24,11 +12,6 @@ export const DEFAULT_HEALTH_CHECK = {
 
 /** url-test 的容差：延迟差在这范围内视为持平，避免在两个节点间来回抖。 */
 export const MERGED_URL_TEST_TOLERANCE = 50
-/**
- * 合并时自动补齐的固定规则：写在代码里，模板不用手写。
- * GEOIP,CN 补 IP 层的直连：嗅探不到域名的国内连接靠它才不会误走代理。
- */
-export const DEFAULT_MERGE_RULES = ["GEOIP,CN,DIRECT,no-resolve"] as const
 
 /**
  * 合并用的基座模板：合并产物里所有手写配置都从这里来。
@@ -134,13 +117,13 @@ sniffer:
     HTTP:
       ports: ["80", "8080-8880"]
 
-# ===== 页面生成：规则会填在这里，保持空列表即可 =====
-# 合并时依次填入：
-#   1. 页面上写的自定义域名规则
-#   2. 页面选的 GEO 分类
-#   3. 固定三条：GEOSITE CN / GEOLOCATION-CN → 直连，GEOLOCATION-!CN → 节点选择
-#   4. 固定一条：GEOIP,CN,DIRECT,no-resolve
-#   5. 你自己写在下面的规则（本列表的内容会接在它们后面）
-# 最后自动补一条 MATCH 收尾。
-rules: []
+# ===== 固定分流规则 =====
+# 三条按域名分类（数据来自 geosite.dat）：国内直连、国外走代理。
+# 一条按 IP：嗅探不到域名的国内连接靠它才不会误走代理。
+# 页面上的自定义域名规则会排在这些之前，最后自动补一条 MATCH 收尾。
+rules:
+  - GEOSITE,CN,直连
+  - GEOSITE,GEOLOCATION-CN,直连
+  - GEOSITE,GEOLOCATION-!CN,节点选择
+  - GEOIP,CN,DIRECT,no-resolve
 `

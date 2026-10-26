@@ -174,15 +174,6 @@ export const ClashMergeRuleSchema = z.object({
   enabled: z.boolean().default(true),
 })
 
-/** GEO 分类分流的出口：只有三个固定选项，对应合并后的三个组。 */
-export const GeositeTargetSchema = z.enum(["proxy", "direct", "reject"])
-
-/** 一条 GEO 分类分流：分类名 + 出口，不写具体域名。 */
-export const GeositeRuleSchema = z.object({
-  code: z.string().min(1).max(64),
-  target: GeositeTargetSchema,
-})
-
 /** 自定义域名规则的匹配类型：只开常用的三种，不够用再加。 */
 export const CustomRuleTypeSchema = z.enum([
   "DOMAIN",
@@ -225,9 +216,7 @@ export const ClashHealthCheckSchema = z.object({
  */
 export const ClashMergeConfigSchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
-  /** GEO 分类分流：早期版本没有这个字段，读旧记录时默认为空。 */
-  geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
-  /** 自定义域名规则：优先级最高，排在 GEO 规则之前。 */
+  /** 自定义域名规则：优先级最高，排在模板里的固定分流规则之前。 */
   customRules: z.array(CustomRuleSchema).max(200).default([]),
   /** 基座模板：合并产物里所有手写配置都来自它。 */
   template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
@@ -244,7 +233,6 @@ export const ClashMergeConfigSchema = z.object({
 /** 保存时只接受设置本身，保存时间由服务端写。 */
 export const SaveClashMergeConfigBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
-  geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   customRules: z.array(CustomRuleSchema).max(200).default([]),
   template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
@@ -335,7 +323,6 @@ export const MergeClashProfilesBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   /** 是否生成兜底的「其他」组：不勾选时未匹配的节点不进任何组。 */
   includeFallback: z.boolean().default(true),
-  geositeRules: z.array(GeositeRuleSchema).max(200).default([]),
   customRules: z.array(CustomRuleSchema).max(200).default([]),
   template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),

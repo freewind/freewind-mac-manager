@@ -15,10 +15,9 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import type { CustomRule, GeositeRule } from "@shared/api-contract"
+import type { CustomRule } from "@shared/api-contract"
 import {
   type ClashMergeGroupType,
-  DEFAULT_GEOSITE_RULES,
   DEFAULT_HEALTH_CHECK,
   DEFAULT_MERGE_TEMPLATE,
 } from "@shared/clash-merge-defaults"
@@ -40,14 +39,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@web/components/ui/collapsible"
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@web/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -75,13 +66,12 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { ChevronRight, CircleHelp, GripVertical, Lock } from "lucide-react"
+import { ChevronRight, CircleHelp, GripVertical } from "lucide-react"
 import { type ReactNode, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { EditableYaml } from "./editable-yaml"
 import {
   useClashMergeConfigQuery,
-  useClashVergeGeositeQuery,
   useClashVergeProfilesQuery,
   useMergeClashProfiles,
   useSaveClashMergeConfig,
@@ -97,25 +87,6 @@ const CUSTOM_RULE_TYPES: CustomRule["type"][] = [
   "DOMAIN-KEYWORD",
 ]
 
-/** GEO 分类分流的出口：只有三个固定选项，对应合并后的三个组。 */
-type GeositeTarget = GeositeRule["target"]
-
-/** 一行 GEO 分流：分类名 + 出口，id 只用于 React key。 */
-type GeositeRow = GeositeRule & { id: string }
-
-/** 下拉里的分类选项：名字 + 条目数 + 前若干条域名（带类型与属性）。 */
-type GeositeOption = {
-  code: string
-  count: number
-  preview: { type: string; value: string; attributes: string[] }[]
-}
-
-const GEOSITE_TARGET_LABELS: Record<GeositeTarget, string> = {
-  proxy: "走代理",
-  direct: "直连",
-  reject: "拒绝",
-}
-
 /**
  * 自定义域名规则的出口：三个内置别名，也可以直接选本次合并生成的分组名。
  * 某些网站对地区有要求，必须能把域名钉到「香港」「美国」这类具体组上。
@@ -124,137 +95,6 @@ const CUSTOM_TARGET_ALIASES: Record<string, string> = {
   proxy: "走代理",
   direct: "直连",
   reject: "拒绝",
-}
-
-/**
- * 个数单元格：点开看该分类前 10 个域名，用来判断里面究竟是什么。
- * 没有预览数据时退化成纯文本，不弹空窗。
- */
-const CategoryCountCell = (props: {
-  code: string
-  option: GeositeOption | undefined
-}) => {
-  const preview = props.option?.preview ?? []
-  if (props.option === undefined) return <>—</>
-  if (preview.length === 0) return <>{props.option.count}</>
-  const first = preview.slice(0, 10)
-  return (
-    <Popover>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="xs"
-            aria-label={`查看 ${props.code} 的前几个域名`}
-          >
-            {props.option.count}
-          </Button>
-        }
-      />
-      <PopoverContent className="w-80 text-xs">
-        <p className="mb-1 text-muted-foreground">
-          {`${props.code} 的前 ${first.length} 个域名（共 ${props.option.count} 条）`}
-        </p>
-        <ul className="space-y-1 font-mono break-all">
-          {first.map((domain) => (
-            <li key={`${domain.type}-${domain.value}`}>
-              <span className="mr-1 text-[10px] text-muted-foreground">
-                {DOMAIN_TYPE_LABEL[domain.type] ?? domain.type}
-              </span>
-              {domain.value}
-              {domain.attributes.length > 0 ? (
-                <span className="ml-1 text-[10px] text-muted-foreground">
-                  {domain.attributes
-                    .map((attribute) => `@${attribute}`)
-                    .join(" ")}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/**
- * GEO 分流行：把手在左，可以上下拖动调整顺序；顺序就是规则生效顺序。
- * 只用原生 button 做把手：拖拽需要原生 pointer 事件，交给自己控制更直接。
- */
-const SortableGeositeRow = (props: {
-  rule: GeositeRow
-  option: GeositeOption | undefined
-  onChangeTarget: (target: GeositeTarget) => void
-  onRemove: () => void
-}) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: props.rule.id })
-  return (
-    <TableRow
-      ref={setNodeRef}
-      style={{
-        transform:
-          transform === null
-            ? undefined
-            : `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        transition,
-        opacity: isDragging ? 0.6 : undefined,
-      }}
-    >
-      <TableCell className="w-8">
-        <button
-          type="button"
-          aria-label={`拖动调整顺序：${props.rule.code}`}
-          className="inline-flex size-6 touch-none cursor-grab items-center justify-center rounded-md hover:bg-muted"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical aria-hidden="true" className="size-3" />
-        </button>
-      </TableCell>
-      <TableCell className="text-left">{props.rule.code}</TableCell>
-      <TableCell className="text-left text-muted-foreground tabular-nums">
-        <CategoryCountCell code={props.rule.code} option={props.option} />
-      </TableCell>
-      <TableCell className="text-left">
-        <Select
-          value={props.rule.target}
-          onValueChange={(next) => props.onChangeTarget(next as GeositeTarget)}
-        >
-          <SelectTrigger aria-label={`${props.rule.code} 的出口`}>
-            <SelectValue>
-              {GEOSITE_TARGET_LABELS[props.rule.target]}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(GEOSITE_TARGET_LABELS) as GeositeTarget[]).map(
-              (target) => (
-                <SelectItem key={target} value={target}>
-                  {GEOSITE_TARGET_LABELS[target]}
-                </SelectItem>
-              )
-            )}
-          </SelectContent>
-        </Select>
-      </TableCell>
-      <TableCell className="w-full text-left">
-        <Button
-          variant="outline"
-          size="sm"
-          aria-label={`删除分类 ${props.rule.code}`}
-          onClick={props.onRemove}
-        >
-          删除
-        </Button>
-      </TableCell>
-    </TableRow>
-  )
 }
 
 /**
@@ -405,14 +245,6 @@ const matchNodes = (pattern: string, nodeNames: string[]): string[] => {
   return nodeNames.filter((node) => regex.exec(node) !== null)
 }
 
-/** protobuf 里的类型：页面显示中文，免得看不懂 plain / rootdomain。 */
-const DOMAIN_TYPE_LABEL: Record<string, string> = {
-  plain: "域名",
-  rootdomain: "根域",
-  full: "全匹配",
-  regex: "正则",
-}
-
 /** 一行能放下的节点标签个数：超过就收进「全部」弹窗。 */
 const NODE_TAGS_INLINE = 6
 
@@ -552,7 +384,6 @@ const CollapsibleCard = (props: {
 export const MergeProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
   const configQuery = useClashMergeConfigQuery()
-  const geositeQuery = useClashVergeGeositeQuery()
   const saveConfig = useSaveClashMergeConfig()
   const mergeProfiles = useMergeClashProfiles()
   const profiles = useMemo(() => query.data?.profiles ?? [], [query.data])
@@ -573,26 +404,6 @@ export const MergeProfilesPanel = () => {
     [editedRules, configQuery.data]
   )
   const fallbackRule = rules.find((rule) => rule.fixed) ?? FALLBACK_RULE
-
-  /** GEO 分流行：本地编辑优先，否则回显服务端保存的。 */
-  const [editedGeosite, setEditedGeosite] = useState<GeositeRow[] | null>(null)
-  const geositeRules = useMemo<GeositeRow[]>(
-    () =>
-      editedGeosite ??
-      (configQuery.data?.geositeRules ?? []).map((rule, index) => ({
-        ...rule,
-        id: `saved-geosite-${index}`,
-      })),
-    [editedGeosite, configQuery.data]
-  )
-  /** 分类选项：条目多的排前面，与 GEO 数据页同一个顺序。 */
-  const geositeOptions = useMemo<GeositeOption[]>(
-    () =>
-      [...(geositeQuery.data?.categories ?? [])].sort(
-        (left, right) => right.count - left.count
-      ),
-    [geositeQuery.data]
-  )
 
   /** 自定义域名规则：本地编辑优先，否则回显服务端保存的。 */
   const [editedCustom, setEditedCustom] = useState<CustomRow[] | null>(null)
@@ -650,10 +461,6 @@ export const MergeProfilesPanel = () => {
           type: rule.type,
           enabled: rule.enabled,
         })),
-      geositeRules: geositeRules.map((rule) => ({
-        code: rule.code,
-        target: rule.target,
-      })),
       customRules: customRules
         .filter((rule) => rule.value.trim() !== "")
         .map((rule) => ({
@@ -672,7 +479,6 @@ export const MergeProfilesPanel = () => {
     })
     const stored = JSON.stringify({
       rules: saved.rules,
-      geositeRules: saved.geositeRules,
       customRules: saved.customRules,
       template: saved.template,
       healthCheck: saved.healthCheck,
@@ -682,7 +488,6 @@ export const MergeProfilesPanel = () => {
     return current !== stored
   }, [
     rules,
-    geositeRules,
     customRules,
     template,
     health,
@@ -786,24 +591,6 @@ export const MergeProfilesPanel = () => {
     ])
   }
 
-  const addGeositeRule = (code: string) => {
-    if (geositeRules.some((rule) => rule.code === code)) return
-    setEditedGeosite([
-      ...geositeRules,
-      { id: crypto.randomUUID(), code, target: "proxy" },
-    ])
-  }
-
-  const updateGeositeTarget = (id: string, target: GeositeTarget) => {
-    setEditedGeosite(
-      geositeRules.map((rule) => (rule.id === id ? { ...rule, target } : rule))
-    )
-  }
-
-  const removeGeositeRule = (id: string) => {
-    setEditedGeosite(geositeRules.filter((rule) => rule.id !== id))
-  }
-
   /** 可选的具体分组名：来自分组规则里的目标组名，去重且不含内置别名。 */
   const customTargetOptions = useMemo(() => {
     const names = new Set<string>()
@@ -844,15 +631,6 @@ export const MergeProfilesPanel = () => {
     })
   )
 
-  const handleGeositeDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (over === null || active.id === over.id) return
-    const from = geositeRules.findIndex((rule) => rule.id === active.id)
-    const to = geositeRules.findIndex((rule) => rule.id === over.id)
-    if (from === -1 || to === -1) return
-    setEditedGeosite(arrayMove(geositeRules, from, to))
-  }
-
   const allChecked = rules.length > 0 && rules.every((rule) => rule.enabled)
 
   const toggleAllRules = (checked: boolean) => {
@@ -882,10 +660,6 @@ export const MergeProfilesPanel = () => {
         selected,
         rules: chosenRules,
         includeFallback,
-        geositeRules: geositeRules.map((rule) => ({
-          code: rule.code,
-          target: rule.target,
-        })),
         customRules: customRules
           .filter((rule) => rule.value.trim() !== "")
           .map((rule) => ({
@@ -917,10 +691,6 @@ export const MergeProfilesPanel = () => {
             type: rule.type,
             enabled: rule.enabled,
           })),
-        geositeRules: geositeRules.map((rule) => ({
-          code: rule.code,
-          target: rule.target,
-        })),
         customRules: customRules
           .filter((rule) => rule.value.trim() !== "")
           .map((rule) => ({
@@ -1332,133 +1102,6 @@ export const MergeProfilesPanel = () => {
         <Button variant="outline" size="sm" onClick={addCustomRule}>
           添加规则
         </Button>
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title="GEO 分类分流"
-        description="上方选中即加入，可拖动调整先后；表格最后三行是固定规则（不可删改，分类不在 geosite.dat 里时自动跳过），排在自定义规则之后生效。合并时全部写到规则最前面"
-        summary={`${geositeRules.length} 个`}
-      >
-        {geositeQuery.isError ? (
-          <p className="text-xs text-destructive">
-            {`读取 GEO 分类失败：${describeError(geositeQuery.error)}`}
-          </p>
-        ) : null}
-
-        <Combobox
-          items={geositeOptions}
-          value={null as GeositeOption | null}
-          itemToStringValue={(item: GeositeOption) => item.code}
-          disabled={geositeOptions.length === 0}
-          onValueChange={(item: GeositeOption | null) => {
-            if (item !== null) addGeositeRule(item.code)
-          }}
-        >
-          <ComboboxInput
-            placeholder="搜索并添加分类"
-            aria-label="搜索并添加 GEO 分类"
-            className="max-w-sm"
-            showClear
-          />
-          <ComboboxContent>
-            <ComboboxEmpty>没有匹配的分类</ComboboxEmpty>
-            <ComboboxList>
-              {(item) => (
-                <ComboboxItem key={item.code} value={item}>
-                  {`${item.code}（${item.count}）`}
-                </ComboboxItem>
-              )}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-8">
-                <span className="sr-only">拖动排序</span>
-              </TableHead>
-              <TableHead className="min-w-[120px]">分类</TableHead>
-              <TableHead className="min-w-[60px]">个数</TableHead>
-              <TableHead className="min-w-[120px]">出口</TableHead>
-              <TableHead className="w-full min-w-[60px]">
-                <span className="sr-only">状态与操作</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            modifiers={[restrictToVerticalAxis]}
-            onDragEnd={handleGeositeDragEnd}
-          >
-            <SortableContext
-              items={geositeRules.map((rule) => rule.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <TableBody>
-                {geositeRules.map((rule) => (
-                  <SortableGeositeRow
-                    key={rule.id}
-                    rule={rule}
-                    option={geositeOptions.find(
-                      (item) => item.code === rule.code
-                    )}
-                    onChangeTarget={(target) =>
-                      updateGeositeTarget(rule.id, target)
-                    }
-                    onRemove={() => removeGeositeRule(rule.id)}
-                  />
-                ))}
-              </TableBody>
-            </SortableContext>
-          </DndContext>
-          {/* 固定三行放最后：实际生效顺序也是自定义在前、固定在后。
-                多个 tbody 之间那条分隔线单独补上，否则上一组末行会被去掉边框。 */}
-          <TableBody
-            className={geositeRules.length > 0 ? "border-t" : undefined}
-          >
-            {DEFAULT_GEOSITE_RULES.map((rule) => {
-              const known = geositeQuery.data !== undefined
-              const info = geositeOptions.find(
-                (item) => item.code.toUpperCase() === rule.code.toUpperCase()
-              )
-              return (
-                <TableRow key={rule.code}>
-                  <TableCell className="w-8">
-                    <Lock
-                      aria-hidden="true"
-                      className="size-3 text-muted-foreground"
-                    />
-                  </TableCell>
-                  <TableCell className="text-left">{rule.code}</TableCell>
-                  <TableCell className="text-left text-muted-foreground tabular-nums">
-                    <CategoryCountCell code={rule.code} option={info} />
-                  </TableCell>
-                  <TableCell className="text-left">
-                    {GEOSITE_TARGET_LABELS[rule.target]}
-                  </TableCell>
-                  <TableCell className="w-full text-left text-xs">
-                    {known && info === undefined ? (
-                      <span className="text-destructive">
-                        geosite.dat 里已经没有这个分类，合并时会跳过
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">
-                        {known ? "固定规则" : "检查中…"}
-                      </span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-        {geositeRules.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            还没有添加自定义分类，当前只有上面三条固定规则
-          </p>
-        ) : null}
       </CollapsibleCard>
 
       <CollapsibleCard

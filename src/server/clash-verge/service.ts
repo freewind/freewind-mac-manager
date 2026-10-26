@@ -28,9 +28,7 @@ import {
 } from "@shared/api-contract/schemas/clash-verge"
 import {
   type ClashMergeGroupType,
-  DEFAULT_GEOSITE_RULES,
   DEFAULT_HEALTH_CHECK,
-  DEFAULT_MERGE_RULES,
   DEFAULT_MERGE_TEMPLATE,
   MERGED_URL_TEST_TOLERANCE,
 } from "@shared/clash-merge-defaults"
@@ -980,7 +978,6 @@ export const setClashVergeCurrentProfile = async (
 export const readClashMergeConfig = (): ClashMergeConfig =>
   getClashMergeStore().read() ?? {
     rules: [],
-    geositeRules: [],
     customRules: [],
     template: DEFAULT_MERGE_TEMPLATE,
     healthCheck: DEFAULT_HEALTH_CHECK,
@@ -1250,47 +1247,8 @@ export const mergeClashProfiles = async (
     .filter((rule) => rule.value !== "")
     .map((rule) => `${rule.type},${rule.value},${resolveOutlet(rule.target)}`)
 
-  // GEO 分类分流：用户自定义的在前，固定三条在后，都排在模板规则与 MATCH 之前。
-  // 分类名先在本机 geosite.dat 里核实：写错的分类会让内核拒绝整份配置。
-  // 数据库本身读不到就直接报错：固定三条是分流的骨架，静默跳过等于生成一份没分流的配置。
-  const geositeRules: string[] = []
-  const geositeOutletOf = outletOf
-  let geositeCodeOf: Map<string, string>
-  try {
-    const { categories } = await loadGeosite()
-    geositeCodeOf = new Map(
-      categories.map((category) => [category.code.toUpperCase(), category.code])
-    )
-  } catch {
-    throw new PublicOperationError(
-      404,
-      `找不到 geosite 数据库，无法校验 GEO 分类：${CLASH_VERGE_GEOSITE_FILE}`
-    )
-  }
-  for (const rule of input.geositeRules) {
-    const code = geositeCodeOf.get(rule.code.trim().toUpperCase())
-    if (code === undefined) {
-      throw new PublicOperationError(
-        400,
-        `GEO 分类不存在：${rule.code}（写进配置会让内核拒绝加载，已在合并前拦下）`
-      )
-    }
-    geositeRules.push(`GEOSITE,${code},${geositeOutletOf[rule.target]}`)
-  }
-  // 固定规则：分类已经不在 geosite.dat 里就跳过，不让它挡住合并。
-  for (const rule of DEFAULT_GEOSITE_RULES) {
-    const code = geositeCodeOf.get(rule.code.toUpperCase())
-    if (code === undefined) continue
-    geositeRules.push(`GEOSITE,${code},${geositeOutletOf[rule.target]}`)
-  }
-
-  // 生成规则骨架：自定义 → GEO → 固定三条 → 代码里的默认规则 → 模板里的规则 → MATCH。
-  const rules = [
-    ...customRules,
-    ...geositeRules,
-    ...DEFAULT_MERGE_RULES,
-    ...template.rules,
-  ]
+  // 规则：自定义域名规则在前，模板里的固定分流规则在后，最后补 MATCH 收尾。
+  const rules = [...customRules, ...template.rules]
   // 没有 MATCH 收尾就补一条，否则最后一段流量会落到不存在的组。
   if (!rules.some((rule) => rule.startsWith("MATCH"))) {
     rules.push(`MATCH,${outlets.primary}`)
