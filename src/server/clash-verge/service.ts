@@ -975,9 +975,11 @@ export const mergeClashProfiles = async (
     throw new PublicOperationError(400, "没有选中可合并的订阅")
   }
 
-  // 收集节点：重名节点加后缀，否则整份配置会因重名失效。
+  // 收集节点：名字前带上订阅名，重名时再加后缀，否则整份配置会因重名失效。
   const proxies: Record<string, unknown>[] = []
   const usedNames = new Set<string>()
+  /** 新名字 → 订阅里的原名：分组规则里的正则按原名匹配，带 `^` 锚定也不会失效。 */
+  const originalNameOf = new Map<string, string>()
   for (const entry of ordered) {
     if (entry.file === "" || path.basename(entry.file) !== entry.file) continue
     let text: string
@@ -993,8 +995,9 @@ export const mergeClashProfiles = async (
     const items = source.proxies
     for (const proxy of Array.isArray(items) ? items : []) {
       if (!isRecord(proxy) || typeof proxy.name !== "string") continue
-      const name = uniqueNodeName(proxy.name, usedNames)
+      const name = uniqueNodeName(`${entry.name} · ${proxy.name}`, usedNames)
       usedNames.add(name)
+      originalNameOf.set(name, proxy.name)
       proxies.push({ ...proxy, name })
     }
   }
@@ -1017,8 +1020,11 @@ export const mergeClashProfiles = async (
     if (target === "") continue
     const regex = compileRule(rule.pattern)
     if (regex === null) continue
+    const matches = (name: string): boolean =>
+      regex.exec(name) !== null ||
+      regex.exec(originalNameOf.get(name) ?? "") !== null
     const members = [...usedNames].filter(
-      (name) => !assigned.has(name) && regex.exec(name) !== null
+      (name) => !assigned.has(name) && matches(name)
     )
     if (members.length === 0) continue
     for (const name of members) assigned.add(name)
