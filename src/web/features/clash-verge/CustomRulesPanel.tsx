@@ -37,7 +37,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@web/components/ui/tabs"
-import { CircleHelp, Plus } from "lucide-react"
+import { CircleHelp, Plus, X } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useClashMergeConfigQuery, useSaveClashMergeConfig } from "./queries"
@@ -74,12 +74,33 @@ const BUCKET_BY_RANK: Bucket[] = ["reject", "direct", "group", "proxy"]
 const bucketOf = (target: string): Bucket =>
   BUCKET_BY_RANK[customRuleTargetRank(target)]
 
+/** 一页最多显示的规则行数：上千行一次铺开既慢也找不到东西。 */
+const PAGE_SIZE = 50
+
+const FIRST_PAGES: Record<Bucket, number> = {
+  reject: 1,
+  direct: 1,
+  group: 1,
+  proxy: 1,
+}
+
 /** 三种规则类型的含义，放在类型列的问号里。 */
 const RULE_TYPE_NOTES = [
   { type: "DOMAIN", meaning: "只匹配这个域名本身，不含子域名" },
   { type: "DOMAIN-SUFFIX", meaning: "匹配这个域名及其所有子域名" },
   { type: "DOMAIN-KEYWORD", meaning: "域名里包含这个词就命中" },
 ]
+
+/** 一行是否命中搜索：值、类型、出口的显示名都算。 */
+const matchesQuery = (rule: CustomRow, keyword: string): boolean => {
+  if (keyword === "") return true
+  const target = CUSTOM_TARGET_ALIASES[rule.target] ?? rule.target
+  return (
+    rule.value.toLowerCase().includes(keyword) ||
+    rule.type.toLowerCase().includes(keyword) ||
+    target.toLowerCase().includes(keyword)
+  )
+}
 
 /**
  * 单行规则：每个分区都可能上千行，输入时只重渲染被改的那一行，
@@ -103,7 +124,7 @@ const CustomRuleRow = memo(
             })
           }
         >
-          <SelectTrigger aria-label={`第 ${props.index + 1} 条规则的类型`}>
+          <SelectTrigger aria-label={`第 ${props.index} 条规则的类型`}>
             <SelectValue>{props.rule.type}</SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -119,7 +140,7 @@ const CustomRuleRow = memo(
         <Input
           value={props.rule.value}
           placeholder="example.com"
-          aria-label={`第 ${props.index + 1} 条规则的值`}
+          aria-label={`第 ${props.index} 条规则的值`}
           onChange={(event) =>
             props.onChange(props.rule.id, { value: event.target.value })
           }
@@ -132,7 +153,7 @@ const CustomRuleRow = memo(
             props.onChange(props.rule.id, { target: next ?? props.rule.target })
           }
         >
-          <SelectTrigger aria-label={`第 ${props.index + 1} 条规则的出口`}>
+          <SelectTrigger aria-label={`第 ${props.index} 条规则的出口`}>
             <SelectValue>
               {CUSTOM_TARGET_ALIASES[props.rule.target] ?? props.rule.target}
             </SelectValue>
@@ -155,7 +176,7 @@ const CustomRuleRow = memo(
         <Button
           variant="outline"
           size="sm"
-          aria-label={`删除第 ${props.index + 1} 条规则`}
+          aria-label={`删除第 ${props.index} 条规则`}
           onClick={() => props.onRemove(props.rule.id)}
         >
           删除
@@ -170,12 +191,15 @@ const CustomRuleRow = memo(
  *
  * 按出口分四个分区展示（拒绝 → 直连 → 特定组 → 走代理），合并时也按这个顺序
  * 写进配置：先挡掉广告，再让该直连的别绕路，最后才是走代理与指定地区组。
+ * 搜索是全局的：四个分区一起命中，命中数标在各分区标题上。
  */
 export const CustomRulesPanel = () => {
   const configQuery = useClashMergeConfigQuery()
   const saveConfig = useSaveClashMergeConfig()
   const [edited, setEdited] = useState<CustomRow[] | null>(null)
   const [bucket, setBucket] = useState<Bucket>("reject")
+  const [query, setQuery] = useState("")
+  const [pages, setPages] = useState<Record<Bucket, number>>(FIRST_PAGES)
 
   const savedRows = useMemo<CustomRow[]>(
     () =>
@@ -197,13 +221,25 @@ export const CustomRulesPanel = () => {
     return [...names]
   }, [configQuery.data])
 
-  /** 当前分区显示的行：库里的顺序保持不变。 */
-  const visible = useMemo(
-    () => rows.filter((rule) => bucketOf(rule.target) === bucket),
-    [rows, bucket]
-  )
+  const keyword = query.trim().toLowerCase()
 
-  const counts = useMemo(() => {
+  /** 搜索命中的行按分区归好，分区内保持库里的顺序。 */
+  const grouped = useMemo(() => {
+    const result: Record<Bucket, CustomRow[]> = {
+      reject: [],
+      direct: [],
+      group: [],
+      proxy: [],
+    }
+    for (const rule of rows) {
+      if (!matchesQuery(rule, keyword)) continue
+      result[bucketOf(rule.target)].push(rule)
+    }
+    return result
+  }, [rows, keyword])
+
+  /** 分区总条数：搜索时标题显示「命中/总数」。 */
+  const totals = useMemo(() => {
     const result: Record<Bucket, number> = {
       reject: 0,
       direct: 0,
@@ -251,13 +287,41 @@ export const CustomRulesPanel = () => {
     [savedRows]
   )
 
+  /** 换搜索词后回到第一页，否则会停在一个已经不存在的页上。 */
+  const changeQuery = (next: string) => {
+    setQuery(next)
+    setPages(FIRST_PAGES)
+  }
+
+  const setPage = (next: number) => {
+    setPages((current) => ({ ...current, [bucket]: next }))
+  }
+
   /** 新规则跟着当前分区走，省得再加一次出口。 */
   const add = () => {
     const target = bucket === "group" ? (targetOptions[0] ?? "proxy") : bucket
-    setEdited([
+    const nextRows = [
       ...rows,
-      { id: crypto.randomUUID(), type: "DOMAIN-SUFFIX", value: "", target },
-    ])
+      {
+        id: crypto.randomUUID(),
+        type: "DOMAIN-SUFFIX" as const,
+        value: "",
+        target,
+      },
+    ]
+    setEdited(nextRows)
+    // 新行加在末尾：清掉搜索并翻到它所在的页，否则看起来像没加成功。
+    setQuery("")
+    setPages({
+      ...FIRST_PAGES,
+      [bucket]: Math.max(
+        1,
+        Math.ceil(
+          nextRows.filter((rule) => bucketOf(rule.target) === bucket).length /
+            PAGE_SIZE
+        )
+      ),
+    })
   }
 
   /** 保存只提交这一页的内容：其余字段原样带回去，不做局部更新接口。 */
@@ -303,6 +367,27 @@ export const CustomRulesPanel = () => {
           </p>
         ) : null}
 
+        <div className="relative max-w-sm">
+          <Input
+            value={query}
+            placeholder="搜索域名、类型或出口"
+            aria-label="搜索规则"
+            className={query === "" ? undefined : "pr-8"}
+            onChange={(event) => changeQuery(event.target.value)}
+          />
+          {query === "" ? null : (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="清除搜索"
+              className="absolute top-1/2 right-1 -translate-y-1/2"
+              onClick={() => changeQuery("")}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+
         <Tabs
           value={bucket}
           onValueChange={(next) => setBucket(next as Bucket)}
@@ -312,100 +397,136 @@ export const CustomRulesPanel = () => {
               <TabsTrigger key={item.key} value={item.key}>
                 {item.label}
                 <span className="text-muted-foreground tabular-nums">
-                  {counts[item.key]}
+                  {keyword === ""
+                    ? totals[item.key]
+                    : `${grouped[item.key].length}/${totals[item.key]}`}
                 </span>
               </TabsTrigger>
             ))}
           </TabsList>
 
-          {BUCKETS.map((item) => (
-            <TabsContent key={item.key} value={item.key} className="space-y-3">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[140px]">
-                      <span className="flex items-center gap-1">
-                        类型
-                        <Popover>
-                          <PopoverTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-xs"
-                                aria-label="说明三种规则类型的区别"
-                              >
-                                <CircleHelp aria-hidden="true" />
-                              </Button>
-                            }
-                          />
-                          <PopoverContent className="w-[min(92vw,520px)] text-xs">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="min-w-[120px]">
-                                    类型
-                                  </TableHead>
-                                  <TableHead className="min-w-[120px]">
-                                    含义
-                                  </TableHead>
-                                  <TableHead className="w-full min-w-[120px]">
-                                    例子
-                                  </TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {RULE_TYPE_NOTES.map((note) => (
-                                  <TableRow key={note.type}>
-                                    <TableCell className="align-top font-mono">
-                                      {note.type}
-                                    </TableCell>
-                                    <TableCell className="align-top whitespace-normal">
-                                      {note.meaning}
-                                    </TableCell>
-                                    <TableCell className="w-full align-top font-mono whitespace-normal">
-                                      {`${note.type},example.com`}
-                                    </TableCell>
+          {BUCKETS.map((item) => {
+            const list = grouped[item.key]
+            const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE))
+            const page = Math.min(pages[item.key], totalPages)
+            const pageRows = list.slice(
+              (page - 1) * PAGE_SIZE,
+              page * PAGE_SIZE
+            )
+            return (
+              <TabsContent
+                key={item.key}
+                value={item.key}
+                className="space-y-3"
+              >
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[140px]">
+                        <span className="flex items-center gap-1">
+                          类型
+                          <Popover>
+                            <PopoverTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  aria-label="说明三种规则类型的区别"
+                                >
+                                  <CircleHelp aria-hidden="true" />
+                                </Button>
+                              }
+                            />
+                            <PopoverContent className="w-[min(92vw,520px)] text-xs">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead className="min-w-[120px]">
+                                      类型
+                                    </TableHead>
+                                    <TableHead className="min-w-[120px]">
+                                      含义
+                                    </TableHead>
+                                    <TableHead className="w-full min-w-[120px]">
+                                      例子
+                                    </TableHead>
                                   </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </PopoverContent>
-                        </Popover>
-                      </span>
-                    </TableHead>
-                    <TableHead className="w-[min(60vw,640px)] min-w-[160px]">
-                      值
-                    </TableHead>
-                    <TableHead className="min-w-[120px]">出口</TableHead>
-                    <TableHead className="w-full min-w-[60px]">
-                      <span className="sr-only">操作</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visible.map((rule, index) => (
-                    <CustomRuleRow
-                      key={rule.id}
-                      rule={rule}
-                      index={index}
-                      targetOptions={targetOptions}
-                      onChange={onChange}
-                      onRemove={onRemove}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-              {visible.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  这个分区还没有规则
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  {`共 ${visible.length} 条，按这个顺序生效`}
-                </p>
-              )}
-            </TabsContent>
-          ))}
+                                </TableHeader>
+                                <TableBody>
+                                  {RULE_TYPE_NOTES.map((note) => (
+                                    <TableRow key={note.type}>
+                                      <TableCell className="align-top font-mono">
+                                        {note.type}
+                                      </TableCell>
+                                      <TableCell className="align-top whitespace-normal">
+                                        {note.meaning}
+                                      </TableCell>
+                                      <TableCell className="w-full align-top font-mono whitespace-normal">
+                                        {`${note.type},example.com`}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </PopoverContent>
+                          </Popover>
+                        </span>
+                      </TableHead>
+                      <TableHead className="w-[min(60vw,640px)] min-w-[160px]">
+                        值
+                      </TableHead>
+                      <TableHead className="min-w-[120px]">出口</TableHead>
+                      <TableHead className="w-full min-w-[60px]">
+                        <span className="sr-only">操作</span>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pageRows.map((rule, index) => (
+                      <CustomRuleRow
+                        key={rule.id}
+                        rule={rule}
+                        index={(page - 1) * PAGE_SIZE + index + 1}
+                        targetOptions={targetOptions}
+                        onChange={onChange}
+                        onRemove={onRemove}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {list.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {keyword === "" ? "这个分区还没有规则" : "没有匹配的规则"}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {`共 ${list.length} 条，第 ${page} / ${totalPages} 页`}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page <= 1}
+                        onClick={() => setPage(page - 1)}
+                      >
+                        上一页
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page >= totalPages}
+                        onClick={() => setPage(page + 1)}
+                      >
+                        下一页
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+            )
+          })}
         </Tabs>
 
         <div className="flex flex-wrap items-center gap-2">
