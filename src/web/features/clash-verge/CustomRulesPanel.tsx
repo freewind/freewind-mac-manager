@@ -356,8 +356,8 @@ export const CustomRulesPanel = () => {
       <CardHeader>
         <CardTitle>自定义域名规则</CardTitle>
         <CardDescription>
-          按域名后缀、完整域名或关键词匹配，命中就走指定的出口。合并时按「拒绝 →
-          直连 → 特定组 → 走代理」的顺序写进配置，排在模板里的固定分流规则之前。
+          按域名后缀、完整域名或关键词匹配，命中就走指定的出口。合并时按「特定组
+          → 拒绝 → 直连 → 走代理」的顺序写进配置，排在模板里的固定分流规则之前。
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

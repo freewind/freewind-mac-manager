@@ -14,15 +14,15 @@ export const DEFAULT_HEALTH_CHECK = {
 export const MERGED_URL_TEST_TOLERANCE = 50
 
 /**
- * 自定义域名规则的写入顺序：拒绝 → 直连 → 特定组 → 走代理。
- * 先挡广告，再让该直连的别绕路，最后才是走代理与指定地区组。
+ * 自定义域名规则的写入顺序：特定组 → 拒绝 → 直连 → 走代理。
+ * 钉到具体地区组的域名最具体，先让它命中；再挡广告、再让该直连的别绕路。
  * 页面上的四个分区也按这个顺序摆。
  */
 export const customRuleTargetRank = (target: string): number => {
-  if (target === "reject") return 0
-  if (target === "direct") return 1
+  if (target === "reject") return 1
+  if (target === "direct") return 2
   if (target === "proxy") return 3
-  return 2
+  return 0
 }
 
 /**
