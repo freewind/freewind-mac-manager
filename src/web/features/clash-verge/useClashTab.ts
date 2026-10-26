@@ -5,6 +5,7 @@ export const CLASH_TABS = [
   { key: "status", label: "状态" },
   { key: "profiles", label: "订阅信息" },
   { key: "merge", label: "合并订阅" },
+  { key: "customRules", label: "域名规则" },
   { key: "proxies", label: "代理组" },
   { key: "connections", label: "活动连接" },
   // 四份 GEO 数据直接用文件名作标签：名字本身就是判断依据，不需要再解释。

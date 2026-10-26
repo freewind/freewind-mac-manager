@@ -15,7 +15,6 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import type { CustomRule } from "@shared/api-contract"
 import {
   type ClashMergeGroupType,
   DEFAULT_HEALTH_CHECK,
@@ -47,11 +46,6 @@ import {
 } from "@web/components/ui/dialog"
 import { Input } from "@web/components/ui/input"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@web/components/ui/popover"
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -66,7 +60,7 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { ChevronRight, CircleHelp, GripVertical, Plus } from "lucide-react"
+import { ChevronRight, GripVertical, Plus } from "lucide-react"
 import { type ReactNode, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { EditableYaml } from "./editable-yaml"
@@ -76,26 +70,6 @@ import {
   useMergeClashProfiles,
   useSaveClashMergeConfig,
 } from "./queries"
-
-/** 一行自定义规则：类型 + 值 + 出口，id 只用于 React key。 */
-type CustomRow = CustomRule & { id: string }
-
-/** 可选的规则类型：只开常用的三种。 */
-const CUSTOM_RULE_TYPES: CustomRule["type"][] = [
-  "DOMAIN-SUFFIX",
-  "DOMAIN",
-  "DOMAIN-KEYWORD",
-]
-
-/**
- * 自定义域名规则的出口：三个内置别名，也可以直接选本次合并生成的分组名。
- * 某些网站对地区有要求，必须能把域名钉到「香港」「美国」这类具体组上。
- */
-const CUSTOM_TARGET_ALIASES: Record<string, string> = {
-  proxy: "走代理",
-  direct: "直连",
-  reject: "拒绝",
-}
 
 /**
  * 分组规则行：把手在左，可上下拖动调整组的先后，顺序就是生成配置里的顺序。
@@ -379,7 +353,8 @@ const CollapsibleCard = (props: {
  *
  * 规则表第二列显示正则命中的节点，第三列直接填目标组名，方便边写边核对；
  * 末尾固定一条兜底规则，把其余没被任何规则命中的节点归到「其他」。
- * 预览只读已勾选订阅的节点名，不写任何文件；合并写入还没定稿，按钮只回显范围。
+ * 自定义域名规则在单独的「域名规则」页：动辄上千条，不适合与合并设置混在一起。
+ * 预览只读已勾选订阅的节点名，不写任何文件。
  */
 export const MergeProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
@@ -404,18 +379,6 @@ export const MergeProfilesPanel = () => {
     [editedRules, configQuery.data]
   )
   const fallbackRule = rules.find((rule) => rule.fixed) ?? FALLBACK_RULE
-
-  /** 自定义域名规则：本地编辑优先，否则回显服务端保存的。 */
-  const [editedCustom, setEditedCustom] = useState<CustomRow[] | null>(null)
-  const customRules = useMemo<CustomRow[]>(
-    () =>
-      editedCustom ??
-      (configQuery.data?.customRules ?? []).map((rule, index) => ({
-        ...rule,
-        id: `saved-custom-${index}`,
-      })),
-    [editedCustom, configQuery.data]
-  )
 
   /** 基座模板：本地编辑优先，否则回显服务端保存的。 */
   const [editedTemplate, setEditedTemplate] = useState<string | null>(null)
@@ -461,13 +424,6 @@ export const MergeProfilesPanel = () => {
           type: rule.type,
           enabled: rule.enabled,
         })),
-      customRules: customRules
-        .filter((rule) => rule.value.trim() !== "")
-        .map((rule) => ({
-          type: rule.type,
-          value: rule.value,
-          target: rule.target,
-        })),
       template,
       healthCheck: {
         url: health.url.trim(),
@@ -479,22 +435,13 @@ export const MergeProfilesPanel = () => {
     })
     const stored = JSON.stringify({
       rules: saved.rules,
-      customRules: saved.customRules,
       template: saved.template,
       healthCheck: saved.healthCheck,
       selectedProfiles: [...saved.selectedProfiles].sort(),
       includeFallback: saved.includeFallback,
     })
     return current !== stored
-  }, [
-    rules,
-    customRules,
-    template,
-    health,
-    selected,
-    fallbackRule,
-    configQuery.data,
-  ])
+  }, [rules, template, health, selected, fallbackRule, configQuery.data])
 
   const chosen = useMemo(
     () => profiles.filter((profile) => selected.includes(profile.uid)),
@@ -591,38 +538,6 @@ export const MergeProfilesPanel = () => {
     ])
   }
 
-  /** 可选的具体分组名：来自分组规则里的目标组名，去重且不含内置别名。 */
-  const customTargetOptions = useMemo(() => {
-    const names = new Set<string>()
-    for (const rule of rules) {
-      const name = rule.target.trim()
-      if (name !== "" && !(name in CUSTOM_TARGET_ALIASES)) names.add(name)
-    }
-    return [...names]
-  }, [rules])
-
-  const addCustomRule = () => {
-    setEditedCustom([
-      ...customRules,
-      {
-        id: crypto.randomUUID(),
-        type: "DOMAIN-SUFFIX",
-        value: "",
-        target: "proxy",
-      },
-    ])
-  }
-
-  const updateCustomRule = (id: string, patch: Partial<CustomRule>) => {
-    setEditedCustom(
-      customRules.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule))
-    )
-  }
-
-  const removeCustomRule = (id: string) => {
-    setEditedCustom(customRules.filter((rule) => rule.id !== id))
-  }
-
   // 按下拖动 5px 才激活，手机上下滑页面不会被当成拖拽。
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -660,13 +575,7 @@ export const MergeProfilesPanel = () => {
         selected,
         rules: chosenRules,
         includeFallback,
-        customRules: customRules
-          .filter((rule) => rule.value.trim() !== "")
-          .map((rule) => ({
-            type: rule.type,
-            value: rule.value.trim(),
-            target: rule.target,
-          })),
+        customRules: configQuery.data?.customRules ?? [],
         template,
         healthCheck: {
           url: health.url.trim(),
@@ -691,13 +600,7 @@ export const MergeProfilesPanel = () => {
             type: rule.type,
             enabled: rule.enabled,
           })),
-        customRules: customRules
-          .filter((rule) => rule.value.trim() !== "")
-          .map((rule) => ({
-            type: rule.type,
-            value: rule.value.trim(),
-            target: rule.target,
-          })),
+        customRules: configQuery.data?.customRules ?? [],
         template,
         healthCheck: {
           url: health.url.trim(),
@@ -929,183 +832,6 @@ export const MergeProfilesPanel = () => {
             添加分组规则
           </Button>
         </div>
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title="自定义域名规则"
-        description="按域名后缀、完整域名或关键词匹配，命中就走你指定的出口；出口可选内置三项，也能直接选某个地区组（比如对地区有要求的网站）；比下面的 GEO 分类先生效"
-        summary={`${customRules.length} 条`}
-      >
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[140px]">
-                <span className="flex items-center gap-1">
-                  类型
-                  <Popover>
-                    <PopoverTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label="说明三种规则类型的区别"
-                        >
-                          <CircleHelp aria-hidden="true" />
-                        </Button>
-                      }
-                    />
-                    <PopoverContent className="w-[min(92vw,520px)] text-xs">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="min-w-[120px]">
-                              类型
-                            </TableHead>
-                            <TableHead className="min-w-[120px]">
-                              含义
-                            </TableHead>
-                            <TableHead className="w-full min-w-[120px]">
-                              例子
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow>
-                            <TableCell className="align-top font-mono">
-                              DOMAIN
-                            </TableCell>
-                            <TableCell className="align-top whitespace-normal">
-                              只匹配这个域名本身，不含子域名
-                            </TableCell>
-                            <TableCell className="w-full align-top font-mono whitespace-normal">
-                              DOMAIN,example.com
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell className="align-top font-mono">
-                              DOMAIN-SUFFIX
-                            </TableCell>
-                            <TableCell className="align-top whitespace-normal">
-                              匹配这个域名及其所有子域名
-                            </TableCell>
-                            <TableCell className="w-full align-top font-mono whitespace-normal">
-                              DOMAIN-SUFFIX,example.com
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell className="align-top font-mono">
-                              DOMAIN-KEYWORD
-                            </TableCell>
-                            <TableCell className="align-top whitespace-normal">
-                              域名里包含这个词就命中
-                            </TableCell>
-                            <TableCell className="w-full align-top font-mono whitespace-normal">
-                              DOMAIN-KEYWORD,ads
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </PopoverContent>
-                  </Popover>
-                </span>
-              </TableHead>
-              <TableHead className="w-[min(60vw,640px)] min-w-[160px]">
-                值
-              </TableHead>
-              <TableHead className="min-w-[120px]">出口</TableHead>
-              <TableHead className="w-full min-w-[60px]">
-                <span className="sr-only">操作</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {customRules.map((rule, index) => (
-              <TableRow key={rule.id}>
-                <TableCell className="text-left">
-                  <Select
-                    value={rule.type}
-                    onValueChange={(next) =>
-                      updateCustomRule(rule.id, {
-                        type: next as CustomRule["type"],
-                      })
-                    }
-                  >
-                    <SelectTrigger
-                      aria-label={`第 ${index + 1} 条自定义规则的类型`}
-                    >
-                      <SelectValue>{rule.type}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CUSTOM_RULE_TYPES.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="text-left">
-                  <Input
-                    value={rule.value}
-                    placeholder="example.com"
-                    aria-label={`第 ${index + 1} 条自定义规则的值`}
-                    onChange={(event) =>
-                      updateCustomRule(rule.id, { value: event.target.value })
-                    }
-                  />
-                </TableCell>
-                <TableCell className="text-left">
-                  <Select
-                    value={rule.target}
-                    onValueChange={(next) =>
-                      updateCustomRule(rule.id, {
-                        target: next ?? rule.target,
-                      })
-                    }
-                  >
-                    <SelectTrigger
-                      aria-label={`第 ${index + 1} 条自定义规则的出口`}
-                    >
-                      <SelectValue>
-                        {CUSTOM_TARGET_ALIASES[rule.target] ?? rule.target}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(CUSTOM_TARGET_ALIASES).map(
-                        ([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        )
-                      )}
-                      {customTargetOptions.map((name) => (
-                        <SelectItem key={name} value={name}>
-                          {name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="text-left">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label={`删除第 ${index + 1} 条自定义规则`}
-                    onClick={() => removeCustomRule(rule.id)}
-                  >
-                    删除
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {customRules.length === 0 ? (
-          <p className="text-xs text-muted-foreground">还没有自定义规则</p>
-        ) : null}
-        <Button variant="outline" size="sm" onClick={addCustomRule}>
-          添加规则
-        </Button>
       </CollapsibleCard>
 
       <CollapsibleCard
