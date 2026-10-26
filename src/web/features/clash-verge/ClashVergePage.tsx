@@ -93,20 +93,11 @@ export const ClashVergePage = () => {
             ) : null}
             <StatusCards status={model.status} />
             {/* 代理组跟着当前订阅走：它描述的正是这份配置里的分组 */}
-            <Tabs defaultValue="connections">
+            <Tabs defaultValue="profile">
               <TabsList>
-                <TabsTrigger value="connections">活动连接</TabsTrigger>
                 <TabsTrigger value="profile">当前订阅</TabsTrigger>
+                <TabsTrigger value="connections">活动连接</TabsTrigger>
               </TabsList>
-              <TabsContent value="connections" className="pt-3">
-                <ConnectionsList
-                  connections={model.connections?.connections ?? []}
-                  total={model.connections?.total ?? 0}
-                  truncated={model.connections?.truncated ?? false}
-                  sampledAt={model.connections?.sampledAt}
-                  limit={model.connections?.limit}
-                />
-              </TabsContent>
               <TabsContent value="profile" className="space-y-3 pt-3">
                 <CurrentProfileCard
                   profiles={model.profiles}
@@ -115,6 +106,15 @@ export const ClashVergePage = () => {
                 <ProxyGroups
                   proxies={model.proxies}
                   isError={model.proxiesQueryIsError}
+                />
+              </TabsContent>
+              <TabsContent value="connections" className="pt-3">
+                <ConnectionsList
+                  connections={model.connections?.connections ?? []}
+                  total={model.connections?.total ?? 0}
+                  truncated={model.connections?.truncated ?? false}
+                  sampledAt={model.connections?.sampledAt}
+                  limit={model.connections?.limit}
                 />
               </TabsContent>
             </Tabs>
