@@ -130,12 +130,9 @@ sniffer:
       ports: ["80", "8080-8880"]
 
 # ===== 固定分流规则 =====
-# 三条按域名分类（数据来自 geosite.dat）：国内直连、国外走代理。
-# 一条按 IP：嗅探不到域名的国内连接靠它才不会误走代理。
-# 页面上的自定义域名规则会排在这些之前，最后自动补一条 MATCH 收尾。
+# 只留一条按 IP 的：嗅探不到域名的国内连接靠它才不会误走代理。
+# GEOSITE 分类分流已经移到页面的「域名规则」里，与其他规则一起按出口排序，
+# 最后自动补一条 MATCH 收尾。
 rules:
-  - GEOSITE,CN,直连
-  - GEOSITE,GEOLOCATION-CN,直连
-  - GEOSITE,GEOLOCATION-!CN,节点选择
   - GEOIP,CN,DIRECT,no-resolve
 `

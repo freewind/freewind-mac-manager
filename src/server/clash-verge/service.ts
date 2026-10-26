@@ -1247,8 +1247,29 @@ export const mergeClashProfiles = async (
   }
   const healthCheck = input.healthCheck
 
+  // GEOSITE 分类名写错会让内核拒掉整份配置，合并前先对照 geosite.dat 校一遍。
+  const geositeValues = [
+    ...new Set(
+      input.customRules
+        .filter((rule) => rule.type === "GEOSITE")
+        .map((rule) => rule.value.trim().toLowerCase())
+        .filter((value) => value !== "")
+    ),
+  ]
+  if (geositeValues.length > 0) {
+    const { categories } = await loadGeosite()
+    const codes = new Set(categories.map((item) => item.code.toLowerCase()))
+    const unknown = geositeValues.filter((value) => !codes.has(value))
+    if (unknown.length > 0) {
+      throw new PublicOperationError(
+        400,
+        `GEOSITE 分类不存在：${unknown.join("、")}（可在 geosite.dat 页核对）`
+      )
+    }
+  }
+
   // 自定义规则：优先级最高，排在最前面；值为空的行不写进配置。
-  // 按出口分组排序：拒绝 → 直连 → 特定组 → 走代理，与页面上的四个分区一致。
+  // 按出口分区排序：特定组 → 拒绝 → 直连 → 走代理，与页面上的四个分区一致。
   const customRules = [...input.customRules]
     .map((rule) => ({ ...rule, value: rule.value.trim() }))
     .filter((rule) => rule.value !== "")

@@ -10,6 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@web/components/ui/card"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
 import { Input } from "@web/components/ui/input"
 import {
   Popover,
@@ -40,17 +48,25 @@ import {
 import { CircleHelp, Plus, X } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
-import { useClashMergeConfigQuery, useSaveClashMergeConfig } from "./queries"
+import {
+  useClashMergeConfigQuery,
+  useClashVergeGeositeQuery,
+  useSaveClashMergeConfig,
+} from "./queries"
 
 /** 一行自定义规则：类型 + 值 + 出口，id 只用于 React key。 */
 type CustomRow = CustomRule & { id: string }
 
-/** 可选的规则类型：只开常用的三种。 */
+/** 可选的规则类型：三种域名匹配，加一个 GEOSITE 整类匹配。 */
 const CUSTOM_RULE_TYPES: CustomRule["type"][] = [
   "DOMAIN-SUFFIX",
   "DOMAIN",
   "DOMAIN-KEYWORD",
+  "GEOSITE",
 ]
+
+/** GEOSITE 值列的下拉选项：分类名 + 条目数。 */
+type GeositeChoice = { code: string; count: number }
 
 /** 内置出口别名：其余选项是本次合并生成的分组名。 */
 const CUSTOM_TARGET_ALIASES: Record<string, string> = {
@@ -84,11 +100,28 @@ const FIRST_PAGES: Record<Bucket, number> = {
   proxy: 1,
 }
 
-/** 三种规则类型的含义，放在类型列的问号里。 */
+/** 四种规则类型的含义，放在类型列的问号里。 */
 const RULE_TYPE_NOTES = [
-  { type: "DOMAIN", meaning: "只匹配这个域名本身，不含子域名" },
-  { type: "DOMAIN-SUFFIX", meaning: "匹配这个域名及其所有子域名" },
-  { type: "DOMAIN-KEYWORD", meaning: "域名里包含这个词就命中" },
+  {
+    type: "DOMAIN",
+    meaning: "只匹配这个域名本身，不含子域名",
+    example: "DOMAIN,example.com",
+  },
+  {
+    type: "DOMAIN-SUFFIX",
+    meaning: "匹配这个域名及其所有子域名",
+    example: "DOMAIN-SUFFIX,example.com",
+  },
+  {
+    type: "DOMAIN-KEYWORD",
+    meaning: "域名里包含这个词就命中",
+    example: "DOMAIN-KEYWORD,ads",
+  },
+  {
+    type: "GEOSITE",
+    meaning: "按 geosite.dat 里的域名分类整类匹配，值就是分类名",
+    example: "GEOSITE,cn",
+  },
 ]
 
 /** 一行是否命中搜索：值、类型、出口的显示名都算。 */
@@ -111,6 +144,7 @@ const CustomRuleRow = memo(
     rule: CustomRow
     index: number
     targetOptions: string[]
+    geositeChoices: GeositeChoice[]
     onChange: (id: string, patch: Partial<CustomRule>) => void
     onRemove: (id: string) => void
   }) => (
@@ -137,14 +171,48 @@ const CustomRuleRow = memo(
         </Select>
       </TableCell>
       <TableCell className="text-left">
-        <Input
-          value={props.rule.value}
-          placeholder="example.com"
-          aria-label={`第 ${props.index} 条规则的值`}
-          onChange={(event) =>
-            props.onChange(props.rule.id, { value: event.target.value })
-          }
-        />
+        {props.rule.type === "GEOSITE" ? (
+          /* GEOSITE 的值是分类名，写错会让内核拒掉整份配置，改成只能从分类里选。 */
+          <Combobox
+            items={props.geositeChoices}
+            value={
+              props.geositeChoices.find(
+                (item) => item.code === props.rule.value
+              ) ?? null
+            }
+            itemToStringValue={(item) => item.code}
+            onValueChange={(item) =>
+              props.onChange(props.rule.id, {
+                value: item?.code ?? props.rule.value,
+              })
+            }
+          >
+            <ComboboxInput
+              placeholder="搜索 GEOSITE 分类"
+              aria-label={`第 ${props.index} 条规则的 GEOSITE 分类`}
+              showClear
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>没有匹配的分类</ComboboxEmpty>
+              <ComboboxList>
+                {(item) => (
+                  <ComboboxItem key={item.code} value={item}>
+                    {`${item.code}（${item.count}）`}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        ) : (
+          <Input
+            value={props.rule.value}
+            placeholder="example.com"
+            aria-label={`第 ${props.index} 条规则的值`}
+            onChange={(event) =>
+              props.onChange(props.rule.id, { value: event.target.value })
+            }
+          />
+        )}
       </TableCell>
       <TableCell className="text-left">
         <Select
@@ -210,6 +278,15 @@ export const CustomRulesPanel = () => {
     [configQuery.data]
   )
   const rows = edited ?? savedRows
+
+  /** GEOSITE 值列的分类选项：条目多的排前面，与 GEO 数据页同一个顺序。 */
+  const geositeQuery = useClashVergeGeositeQuery()
+  const geositeChoices = useMemo<GeositeChoice[]>(() => {
+    const categories = geositeQuery.data?.categories ?? []
+    return categories
+      .map((item) => ({ code: item.code, count: item.count }))
+      .sort((left, right) => right.count - left.count)
+  }, [geositeQuery.data])
 
   /** 回调里要读最新的行，用 ref 存住，免得 onChange 随 rows 变化而换引用。 */
   const rowsRef = useRef(rows)
@@ -480,8 +557,8 @@ export const CustomRulesPanel = () => {
                                         {note.meaning}
                                       </TableCell>
                                       <TableCell className="w-full align-top font-mono whitespace-normal">
-                                        {`${note.type},example.com`}
-                                      </TableCell>
+                                        {note.example}
+                                      </TableCell>{" "}
                                     </TableRow>
                                   ))}
                                 </TableBody>
@@ -506,6 +583,7 @@ export const CustomRulesPanel = () => {
                         rule={rule}
                         index={(page - 1) * PAGE_SIZE + index + 1}
                         targetOptions={targetOptions}
+                        geositeChoices={geositeChoices}
                         onChange={onChange}
                         onRemove={onRemove}
                       />

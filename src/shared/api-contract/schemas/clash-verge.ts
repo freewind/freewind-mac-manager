@@ -174,11 +174,15 @@ export const ClashMergeRuleSchema = z.object({
   enabled: z.boolean().default(true),
 })
 
-/** 自定义域名规则的匹配类型：只开常用的三种，不够用再加。 */
+/**
+ * 自定义规则的匹配类型：三种域名匹配，外加 GEOSITE 分类
+ * （一行顶几千条域名，国内直连靠它）。GEOIP 留在模板里，不进这张表。
+ */
 export const CustomRuleTypeSchema = z.enum([
   "DOMAIN",
   "DOMAIN-SUFFIX",
   "DOMAIN-KEYWORD",
+  "GEOSITE",
 ])
 
 /**
