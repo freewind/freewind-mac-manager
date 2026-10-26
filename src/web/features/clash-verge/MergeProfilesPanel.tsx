@@ -66,7 +66,7 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
-import { ChevronRight, CircleHelp, GripVertical } from "lucide-react"
+import { ChevronRight, CircleHelp, GripVertical, Plus } from "lucide-react"
 import { type ReactNode, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { EditableYaml } from "./editable-yaml"
@@ -862,11 +862,8 @@ export const MergeProfilesPanel = () => {
                 <TableHead className="w-full min-w-[60px]">匹配节点</TableHead>
                 <TableHead className="min-w-[120px]">目标组名</TableHead>
                 <TableHead className="min-w-[100px]">类型</TableHead>
-                {/* 添加按钮放最后一列：新行插在兜底行前面。 */}
-                <TableHead className="min-w-[80px]">
-                  <Button variant="outline" size="sm" onClick={addRule}>
-                    添加
-                  </Button>
+                <TableHead className="min-w-[60px]">
+                  <span className="sr-only">操作</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -925,6 +922,13 @@ export const MergeProfilesPanel = () => {
             </TableBody>
           </Table>
         </DndContext>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={addRule}>
+            <Plus aria-hidden="true" />
+            添加分组规则
+          </Button>
+        </div>
       </CollapsibleCard>
 
       <CollapsibleCard
