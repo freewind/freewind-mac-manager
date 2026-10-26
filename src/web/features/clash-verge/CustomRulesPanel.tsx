@@ -148,114 +148,124 @@ const CustomRuleRow = memo(
     geositeChoices: GeositeChoice[]
     onChange: (id: string, patch: Partial<CustomRule>) => void
     onRemove: (id: string) => void
-  }) => (
-    <TableRow>
-      <TableCell className="text-left">
-        <Select
-          value={props.rule.type}
-          onValueChange={(next) =>
-            props.onChange(props.rule.id, {
-              type: next as CustomRule["type"],
-            })
-          }
-        >
-          <SelectTrigger aria-label={`第 ${props.index} 条规则的类型`}>
-            <SelectValue>{props.rule.type}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {CUSTOM_RULE_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </TableCell>
-      <TableCell className="text-left">
-        {props.rule.type === "GEOSITE" && props.geositeChoices.length > 0 ? (
-          /* GEOSITE 的值是分类名，写错会让内核拒掉整份配置，改成只能从分类里选。
-             分类还没读到时退回普通输入框，至少能看到并改当前值。 */
-          <Combobox
-            items={props.geositeChoices}
-            value={
-              props.geositeChoices.find(
-                (item) => item.code === props.rule.value
-              ) ?? null
-            }
-            itemToStringLabel={(item) => item.code}
-            itemToStringValue={(item) => item.code}
-            onValueChange={(item) =>
+  }) => {
+    /* 分类名大小写不固定（geosite.dat 里是大写），比对时统一转小写；
+       匹配不到就不当选项处理，回退到文本框，至少不会是一片空白。 */
+    const picked =
+      props.geositeChoices.find(
+        (item) => item.code.toLowerCase() === props.rule.value.toLowerCase()
+      ) ?? null
+    const usePicker =
+      props.rule.type === "GEOSITE" &&
+      props.geositeChoices.length > 0 &&
+      (props.rule.value === "" || picked !== null)
+    return (
+      <TableRow>
+        <TableCell className="text-left">
+          <Select
+            value={props.rule.type}
+            onValueChange={(next) =>
               props.onChange(props.rule.id, {
-                value: item?.code ?? "",
+                type: next as CustomRule["type"],
               })
             }
           >
-            <ComboboxInput
-              placeholder="搜索 GEOSITE 分类"
-              aria-label={`第 ${props.index} 条规则的 GEOSITE 分类`}
-              className="w-full"
-              showClear
+            <SelectTrigger aria-label={`第 ${props.index} 条规则的类型`}>
+              <SelectValue>{props.rule.type}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {CUSTOM_RULE_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TableCell>
+        <TableCell className="text-left">
+          {usePicker ? (
+            /* GEOSITE 的值是分类名，写错会让内核拒掉整份配置，改成只能从分类里选。
+             分类还没读到、或值不在分类里时退回普通输入框，至少能看到并改当前值。 */
+            <Combobox
+              items={props.geositeChoices}
+              value={picked}
+              itemToStringLabel={(item) => item.code}
+              itemToStringValue={(item) => item.code}
+              onValueChange={(item) =>
+                props.onChange(props.rule.id, {
+                  value: item?.code ?? "",
+                })
+              }
+            >
+              <ComboboxInput
+                placeholder="搜索 GEOSITE 分类"
+                aria-label={`第 ${props.index} 条规则的 GEOSITE 分类`}
+                className="w-full"
+                showClear
+              />
+              <ComboboxContent>
+                <ComboboxEmpty>没有匹配的分类</ComboboxEmpty>
+                <ComboboxList>
+                  {(item) => (
+                    <ComboboxItem key={item.code} value={item}>
+                      {`${item.code}（${item.count}）`}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+          ) : (
+            <Input
+              value={props.rule.value}
+              placeholder="example.com"
+              aria-label={`第 ${props.index} 条规则的值`}
+              onChange={(event) =>
+                props.onChange(props.rule.id, { value: event.target.value })
+              }
             />
-            <ComboboxContent>
-              <ComboboxEmpty>没有匹配的分类</ComboboxEmpty>
-              <ComboboxList>
-                {(item) => (
-                  <ComboboxItem key={item.code} value={item}>
-                    {`${item.code}（${item.count}）`}
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
-        ) : (
-          <Input
-            value={props.rule.value}
-            placeholder="example.com"
-            aria-label={`第 ${props.index} 条规则的值`}
-            onChange={(event) =>
-              props.onChange(props.rule.id, { value: event.target.value })
+          )}
+        </TableCell>
+        <TableCell className="text-left">
+          <Select
+            value={props.rule.target}
+            onValueChange={(next) =>
+              props.onChange(props.rule.id, {
+                target: next ?? props.rule.target,
+              })
             }
-          />
-        )}
-      </TableCell>
-      <TableCell className="text-left">
-        <Select
-          value={props.rule.target}
-          onValueChange={(next) =>
-            props.onChange(props.rule.id, { target: next ?? props.rule.target })
-          }
-        >
-          <SelectTrigger aria-label={`第 ${props.index} 条规则的出口`}>
-            <SelectValue>
-              {CUSTOM_TARGET_ALIASES[props.rule.target] ?? props.rule.target}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(CUSTOM_TARGET_ALIASES).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-            {props.targetOptions.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </TableCell>
-      <TableCell className="text-left">
-        <Button
-          variant="outline"
-          size="sm"
-          aria-label={`删除第 ${props.index} 条规则`}
-          onClick={() => props.onRemove(props.rule.id)}
-        >
-          删除
-        </Button>
-      </TableCell>
-    </TableRow>
-  )
+          >
+            <SelectTrigger aria-label={`第 ${props.index} 条规则的出口`}>
+              <SelectValue>
+                {CUSTOM_TARGET_ALIASES[props.rule.target] ?? props.rule.target}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(CUSTOM_TARGET_ALIASES).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+              {props.targetOptions.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TableCell>
+        <TableCell className="text-left">
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={`删除第 ${props.index} 条规则`}
+            onClick={() => props.onRemove(props.rule.id)}
+          >
+            删除
+          </Button>
+        </TableCell>
+      </TableRow>
+    )
+  }
 )
 
 /**
