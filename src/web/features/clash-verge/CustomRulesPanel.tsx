@@ -192,6 +192,7 @@ const CustomRuleRow = memo(
             <ComboboxInput
               placeholder="搜索 GEOSITE 分类"
               aria-label={`第 ${props.index} 条规则的 GEOSITE 分类`}
+              className="w-full"
               showClear
             />
             <ComboboxContent>
@@ -569,7 +570,7 @@ export const CustomRulesPanel = () => {
                           </Popover>
                         </span>
                       </TableHead>
-                      <TableHead className="w-[min(60vw,640px)] min-w-[160px]">
+                      <TableHead className="w-[min(80vw,1280px)] min-w-[240px]">
                         值
                       </TableHead>
                       <TableHead className="min-w-[120px]">出口</TableHead>
