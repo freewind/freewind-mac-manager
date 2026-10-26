@@ -102,6 +102,7 @@ export const ClashVergePage = () => {
                 <CurrentProfileCard
                   profiles={model.profiles}
                   isError={model.profilesQueryIsError}
+                  proxies={model.proxies}
                 />
                 <ProxyGroups
                   proxies={model.proxies}

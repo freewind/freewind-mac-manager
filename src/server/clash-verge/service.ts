@@ -31,6 +31,7 @@ import {
   customRuleTargetRank,
   DEFAULT_HEALTH_CHECK,
   DEFAULT_MERGE_TEMPLATE,
+  MERGED_PRIMARY_GROUP,
   MERGED_URL_TEST_TOLERANCE,
 } from "@shared/clash-merge-defaults"
 import { parse as parseYaml, stringify as toYaml } from "yaml"
@@ -1010,8 +1011,6 @@ const MERGED_FILE = "freewind-merged.yaml"
 const MERGED_NAME = "freewind-merged"
 /** 兑底分组名：与页面上的兑底行保持一致。 */
 const MERGED_FALLBACK_GROUP = "其他"
-/** 规则出口统一指向的总组：在它里可再选具体地区组。 */
-const MERGED_PRIMARY_GROUP = "节点选择"
 /** 直连开关组：默认 DIRECT，可切到总组或拦截。 */
 const MERGED_DIRECT_GROUP = "直连"
 /** 拦截开关组：默认 REJECT，可切到直接直连或总组。 */

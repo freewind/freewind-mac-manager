@@ -13,6 +13,9 @@ export const DEFAULT_HEALTH_CHECK = {
 /** url-test 的容差：延迟差在这范围内视为持平，避免在两个节点间来回抖。 */
 export const MERGED_URL_TEST_TOLERANCE = 50
 
+/** 合并配置的主代理组名：所有规则最终都指向它，也是判断出口链的起点。 */
+export const MERGED_PRIMARY_GROUP = "节点选择"
+
 /**
  * 自定义域名规则的写入顺序：特定组 → 拒绝 → 直连 → 走代理。
  * 钉到具体地区组的域名最具体，先让它命中；再挡广告、再让该直连的别绕路。
