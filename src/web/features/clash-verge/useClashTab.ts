@@ -1,14 +1,12 @@
 import { useSyncExternalStore } from "react"
 
-/** Clash 页的主体分区：状态快照、订阅信息、合并订阅、域名规则、代理组、活动连接、规则数据库与配置详解。 */
+/** Clash 页的主体分区：状态（含代理组与活动连接）、订阅信息、合并订阅、域名规则、规则数据库与配置详解。 */
 export const CLASH_TABS = [
   { key: "status", label: "状态" },
   { key: "profiles", label: "订阅信息" },
   { key: "merge", label: "合并订阅" },
   { key: "customRules", label: "域名规则" },
-  { key: "proxies", label: "代理组" },
-  { key: "connections", label: "活动连接" },
-  // 四份 GEO 数据合在一页，页内再用 tab 分开：它们属于同一类东西。
+  // 代理组与活动连接是状态页里的两张卡片，不再单独占标签。
   { key: "geoData", label: "规则数据库" },
   { key: "config", label: "配置详解" },
 ] as const

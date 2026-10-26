@@ -97,26 +97,22 @@ export const ClashVergePage = () => {
                 isError={model.proxiesQueryIsError}
               />
             </div>
+            <ProxyGroups
+              proxies={model.proxies?.proxies ?? []}
+              sampledAt={model.proxies?.sampledAt}
+            />
+            <ConnectionsList
+              connections={model.connections?.connections ?? []}
+              total={model.connections?.total ?? 0}
+              truncated={model.connections?.truncated ?? false}
+              sampledAt={model.connections?.sampledAt}
+              limit={model.connections?.limit}
+            />
           </div>
         ) : null}
         {tab === "profiles" ? <ProfilesPanel /> : null}
         {tab === "merge" ? <MergeProfilesPanel /> : null}
         {tab === "customRules" ? <CustomRulesPanel /> : null}
-        {tab === "proxies" ? (
-          <ProxyGroups
-            proxies={model.proxies?.proxies ?? []}
-            sampledAt={model.proxies?.sampledAt}
-          />
-        ) : null}
-        {tab === "connections" ? (
-          <ConnectionsList
-            connections={model.connections?.connections ?? []}
-            total={model.connections?.total ?? 0}
-            truncated={model.connections?.truncated ?? false}
-            sampledAt={model.connections?.sampledAt}
-            limit={model.connections?.limit}
-          />
-        ) : null}
         {tab === "geoData" ? <GeoDatabasesPanel /> : null}
         {tab === "config" ? <ConfigDetailPanel /> : null}
       </div>
