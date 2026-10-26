@@ -2,6 +2,7 @@ import type { CustomRule } from "@shared/api-contract"
 import { customRuleTargetRank } from "@shared/clash-merge-defaults"
 import { describeError } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
+import { TablePagination } from "@web/components/TablePagination"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
@@ -339,12 +340,6 @@ export const CustomRulesPanel = () => {
     return result
   }, [rows])
 
-  /** 当前分区的一页：分页条放在分区之外，跟着当前分区走。 */
-  const currentList = grouped[bucket]
-  const totalPages = Math.max(1, Math.ceil(currentList.length / PAGE_SIZE))
-  const page = Math.min(pages[bucket], totalPages)
-  const pageRows = currentList.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
   /** 只比实际写进配置的内容：值为空的行会被丢掉，不参与比较。 */
   const dirty = useMemo(() => {
     const saved = configQuery.data
@@ -392,10 +387,6 @@ export const CustomRulesPanel = () => {
   const changeQuery = (next: string) => {
     setQuery(next)
     setPages(FIRST_PAGES)
-  }
-
-  const setPage = (next: number) => {
-    setPages((current) => ({ ...current, [bucket]: next }))
   }
 
   /** 新规则跟着当前分区走，省得再加一次出口。 */
@@ -511,6 +502,12 @@ export const CustomRulesPanel = () => {
 
           {BUCKETS.map((item) => {
             const list = grouped[item.key]
+            const pageCount = Math.max(1, Math.ceil(list.length / PAGE_SIZE))
+            const page = Math.min(pages[item.key], pageCount)
+            const pageRows = list.slice(
+              (page - 1) * PAGE_SIZE,
+              page * PAGE_SIZE
+            )
             return (
               <TabsContent
                 key={item.key}
@@ -598,40 +595,30 @@ export const CustomRulesPanel = () => {
                   <p className="text-xs text-muted-foreground">
                     {keyword === "" ? "这个分区还没有规则" : "没有匹配的规则"}
                   </p>
-                ) : null}
+                ) : (
+                  /* 分页跟表格一起：换到别的表格时这两件也一起搬。 */
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {`共 ${list.length} 条`}
+                    </p>
+                    <TablePagination
+                      page={page}
+                      pageCount={pageCount}
+                      onPageChange={(next) =>
+                        setPages((current) => ({
+                          ...current,
+                          [item.key]: next,
+                        }))
+                      }
+                    />
+                  </div>
+                )}
               </TabsContent>
             )
           })}
         </Tabs>
 
-        {/* 分页与动作放在分区之外：切分区时它们位置不动，不像分区里的内容。 */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-          <p className="text-xs text-muted-foreground">
-            {currentList.length === 0
-              ? ""
-              : `共 ${currentList.length} 条，第 ${page} / ${totalPages} 页`}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              上一页
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-            >
-              下一页
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
           <Button variant="outline" size="sm" onClick={add}>
             <Plus aria-hidden="true" />
             添加规则
