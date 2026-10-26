@@ -945,11 +945,16 @@ export const setClashVergeCurrentProfile = async (
   }
   const currentUid =
     typeof document.current === "string" ? document.current : ""
+  // 已是当前订阅：不改写清单，只重启 App 让它重读配置文件（外部可能更新过）。
   if (currentUid === uid) {
-    throw new PublicOperationError(
-      409,
-      `「${target.name}」已经是当前启用的订阅`
-    )
+    const restarted = await restartClashVerge()
+    if (!restarted) {
+      throw new PublicOperationError(
+        409,
+        `「${target.name}」已是当前订阅；Clash Verge 未运行，无法重新加载`
+      )
+    }
+    return `已重新应用「${target.name}」，Clash Verge 正在重启；代理会短暂中断`
   }
   const updated = replaceCurrentLine(text, uid)
   if (updated === null) {

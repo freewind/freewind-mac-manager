@@ -150,8 +150,11 @@ export const ProfilesPanel = () => {
   const query = useClashVergeProfilesQuery()
   const data = query.data
   const switchProfile = useSetClashVergeCurrentProfile()
-  /** 待确认切换的订阅：非空时弹出确认框。 */
-  const [pending, setPending] = useState<ClashVergeProfile | null>(null)
+  /** 待确认切换的订阅：非空时弹出确认框。reapply 表示重设当前订阅以重读文件。 */
+  const [pending, setPending] = useState<{
+    profile: ClashVergeProfile
+    reapply: boolean
+  } | null>(null)
   /** 正在看配置文件的订阅：非空时弹出文件弹窗。 */
   const [fileProfile, setFileProfile] = useState<ClashVergeProfile | null>(null)
   const confirm = useDialogSubmit(
@@ -162,7 +165,7 @@ export const ProfilesPanel = () => {
   const runSwitch = async (): Promise<boolean> => {
     if (!pending) return false
     try {
-      const result = await switchProfile.mutateAsync(pending.uid)
+      const result = await switchProfile.mutateAsync(pending.profile.uid)
       toast.success(result.message)
       return true
     } catch (error) {
@@ -241,16 +244,17 @@ export const ProfilesPanel = () => {
                         复制
                       </Button>
                     )}
-                    {profile.current ? null : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={confirm.busy}
-                        onClick={() => setPending(profile)}
-                      >
-                        使用当前
-                      </Button>
-                    )}
+                    {/* 已启用的也留一个按钮：配置文件可能被外部改过，重新应用才会重读。 */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={confirm.busy}
+                      onClick={() =>
+                        setPending({ profile, reapply: profile.current })
+                      }
+                    >
+                      {profile.current ? "重新应用" : "使用当前"}
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -349,22 +353,24 @@ export const ProfilesPanel = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {`切换到「${pending?.name ?? ""}」？`}
+              {pending?.reapply === true
+                ? `重新应用「${pending.profile.name}」？`
+                : `切换到「${pending?.profile.name ?? ""}」？`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              会改写 Clash Verge 订阅清单里的当前订阅并重启
-              App。重启期间系统代理与 TUN
-              短暂中断（数秒）：如果正通过这个代理远程访问本页，连接会断开。
+              {pending?.reapply === true
+                ? "会重新读取这个订阅的配置文件并重启 Clash Verge App，让文件的最新内容生效。重启期间系统代理与 TUN 短暂中断（数秒）：如果正通过这个代理远程访问本页，连接会断开。"
+                : "会改写 Clash Verge 订阅清单里的当前订阅并重启 App。重启期间系统代理与 TUN 短暂中断（数秒）：如果正通过这个代理远程访问本页，连接会断开。"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={confirm.busy}>取消</AlertDialogCancel>
             <ActionButton
               busy={confirm.busy}
-              busyLabel="切换中…"
+              busyLabel={pending?.reapply === true ? "应用中…" : "切换中…"}
               onClick={() => void confirm.submit(runSwitch)}
             >
-              确认切换
+              {pending?.reapply === true ? "确认重新应用" : "确认切换"}
             </ActionButton>
           </AlertDialogFooter>
         </AlertDialogContent>
