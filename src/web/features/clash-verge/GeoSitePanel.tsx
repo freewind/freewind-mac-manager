@@ -1,4 +1,8 @@
 import { describeError, formatTimestamp } from "@shared/format"
+import {
+  TABLE_PAGE_SIZE,
+  TablePagination,
+} from "@web/components/TablePagination"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
   InputGroup,
@@ -16,13 +20,7 @@ import {
 } from "@web/components/ui/table"
 import { X } from "lucide-react"
 import { useState } from "react"
-import {
-  bytesText,
-  GeoIntro,
-  GeoPageNav,
-  HeaderHelp,
-  PAGE_SIZE,
-} from "./geo-shared"
+import { bytesText, GeoIntro, HeaderHelp } from "./geo-shared"
 import { useClashVergeGeositeQuery } from "./queries"
 
 /** protobuf 里的类型：页面显示中文，免得看不懂 plain / rootdomain。 */
@@ -47,6 +45,7 @@ export const GeoSitePanel = () => {
   const data = query.data
   const [keyword, setKeyword] = useState("")
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(TABLE_PAGE_SIZE)
 
   const needle = keyword.trim().toLowerCase()
   const filtered =
@@ -63,11 +62,11 @@ export const GeoSitePanel = () => {
   const sorted = [...filtered].sort((left, right) => right.count - left.count)
 
   // 搜索把结果变短时页码可能越界，按当前总页数夹一下，不再额外存一份状态。
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pageRows = sorted.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   )
 
   return (
@@ -204,12 +203,21 @@ export const GeoSitePanel = () => {
               </Table>
             </div>
           )}
-          <GeoPageNav
-            page={currentPage}
-            totalPages={totalPages}
-            summary={`第 ${currentPage} / ${totalPages} 页 · 共 ${sorted.length} 个分类`}
-            onChange={setPage}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">
+              {`共 ${sorted.length} 个分类`}
+            </span>
+            <TablePagination
+              page={currentPage}
+              pageCount={totalPages}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(next) => {
+                setPageSize(next)
+                setPage(1)
+              }}
+            />
+          </div>
         </>
       )}
     </section>

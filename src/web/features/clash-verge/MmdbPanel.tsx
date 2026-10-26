@@ -1,4 +1,8 @@
 import { describeError, formatTimestamp } from "@shared/format"
+import {
+  TABLE_PAGE_SIZE,
+  TablePagination,
+} from "@web/components/TablePagination"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import {
   InputGroup,
@@ -16,13 +20,7 @@ import {
 } from "@web/components/ui/table"
 import { X } from "lucide-react"
 import { type ReactNode, useState } from "react"
-import {
-  bytesText,
-  GeoIntro,
-  GeoPageNav,
-  HeaderHelp,
-  PAGE_SIZE,
-} from "./geo-shared"
+import { bytesText, GeoIntro, HeaderHelp } from "./geo-shared"
 import { useClashVergeAsnQuery, useClashVergeCountryQuery } from "./queries"
 
 type MmdbQuery = ReturnType<typeof useClashVergeCountryQuery>
@@ -106,6 +104,7 @@ const MmdbView = (props: { kind: "country" | "asn"; query: MmdbQuery }) => {
   const data = props.query.data
   const [keyword, setKeyword] = useState("")
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(TABLE_PAGE_SIZE)
 
   const needle = keyword.trim().toLowerCase()
   const filtered =
@@ -119,11 +118,11 @@ const MmdbView = (props: { kind: "country" | "asn"; query: MmdbQuery }) => {
               item.label.toLowerCase().includes(needle)
           )
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pageRows = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   )
 
   return (
@@ -251,12 +250,21 @@ const MmdbView = (props: { kind: "country" | "asn"; query: MmdbQuery }) => {
               </Table>
             </div>
           )}
-          <GeoPageNav
-            page={currentPage}
-            totalPages={totalPages}
-            summary={`第 ${currentPage} / ${totalPages} 页 · 共 ${filtered.length} ${labels.unit}`}
-            onChange={setPage}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">
+              {`共 ${filtered.length} ${labels.unit}`}
+            </span>
+            <TablePagination
+              page={currentPage}
+              pageCount={totalPages}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(next) => {
+                setPageSize(next)
+                setPage(1)
+              }}
+            />
+          </div>
         </>
       )}
     </section>
