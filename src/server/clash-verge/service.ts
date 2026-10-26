@@ -28,6 +28,7 @@ import {
 } from "@shared/api-contract/schemas/clash-verge"
 import {
   type ClashMergeGroupType,
+  customRuleTargetRank,
   DEFAULT_HEALTH_CHECK,
   DEFAULT_MERGE_TEMPLATE,
   MERGED_URL_TEST_TOLERANCE,
@@ -1247,9 +1248,14 @@ export const mergeClashProfiles = async (
   const healthCheck = input.healthCheck
 
   // 自定义规则：优先级最高，排在最前面；值为空的行不写进配置。
-  const customRules = input.customRules
+  // 按出口分组排序：拒绝 → 直连 → 特定组 → 走代理，与页面上的四个分区一致。
+  const customRules = [...input.customRules]
     .map((rule) => ({ ...rule, value: rule.value.trim() }))
     .filter((rule) => rule.value !== "")
+    .sort(
+      (left, right) =>
+        customRuleTargetRank(left.target) - customRuleTargetRank(right.target)
+    )
     .map((rule) => `${rule.type},${rule.value},${resolveOutlet(rule.target)}`)
 
   // 规则：自定义域名规则在前，模板里的固定分流规则在后，最后补 MATCH 收尾。

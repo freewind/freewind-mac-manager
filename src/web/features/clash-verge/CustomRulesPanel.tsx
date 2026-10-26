@@ -1,4 +1,5 @@
 import type { CustomRule } from "@shared/api-contract"
+import { customRuleTargetRank } from "@shared/clash-merge-defaults"
 import { describeError } from "@shared/format"
 import { ActionButton } from "@web/components/ActionButton"
 import { Button } from "@web/components/ui/button"
@@ -30,6 +31,12 @@ import {
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@web/components/ui/tabs"
 import { CircleHelp, Plus } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -52,27 +59,30 @@ const CUSTOM_TARGET_ALIASES: Record<string, string> = {
   reject: "拒绝",
 }
 
+/** 四个分区：顺序就是写进配置的顺序。 */
+const BUCKETS = [
+  { key: "reject", label: "拒绝" },
+  { key: "direct", label: "直连" },
+  { key: "group", label: "特定组" },
+  { key: "proxy", label: "走代理" },
+] as const
+
+type Bucket = (typeof BUCKETS)[number]["key"]
+
+/** 出口决定它落在哪个分区：顺序与 customRuleTargetRank 一致。 */
+const BUCKET_BY_RANK: Bucket[] = ["reject", "direct", "group", "proxy"]
+const bucketOf = (target: string): Bucket =>
+  BUCKET_BY_RANK[customRuleTargetRank(target)]
+
 /** 三种规则类型的含义，放在类型列的问号里。 */
-const RULE_TYPE_NOTES: { type: string; meaning: string; example: string }[] = [
-  {
-    type: "DOMAIN",
-    meaning: "只匹配这个域名本身，不含子域名",
-    example: "DOMAIN,example.com",
-  },
-  {
-    type: "DOMAIN-SUFFIX",
-    meaning: "匹配这个域名及其所有子域名",
-    example: "DOMAIN-SUFFIX,example.com",
-  },
-  {
-    type: "DOMAIN-KEYWORD",
-    meaning: "域名里包含这个词就命中",
-    example: "DOMAIN-KEYWORD,ads",
-  },
+const RULE_TYPE_NOTES = [
+  { type: "DOMAIN", meaning: "只匹配这个域名本身，不含子域名" },
+  { type: "DOMAIN-SUFFIX", meaning: "匹配这个域名及其所有子域名" },
+  { type: "DOMAIN-KEYWORD", meaning: "域名里包含这个词就命中" },
 ]
 
 /**
- * 单行规则：表格有上千行，输入时只重渲染被改的那一行，
+ * 单行规则：每个分区都可能上千行，输入时只重渲染被改的那一行，
  * 否则每敲一个字符都要重渲染整表，手机直接卡住。
  */
 const CustomRuleRow = memo(
@@ -158,13 +168,14 @@ const CustomRuleRow = memo(
 /**
  * 自定义域名规则：命中就走指定出口，排在模板里的固定分流规则之前。
  *
- * 单独一页而不是塞在合并设置里：规则动辄上千条，混在一起没法维护。
- * 顺序就是生效顺序，新加的规则追加在最后。
+ * 按出口分四个分区展示（拒绝 → 直连 → 特定组 → 走代理），合并时也按这个顺序
+ * 写进配置：先挡掉广告，再让该直连的别绕路，最后才是走代理与指定地区组。
  */
 export const CustomRulesPanel = () => {
   const configQuery = useClashMergeConfigQuery()
   const saveConfig = useSaveClashMergeConfig()
   const [edited, setEdited] = useState<CustomRow[] | null>(null)
+  const [bucket, setBucket] = useState<Bucket>("reject")
 
   const savedRows = useMemo<CustomRow[]>(
     () =>
@@ -185,6 +196,23 @@ export const CustomRulesPanel = () => {
     }
     return [...names]
   }, [configQuery.data])
+
+  /** 当前分区显示的行：库里的顺序保持不变。 */
+  const visible = useMemo(
+    () => rows.filter((rule) => bucketOf(rule.target) === bucket),
+    [rows, bucket]
+  )
+
+  const counts = useMemo(() => {
+    const result: Record<Bucket, number> = {
+      reject: 0,
+      direct: 0,
+      group: 0,
+      proxy: 0,
+    }
+    for (const rule of rows) result[bucketOf(rule.target)] += 1
+    return result
+  }, [rows])
 
   /** 只比实际写进配置的内容：值为空的行会被丢掉，不参与比较。 */
   const dirty = useMemo(() => {
@@ -223,15 +251,12 @@ export const CustomRulesPanel = () => {
     [savedRows]
   )
 
+  /** 新规则跟着当前分区走，省得再加一次出口。 */
   const add = () => {
+    const target = bucket === "group" ? (targetOptions[0] ?? "proxy") : bucket
     setEdited([
       ...rows,
-      {
-        id: crypto.randomUUID(),
-        type: "DOMAIN-SUFFIX",
-        value: "",
-        target: "proxy",
-      },
+      { id: crypto.randomUUID(), type: "DOMAIN-SUFFIX", value: "", target },
     ])
   }
 
@@ -267,7 +292,8 @@ export const CustomRulesPanel = () => {
       <CardHeader>
         <CardTitle>自定义域名规则</CardTitle>
         <CardDescription>
-          按域名后缀、完整域名或关键词匹配，命中就走指定的出口；出口可选内置三项，也能直接选某个地区组（对地区有要求的网站）。顺序就是生效顺序，排在模板里的固定分流规则之前。
+          按域名后缀、完整域名或关键词匹配，命中就走指定的出口。合并时按「拒绝 →
+          直连 → 特定组 → 走代理」的顺序写进配置，排在模板里的固定分流规则之前。
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -277,89 +303,110 @@ export const CustomRulesPanel = () => {
           </p>
         ) : null}
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[140px]">
-                <span className="flex items-center gap-1">
-                  类型
-                  <Popover>
-                    <PopoverTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label="说明三种规则类型的区别"
-                        >
-                          <CircleHelp aria-hidden="true" />
-                        </Button>
-                      }
-                    />
-                    <PopoverContent className="w-[min(92vw,520px)] text-xs">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="min-w-[120px]">
-                              类型
-                            </TableHead>
-                            <TableHead className="min-w-[120px]">
-                              含义
-                            </TableHead>
-                            <TableHead className="w-full min-w-[120px]">
-                              例子
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {RULE_TYPE_NOTES.map((note) => (
-                            <TableRow key={note.type}>
-                              <TableCell className="align-top font-mono">
-                                {note.type}
-                              </TableCell>
-                              <TableCell className="align-top whitespace-normal">
-                                {note.meaning}
-                              </TableCell>
-                              <TableCell className="w-full align-top font-mono whitespace-normal">
-                                {note.example}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </PopoverContent>
-                  </Popover>
+        <Tabs
+          value={bucket}
+          onValueChange={(next) => setBucket(next as Bucket)}
+        >
+          <TabsList className="w-full">
+            {BUCKETS.map((item) => (
+              <TabsTrigger key={item.key} value={item.key}>
+                {item.label}
+                <span className="text-muted-foreground tabular-nums">
+                  {counts[item.key]}
                 </span>
-              </TableHead>
-              <TableHead className="w-[min(60vw,640px)] min-w-[160px]">
-                值
-              </TableHead>
-              <TableHead className="min-w-[120px]">出口</TableHead>
-              <TableHead className="w-full min-w-[60px]">
-                <span className="sr-only">操作</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((rule, index) => (
-              <CustomRuleRow
-                key={rule.id}
-                rule={rule}
-                index={index}
-                targetOptions={targetOptions}
-                onChange={onChange}
-                onRemove={onRemove}
-              />
+              </TabsTrigger>
             ))}
-          </TableBody>
-        </Table>
+          </TabsList>
 
-        {rows.length === 0 ? (
-          <p className="text-xs text-muted-foreground">还没有自定义规则</p>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            {`共 ${rows.length} 条，按从上到下的顺序生效`}
-          </p>
-        )}
+          {BUCKETS.map((item) => (
+            <TabsContent key={item.key} value={item.key} className="space-y-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[140px]">
+                      <span className="flex items-center gap-1">
+                        类型
+                        <Popover>
+                          <PopoverTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label="说明三种规则类型的区别"
+                              >
+                                <CircleHelp aria-hidden="true" />
+                              </Button>
+                            }
+                          />
+                          <PopoverContent className="w-[min(92vw,520px)] text-xs">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="min-w-[120px]">
+                                    类型
+                                  </TableHead>
+                                  <TableHead className="min-w-[120px]">
+                                    含义
+                                  </TableHead>
+                                  <TableHead className="w-full min-w-[120px]">
+                                    例子
+                                  </TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {RULE_TYPE_NOTES.map((note) => (
+                                  <TableRow key={note.type}>
+                                    <TableCell className="align-top font-mono">
+                                      {note.type}
+                                    </TableCell>
+                                    <TableCell className="align-top whitespace-normal">
+                                      {note.meaning}
+                                    </TableCell>
+                                    <TableCell className="w-full align-top font-mono whitespace-normal">
+                                      {`${note.type},example.com`}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </PopoverContent>
+                        </Popover>
+                      </span>
+                    </TableHead>
+                    <TableHead className="w-[min(60vw,640px)] min-w-[160px]">
+                      值
+                    </TableHead>
+                    <TableHead className="min-w-[120px]">出口</TableHead>
+                    <TableHead className="w-full min-w-[60px]">
+                      <span className="sr-only">操作</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visible.map((rule, index) => (
+                    <CustomRuleRow
+                      key={rule.id}
+                      rule={rule}
+                      index={index}
+                      targetOptions={targetOptions}
+                      onChange={onChange}
+                      onRemove={onRemove}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+              {visible.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  这个分区还没有规则
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {`共 ${visible.length} 条，按这个顺序生效`}
+                </p>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={add}>

@@ -14,6 +14,18 @@ export const DEFAULT_HEALTH_CHECK = {
 export const MERGED_URL_TEST_TOLERANCE = 50
 
 /**
+ * 自定义域名规则的写入顺序：拒绝 → 直连 → 特定组 → 走代理。
+ * 先挡广告，再让该直连的别绕路，最后才是走代理与指定地区组。
+ * 页面上的四个分区也按这个顺序摆。
+ */
+export const customRuleTargetRank = (target: string): number => {
+  if (target === "reject") return 0
+  if (target === "direct") return 1
+  if (target === "proxy") return 3
+  return 2
+}
+
+/**
  * 合并用的基座模板：合并产物里所有手写配置都从这里来。
  *
  * 订阅只提供节点，规则与各项行为全部由我们定义；页面生成的 proxies、
