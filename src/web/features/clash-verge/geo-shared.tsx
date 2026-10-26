@@ -45,6 +45,16 @@ export const bytesText = (bytes: number): string =>
     ? `${(bytes / 1024).toFixed(1)} KB`
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
+/**
+ * 页面顶部的简介：这份数据是什么、拿来干什么、从哪来、怎么更新。
+ * 四个 GEO 页共用同一个版式，内容各写各的。
+ */
+export const GeoIntro = (props: { children: ReactNode }) => (
+  <div className="space-y-1 rounded-md border bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground">
+    {props.children}
+  </div>
+)
+
 /** 表头说明：标题旁一个问号，点开看这一列是什么。 */
 export const HeaderHelp = (props: { label: string; children: ReactNode }) => (
   <span className="flex items-center gap-1">

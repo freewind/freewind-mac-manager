@@ -16,7 +16,13 @@ import {
 } from "@web/components/ui/table"
 import { X } from "lucide-react"
 import { useState } from "react"
-import { bytesText, GeoPageNav, HeaderHelp, PAGE_SIZE } from "./geo-shared"
+import {
+  bytesText,
+  GeoIntro,
+  GeoPageNav,
+  HeaderHelp,
+  PAGE_SIZE,
+} from "./geo-shared"
 import { useClashVergeGeoipQuery } from "./queries"
 
 /**
@@ -55,6 +61,24 @@ export const GeoIpPanel = () => {
 
   return (
     <section className="space-y-3" aria-label="geoip 数据库">
+      <GeoIntro>
+        <p>
+          geoip.dat 是 IP 网段对照表：每一条记录一段 IP 属于哪个国家或区域，
+          例如 1.0.1.0/24 属于 CN。
+        </p>
+        <p>
+          怎么用：配置里写 GEOIP,CN,DIRECT 时，内核拿目标 IP 与这张表比对， 命中
+          CN 就走直连。嗅探不到域名的连接（纯 IP 访问）靠它才不会误走代理。
+        </p>
+        <p>
+          它只在模板里写了 geodata-mode: true 时才被内核使用；没开时走
+          Country.mmdb。两份数据来源不同，同一个 IP 偶尔会判成不同国家。
+        </p>
+        <p>
+          数据由 MetaCubeX 汇总发布，Clash Verge 下载到本机； 在 Clash Verge
+          里点一次「更新 GEO 数据」即可更新。
+        </p>
+      </GeoIntro>
       {query.isError ? (
         <Alert variant="destructive">
           <AlertTitle>读取 geoip 数据库失败</AlertTitle>

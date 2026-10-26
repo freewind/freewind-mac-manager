@@ -16,7 +16,13 @@ import {
 } from "@web/components/ui/table"
 import { X } from "lucide-react"
 import { useState } from "react"
-import { bytesText, GeoPageNav, HeaderHelp, PAGE_SIZE } from "./geo-shared"
+import {
+  bytesText,
+  GeoIntro,
+  GeoPageNav,
+  HeaderHelp,
+  PAGE_SIZE,
+} from "./geo-shared"
 import { useClashVergeGeositeQuery } from "./queries"
 
 /** protobuf 里的类型：页面显示中文，免得看不懂 plain / rootdomain。 */
@@ -66,6 +72,21 @@ export const GeoSitePanel = () => {
 
   return (
     <section className="space-y-3" aria-label="geosite 数据库">
+      <GeoIntro>
+        <p>
+          geosite.dat 是域名清单：把互联网上的域名按用途与归属分成几百个分类，
+          例如 ads（广告）、cn（中国大陆站点）、netflix、telegram。
+        </p>
+        <p>
+          怎么用：配置里写 GEOSITE,cn,DIRECT 这种规则时，内核就拿你访问的域名
+          查这张表，命中的按规则走直连或走代理。合并页的「GEO 分类分流」填的
+          就是这里的分类名。
+        </p>
+        <p>
+          数据来自 MetaCubeX / v2fly 维护的公开清单，由 Clash Verge
+          下载到本机；在 Clash Verge 里点一次「更新 GEO 数据」即可换成新版本。
+        </p>
+      </GeoIntro>
       {query.isError ? (
         <Alert variant="destructive">
           <AlertTitle>读取 geosite 数据库失败</AlertTitle>
