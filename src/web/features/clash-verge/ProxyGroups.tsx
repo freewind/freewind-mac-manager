@@ -95,7 +95,7 @@ export const ProxyGroups = ({ proxies, isError }: ProxyGroupsProps) => {
                   className="min-w-[100px]"
                 />
                 <TableHead className="min-w-[80px]">类型</TableHead>
-                <TableHead className="min-w-[160px]">当前选中</TableHead>
+                <TableHead className="min-w-[200px]">当前选中</TableHead>
                 <SortableTableHead
                   sort={sort}
                   column="members"
@@ -119,7 +119,8 @@ export const ProxyGroups = ({ proxies, isError }: ProxyGroupsProps) => {
                       <TableCell className="text-left text-muted-foreground">
                         {group.type}
                       </TableCell>
-                      <TableCell className="max-w-0 truncate text-left">
+                      {/* 节点名要完整可读：不截断，宁可换行 */}
+                      <TableCell className="text-left break-all">
                         {group.selected ?? "未选择"}
                       </TableCell>
                       <TableCell className="text-left tabular-nums text-muted-foreground">
