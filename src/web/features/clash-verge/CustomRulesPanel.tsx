@@ -400,31 +400,21 @@ export const CustomRulesPanel = () => {
     setPages(FIRST_PAGES)
   }
 
-  /** 新规则跟着当前分区走，省得再加一次出口。 */
+  /** 新规则跟着当前分区走，省得再加一次出口；插在最前面，顺序就是优先级。 */
   const add = () => {
     const target = bucket === "group" ? (targetOptions[0] ?? "proxy") : bucket
-    const nextRows = [
-      ...rows,
+    setEdited([
       {
         id: crypto.randomUUID(),
         type: "DOMAIN-SUFFIX" as const,
         value: "",
         target,
       },
-    ]
-    setEdited(nextRows)
-    // 新行加在末尾：清掉搜索并翻到它所在的页，否则看起来像没加成功。
+      ...rows,
+    ])
+    // 新行在第一页第一条：清掉搜索并回到第一页，否则看不到它。
     setQuery("")
-    setPages({
-      ...FIRST_PAGES,
-      [bucket]: Math.max(
-        1,
-        Math.ceil(
-          nextRows.filter((rule) => bucketOf(rule.target) === bucket).length /
-            pageSize
-        )
-      ),
-    })
+    setPages(FIRST_PAGES)
   }
 
   /** 保存只提交这一页的内容：其余字段原样带回去，不做局部更新接口。 */
