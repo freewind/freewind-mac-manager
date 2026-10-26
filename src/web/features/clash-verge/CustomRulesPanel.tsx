@@ -171,8 +171,9 @@ const CustomRuleRow = memo(
         </Select>
       </TableCell>
       <TableCell className="text-left">
-        {props.rule.type === "GEOSITE" ? (
-          /* GEOSITE 的值是分类名，写错会让内核拒掉整份配置，改成只能从分类里选。 */
+        {props.rule.type === "GEOSITE" && props.geositeChoices.length > 0 ? (
+          /* GEOSITE 的值是分类名，写错会让内核拒掉整份配置，改成只能从分类里选。
+             分类还没读到时退回普通输入框，至少能看到并改当前值。 */
           <Combobox
             items={props.geositeChoices}
             value={
@@ -180,10 +181,11 @@ const CustomRuleRow = memo(
                 (item) => item.code === props.rule.value
               ) ?? null
             }
+            itemToStringLabel={(item) => item.code}
             itemToStringValue={(item) => item.code}
             onValueChange={(item) =>
               props.onChange(props.rule.id, {
-                value: item?.code ?? props.rule.value,
+                value: item?.code ?? "",
               })
             }
           >
