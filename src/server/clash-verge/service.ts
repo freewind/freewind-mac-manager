@@ -32,10 +32,6 @@ import {
   DEFAULT_MERGE_TEMPLATE,
   MERGED_URL_TEST_TOLERANCE,
 } from "@shared/clash-merge-defaults"
-import {
-  MERGED_DIRECT_RULES,
-  MERGED_REJECT_RULES,
-} from "@shared/clash-merge-rules"
 import { parse as parseYaml, stringify as toYaml } from "yaml"
 import {
   ControllerError,
@@ -1256,15 +1252,8 @@ export const mergeClashProfiles = async (
     .filter((rule) => rule.value !== "")
     .map((rule) => `${rule.type},${rule.value},${resolveOutlet(rule.target)}`)
 
-  // 规则：自定义域名规则 → 从六家订阅复刻的拒绝/直连规则 → 模板里的固定分流 → 最后补 MATCH 收尾。
-  // 复刻规则必须排在模板的 GEOSITE 之前：否则广告域名会被直连规则放行、
-  // 该直连的域名会被 GEOLOCATION-!CN 抢去走代理。
-  const rules = [
-    ...customRules,
-    ...MERGED_REJECT_RULES,
-    ...MERGED_DIRECT_RULES,
-    ...template.rules,
-  ]
+  // 规则：自定义域名规则在前，模板里的固定分流规则在后，最后补 MATCH 收尾。
+  const rules = [...customRules, ...template.rules]
   // 没有 MATCH 收尾就补一条，否则最后一段流量会落到不存在的组。
   if (!rules.some((rule) => rule.startsWith("MATCH"))) {
     rules.push(`MATCH,${outlets.primary}`)

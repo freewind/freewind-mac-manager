@@ -217,7 +217,7 @@ export const ClashHealthCheckSchema = z.object({
 export const ClashMergeConfigSchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   /** 自定义域名规则：优先级最高，排在模板里的固定分流规则之前。 */
-  customRules: z.array(CustomRuleSchema).max(200).default([]),
+  customRules: z.array(CustomRuleSchema).max(3000).default([]),
   /** 基座模板：合并产物里所有手写配置都来自它。 */
   template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   /** 测速参数：早期版本没有这个字段，读旧记录时用默认值。 */
@@ -233,7 +233,7 @@ export const ClashMergeConfigSchema = z.object({
 /** 保存时只接受设置本身，保存时间由服务端写。 */
 export const SaveClashMergeConfigBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
-  customRules: z.array(CustomRuleSchema).max(200).default([]),
+  customRules: z.array(CustomRuleSchema).max(3000).default([]),
   template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
   selectedProfiles: z.array(z.string().max(64)).max(200).default([]),
@@ -323,7 +323,7 @@ export const MergeClashProfilesBodySchema = z.object({
   rules: z.array(ClashMergeRuleSchema).max(200),
   /** 是否生成兜底的「其他」组：不勾选时未匹配的节点不进任何组。 */
   includeFallback: z.boolean().default(true),
-  customRules: z.array(CustomRuleSchema).max(200).default([]),
+  customRules: z.array(CustomRuleSchema).max(3000).default([]),
   template: z.string().max(20000).default(DEFAULT_MERGE_TEMPLATE),
   healthCheck: ClashHealthCheckSchema.default(DEFAULT_HEALTH_CHECK),
 })
