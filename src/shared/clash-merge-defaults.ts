@@ -64,12 +64,17 @@ dns:
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
   use-hosts: true
+  # DNS 请求按规则走：和路由用同一套判断，不会出现「解析走直连、连接走代理」的偏差。
+  respect-rules: true
   default-nameserver:
     - 223.5.5.5
     - 119.29.29.29
+  # 前两个是纯 UDP IP，第三个是 DoH：单靠 DoH 时它的 TLS 一抖，
+  # 就会有部分域名解析失败（表现为个别站点超时，其它都正常）。
   nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
     - https://dns.alidns.com/dns-query
-    - https://doh.pub/dns-query
   # 节点服务器的域名用国内纯 IP 解析：没这一条时内核会走 fallback 那套，
   # 而境外 DoH 在境内会被 reset，结果是所有节点都连不上（表现为全部测速超时）。
   proxy-server-nameserver:
