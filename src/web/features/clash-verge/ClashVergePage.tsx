@@ -92,11 +92,7 @@ export const ClashVergePage = () => {
               </p>
             ) : null}
             <StatusCards status={model.status} />
-            <ProxyGroups
-              proxies={model.proxies}
-              isError={model.proxiesQueryIsError}
-            />
-            {/* 两块内容彼此独立，长度差很多，用标签切换比竖着堆更好读 */}
+            {/* 代理组跟着当前订阅走：它描述的正是这份配置里的分组 */}
             <Tabs defaultValue="connections">
               <TabsList>
                 <TabsTrigger value="connections">活动连接</TabsTrigger>
@@ -111,10 +107,14 @@ export const ClashVergePage = () => {
                   limit={model.connections?.limit}
                 />
               </TabsContent>
-              <TabsContent value="profile" className="pt-3">
+              <TabsContent value="profile" className="space-y-3 pt-3">
                 <CurrentProfileCard
                   profiles={model.profiles}
                   isError={model.profilesQueryIsError}
+                />
+                <ProxyGroups
+                  proxies={model.proxies}
+                  isError={model.proxiesQueryIsError}
                 />
               </TabsContent>
             </Tabs>
