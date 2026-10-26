@@ -1,6 +1,12 @@
 import type { ClashVergeAvailability } from "@shared/api-contract"
 import { PageHeader } from "@web/components/PageHeader"
 import { Button } from "@web/components/ui/button"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@web/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { RefreshCw } from "lucide-react"
 import { ConfigDetailPanel } from "./ConfigDetailPanel"
@@ -86,21 +92,32 @@ export const ClashVergePage = () => {
               </p>
             ) : null}
             <StatusCards status={model.status} />
-            <CurrentProfileCard
-              profiles={model.profiles}
-              isError={model.profilesQueryIsError}
-            />
             <ProxyGroups
               proxies={model.proxies}
               isError={model.proxiesQueryIsError}
             />
-            <ConnectionsList
-              connections={model.connections?.connections ?? []}
-              total={model.connections?.total ?? 0}
-              truncated={model.connections?.truncated ?? false}
-              sampledAt={model.connections?.sampledAt}
-              limit={model.connections?.limit}
-            />
+            {/* 两块内容彼此独立，长度差很多，用标签切换比竖着堆更好读 */}
+            <Tabs defaultValue="connections">
+              <TabsList>
+                <TabsTrigger value="connections">活动连接</TabsTrigger>
+                <TabsTrigger value="profile">当前订阅</TabsTrigger>
+              </TabsList>
+              <TabsContent value="connections" className="pt-3">
+                <ConnectionsList
+                  connections={model.connections?.connections ?? []}
+                  total={model.connections?.total ?? 0}
+                  truncated={model.connections?.truncated ?? false}
+                  sampledAt={model.connections?.sampledAt}
+                  limit={model.connections?.limit}
+                />
+              </TabsContent>
+              <TabsContent value="profile" className="pt-3">
+                <CurrentProfileCard
+                  profiles={model.profiles}
+                  isError={model.profilesQueryIsError}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         ) : null}
         {tab === "profiles" ? <ProfilesPanel /> : null}
