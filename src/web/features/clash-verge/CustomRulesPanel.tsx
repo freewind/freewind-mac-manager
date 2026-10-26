@@ -59,18 +59,18 @@ const CUSTOM_TARGET_ALIASES: Record<string, string> = {
   reject: "拒绝",
 }
 
-/** 四个分区：顺序就是写进配置的顺序。 */
+/** 四个分区：顺序就是写进配置的顺序，特定组最具体，排最前。 */
 const BUCKETS = [
+  { key: "group", label: "特定组" },
   { key: "reject", label: "拒绝" },
   { key: "direct", label: "直连" },
-  { key: "group", label: "特定组" },
   { key: "proxy", label: "走代理" },
 ] as const
 
 type Bucket = (typeof BUCKETS)[number]["key"]
 
 /** 出口决定它落在哪个分区：顺序与 customRuleTargetRank 一致。 */
-const BUCKET_BY_RANK: Bucket[] = ["reject", "direct", "group", "proxy"]
+const BUCKET_BY_RANK: Bucket[] = ["group", "reject", "direct", "proxy"]
 const bucketOf = (target: string): Bucket =>
   BUCKET_BY_RANK[customRuleTargetRank(target)]
 
@@ -197,7 +197,7 @@ export const CustomRulesPanel = () => {
   const configQuery = useClashMergeConfigQuery()
   const saveConfig = useSaveClashMergeConfig()
   const [edited, setEdited] = useState<CustomRow[] | null>(null)
-  const [bucket, setBucket] = useState<Bucket>("reject")
+  const [bucket, setBucket] = useState<Bucket>("group")
   const [query, setQuery] = useState("")
   const [pages, setPages] = useState<Record<Bucket, number>>(FIRST_PAGES)
 
