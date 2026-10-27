@@ -55,6 +55,7 @@ import {
   LayoutGrid,
   List,
   MessageSquare,
+  Pencil,
   Plus,
   RefreshCw,
   Trash2,
@@ -719,15 +720,17 @@ export const PiPage = () => {
                       </CardDescription>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6"
-                        onClick={() => startEdit(entry)}
-                      >
-                        <Eye />
-                        详情
-                      </Button>
+                      {view === "card" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6"
+                          onClick={() => startEdit(entry)}
+                        >
+                          <Eye />
+                          详情
+                        </Button>
+                      ) : null}
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
@@ -758,6 +761,13 @@ export const PiPage = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="min-h-8 text-sm"
+                            onClick={() => startEdit(entry)}
+                          >
+                            <Pencil />
+                            编辑
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="min-h-8 text-sm"
                             onClick={() => copyProvider.mutate(entry)}
                             disabled={copyProvider.isPending}
                           >
@@ -778,7 +788,15 @@ export const PiPage = () => {
                   </div>
                   <p className="text-xs">
                     API：{entry.provider.api} · 模型：{entry.modelCount}
+                    {view === "row"
+                      ? ` · 密钥：${entry.hasApiKey ? "已保存" : "未设置"}`
+                      : null}
                   </p>
+                  {view === "row" && entry.provider.name ? (
+                    <p className="text-xs text-muted-foreground">
+                      显示名称：{entry.provider.name}
+                    </p>
+                  ) : null}
                 </CardHeader>
                 <CardContent
                   className={view === "row" ? "space-y-2 px-0" : "space-y-2"}
