@@ -138,6 +138,8 @@ export const runPiLab = async (input: unknown): Promise<PiLabResult> => {
     }
   }, 500)
   let lastWrite = 0
+  /** 参数类错误要原样上报，不能被下面的通用文案吃掉。 */
+  let publicError: PublicOperationError | null = null
   const publish = () => {
     if (Date.now() - lastWrite < 300) return
     lastWrite = Date.now()
@@ -307,11 +309,15 @@ export const runPiLab = async (input: unknown): Promise<PiLabResult> => {
         : run.status === "done"
           ? "回答完成"
           : "响应未完成或结果未知"
-  } catch {
+  } catch (error) {
+    if (error instanceof PublicOperationError) publicError = error
     run.status = controller.signal.aborted ? "unknown" : "failed"
-    run.message = controller.signal.aborted
-      ? "请求已中止，结果未知"
-      : "模型请求未完成，请核对参数与凭据"
+    run.message =
+      error instanceof PublicOperationError
+        ? error.message
+        : controller.signal.aborted
+          ? "请求已中止，结果未知"
+          : "模型请求未完成，请核对参数与凭据"
   } finally {
     clearTimeout(timer)
     clearInterval(cancelTimer)
@@ -324,6 +330,8 @@ export const runPiLab = async (input: unknown): Promise<PiLabResult> => {
     run.message = persisted.message
   }
   save(run)
+  // 先落库再抛出：失败原因既能在记录里查到，也能以正确状态码告知前端。
+  if (publicError) throw publicError
   return run
 }
 export const labTarget = (

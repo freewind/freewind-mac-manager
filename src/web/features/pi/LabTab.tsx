@@ -39,6 +39,17 @@ import { usePiModels } from "./queries"
 const PI_LAB_STALE_LIMIT_MS = 70_000
 const PI_LAB_STALE_LIMIT_SECONDS = PI_LAB_STALE_LIMIT_MS / 1000
 
+/** thinking 档位从弱到强；模型能力里缺省的档位按支持处理。 */
+const THINKING_ORDER = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const
+
 /** 折叠摘要用的中文档位名；遇到未知取值就原样显示，不掩盖实际输入。 */
 const THINKING_LABELS: Record<string, string> = {
   off: "关闭",
@@ -143,16 +154,11 @@ export const LabTab = ({
       url.searchParams.set("piRun", requestId)
       window.history.replaceState(window.history.state, "", url)
       const candidates = levels.split(",").map((value) => value.trim())
-      const allowed = [
-        "off",
-        "minimal",
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-      ]
-      if (candidates.some((value) => !allowed.includes(value)))
+      if (
+        candidates.some(
+          (value) => !(THINKING_ORDER as readonly string[]).includes(value)
+        )
+      )
         throw new Error("thinking 档位无效")
       return startPiLab(
         {
@@ -162,7 +168,7 @@ export const LabTab = ({
           sessionId,
           prompt,
           systemPrompt,
-          thinking,
+          thinking: effectiveThinking,
           maxTokens,
           tokenCandidates: tokens.split(",").map(Number),
           thinkingCandidates: candidates as NonNullable<
@@ -209,6 +215,19 @@ export const LabTab = ({
   const selected = models.data?.providers.find((item) => item.id === providerId)
   const providerIds = (models.data?.providers ?? []).map((item) => item.id)
   const modelIds = (selected?.provider.models ?? []).map((item) => item.id)
+  const selectedModel = selected?.provider.models.find(
+    (item) => item.id === modelId
+  )
+  /** 模型能力里为 null 的档位不支持；未声明的档位视为支持。 */
+  const supportsThinking = (level: string): boolean =>
+    selectedModel?.thinkingLevelMap?.[level] !== null
+  /**
+   * 实际发送的档位：所选档位不被模型支持时换成第一个支持的档位。
+   * 很多模型声明 off 为 null（不能关闭 thinking），默认 off 会直接被服务端拒绝。
+   */
+  const effectiveThinking = supportsThinking(thinking)
+    ? thinking
+    : (THINKING_ORDER.find(supportsThinking) ?? thinking)
   /** provider 变化就换新会话并清空模型：旧模型不属于新 provider。 */
   const selectProvider = (value: string): void => {
     if (value === providerId) return
@@ -334,7 +353,8 @@ export const LabTab = ({
           />
           {/* 收起时也显示当前取值：折叠只藏输入，不藏可见性 */}
           <span className="text-xs text-muted-foreground">
-            思考：{THINKING_LABELS[thinking] ?? thinking} · 上限：{maxTokens}
+            思考：{THINKING_LABELS[effectiveThinking] ?? effectiveThinking} ·
+            上限：{maxTokens}
           </span>
         </div>
         <CollapsibleContent className="grid gap-3 md:grid-cols-2">

@@ -1,4 +1,5 @@
 import { CADDY_APPLY_KIND, runCaddyApplyTask } from "@server/caddy/task"
+import { PublicOperationError } from "@server/common/public-error"
 import {
   DATABASE_BACKUP_CREATE_KIND,
   runDatabaseBackupCreateTask,
@@ -128,7 +129,9 @@ export const taskExecutors: TaskExecutor[] = [
     kind: TASK_KINDS.piLab,
     run: async (payload) => {
       const outcome = await runPiLab(payload)
-      if (outcome.status === "failed") throw new Error(outcome.message)
+      // 参数类失败是被拦下来的，不是执行后失败：带上状态码让前端看到原因。
+      if (outcome.status === "failed")
+        throw new PublicOperationError(400, outcome.message)
       return {
         result: outcome,
         message: outcome.message,
