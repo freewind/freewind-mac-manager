@@ -22,6 +22,11 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@web/components/ui/collapsible"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -39,6 +44,7 @@ import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
 import { Sheet, SheetContent, SheetTitle } from "@web/components/ui/sheet"
 import { Textarea } from "@web/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { SettingsCard } from "@web/features/ai-assistant/SettingsCard"
 import {
   forgetPendingRequest,
@@ -52,6 +58,8 @@ import {
   Ellipsis,
   Eye,
   Gauge,
+  LayoutGrid,
+  List,
   MessageSquare,
   Plus,
   RefreshCw,
@@ -249,6 +257,8 @@ export const PiPage = () => {
   } | null>(null)
   /** 已发出但还没拿到回执的测速目标，键为 `provider/model`。 */
   const [pendingTargets, setPendingTargets] = useState<string[]>([])
+  /** 列表展示方式：卡片瀑布流或紧凑行。 */
+  const [view, setView] = useState<"card" | "row">("card")
   /** Provider 列表的搜索关键词：匹配 provider id、显示名、baseUrl 与模型 id/名字。 */
   const [providerKeyword, setProviderKeyword] = useState("")
   const history = usePiBenchmarks(activeTab === "models")
@@ -645,10 +655,25 @@ export const PiPage = () => {
               value={providerKeyword}
               onChange={(event) => setProviderKeyword(event.target.value)}
             />
+            <ToggleGroup
+              className="ml-auto"
+              variant="outline"
+              value={[view]}
+              onValueChange={(values) => {
+                const next = values[0]
+                if (next === "card" || next === "row") setView(next)
+              }}
+            >
+              <ToggleGroupItem value="card" aria-label="卡片视图">
+                <LayoutGrid />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="row" aria-label="行视图">
+                <List />
+              </ToggleGroupItem>
+            </ToggleGroup>
             <Button
               size="sm"
               variant="outline"
-              className="ml-auto"
               onClick={() => void runBenchmarks(allBenchmarkTargets)}
               disabled={
                 allBenchmarkTargets.length === 0 || busyBenchmarkKeys.size > 0
@@ -669,10 +694,23 @@ export const PiPage = () => {
               没有匹配的 Provider。
             </p>
           ) : null}
-          {/* 瀑布流：卡片各按内容定高，短卡片不再被同行最高卡片拉高留白 */}
-          <div className="columns-1 gap-3 sm:columns-2 xl:columns-3">
+          {/* 卡片：瀑布流；行：单列列表，模型折叠在行内 */}
+          <div
+            className={
+              view === "card"
+                ? "columns-1 gap-3 sm:columns-2 xl:columns-3"
+                : "divide-y rounded-lg border"
+            }
+          >
             {visibleProviders.map((entry) => (
-              <Card key={entry.id} className="mb-3 break-inside-avoid">
+              <Card
+                key={entry.id}
+                className={
+                  view === "card"
+                    ? "mb-3 break-inside-avoid"
+                    : "rounded-none ring-0 [--card-spacing:--spacing(2)]"
+                }
+              >
                 <CardHeader>
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
@@ -752,171 +790,194 @@ export const PiPage = () => {
                   <p className="text-xs">
                     API：{entry.provider.api} · 模型：{entry.modelCount}
                   </p>
-                  <div className="space-y-2 text-xs text-muted-foreground">
-                    {entry.provider.models.map((model) => {
-                      const key = `${entry.id}/${model.id}`
-                      const status = benchmarkStatusText(
-                        latestBenchmark.get(key),
-                        pendingTargets.includes(key),
-                        now
-                      )
-                      return (
-                        <div
-                          key={model.id}
-                          className="flex flex-wrap items-center gap-2"
-                        >
-                          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 break-all">
-                            <Badge
-                              variant="outline"
-                              className="h-6 px-2 text-xs"
+                  <Collapsible key={view} defaultOpen={view === "card"}>
+                    {view === "row" ? (
+                      <CollapsibleTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                          >
+                            模型 {entry.modelCount}
+                          </Button>
+                        }
+                      />
+                    ) : null}
+                    <CollapsibleContent>
+                      <div className="space-y-2 text-xs text-muted-foreground">
+                        {entry.provider.models.map((model) => {
+                          const key = `${entry.id}/${model.id}`
+                          const status = benchmarkStatusText(
+                            latestBenchmark.get(key),
+                            pendingTargets.includes(key),
+                            now
+                          )
+                          return (
+                            <div
+                              key={model.id}
+                              className="flex flex-wrap items-center gap-2"
                             >
-                              <HighlightText
-                                text={model.name ?? model.id}
-                                keyword={providerKeyword}
-                              />
-                            </Badge>
-                            <span>
-                              {model.contextWindow ?? "-"} context /{" "}
-                              {model.maxTokens ?? "-"} 输出
-                            </span>
-                          </span>
-                          {/* 测速与菜单合成一组：左侧点击测速，右侧展开菜单 */}
-                          <div className="flex">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className={
-                                status?.failed
-                                  ? "rounded-r-none text-destructive"
-                                  : "rounded-r-none"
-                              }
-                              disabled={busyBenchmarkKeys.has(key)}
-                              onClick={() =>
-                                void runBenchmarks([
-                                  { providerId: entry.id, modelId: model.id },
-                                ])
-                              }
-                            >
-                              <Gauge />
-                              {status ? status.text : "首字"}
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                render={
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="rounded-l-none border-l-0 px-1.5"
-                                    aria-label={`「${model.id}」的更多操作`}
+                              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 break-all">
+                                <Badge
+                                  variant="outline"
+                                  className="h-6 px-2 text-xs"
+                                >
+                                  <HighlightText
+                                    text={model.name ?? model.id}
+                                    keyword={providerKeyword}
+                                  />
+                                </Badge>
+                                <span>
+                                  {model.contextWindow ?? "-"} context /{" "}
+                                  {model.maxTokens ?? "-"} 输出
+                                </span>
+                              </span>
+                              {/* 测速与菜单合成一组：左侧点击测速，右侧展开菜单 */}
+                              <div className="flex">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className={
+                                    status?.failed
+                                      ? "rounded-r-none text-destructive"
+                                      : "rounded-r-none"
+                                  }
+                                  disabled={busyBenchmarkKeys.has(key)}
+                                  onClick={() =>
+                                    void runBenchmarks([
+                                      {
+                                        providerId: entry.id,
+                                        modelId: model.id,
+                                      },
+                                    ])
+                                  }
+                                >
+                                  <Gauge />
+                                  {status ? status.text : "首字"}
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger
+                                    render={
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="rounded-l-none border-l-0 px-1.5"
+                                        aria-label={`「${model.id}」的更多操作`}
+                                      >
+                                        <ChevronDown />
+                                      </Button>
+                                    }
+                                  />
+                                  <DropdownMenuContent
+                                    align="end"
+                                    className="w-auto min-w-44"
                                   >
-                                    <ChevronDown />
-                                  </Button>
-                                }
-                              />
-                              <DropdownMenuContent
-                                align="end"
-                                className="w-auto min-w-44"
-                              >
-                                <DropdownMenuItem
-                                  className="min-h-8 text-sm"
-                                  onClick={() =>
-                                    setModelDraft({
-                                      providerId: entry.id,
-                                      editingModelId: model.id,
-                                      id: model.id,
-                                      name: model.name ?? "",
-                                      contextWindow:
-                                        model.contextWindow === undefined
-                                          ? ""
-                                          : String(model.contextWindow),
-                                      maxTokens:
-                                        model.maxTokens === undefined
-                                          ? ""
-                                          : String(model.maxTokens),
-                                      json: "",
-                                      reasoning: model.reasoning === true,
-                                      inputText:
-                                        model.input === undefined ||
-                                        model.input.includes("text"),
-                                      inputImage:
-                                        model.input?.includes("image") ?? false,
-                                      thinkingLevelMapJson:
-                                        model.thinkingLevelMap
-                                          ? JSON.stringify(
-                                              model.thinkingLevelMap,
-                                              null,
-                                              2
-                                            )
-                                          : "",
-                                    })
-                                  }
-                                >
-                                  <Eye />
-                                  详情
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="min-h-8 text-sm"
-                                  onClick={() =>
-                                    setPlaygroundTarget({
-                                      provider: entry.id,
-                                      model: model.id,
-                                    })
-                                  }
-                                >
-                                  <MessageSquare />
-                                  打开 Playground
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="min-h-8 text-sm"
-                                  onClick={() => void copyModelJson(model)}
-                                >
-                                  <Copy />
-                                  复制模型信息
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="min-h-8 text-sm"
-                                  variant="destructive"
-                                  disabled={entry.provider.models.length <= 1}
-                                  onClick={() =>
-                                    setDeleteModelTarget({
-                                      providerId: entry.id,
-                                      modelId: model.id,
-                                    })
-                                  }
-                                >
-                                  <Trash2 />
-                                  删除模型
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-1"
-                    onClick={() =>
-                      setModelDraft({
-                        providerId: entry.id,
-                        editingModelId: null,
-                        id: "",
-                        name: "",
-                        contextWindow: "",
-                        maxTokens: "",
-                        json: "",
-                        reasoning: false,
-                        inputText: true,
-                        inputImage: false,
-                        thinkingLevelMapJson: "",
-                      })
-                    }
-                  >
-                    <Plus />
-                    添加模型
-                  </Button>
+                                    <DropdownMenuItem
+                                      className="min-h-8 text-sm"
+                                      onClick={() =>
+                                        setModelDraft({
+                                          providerId: entry.id,
+                                          editingModelId: model.id,
+                                          id: model.id,
+                                          name: model.name ?? "",
+                                          contextWindow:
+                                            model.contextWindow === undefined
+                                              ? ""
+                                              : String(model.contextWindow),
+                                          maxTokens:
+                                            model.maxTokens === undefined
+                                              ? ""
+                                              : String(model.maxTokens),
+                                          json: "",
+                                          reasoning: model.reasoning === true,
+                                          inputText:
+                                            model.input === undefined ||
+                                            model.input.includes("text"),
+                                          inputImage:
+                                            model.input?.includes("image") ??
+                                            false,
+                                          thinkingLevelMapJson:
+                                            model.thinkingLevelMap
+                                              ? JSON.stringify(
+                                                  model.thinkingLevelMap,
+                                                  null,
+                                                  2
+                                                )
+                                              : "",
+                                        })
+                                      }
+                                    >
+                                      <Eye />
+                                      详情
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="min-h-8 text-sm"
+                                      onClick={() =>
+                                        setPlaygroundTarget({
+                                          provider: entry.id,
+                                          model: model.id,
+                                        })
+                                      }
+                                    >
+                                      <MessageSquare />
+                                      打开 Playground
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="min-h-8 text-sm"
+                                      onClick={() => void copyModelJson(model)}
+                                    >
+                                      <Copy />
+                                      复制模型信息
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="min-h-8 text-sm"
+                                      variant="destructive"
+                                      disabled={
+                                        entry.provider.models.length <= 1
+                                      }
+                                      onClick={() =>
+                                        setDeleteModelTarget({
+                                          providerId: entry.id,
+                                          modelId: model.id,
+                                        })
+                                      }
+                                    >
+                                      <Trash2 />
+                                      删除模型
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-1"
+                        onClick={() =>
+                          setModelDraft({
+                            providerId: entry.id,
+                            editingModelId: null,
+                            id: "",
+                            name: "",
+                            contextWindow: "",
+                            maxTokens: "",
+                            json: "",
+                            reasoning: false,
+                            inputText: true,
+                            inputImage: false,
+                            thinkingLevelMapJson: "",
+                          })
+                        }
+                      >
+                        <Plus />
+                        添加模型
+                      </Button>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </CardContent>
               </Card>
             ))}
