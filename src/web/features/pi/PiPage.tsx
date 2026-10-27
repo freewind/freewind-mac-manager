@@ -5,6 +5,7 @@ import {
   deletePiProvider,
   newRequestId,
   startPiBenchmark,
+  unwrap,
   updatePiProvider,
 } from "@shared/client-api"
 import { formatToSeconds } from "@shared/format"
@@ -44,6 +45,7 @@ import {
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import {
   Bot,
+  ChevronDown,
   Ellipsis,
   Gauge,
   Pencil,
@@ -171,6 +173,11 @@ export const PiPage = () => {
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
+  /** 待确认删除的模型：provider 与 model 标识。 */
+  const [deleteModelTarget, setDeleteModelTarget] = useState<{
+    providerId: string
+    modelId: string
+  } | null>(null)
   /** 已发出但还没拿到回执的测速目标，键为 `provider/model`。 */
   const [pendingTargets, setPendingTargets] = useState<string[]>([])
   /** Provider 列表的搜索关键词：匹配 provider id、显示名、baseUrl 与模型 id/名字。 */
@@ -300,6 +307,38 @@ export const PiPage = () => {
     },
     onError: (error) =>
       toast.error(error.message || "删除失败，请刷新配置核实"),
+  })
+  /**
+   * 删除单个模型：把该 provider 的 models 过滤后整体保存。
+   * 少于两个模型时不动：服务端 models 至少 1 个；删中默认模型会被告知先换默认模型。
+   */
+  const removeModel = useMutation({
+    mutationFn: async (target: { providerId: string; modelId: string }) => {
+      const entry = query.data?.providers.find(
+        (item) => item.id === target.providerId
+      )
+      if (!entry || !query.data) throw new Error("请先刷新配置后重试")
+      // 用 unwrap 抛出服务端文案：删除默认模型等情况需要原话告知用户。
+      return unwrap(
+        await updatePiProvider(entry.id, {
+          providerId: entry.id,
+          signature: query.data.signature,
+          provider: {
+            ...entry.provider,
+            name: entry.provider.name ?? entry.id,
+            models: entry.provider.models.filter(
+              (model) => model.id !== target.modelId
+            ),
+          },
+        })
+      )
+    },
+    onSuccess: async () => {
+      toast.success("模型已删除")
+      setDeleteModelTarget(null)
+      await invalidate()
+    },
+    onError: (error) => toast.error(error.message || "删除模型失败"),
   })
 
   const startEdit = (entry?: ProviderEntry) => {
@@ -553,36 +592,70 @@ export const PiPage = () => {
                             {model.contextWindow ?? "未声明"} context /{" "}
                             {model.maxTokens ?? "未声明"} 输出
                           </span>
-                          {/* 触发与结果合成同一个按钮：文字随测速状态变化 */}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className={
-                              status?.failed ? "text-destructive" : undefined
-                            }
-                            disabled={busyBenchmarkKeys.has(key)}
-                            onClick={() =>
-                              void runBenchmarks([
-                                { providerId: entry.id, modelId: model.id },
-                              ])
-                            }
-                          >
-                            <Gauge />
-                            {status ? status.text : "测首字"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setLabSelection({
-                                provider: entry.id,
-                                model: model.id,
-                              })
-                              setActiveTab("chat")
-                            }}
-                          >
-                            打开 Playground
-                          </Button>
+                          {/* 测速与菜单合成一组：左侧点击测速，右侧展开菜单 */}
+                          <div className="flex">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className={
+                                status?.failed
+                                  ? "rounded-r-none text-destructive"
+                                  : "rounded-r-none"
+                              }
+                              disabled={busyBenchmarkKeys.has(key)}
+                              onClick={() =>
+                                void runBenchmarks([
+                                  { providerId: entry.id, modelId: model.id },
+                                ])
+                              }
+                            >
+                              <Gauge />
+                              {status ? status.text : "首字"}
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                render={
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="rounded-l-none border-l-0 px-1.5"
+                                    aria-label={`「${model.id}」的更多操作`}
+                                  >
+                                    <ChevronDown />
+                                  </Button>
+                                }
+                              />
+                              <DropdownMenuContent
+                                align="end"
+                                className="w-auto min-w-40"
+                              >
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setLabSelection({
+                                      provider: entry.id,
+                                      model: model.id,
+                                    })
+                                    setActiveTab("chat")
+                                  }}
+                                >
+                                  打开 Playground
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  disabled={entry.provider.models.length <= 1}
+                                  onClick={() =>
+                                    setDeleteModelTarget({
+                                      providerId: entry.id,
+                                      modelId: model.id,
+                                    })
+                                  }
+                                >
+                                  <Trash2 />
+                                  删除模型
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                       )
                     })}
@@ -727,6 +800,42 @@ export const PiPage = () => {
               disabled={remove.isPending}
             >
               {remove.isPending ? "删除中…" : "删除 Provider"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteModelTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !removeModel.isPending) setDeleteModelTarget(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>删除模型？</DialogTitle>
+            <DialogDescription>
+              将从 provider「{deleteModelTarget?.providerId}」删除模型「
+              {deleteModelTarget?.modelId}」。此操作会创建备份；若它是默认模型，
+              须先在设置里更换默认模型。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteModelTarget(null)}
+              disabled={removeModel.isPending}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() =>
+                deleteModelTarget && removeModel.mutate(deleteModelTarget)
+              }
+              disabled={removeModel.isPending}
+            >
+              {removeModel.isPending ? "删除中…" : "删除模型"}
             </Button>
           </DialogFooter>
         </DialogContent>
