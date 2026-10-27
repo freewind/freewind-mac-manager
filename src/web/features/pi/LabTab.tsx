@@ -65,12 +65,15 @@ export const LabTab = ({
   mode,
   initialProvider = "",
   initialModel = "",
+  initialRunId = "",
   showHistory = true,
   layout = "split",
 }: {
   mode: "chat" | "probe"
   initialProvider?: string
   initialModel?: string
+  /** 从历史列表点进来时直接回看该次请求的结果。 */
+  initialRunId?: string
   /** 近期请求列表：抽屉里就地试用时不带历史，其它入口保持显示。 */
   showHistory?: boolean
   /** split：桌面左右并列；stack：单列堆叠，给栅格容器的抽屉用。 */
@@ -99,6 +102,7 @@ export const LabTab = ({
   const [tokens, setTokens] = useState("128,512")
   const [levels, setLevels] = useState("off,high")
   const [id, setId] = useState<string | null>(() => {
+    if (initialRunId) return initialRunId
     const params = new URL(window.location.href).searchParams
     return params.get("piRun")
   })

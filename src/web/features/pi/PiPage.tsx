@@ -66,6 +66,7 @@ import { toast } from "sonner"
 import { BenchmarkHistoryTab } from "./BenchmarkHistoryTab"
 import { GroupsTab } from "./GroupsTab"
 import { LabTab } from "./LabTab"
+import { PlaygroundTab, type PlaygroundTarget } from "./PlaygroundTab"
 import {
   benchmarkRunningExpired,
   piKeys,
@@ -236,11 +237,9 @@ export const PiPage = () => {
   const isDesktop = useIsDesktop()
   const { tab: activeTab, selectTab } = usePiTab()
   const setActiveTab = selectTab
-  /** 抽屉里的 Playground 目标：从模型菜单点开时带入 provider 与 model。 */
-  const [playgroundTarget, setPlaygroundTarget] = useState<{
-    provider: string
-    model: string
-  } | null>(null)
+  /** 抽屉里的 Playground 目标：从模型菜单或历史列表点开时带入 provider 与 model。 */
+  const [playgroundTarget, setPlaygroundTarget] =
+    useState<PlaygroundTarget | null>(null)
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
@@ -828,8 +827,10 @@ export const PiPage = () => {
         <SettingsCard />
       ) : activeTab === "settings" ? (
         <SettingsTab />
-      ) : activeTab === "probe" || activeTab === "chat" ? (
+      ) : activeTab === "probe" ? (
         <LabTab key={activeTab} mode={activeTab} />
+      ) : activeTab === "chat" ? (
+        <PlaygroundTab onOpen={setPlaygroundTarget} />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {query.isLoading ? <p role="status">正在读取 Pi 配置…</p> : null}
@@ -1471,14 +1472,17 @@ export const PiPage = () => {
           className="data-[side=right]:w-full data-[side=right]:sm:max-w-2xl"
         >
           <SheetTitle className="sr-only">
-            Playground：{playgroundTarget?.provider}/{playgroundTarget?.model}
+            {playgroundTarget?.provider
+              ? `Playground：${playgroundTarget.provider}/${playgroundTarget.model}`
+              : "Playground"}
           </SheetTitle>
           {playgroundTarget ? (
             <LabTab
-              key={`${playgroundTarget.provider}/${playgroundTarget.model}`}
+              key={`${playgroundTarget.provider}/${playgroundTarget.model}/${playgroundTarget.runId ?? ""}`}
               mode="chat"
               initialProvider={playgroundTarget.provider}
               initialModel={playgroundTarget.model}
+              initialRunId={playgroundTarget.runId}
               showHistory={false}
               layout="stack"
             />
