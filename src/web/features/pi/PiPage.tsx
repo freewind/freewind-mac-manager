@@ -158,6 +158,8 @@ export const PiPage = () => {
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
   /** 已发出但还没拿到回执的测速目标，键为 `provider/model`。 */
   const [pendingTargets, setPendingTargets] = useState<string[]>([])
+  /** Provider 列表的搜索关键词：同时匹配 provider id 与显示名称。 */
+  const [providerKeyword, setProviderKeyword] = useState("")
   const history = usePiBenchmarks(activeTab === "models")
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: piKeys.all })
@@ -311,6 +313,14 @@ export const PiPage = () => {
     }))
   )
   const benchmarkRecords = history.data?.benchmarks ?? []
+  /** 搜索只过滤列表显示，不改变「全部测速」的目标集合。 */
+  const keyword = providerKeyword.trim().toLowerCase()
+  const visibleProviders = (query.data?.providers ?? []).filter(
+    (entry) =>
+      keyword === "" ||
+      entry.id.toLowerCase().includes(keyword) ||
+      (entry.provider.name ?? "").toLowerCase().includes(keyword)
+  )
   const now = Date.now()
   /** 每个目标最近一次测速记录；历史按开始时间倒序返回，第一条即最新。 */
   const latestBenchmark = new Map<string, PiBenchmarkResult>()
@@ -424,6 +434,13 @@ export const PiPage = () => {
           ) : null}
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-medium">Provider 列表</h2>
+            <Input
+              className="h-8 w-44"
+              placeholder="搜索 Provider"
+              aria-label="搜索 Provider"
+              value={providerKeyword}
+              onChange={(event) => setProviderKeyword(event.target.value)}
+            />
             <Button
               size="sm"
               variant="outline"
@@ -438,8 +455,14 @@ export const PiPage = () => {
             </Button>
           </div>
 
+          {visibleProviders.length === 0 &&
+          (query.data?.providers.length ?? 0) > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              没有匹配的 Provider。
+            </p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {query.data?.providers.map((entry) => (
+            {visibleProviders.map((entry) => (
               <Card key={entry.id}>
                 <CardHeader>
                   <div className="flex items-start gap-2">
