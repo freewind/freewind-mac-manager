@@ -547,14 +547,16 @@ export const PiPage = () => {
                             </Button>
                           }
                         />
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" className="min-w-44">
                           <DropdownMenuItem
+                            className="min-h-8 text-sm"
                             onClick={() => setDetailTarget(entry)}
                           >
                             <Eye />
                             查看详情
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            className="min-h-8 text-sm"
                             disabled={busyBenchmarkKeys.size > 0}
                             onClick={() =>
                               void runBenchmarks(
@@ -568,11 +570,15 @@ export const PiPage = () => {
                             <Gauge />
                             整组测速
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => startEdit(entry)}>
+                          <DropdownMenuItem
+                            className="min-h-8 text-sm"
+                            onClick={() => startEdit(entry)}
+                          >
                             <Pencil />
                             编辑
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            className="min-h-8 text-sm"
                             variant="destructive"
                             onClick={() => setDeleteTarget(entry)}
                           >
@@ -602,7 +608,10 @@ export const PiPage = () => {
                           className="flex flex-wrap items-center gap-2"
                         >
                           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 break-all">
-                            <Badge variant="outline">
+                            <Badge
+                              variant="outline"
+                              className="h-6 px-2 text-xs"
+                            >
                               <HighlightText
                                 text={model.name ?? model.id}
                                 keyword={providerKeyword}
@@ -648,9 +657,10 @@ export const PiPage = () => {
                               />
                               <DropdownMenuContent
                                 align="end"
-                                className="w-auto min-w-40"
+                                className="w-auto min-w-44"
                               >
                                 <DropdownMenuItem
+                                  className="min-h-8 text-sm"
                                   onClick={() =>
                                     setPlaygroundTarget({
                                       provider: entry.id,
@@ -662,6 +672,7 @@ export const PiPage = () => {
                                   打开 Playground
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
+                                  className="min-h-8 text-sm"
                                   variant="destructive"
                                   disabled={entry.provider.models.length <= 1}
                                   onClick={() =>
