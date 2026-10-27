@@ -202,10 +202,13 @@ const optionalNumber = (
  * 模型行上的测速状态：提交中、测速中、首字耗时或失败原因。
  * 超过服务端上限仍停在 running 的记录不再算「测速中」，也不再阻止重测。
  */
-/** 失败详情：除 message 外再带错误类型、停止原因与 requestId，便于复制排查。 */
+/** 失败详情：优先上游原始错误，再带错误类型、停止原因与 requestId。 */
 const benchmarkFailureDetail = (record: PiBenchmarkResult): string =>
   [
-    record.message,
+    record.errorMessage ?? record.message,
+    record.error === "provider_error" && record.errorMessage === null
+      ? "旧记录没有保存原始错误，重新测速可拿到"
+      : null,
     record.error ? `错误类型：${record.error}` : null,
     record.stopReason ? `停止原因：${record.stopReason}` : null,
     `requestId：${record.requestId}`,

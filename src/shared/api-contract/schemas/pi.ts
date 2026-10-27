@@ -200,6 +200,8 @@ export const PiBenchmarkResultSchema = z.object({
   status: z.enum(["running", "done", "partial", "failed", "unknown"]),
   metrics: PiBenchmarkMetricsSchema,
   stopReason: z.string().nullable(),
+  /** 上游返回的原始错误文本；旧记录没有该列时为 null。 */
+  errorMessage: z.string().max(2000).nullable(),
   error: z
     .enum(["timeout", "cancelled", "provider_error", "output_limit"])
     .nullable(),

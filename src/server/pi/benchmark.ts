@@ -172,6 +172,13 @@ const initDatabase = (file: string): DatabaseSync => {
     CREATE INDEX IF NOT EXISTS idx_pi_benchmark_history
       ON ${TABLE} (started_at DESC);
   `)
+  // 旧库没有原始错误列：补一列，历史记录保持为空
+  const columns = db
+    .prepare(`PRAGMA table_info(${TABLE})`)
+    .all() as unknown as { name: string }[]
+  if (!columns.some((column) => column.name === "error_message")) {
+    db.exec(`ALTER TABLE ${TABLE} ADD COLUMN error_message TEXT`)
+  }
   return db
 }
 
@@ -246,12 +253,14 @@ const resultMessage = (status: BenchmarkStatus | "running"): string => {
 const updateRecord = (db: DatabaseSync, result: PiBenchmarkResult): void => {
   db.prepare(`
     UPDATE ${TABLE} SET status = ?, metrics_json = ?, stop_reason = ?,
-      error = ?, finished_at = ? WHERE id = ? AND status = 'running'
+      error = ?, error_message = ?, finished_at = ?
+    WHERE id = ? AND status = 'running'
   `).run(
     result.status,
     JSON.stringify(result.metrics),
     result.stopReason,
     result.error,
+    result.errorMessage,
     result.finishedAt,
     result.id
   )
@@ -311,6 +320,8 @@ const listRecords = (db: DatabaseSync, now: number): PiBenchmarkResult[] => {
       status: benchmarkStatus,
       metrics: JSON.parse(String(row.metrics_json)),
       stopReason: row.stop_reason,
+      errorMessage:
+        typeof row.error_message === "string" ? row.error_message : null,
       error:
         row.effective_error === "timeout" ||
         row.effective_error === "output_limit" ||
@@ -403,6 +414,8 @@ export const createPiBenchmarkService = (
     let stopReason: string | null = null
     let finalStatus: BenchmarkStatus = "failed"
     let failure: Failure | null = null
+    // 上游原始错误：固定文案看不出 provider 到底报了什么
+    let errorMessage: string | null = null
     try {
       const runtime = await Promise.race([
         dependencies.createRuntime(controller.signal),
@@ -496,6 +509,7 @@ export const createPiBenchmarkService = (
           } else {
             failure = "provider_error"
             finalStatus = "failed"
+            errorMessage = event.error.errorMessage ?? null
           }
           metricsFromUsage(event.error.usage, metrics)
           stopReason = event.error.stopReason
@@ -514,7 +528,9 @@ export const createPiBenchmarkService = (
       } else if (failure !== null && finalStatus !== "unknown") {
         finalStatus = "failed"
       }
-    } catch {
+    } catch (error) {
+      // 抛出来的异常同样是唯一线索，不能吞掉
+      errorMessage = error instanceof Error ? error.message : String(error)
       failure =
         abortReason ??
         (controller.signal.aborted ? "timeout" : "provider_error")
@@ -543,6 +559,7 @@ export const createPiBenchmarkService = (
       status: finalStatus,
       metrics,
       stopReason,
+      errorMessage: errorMessage?.slice(0, 2000) ?? null,
       error: failure,
       startedAt,
       finishedAt: dependencies.clock.wall(),
