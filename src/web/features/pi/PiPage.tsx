@@ -686,7 +686,7 @@ export const PiPage = () => {
                         onClick={() => startEdit(entry)}
                       >
                         <Eye />
-                        查看详情
+                        详情
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger
