@@ -461,9 +461,10 @@ export const PiPage = () => {
               没有匹配的 Provider。
             </p>
           ) : null}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {/* 瀑布流：卡片各按内容定高，短卡片不再被同行最高卡片拉高留白 */}
+          <div className="columns-1 gap-3 sm:columns-2 xl:columns-3">
             {visibleProviders.map((entry) => (
-              <Card key={entry.id}>
+              <Card key={entry.id} className="mb-3 break-inside-avoid">
                 <CardHeader>
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
