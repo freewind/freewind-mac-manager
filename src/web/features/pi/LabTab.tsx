@@ -54,12 +54,15 @@ export const LabTab = ({
   initialProvider = "",
   initialModel = "",
   showHistory = true,
+  layout = "split",
 }: {
   mode: "chat" | "probe"
   initialProvider?: string
   initialModel?: string
   /** 近期请求列表：抽屉里就地试用时不带历史，其它入口保持显示。 */
   showHistory?: boolean
+  /** split：桌面左右并列；stack：单列堆叠，给栅格容器的抽屉用。 */
+  layout?: "split" | "stack"
 }) => {
   const models = usePiModels()
   const client = useQueryClient()
@@ -69,6 +72,8 @@ export const LabTab = ({
   const [prompt, setPrompt] = useState("请简短回答：1 + 1 等于多少？")
   const [systemPrompt, setSystem] = useState("你是一个简洁的对话助手。")
   const isDesktop = useIsDesktop()
+  // 抽屉宽度比分区页窄：容器宽度不够时硬分两列，表单会被压成半宽、右侧留空。
+  const stack = layout === "stack"
   // 手机上参数与结果二选一：发送后直接看结果，可随时返回参数
   const [mobileView, setMobileView] = useState<"form" | "result">("form")
   // 高级参数默认收起：chat 与 probe 共用同一个开关，避免两处状态不同步
@@ -491,7 +496,12 @@ export const LabTab = ({
       </header>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
-        {isDesktop ? (
+        {stack ? (
+          <div className="flex min-w-0 flex-col gap-4">
+            {paramsSection}
+            {resultSection}
+          </div>
+        ) : isDesktop ? (
           <div className="grid min-w-0 gap-4 md:grid-cols-2">
             {paramsSection}
             {resultSection}

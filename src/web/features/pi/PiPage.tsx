@@ -860,6 +860,7 @@ export const PiPage = () => {
               initialProvider={playgroundTarget.provider}
               initialModel={playgroundTarget.model}
               showHistory={false}
+              layout="stack"
             />
           ) : null}
         </SheetContent>
