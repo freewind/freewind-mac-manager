@@ -143,6 +143,20 @@ const benchmarkStatusText = (
   return { text: record.message, failed: true }
 }
 
+/**
+ * 卡片上参与搜索的文本：provider id、显示名、baseUrl，以及每个模型的 id 与名字。
+ * api 协议、密钥等其余字段不参与匹配。
+ */
+const providerSearchText = (entry: ProviderEntry): string =>
+  [
+    entry.id,
+    entry.provider.name ?? "",
+    entry.provider.baseUrl,
+    ...entry.provider.models.flatMap((model) => [model.id, model.name ?? ""]),
+  ]
+    .join("\n")
+    .toLowerCase()
+
 export const PiPage = () => {
   const queryClient = useQueryClient()
   const query = usePiModels()
@@ -158,7 +172,7 @@ export const PiPage = () => {
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
   /** 已发出但还没拿到回执的测速目标，键为 `provider/model`。 */
   const [pendingTargets, setPendingTargets] = useState<string[]>([])
-  /** Provider 列表的搜索关键词：同时匹配 provider id 与显示名称。 */
+  /** Provider 列表的搜索关键词：匹配 provider id、显示名、baseUrl 与模型 id/名字。 */
   const [providerKeyword, setProviderKeyword] = useState("")
   const history = usePiBenchmarks(activeTab === "models")
   const invalidate = () =>
@@ -316,10 +330,7 @@ export const PiPage = () => {
   /** 搜索只过滤列表显示，不改变「全部测速」的目标集合。 */
   const keyword = providerKeyword.trim().toLowerCase()
   const visibleProviders = (query.data?.providers ?? []).filter(
-    (entry) =>
-      keyword === "" ||
-      entry.id.toLowerCase().includes(keyword) ||
-      (entry.provider.name ?? "").toLowerCase().includes(keyword)
+    (entry) => keyword === "" || providerSearchText(entry).includes(keyword)
   )
   const now = Date.now()
   /** 每个目标最近一次测速记录；历史按开始时间倒序返回，第一条即最新。 */
@@ -435,9 +446,9 @@ export const PiPage = () => {
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-medium">Provider 列表</h2>
             <Input
-              className="h-8 w-44"
-              placeholder="搜索 Provider"
-              aria-label="搜索 Provider"
+              className="h-8 w-56"
+              placeholder="搜索 Provider / URL / 模型"
+              aria-label="搜索 Provider、URL 或模型"
               value={providerKeyword}
               onChange={(event) => setProviderKeyword(event.target.value)}
             />
