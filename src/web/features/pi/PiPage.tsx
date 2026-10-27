@@ -651,6 +651,7 @@ export const PiPage = () => {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-6"
                         onClick={() => setDetailTarget(entry)}
                       >
                         <Eye />
@@ -660,7 +661,7 @@ export const PiPage = () => {
                         <DropdownMenuTrigger
                           render={
                             <Button
-                              size="icon"
+                              size="icon-sm"
                               variant="ghost"
                               aria-label={`更多操作：${entry.id}`}
                             >
