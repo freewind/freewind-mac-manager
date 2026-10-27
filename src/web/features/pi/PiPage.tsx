@@ -21,6 +21,11 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@web/components/ui/collapsible"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -563,6 +568,27 @@ export const PiPage = () => {
                       </DropdownMenu>
                     </div>
                   </div>
+                  <Collapsible className="mt-2">
+                    <CollapsibleTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-muted-foreground"
+                        >
+                          查看详情
+                        </Button>
+                      }
+                    />
+                    <CollapsibleContent>
+                      <pre className="mt-2 max-h-64 overflow-auto rounded border p-2 font-mono text-xs break-all whitespace-pre-wrap">
+                        {JSON.stringify(entry.provider, null, 2)}
+                      </pre>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        密钥不回显；以上为 models.json 中的原始配置。
+                      </p>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-xs">
