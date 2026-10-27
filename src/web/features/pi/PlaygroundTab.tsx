@@ -29,17 +29,13 @@ export const PlaygroundTab = ({
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
         <h2 className="text-sm font-medium">Playground</h2>
-        <p className="truncate text-xs text-muted-foreground">
-          发送会产生真实 API 请求及费用；内容仅保留 24 小时
-        </p>
-        <Button
-          size="sm"
-          className="ml-auto"
-          onClick={() => onOpen({ provider: "", model: "" })}
-        >
+        <Button size="sm" onClick={() => onOpen({ provider: "", model: "" })}>
           <MessageSquare />
           打开 Playground
         </Button>
+        <p className="truncate text-xs text-muted-foreground">
+          发送会产生真实 API 请求及费用；内容仅保留 24 小时
+        </p>
       </header>
       <div className="min-h-0 flex-1 overflow-auto p-4">
         <h3 className="mb-2 text-sm font-medium">历史对话</h3>
