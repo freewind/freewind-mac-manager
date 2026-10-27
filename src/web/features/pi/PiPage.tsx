@@ -648,6 +648,14 @@ export const PiPage = () => {
                       </CardDescription>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDetailTarget(entry)}
+                      >
+                        <Eye />
+                        查看详情
+                      </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
@@ -661,13 +669,6 @@ export const PiPage = () => {
                           }
                         />
                         <DropdownMenuContent align="end" className="min-w-44">
-                          <DropdownMenuItem
-                            className="min-h-8 text-sm"
-                            onClick={() => setDetailTarget(entry)}
-                          >
-                            <Eye />
-                            查看详情
-                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="min-h-8 text-sm"
                             disabled={busyBenchmarkKeys.size > 0}
