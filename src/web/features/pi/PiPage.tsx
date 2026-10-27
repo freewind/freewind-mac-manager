@@ -980,133 +980,143 @@ export const PiPage = () => {
                     const models = entry.provider.models
                     const rows: ((typeof models)[number] | null)[] =
                       models.length > 0 ? models : [null]
-                    return rows.map((model, index) => (
-                      <tr
-                        key={`${entry.id}/${model?.id ?? "none"}`}
-                        className="border-b align-top last:border-b-0"
-                      >
-                        {index === 0 ? (
-                          <>
-                            <td
-                              rowSpan={rows.length}
-                              className="px-3 py-2 align-top"
-                            >
-                              <div className="font-medium break-all">
-                                <HighlightText
-                                  text={entry.id}
-                                  keyword={providerKeyword}
-                                />
-                              </div>
-                              {entry.provider.name ? (
-                                <div className="text-muted-foreground break-all">
-                                  {entry.provider.name}
-                                </div>
-                              ) : null}
-                              <div className="mt-1 flex flex-wrap items-center gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6"
-                                  onClick={() => startEdit(entry)}
+                    return (
+                      <>
+                        {rows.map((model, index) => (
+                          <tr
+                            key={`${entry.id}/${model?.id ?? "none"}`}
+                            className="border-b align-top last:border-b-0"
+                          >
+                            {index === 0 ? (
+                              <>
+                                <td
+                                  rowSpan={rows.length + 1}
+                                  className="px-3 py-2 align-top"
                                 >
-                                  <Eye />
-                                  详情
-                                </Button>
-                                {renderProviderMenu(entry)}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6"
-                                  onClick={() =>
-                                    setModelDraft({
-                                      providerId: entry.id,
-                                      editingModelId: null,
-                                      id: "",
-                                      name: "",
-                                      contextWindow: "",
-                                      maxTokens: "",
-                                      json: "",
-                                      reasoning: false,
-                                      inputText: true,
-                                      inputImage: false,
-                                      thinkingLevelMapJson: "",
-                                    })
-                                  }
+                                  <div className="font-medium break-all">
+                                    <HighlightText
+                                      text={entry.id}
+                                      keyword={providerKeyword}
+                                    />
+                                  </div>
+                                  {entry.provider.name ? (
+                                    <div className="text-muted-foreground break-all">
+                                      {entry.provider.name}
+                                    </div>
+                                  ) : null}
+                                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6"
+                                      onClick={() => startEdit(entry)}
+                                    >
+                                      <Eye />
+                                      详情
+                                    </Button>
+                                    {renderProviderMenu(entry)}
+                                  </div>
+                                </td>
+                                <td
+                                  rowSpan={rows.length + 1}
+                                  className="px-3 py-2 align-top text-muted-foreground"
                                 >
-                                  <Plus />
-                                  添加模型
-                                </Button>
-                              </div>
-                            </td>
-                            <td
-                              rowSpan={rows.length}
-                              className="px-3 py-2 align-top text-muted-foreground"
-                            >
-                              <span className="break-all">
-                                <HighlightText
-                                  text={entry.provider.baseUrl}
-                                  keyword={providerKeyword}
-                                />
-                              </span>
-                            </td>
-                            <td
-                              rowSpan={rows.length}
-                              className="px-3 py-2 align-top text-muted-foreground"
-                            >
-                              {entry.provider.api}
-                            </td>
-                            <td
-                              rowSpan={rows.length}
-                              className="px-3 py-2 align-top text-muted-foreground"
-                            >
-                              {entry.apiKeyPreview ? (
-                                <div className="flex items-center gap-1">
-                                  <span className="font-mono">
-                                    {entry.apiKeyPreview}
+                                  <span className="break-all">
+                                    <HighlightText
+                                      text={entry.provider.baseUrl}
+                                      keyword={providerKeyword}
+                                    />
                                   </span>
-                                  <Button
-                                    size="icon-sm"
-                                    variant="ghost"
-                                    aria-label={`复制「${entry.id}」的密钥`}
-                                    onClick={() => void copyApiKey(entry.id)}
+                                </td>
+                                <td
+                                  rowSpan={rows.length + 1}
+                                  className="px-3 py-2 align-top text-muted-foreground"
+                                >
+                                  {entry.provider.api}
+                                </td>
+                                <td
+                                  rowSpan={rows.length + 1}
+                                  className="px-3 py-2 align-top text-muted-foreground"
+                                >
+                                  {entry.apiKeyPreview ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="font-mono">
+                                        {entry.apiKeyPreview}
+                                      </span>
+                                      <Button
+                                        size="icon-sm"
+                                        variant="ghost"
+                                        aria-label={`复制「${entry.id}」的密钥`}
+                                        onClick={() =>
+                                          void copyApiKey(entry.id)
+                                        }
+                                      >
+                                        <Copy />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    "未设置"
+                                  )}
+                                </td>
+                              </>
+                            ) : null}
+                            <td className="px-3 py-2">
+                              {model ? (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs"
                                   >
-                                    <Copy />
-                                  </Button>
+                                    <HighlightText
+                                      text={model.name ?? model.id}
+                                      keyword={providerKeyword}
+                                    />
+                                  </Badge>
+                                  <span className="text-muted-foreground">
+                                    {model.contextWindow ?? "-"} context /{" "}
+                                    {model.maxTokens ?? "-"} 输出
+                                  </span>
                                 </div>
                               ) : (
-                                "未设置"
+                                <span className="text-muted-foreground">
+                                  没有模型
+                                </span>
                               )}
                             </td>
-                          </>
-                        ) : null}
-                        <td className="px-3 py-2">
-                          {model ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge
-                                variant="outline"
-                                className="h-6 px-2 text-xs"
-                              >
-                                <HighlightText
-                                  text={model.name ?? model.id}
-                                  keyword={providerKeyword}
-                                />
-                              </Badge>
-                              <span className="text-muted-foreground">
-                                {model.contextWindow ?? "-"} context /{" "}
-                                {model.maxTokens ?? "-"} 输出
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">
-                              没有模型
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          {model ? renderModelActions(entry, model) : null}
-                        </td>
-                      </tr>
-                    ))
+                            <td className="px-3 py-2">
+                              {model ? renderModelActions(entry, model) : null}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="border-b last:border-b-0">
+                          <td colSpan={2} className="px-3 pb-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6"
+                              onClick={() =>
+                                setModelDraft({
+                                  providerId: entry.id,
+                                  editingModelId: null,
+                                  id: "",
+                                  name: "",
+                                  contextWindow: "",
+                                  maxTokens: "",
+                                  json: "",
+                                  reasoning: false,
+                                  inputText: true,
+                                  inputImage: false,
+                                  thinkingLevelMapJson: "",
+                                })
+                              }
+                            >
+                              <Plus />
+                              添加模型
+                            </Button>
+                          </td>
+                        </tr>
+                      </>
+                    )
                   })}
                 </tbody>
               </table>

@@ -205,7 +205,7 @@ rg -n 'strokeWidth' src/web -g '!components/ui/**'
 | Provider 头部按钮 | 卡片右上「查看详情」打开可编辑表单（无模型列表 JSON，保存时模型不变）；「…」含整组测速 / 复制为新 Provider / 删除 Provider | 抽 |
 | 复制为新 Provider | 生成 `<id>-copy`（显示名加「(. copy)」，模型一并复制），不复制密钥；id 已存在时提示 | 必 |
 | 密钥掩码与复制 | 行视图密钥列显示掩码（末 4 位），点复制按钮取明文写入剪贴板；未保存显示「未设置」 | 必 |
-| 视图切换 | Provider 列表可切卡片 / 行；行视图为表格：Provider（含详情与菜单）/ URL / API / 密钥 / 模型 / 操作；同一 provider 的模型各占一行，provider 列纵向合并 | 抽 |
+| 视图切换 | Provider 列表可切卡片 / 行；行视图为表格：Provider（含详情与菜单）/ URL / API / 密钥 / 模型 / 操作；同一 provider 的模型各占一行，provider 列纵向合并，添加模型按钮在该组最后一行下 | 抽 |
 | 模型行展示 | 模型名用标签展示；未声明的 context / 输出显示「-」；「…」含详情 / 打开 Playground / 复制模型信息 / 删除模型 | 抽 |
 | 模型详情可改 | 「…」→ 详情打开表单（id、名称、reasoning、输入类型、context、输出、thinking 映射），保存后卡片同步 | 必 |
 | 添加模型 | 卡片底部「添加模型」弹层可填 id、名称、reasoning、输入类型、context、输出、thinking 映射，或直接粘贴模型 JSON（粘贴优先）；JSON 非法、缺 id、id 重复都有明确提示 | 必 |
