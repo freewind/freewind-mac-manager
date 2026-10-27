@@ -557,6 +557,196 @@ export const PiPage = () => {
       .map((record) => `${record.providerId}/${record.modelId}`),
   ])
 
+  /** Provider 菜单：卡片与表格视图共用。 */
+  const renderProviderMenu = (entry: ProviderEntry) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`更多操作：${entry.id}`}
+          >
+            <Ellipsis />
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuItem
+          className="min-h-8 text-sm"
+          disabled={busyBenchmarkKeys.size > 0}
+          onClick={() =>
+            void runBenchmarks(
+              entry.provider.models.map((model) => ({
+                providerId: entry.id,
+                modelId: model.id,
+              }))
+            )
+          }
+        >
+          <Gauge />
+          整组测速
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-8 text-sm"
+          onClick={() => startEdit(entry)}
+        >
+          <Pencil />
+          编辑
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-8 text-sm"
+          onClick={() => copyProvider.mutate(entry)}
+          disabled={copyProvider.isPending}
+        >
+          <Copy />
+          复制为新 Provider
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-8 text-sm"
+          variant="destructive"
+          onClick={() => setDeleteTarget(entry)}
+        >
+          <Trash2 />
+          删除 Provider
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  /** 模型操作组：首字按钮 + 模型菜单，卡片与表格共用。 */
+  const renderModelActions = (
+    entry: ProviderEntry,
+    model: ProviderEntry["provider"]["models"][number]
+  ) => {
+    const key = `${entry.id}/${model.id}`
+    const status = benchmarkStatusText(
+      latestBenchmark.get(key),
+      pendingTargets.includes(key),
+      now
+    )
+    return (
+      <div className="flex">
+        <Button
+          size="sm"
+          variant="outline"
+          className={
+            status?.failed
+              ? "rounded-r-none text-destructive"
+              : "rounded-r-none"
+          }
+          disabled={busyBenchmarkKeys.has(key)}
+          onClick={() =>
+            void runBenchmarks([{ providerId: entry.id, modelId: model.id }])
+          }
+        >
+          <Gauge />
+          {status ? status.text : "首字"}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-l-none border-l-0 px-1.5"
+                aria-label={`「${model.id}」的更多操作`}
+              >
+                <ChevronDown />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="w-auto min-w-44">
+            <DropdownMenuItem
+              className="min-h-8 text-sm"
+              onClick={() =>
+                setModelDraft({
+                  providerId: entry.id,
+                  editingModelId: model.id,
+                  id: model.id,
+                  name: model.name ?? "",
+                  contextWindow:
+                    model.contextWindow === undefined
+                      ? ""
+                      : String(model.contextWindow),
+                  maxTokens:
+                    model.maxTokens === undefined
+                      ? ""
+                      : String(model.maxTokens),
+                  json: "",
+                  reasoning: model.reasoning === true,
+                  inputText:
+                    model.input === undefined || model.input.includes("text"),
+                  inputImage: model.input?.includes("image") ?? false,
+                  thinkingLevelMapJson: model.thinkingLevelMap
+                    ? JSON.stringify(model.thinkingLevelMap, null, 2)
+                    : "",
+                })
+              }
+            >
+              <Eye />
+              详情
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="min-h-8 text-sm"
+              onClick={() =>
+                setPlaygroundTarget({
+                  provider: entry.id,
+                  model: model.id,
+                })
+              }
+            >
+              <MessageSquare />
+              打开 Playground
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="min-h-8 text-sm"
+              onClick={() => void copyModelJson(model)}
+            >
+              <Copy />
+              复制模型信息
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="min-h-8 text-sm"
+              variant="destructive"
+              disabled={entry.provider.models.length <= 1}
+              onClick={() =>
+                setDeleteModelTarget({
+                  providerId: entry.id,
+                  modelId: model.id,
+                })
+              }
+            >
+              <Trash2 />
+              删除模型
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    )
+  }
+
+  /** 模型一行：标签 + context/输出 + 操作组。 */
+  const renderModelRow = (
+    entry: ProviderEntry,
+    model: ProviderEntry["provider"]["models"][number]
+  ) => (
+    <div key={model.id} className="flex flex-wrap items-center gap-2">
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 break-all">
+        <Badge variant="outline" className="h-6 px-2 text-xs">
+          <HighlightText
+            text={model.name ?? model.id}
+            keyword={providerKeyword}
+          />
+        </Badge>
+        <span>
+          {model.contextWindow ?? "-"} context / {model.maxTokens ?? "-"} 输出
+        </span>
+      </span>
+      {renderModelActions(entry, model)}
+    </div>
+  )
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
@@ -686,41 +876,27 @@ export const PiPage = () => {
               没有匹配的 Provider。
             </p>
           ) : null}
-          {/* 卡片：瀑布流；行：单列列表，模型折叠在行内 */}
-          <div
-            className={
-              view === "card"
-                ? "columns-1 gap-3 sm:columns-2 xl:columns-3"
-                : "divide-y rounded-lg border"
-            }
-          >
-            {visibleProviders.map((entry) => (
-              <Card
-                key={entry.id}
-                className={
-                  view === "card"
-                    ? "mb-3 break-inside-avoid"
-                    : "grid gap-3 rounded-none p-3 ring-0 sm:grid-cols-[minmax(11rem,17rem)_minmax(0,1fr)]"
-                }
-              >
-                <CardHeader>
-                  <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <CardTitle className="break-all">
-                        <HighlightText
-                          text={entry.id}
-                          keyword={providerKeyword}
-                        />
-                      </CardTitle>
-                      <CardDescription className="mt-1 break-all">
-                        <HighlightText
-                          text={entry.provider.baseUrl}
-                          keyword={providerKeyword}
-                        />
-                      </CardDescription>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      {view === "card" ? (
+          {view === "card" ? (
+            <div className="columns-1 gap-3 sm:columns-2 xl:columns-3">
+              {visibleProviders.map((entry) => (
+                <Card key={entry.id} className="mb-3 break-inside-avoid">
+                  <CardHeader>
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="break-all">
+                          <HighlightText
+                            text={entry.id}
+                            keyword={providerKeyword}
+                          />
+                        </CardTitle>
+                        <CardDescription className="mt-1 break-all">
+                          <HighlightText
+                            text={entry.provider.baseUrl}
+                            keyword={providerKeyword}
+                          />
+                        </CardDescription>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
                         <Button
                           size="sm"
                           variant="outline"
@@ -730,249 +906,180 @@ export const PiPage = () => {
                           <Eye />
                           详情
                         </Button>
-                      ) : null}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              aria-label={`更多操作：${entry.id}`}
-                            >
-                              <Ellipsis />
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end" className="min-w-44">
-                          <DropdownMenuItem
-                            className="min-h-8 text-sm"
-                            disabled={busyBenchmarkKeys.size > 0}
-                            onClick={() =>
-                              void runBenchmarks(
-                                entry.provider.models.map((model) => ({
-                                  providerId: entry.id,
-                                  modelId: model.id,
-                                }))
-                              )
-                            }
-                          >
-                            <Gauge />
-                            整组测速
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="min-h-8 text-sm"
-                            onClick={() => startEdit(entry)}
-                          >
-                            <Pencil />
-                            编辑
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="min-h-8 text-sm"
-                            onClick={() => copyProvider.mutate(entry)}
-                            disabled={copyProvider.isPending}
-                          >
-                            <Copy />
-                            复制为新 Provider
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="min-h-8 text-sm"
-                            variant="destructive"
-                            onClick={() => setDeleteTarget(entry)}
-                          >
-                            <Trash2 />
-                            删除 Provider
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        {renderProviderMenu(entry)}
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-xs">
-                    API：{entry.provider.api} · 模型：{entry.modelCount}
-                    {view === "row"
-                      ? ` · 密钥：${entry.hasApiKey ? "已保存" : "未设置"}`
-                      : null}
-                  </p>
-                  {view === "row" && entry.provider.name ? (
-                    <p className="text-xs text-muted-foreground">
-                      显示名称：{entry.provider.name}
+                    <p className="text-xs">
+                      API：{entry.provider.api} · 模型：{entry.modelCount}
                     </p>
-                  ) : null}
-                </CardHeader>
-                <CardContent
-                  className={view === "row" ? "space-y-2 px-0" : "space-y-2"}
-                >
-                  <div className="space-y-2 text-xs text-muted-foreground">
-                    {entry.provider.models.map((model) => {
-                      const key = `${entry.id}/${model.id}`
-                      const status = benchmarkStatusText(
-                        latestBenchmark.get(key),
-                        pendingTargets.includes(key),
-                        now
-                      )
-                      return (
-                        <div
-                          key={model.id}
-                          className="flex flex-wrap items-center gap-2"
-                        >
-                          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 break-all">
-                            <Badge
-                              variant="outline"
-                              className="h-6 px-2 text-xs"
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      {entry.provider.models.map((model) =>
+                        renderModelRow(entry, model)
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-1"
+                      onClick={() =>
+                        setModelDraft({
+                          providerId: entry.id,
+                          editingModelId: null,
+                          id: "",
+                          name: "",
+                          contextWindow: "",
+                          maxTokens: "",
+                          json: "",
+                          reasoning: false,
+                          inputText: true,
+                          inputImage: false,
+                          thinkingLevelMapJson: "",
+                        })
+                      }
+                    >
+                      <Plus />
+                      添加模型
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">Provider</th>
+                    <th className="px-3 py-2 font-medium">URL</th>
+                    <th className="px-3 py-2 font-medium">API</th>
+                    <th className="px-3 py-2 font-medium">密钥</th>
+                    <th className="px-3 py-2 font-medium">模型</th>
+                    <th className="px-3 py-2 font-medium">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleProviders.map((entry) => {
+                    const models = entry.provider.models
+                    const rows: ((typeof models)[number] | null)[] =
+                      models.length > 0 ? models : [null]
+                    return rows.map((model, index) => (
+                      <tr
+                        key={`${entry.id}/${model?.id ?? "none"}`}
+                        className="border-b align-top last:border-b-0"
+                      >
+                        {index === 0 ? (
+                          <>
+                            <td
+                              rowSpan={rows.length}
+                              className="px-3 py-2 align-top"
                             >
-                              <HighlightText
-                                text={model.name ?? model.id}
-                                keyword={providerKeyword}
-                              />
-                            </Badge>
-                            <span>
-                              {model.contextWindow ?? "-"} context /{" "}
-                              {model.maxTokens ?? "-"} 输出
-                            </span>
-                          </span>
-                          {/* 测速与菜单合成一组：左侧点击测速，右侧展开菜单 */}
-                          <div className="flex">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className={
-                                status?.failed
-                                  ? "rounded-r-none text-destructive"
-                                  : "rounded-r-none"
-                              }
-                              disabled={busyBenchmarkKeys.has(key)}
-                              onClick={() =>
-                                void runBenchmarks([
-                                  {
-                                    providerId: entry.id,
-                                    modelId: model.id,
-                                  },
-                                ])
-                              }
-                            >
-                              <Gauge />
-                              {status ? status.text : "首字"}
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                render={
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="rounded-l-none border-l-0 px-1.5"
-                                    aria-label={`「${model.id}」的更多操作`}
-                                  >
-                                    <ChevronDown />
-                                  </Button>
-                                }
-                              />
-                              <DropdownMenuContent
-                                align="end"
-                                className="w-auto min-w-44"
-                              >
-                                <DropdownMenuItem
-                                  className="min-h-8 text-sm"
-                                  onClick={() =>
-                                    setModelDraft({
-                                      providerId: entry.id,
-                                      editingModelId: model.id,
-                                      id: model.id,
-                                      name: model.name ?? "",
-                                      contextWindow:
-                                        model.contextWindow === undefined
-                                          ? ""
-                                          : String(model.contextWindow),
-                                      maxTokens:
-                                        model.maxTokens === undefined
-                                          ? ""
-                                          : String(model.maxTokens),
-                                      json: "",
-                                      reasoning: model.reasoning === true,
-                                      inputText:
-                                        model.input === undefined ||
-                                        model.input.includes("text"),
-                                      inputImage:
-                                        model.input?.includes("image") ?? false,
-                                      thinkingLevelMapJson:
-                                        model.thinkingLevelMap
-                                          ? JSON.stringify(
-                                              model.thinkingLevelMap,
-                                              null,
-                                              2
-                                            )
-                                          : "",
-                                    })
-                                  }
+                              <div className="font-medium break-all">
+                                <HighlightText
+                                  text={entry.id}
+                                  keyword={providerKeyword}
+                                />
+                              </div>
+                              {entry.provider.name ? (
+                                <div className="text-muted-foreground break-all">
+                                  {entry.provider.name}
+                                </div>
+                              ) : null}
+                              <div className="mt-1 flex flex-wrap items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6"
+                                  onClick={() => startEdit(entry)}
                                 >
                                   <Eye />
                                   详情
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="min-h-8 text-sm"
+                                </Button>
+                                {renderProviderMenu(entry)}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6"
                                   onClick={() =>
-                                    setPlaygroundTarget({
-                                      provider: entry.id,
-                                      model: model.id,
-                                    })
-                                  }
-                                >
-                                  <MessageSquare />
-                                  打开 Playground
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="min-h-8 text-sm"
-                                  onClick={() => void copyModelJson(model)}
-                                >
-                                  <Copy />
-                                  复制模型信息
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="min-h-8 text-sm"
-                                  variant="destructive"
-                                  disabled={entry.provider.models.length <= 1}
-                                  onClick={() =>
-                                    setDeleteModelTarget({
+                                    setModelDraft({
                                       providerId: entry.id,
-                                      modelId: model.id,
+                                      editingModelId: null,
+                                      id: "",
+                                      name: "",
+                                      contextWindow: "",
+                                      maxTokens: "",
+                                      json: "",
+                                      reasoning: false,
+                                      inputText: true,
+                                      inputImage: false,
+                                      thinkingLevelMapJson: "",
                                     })
                                   }
                                 >
-                                  <Trash2 />
-                                  删除模型
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-1"
-                    onClick={() =>
-                      setModelDraft({
-                        providerId: entry.id,
-                        editingModelId: null,
-                        id: "",
-                        name: "",
-                        contextWindow: "",
-                        maxTokens: "",
-                        json: "",
-                        reasoning: false,
-                        inputText: true,
-                        inputImage: false,
-                        thinkingLevelMapJson: "",
-                      })
-                    }
-                  >
-                    <Plus />
-                    添加模型
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                                  <Plus />
+                                  添加模型
+                                </Button>
+                              </div>
+                            </td>
+                            <td
+                              rowSpan={rows.length}
+                              className="px-3 py-2 align-top text-muted-foreground"
+                            >
+                              <span className="break-all">
+                                <HighlightText
+                                  text={entry.provider.baseUrl}
+                                  keyword={providerKeyword}
+                                />
+                              </span>
+                            </td>
+                            <td
+                              rowSpan={rows.length}
+                              className="px-3 py-2 align-top text-muted-foreground"
+                            >
+                              {entry.provider.api}
+                            </td>
+                            <td
+                              rowSpan={rows.length}
+                              className="px-3 py-2 align-top text-muted-foreground"
+                            >
+                              {entry.hasApiKey ? "已保存" : "未设置"}
+                            </td>
+                          </>
+                        ) : null}
+                        <td className="px-3 py-2">
+                          {model ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="h-6 px-2 text-xs"
+                              >
+                                <HighlightText
+                                  text={model.name ?? model.id}
+                                  keyword={providerKeyword}
+                                />
+                              </Badge>
+                              <span className="text-muted-foreground">
+                                {model.contextWindow ?? "-"} context /{" "}
+                                {model.maxTokens ?? "-"} 输出
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              没有模型
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {model ? renderModelActions(entry, model) : null}
+                        </td>
+                      </tr>
+                    ))
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
