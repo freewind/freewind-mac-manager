@@ -106,7 +106,29 @@ type ModelDraft = {
   name: string
   contextWindow: string
   maxTokens: string
+  /** 粘贴的模型 JSON；非空时优先于上面的字段。 */
   json: string
+  reasoning: boolean
+  inputText: boolean
+  inputImage: boolean
+  /** 各 thinking 档位的映射，留空表示不声明。 */
+  thinkingLevelMapJson: string
+}
+
+/** thinkingLevelMap 必须是 JSON 对象；留空表示不声明这个字段。 */
+const parseThinkingLevelMap = (
+  text: string
+): Record<string, string | null> | null => {
+  if (text.trim() === "") return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new Error("thinkingLevelMap 不是合法 JSON")
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    throw new Error("thinkingLevelMap 必须是 JSON 对象")
+  return parsed as Record<string, string | null>
 }
 
 /** 粘贴的模型 JSON：必须是对象且带非空 id，其余字段原样保留。 */
@@ -401,11 +423,19 @@ export const PiPage = () => {
       if (id === "") throw new Error("模型 id 不能为空")
       if (entry.provider.models.some((model) => model.id === id))
         throw new Error("该 provider 已有同名模型 id")
+      const thinkingLevelMap = parseThinkingLevelMap(draft.thinkingLevelMapJson)
+      const input = [
+        ...(draft.inputText ? ["text"] : []),
+        ...(draft.inputImage ? ["image"] : []),
+      ]
       const next = (fromJson ?? {
         id,
         ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
+        ...(draft.reasoning ? { reasoning: true } : {}),
+        ...(input.length > 0 ? { input } : {}),
         ...optionalNumber("contextWindow", draft.contextWindow),
         ...optionalNumber("maxTokens", draft.maxTokens),
+        ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
       }) as (typeof entry.provider.models)[number]
       return unwrap(
         await updatePiProvider(entry.id, {
@@ -834,6 +864,10 @@ export const PiPage = () => {
                         contextWindow: "",
                         maxTokens: "",
                         json: "",
+                        reasoning: false,
+                        inputText: true,
+                        inputImage: false,
+                        thinkingLevelMapJson: "",
                       })
                     }
                   >
@@ -915,6 +949,48 @@ export const PiPage = () => {
                   }
                 />
               </Field>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={modelDraft.reasoning}
+                  onChange={(event) =>
+                    setModelDraft({
+                      ...modelDraft,
+                      reasoning: event.target.checked,
+                    })
+                  }
+                />
+                推理模型（reasoning）
+              </label>
+              <div className="flex items-center gap-4 text-xs">
+                <span className="text-muted-foreground">输入类型</span>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={modelDraft.inputText}
+                    onChange={(event) =>
+                      setModelDraft({
+                        ...modelDraft,
+                        inputText: event.target.checked,
+                      })
+                    }
+                  />
+                  文本
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={modelDraft.inputImage}
+                    onChange={(event) =>
+                      setModelDraft({
+                        ...modelDraft,
+                        inputImage: event.target.checked,
+                      })
+                    }
+                  />
+                  图片
+                </label>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="context window（可选）">
                   <Input
@@ -941,6 +1017,19 @@ export const PiPage = () => {
                   />
                 </Field>
               </div>
+              <Field label="thinking 档位映射（JSON，可选）">
+                <Textarea
+                  className="min-h-20 font-mono text-xs"
+                  placeholder='{"off": null, "high": "high"}'
+                  value={modelDraft.thinkingLevelMapJson}
+                  onChange={(event) =>
+                    setModelDraft({
+                      ...modelDraft,
+                      thinkingLevelMapJson: event.target.value,
+                    })
+                  }
+                />
+              </Field>
             </div>
           ) : null}
           <DialogFooter>
@@ -954,7 +1043,9 @@ export const PiPage = () => {
             <Button
               onClick={() => modelDraft && addModel.mutate(modelDraft)}
               disabled={
-                addModel.isPending || (modelDraft?.id.trim() ?? "") === ""
+                addModel.isPending ||
+                ((modelDraft?.json.trim() ?? "") === "" &&
+                  (modelDraft?.id.trim() ?? "") === "")
               }
             >
               {addModel.isPending ? "保存中…" : "添加"}
