@@ -68,6 +68,9 @@ export const LabTab = ({
   const client = useQueryClient()
   const [providerId, setProvider] = useState(initialProvider)
   const [modelId, setModel] = useState(initialModel)
+  /** 输入框文本：null 表示跟随选中值；展开时清空才能搜索，收起回到 null。 */
+  const [providerInput, setProviderInput] = useState<string | null>(null)
+  const [modelInput, setModelInput] = useState<string | null>(null)
   const [sessionId, setSession] = useState<string>(() => crypto.randomUUID())
   const [prompt, setPrompt] = useState("请简短回答：1 + 1 等于多少？")
   const [systemPrompt, setSystem] = useState("你是一个简洁的对话助手。")
@@ -210,6 +213,7 @@ export const LabTab = ({
     if (value === providerId) return
     setProvider(value)
     setModel("")
+    setModelInput(null)
     setSession(crypto.randomUUID())
   }
   /** 模型变化同样换新会话，避免把上一个模型的上下文带进来。 */
@@ -217,6 +221,15 @@ export const LabTab = ({
     if (value === modelId) return
     setModel(value)
     setSession(crypto.randomUUID())
+  }
+  /** 输入框与选中值分开：输入时只把文本同步给值，不反过来改输入框。 */
+  const changeProviderInput = (value: string): void => {
+    setProviderInput(value)
+    selectProvider(value)
+  }
+  const changeModelInput = (value: string): void => {
+    setModelInput(value)
+    selectModel(value)
   }
   /** 参数区：桌面与结果并列的一列，手机上单独一屏。 */
   const paramsSection = (
@@ -227,10 +240,10 @@ export const LabTab = ({
           <Combobox
             items={providerIds}
             value={providerId}
+            inputValue={providerInput ?? providerId}
+            onOpenChange={(open) => setProviderInput(open ? "" : null)}
             onValueChange={(value) => selectProvider(value ?? "")}
-            onInputValueChange={selectProvider}
-            /* 输入框里已填着当前值，内部按它过滤就只剩一项，看起来切不了 */
-            filter={null}
+            onInputValueChange={changeProviderInput}
           >
             <ComboboxInput
               aria-label="Provider ID"
@@ -258,10 +271,10 @@ export const LabTab = ({
           <Combobox
             items={modelIds}
             value={modelId}
+            inputValue={modelInput ?? modelId}
+            onOpenChange={(open) => setModelInput(open ? "" : null)}
             onValueChange={(value) => selectModel(value ?? "")}
-            onInputValueChange={selectModel}
-            /* 同 Provider：默认选中当前项，但仍要能展开选其它模型 */
-            filter={null}
+            onInputValueChange={changeModelInput}
           >
             <ComboboxInput
               aria-label="模型 ID"

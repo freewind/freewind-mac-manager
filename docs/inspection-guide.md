@@ -205,7 +205,7 @@ rg -n 'strokeWidth' src/web -g '!components/ui/**'
 | Provider 搜索 | 输入片段只留匹配卡片（id、显示名、URL、模型 id/名字），命中处黄底高亮；清空恢复全部；无匹配给提示；「全部测速」仍针对全部 | 必 |
 | 模型行操作收进菜单 | 「首字」按钮右侧箭头展开菜单：打开 Playground / 删除模型；只有 1 个模型时删除项禁用 | 必 |
 | Playground 抽屉 | 点「打开 Playground」从右侧滑出抽屉，已预选该 provider/model；关闭后列表滚动与搜索词不变 | 必 |
-| Playground 表单下拉 | Provider / 模型 ID 用 Combobox：默认为当前选中项，可展开切换到其它项；不用原生 datalist | 必 |
+| Playground 表单下拉 | Provider / 模型 ID 用 Combobox：收起时显示当前值，展开后清空并可输入搜索，选中即切换；不用原生 datalist | 必 |
 | Playground 抽屉单列 | 抽屉里表单占满宽度、结果排在下方；系统提示词与输入不被压成半宽 | 必 |
 | 删除模型（红线） | 确认框写明 provider 与模型 → **取消**；删默认模型时服务端拒绝并提示先换默认模型 | 必（只到确认框） |
 | 测速历史独立分区 | 分区可切换且进 URL；记录与「删除记录」在此分区，切回模型分区行内状态仍对 | 必 |
