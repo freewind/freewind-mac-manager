@@ -51,28 +51,31 @@ export const PlaygroundTab = ({
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b text-left text-muted-foreground">
+                <tr className="border-b text-left whitespace-nowrap text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Provider</th>
                   <th className="px-3 py-2 font-medium">模型</th>{" "}
                   <th className="px-3 py-2 font-medium">状态</th>
                   <th className="px-3 py-2 font-medium">时间</th>
-                  <th className="px-3 py-2 font-medium">操作</th>
+                  {/* 最后一列吃掉剩余宽度，前面几列按内容自适应 */}
+                  <th className="w-full px-3 py-2 font-medium">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {runs.map((item) => (
                   <tr key={item.id} className="border-b last:border-b-0">
-                    <td className="px-3 py-2 break-all">{item.providerId}</td>
-                    <td className="px-3 py-2 break-all text-muted-foreground">
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {item.providerId}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
                       {item.modelId}
                     </td>{" "}
                     <td className="px-3 py-2 text-muted-foreground">
                       {item.status}
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground">
+                    <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
                       {new Date(item.updatedAt).toLocaleString()}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="w-full px-3 py-2">
                       <Button
                         size="sm"
                         variant="outline"
