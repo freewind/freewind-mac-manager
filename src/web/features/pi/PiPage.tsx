@@ -48,6 +48,7 @@ import {
   ChevronDown,
   Ellipsis,
   Gauge,
+  MessageSquare,
   Pencil,
   Plus,
   RefreshCw,
@@ -638,6 +639,7 @@ export const PiPage = () => {
                                     setActiveTab("chat")
                                   }}
                                 >
+                                  <MessageSquare />
                                   打开 Playground
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
