@@ -11,6 +11,7 @@ import {
   PiBenchmarkRequestSchema,
   PiBenchmarkResultSchema,
   PiModelsResponseSchema,
+  PiProviderApiKeySchema,
   PiProviderDeleteBodySchema,
   PiProviderIdSchema,
   PiProviderMutationSchema,
@@ -120,6 +121,12 @@ export const piRoutes = {
     pathParams: PiProviderIdSchema,
     body: PiProviderMutationSchema,
     responses: { 200: PiProviderWriteResultSchema, ...errorResponses },
+  },
+  readPiProviderApiKey: {
+    method: "GET",
+    path: toContractPath(ApiPath.piProviderApiKey),
+    pathParams: PiProviderIdSchema,
+    responses: { 200: PiProviderApiKeySchema, ...errorResponses },
   },
   getPiSettings: {
     method: "GET",

@@ -104,6 +104,13 @@ export const updatePiProvider = async (
   }
 ) => apiClient.updatePiProvider({ params: { providerId }, body: input })
 
+export const fetchPiProviderApiKey = async (
+  providerId: string
+): Promise<{ apiKey: string | null }> =>
+  unwrap<{ apiKey: string | null }>(
+    await apiClient.readPiProviderApiKey({ params: { providerId } })
+  )
+
 export const fetchPiModelGroups = async (): Promise<PiModelGroupsResponse> =>
   unwrap<PiModelGroupsResponse>(await apiClient.listPiModelGroups())
 

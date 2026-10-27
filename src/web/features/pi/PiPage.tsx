@@ -3,6 +3,7 @@ import {
   ApiRequestError,
   addPiProvider,
   deletePiProvider,
+  fetchPiProviderApiKey,
   newRequestId,
   startPiBenchmark,
   unwrap,
@@ -473,6 +474,21 @@ export const PiPage = () => {
     },
     onError: (error) => toast.error(error.message || "添加模型失败"),
   })
+
+  /** 复制密钥：列表只有掩码，用单条接口取明文再写剪贴板。 */
+  const copyApiKey = async (providerId: string): Promise<void> => {
+    try {
+      const { apiKey } = await fetchPiProviderApiKey(providerId)
+      if (!apiKey) {
+        toast.error("该 Provider 没有保存密钥")
+        return
+      }
+      await navigator.clipboard.writeText(apiKey)
+      toast.success("密钥已复制")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "复制密钥失败")
+    }
+  }
 
   /** 复制模型配置为 JSON：方便在另一个 provider 里直接粘贴添加。 */
   const copyModelJson = async (
@@ -1043,7 +1059,23 @@ export const PiPage = () => {
                               rowSpan={rows.length}
                               className="px-3 py-2 align-top text-muted-foreground"
                             >
-                              {entry.hasApiKey ? "已保存" : "未设置"}
+                              {entry.apiKeyPreview ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-mono">
+                                    {entry.apiKeyPreview}
+                                  </span>
+                                  <Button
+                                    size="icon-sm"
+                                    variant="ghost"
+                                    aria-label={`复制「${entry.id}」的密钥`}
+                                    onClick={() => void copyApiKey(entry.id)}
+                                  >
+                                    <Copy />
+                                  </Button>
+                                </div>
+                              ) : (
+                                "未设置"
+                              )}
                             </td>
                           </>
                         ) : null}

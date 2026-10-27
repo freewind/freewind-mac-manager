@@ -80,6 +80,7 @@ export const ApiPath = {
   piLabCancel: `${API_BASE}/pi/lab/runs/:id/cancel`,
   piLabSession: `${API_BASE}/pi/lab/session`,
   piProvider: `${API_BASE}/pi/providers/:providerId`,
+  piProviderApiKey: `${API_BASE}/pi/providers/:providerId/api-key`,
   aiAssistantSettings: `${API_BASE}/ai-assistant/settings`,
   aiAssistantSessions: `${API_BASE}/ai-assistant/sessions`,
   aiAssistantSession: `${API_BASE}/ai-assistant/sessions/:sessionId`,

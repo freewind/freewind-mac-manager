@@ -24,6 +24,7 @@ import {
   deletePiProvider,
   getPiSettings,
   listPiModels,
+  readPiProviderApiKey,
   savePiSettings,
   updatePiProvider,
 } from "./config"
@@ -56,6 +57,7 @@ export const piContract = {
   deletePiModelGroup: contract.deletePiModelGroup,
   addPiProvider: contract.addPiProvider,
   updatePiProvider: contract.updatePiProvider,
+  readPiProviderApiKey: contract.readPiProviderApiKey,
   deletePiProvider: contract.deletePiProvider,
   getPiSettings: contract.getPiSettings,
   savePiSettings: contract.savePiSettings,
@@ -110,6 +112,16 @@ export const createPiRouter = (runtime: TaskRuntime) =>
       try {
         clearLabSession(body.sessionId)
         return { status: 204 as const, body: null }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    readPiProviderApiKey: async ({ params }) => {
+      try {
+        return {
+          status: 200 as const,
+          body: await readPiProviderApiKey(params.providerId),
+        }
       } catch (error) {
         return publicSystemError(error)
       }

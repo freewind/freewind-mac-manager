@@ -38,7 +38,13 @@ export const PiProviderEntrySchema = z.object({
   id: z.string(),
   provider: PiProviderSchema,
   hasApiKey: z.boolean(),
+  /** 列表里只给掩码，不返回明文密钥。 */
+  apiKeyPreview: z.string().optional(),
   modelCount: z.number().int().nonnegative(),
+})
+
+export const PiProviderApiKeySchema = z.object({
+  apiKey: z.string().nullable(),
 })
 
 export const PiModelsResponseSchema = z.object({

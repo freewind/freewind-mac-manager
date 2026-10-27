@@ -133,6 +133,12 @@ const publicProvider = (provider: ProviderRecord) => {
   return parsed.data
 }
 
+/** 列表里只给掩码：长度超过 8 才露出末 4 位，其余只留圆点。 */
+const apiKeyPreviewOf = (apiKey: unknown): string | undefined => {
+  if (typeof apiKey !== "string" || apiKey === "") return undefined
+  return apiKey.length > 8 ? `••••${apiKey.slice(-4)}` : "••••"
+}
+
 const toResponse = (loaded: LoadedDocument): PiModelsResponse => {
   const providers = Object.entries(loaded.document.providers).map(
     ([id, provider]) => ({
@@ -140,6 +146,7 @@ const toResponse = (loaded: LoadedDocument): PiModelsResponse => {
       provider: publicProvider(provider),
       hasApiKey:
         typeof provider.apiKey === "string" && Boolean(provider.apiKey),
+      apiKeyPreview: apiKeyPreviewOf(provider.apiKey),
       modelCount: Array.isArray(provider.models) ? provider.models.length : 0,
     })
   )
@@ -586,3 +593,19 @@ export const deletePiProvider = async (
     delete providers[providerId]
     await writeDocument(loaded, providers, providerId, null)
   })
+
+/**
+ * 读取单个 provider 的明文密钥：列表只给掩码，复制时单独取一次。
+ * 与其它读接口同一鉴权，不写日志、不回到列表响应里。
+ */
+export const readPiProviderApiKey = async (
+  providerId: string
+): Promise<{ apiKey: string | null }> => {
+  validateProviderId(providerId)
+  const loaded = await readDocument()
+  const provider = loaded.document.providers[providerId]
+  if (!provider) throw new PublicOperationError(404, "provider 不存在")
+  return {
+    apiKey: typeof provider.apiKey === "string" ? provider.apiKey : null,
+  }
+}
