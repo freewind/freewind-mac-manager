@@ -36,6 +36,7 @@ import {
 } from "@web/components/ui/dropdown-menu"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
+import { Sheet, SheetContent, SheetTitle } from "@web/components/ui/sheet"
 import { Textarea } from "@web/components/ui/textarea"
 import { SettingsCard } from "@web/features/ai-assistant/SettingsCard"
 import {
@@ -167,7 +168,8 @@ export const PiPage = () => {
   const isDesktop = useIsDesktop()
   const { tab: activeTab, selectTab } = usePiTab()
   const setActiveTab = selectTab
-  const [labSelection, setLabSelection] = useState<{
+  /** 抽屉里的 Playground 目标：从模型菜单点开时带入 provider 与 model。 */
+  const [playgroundTarget, setPlaygroundTarget] = useState<{
     provider: string
     model: string
   } | null>(null)
@@ -461,12 +463,7 @@ export const PiPage = () => {
       ) : activeTab === "settings" ? (
         <SettingsTab />
       ) : activeTab === "probe" || activeTab === "chat" ? (
-        <LabTab
-          key={`${activeTab}-${labSelection?.provider}-${labSelection?.model}`}
-          mode={activeTab}
-          initialProvider={labSelection?.provider}
-          initialModel={labSelection?.model}
-        />
+        <LabTab key={activeTab} mode={activeTab} />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {query.isLoading ? <p role="status">正在读取 Pi 配置…</p> : null}
@@ -631,13 +628,12 @@ export const PiPage = () => {
                                 className="w-auto min-w-40"
                               >
                                 <DropdownMenuItem
-                                  onClick={() => {
-                                    setLabSelection({
+                                  onClick={() =>
+                                    setPlaygroundTarget({
                                       provider: entry.id,
                                       model: model.id,
                                     })
-                                    setActiveTab("chat")
-                                  }}
+                                  }
                                 >
                                   <MessageSquare />
                                   打开 Playground
@@ -842,6 +838,31 @@ export const PiPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Playground 抽屉：就地试模型，不离开模型列表 */}
+      <Sheet
+        open={playgroundTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setPlaygroundTarget(null)
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="data-[side=right]:w-full data-[side=right]:sm:max-w-2xl"
+        >
+          <SheetTitle className="sr-only">
+            Playground：{playgroundTarget?.provider}/{playgroundTarget?.model}
+          </SheetTitle>
+          {playgroundTarget ? (
+            <LabTab
+              key={`${playgroundTarget.provider}/${playgroundTarget.model}`}
+              mode="chat"
+              initialProvider={playgroundTarget.provider}
+              initialModel={playgroundTarget.model}
+            />
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
