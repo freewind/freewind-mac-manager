@@ -40,6 +40,11 @@ import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
 import { Sheet, SheetContent, SheetTitle } from "@web/components/ui/sheet"
 import { Textarea } from "@web/components/ui/textarea"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@web/components/ui/tooltip"
 import { SettingsCard } from "@web/features/ai-assistant/SettingsCard"
 import {
   forgetPendingRequest,
@@ -197,16 +202,31 @@ const optionalNumber = (
  * 模型行上的测速状态：提交中、测速中、首字耗时或失败原因。
  * 超过服务端上限仍停在 running 的记录不再算「测速中」，也不再阻止重测。
  */
+/** 失败详情：除 message 外再带错误类型、停止原因与 requestId，便于复制排查。 */
+const benchmarkFailureDetail = (record: PiBenchmarkResult): string =>
+  [
+    record.message,
+    record.error ? `错误类型：${record.error}` : null,
+    record.stopReason ? `停止原因：${record.stopReason}` : null,
+    `requestId：${record.requestId}`,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n")
+
 const benchmarkStatusText = (
   record: PiBenchmarkResult | undefined,
   pending: boolean,
   now: number
-): { text: string; failed: boolean } | null => {
+): { text: string; failed: boolean; detail?: string } | null => {
   if (pending) return { text: "提交中…", failed: false }
   if (record === undefined) return null
   if (record.status === "running") {
     return benchmarkRunningExpired(record, now)
-      ? { text: "结果未知", failed: true }
+      ? {
+          text: "结果未知",
+          failed: true,
+          detail: benchmarkFailureDetail(record),
+        }
       : { text: "测速中…", failed: false }
   }
   if (record.status === "done") {
@@ -214,7 +234,11 @@ const benchmarkStatusText = (
       record.metrics.firstTextMs ?? record.metrics.firstEventMs
     return { text: `首字 ${formatToSeconds(firstByteMs)}`, failed: false }
   }
-  return { text: record.message, failed: true }
+  return {
+    text: record.message,
+    failed: true,
+    detail: benchmarkFailureDetail(record),
+  }
 }
 
 /**
@@ -640,24 +664,49 @@ export const PiPage = () => {
       pendingTargets.includes(key),
       now
     )
+    const detail = status?.detail
+    const benchmarkButton = (
+      <Button
+        size="sm"
+        variant="outline"
+        className={
+          status?.failed ? "rounded-r-none text-destructive" : "rounded-r-none"
+        }
+        disabled={busyBenchmarkKeys.has(key)}
+        onClick={() =>
+          void runBenchmarks([{ providerId: entry.id, modelId: model.id }])
+        }
+      >
+        <Gauge />
+        {status ? status.text : "首字"}
+      </Button>
+    )
     return (
       <div className="flex">
-        <Button
-          size="sm"
-          variant="outline"
-          className={
-            status?.failed
-              ? "rounded-r-none text-destructive"
-              : "rounded-r-none"
-          }
-          disabled={busyBenchmarkKeys.has(key)}
-          onClick={() =>
-            void runBenchmarks([{ providerId: entry.id, modelId: model.id }])
-          }
-        >
-          <Gauge />
-          {status ? status.text : "首字"}
-        </Button>
+        {/* 失败时悬停看完整错误，避免把长文案塞进按钮 */}
+        {status?.failed && detail ? (
+          <Tooltip>
+            <TooltipTrigger render={benchmarkButton} />
+            <TooltipContent className="max-w-md items-start">
+              <span className="whitespace-pre-wrap break-all">{detail}</span>
+              <button
+                type="button"
+                aria-label="复制错误信息"
+                className="shrink-0 rounded-sm p-0.5 hover:bg-background/20"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void navigator.clipboard
+                    .writeText(detail)
+                    .then(() => toast.success("已复制错误信息"))
+                }}
+              >
+                <Copy className="size-3" />
+              </button>
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          benchmarkButton
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
