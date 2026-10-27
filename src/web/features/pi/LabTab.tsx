@@ -9,6 +9,7 @@ import {
   startPiLab,
 } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { HighlightText } from "@web/components/HighlightText"
 import { Button } from "@web/components/ui/button"
 import {
   Collapsible,
@@ -259,7 +260,7 @@ export const LabTab = ({
               <ComboboxList>
                 {(item) => (
                   <ComboboxItem key={item} value={item}>
-                    {item}
+                    <HighlightText text={item} keyword={providerInput ?? ""} />
                   </ComboboxItem>
                 )}
               </ComboboxList>
@@ -292,7 +293,7 @@ export const LabTab = ({
               <ComboboxList>
                 {(item) => (
                   <ComboboxItem key={item} value={item}>
-                    {item}
+                    <HighlightText text={item} keyword={modelInput ?? ""} />
                   </ComboboxItem>
                 )}
               </ComboboxList>
