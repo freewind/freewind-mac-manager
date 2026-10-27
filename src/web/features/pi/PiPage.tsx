@@ -12,6 +12,7 @@ import { formatToSeconds } from "@shared/format"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { HighlightText } from "@web/components/HighlightText"
 import { PageHeader } from "@web/components/PageHeader"
+import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import {
   Card,
@@ -553,6 +554,20 @@ export const PiPage = () => {
                             <Eye />
                             查看详情
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={busyBenchmarkKeys.size > 0}
+                            onClick={() =>
+                              void runBenchmarks(
+                                entry.provider.models.map((model) => ({
+                                  providerId: entry.id,
+                                  modelId: model.id,
+                                }))
+                              )
+                            }
+                          >
+                            <Gauge />
+                            整组测速
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => startEdit(entry)}>
                             <Pencil />
                             编辑
@@ -586,14 +601,17 @@ export const PiPage = () => {
                           key={model.id}
                           className="flex flex-wrap items-center gap-2"
                         >
-                          <span className="min-w-0 flex-1 break-all">
-                            <HighlightText
-                              text={model.name ?? model.id}
-                              keyword={providerKeyword}
-                            />
-                            {" · "}
-                            {model.contextWindow ?? "未声明"} context /{" "}
-                            {model.maxTokens ?? "未声明"} 输出
+                          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 break-all">
+                            <Badge variant="outline">
+                              <HighlightText
+                                text={model.name ?? model.id}
+                                keyword={providerKeyword}
+                              />
+                            </Badge>
+                            <span>
+                              {model.contextWindow ?? "-"} context /{" "}
+                              {model.maxTokens ?? "-"} 输出
+                            </span>
                           </span>
                           {/* 测速与菜单合成一组：左侧点击测速，右侧展开菜单 */}
                           <div className="flex">
