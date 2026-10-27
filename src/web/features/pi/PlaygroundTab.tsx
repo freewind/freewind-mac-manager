@@ -52,8 +52,8 @@ export const PlaygroundTab = ({
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">模型</th>
                   <th className="px-3 py-2 font-medium">Provider</th>
+                  <th className="px-3 py-2 font-medium">模型</th>{" "}
                   <th className="px-3 py-2 font-medium">状态</th>
                   <th className="px-3 py-2 font-medium">时间</th>
                   <th className="px-3 py-2 font-medium">操作</th>
@@ -62,10 +62,10 @@ export const PlaygroundTab = ({
               <tbody>
                 {runs.map((item) => (
                   <tr key={item.id} className="border-b last:border-b-0">
-                    <td className="px-3 py-2 break-all">{item.modelId}</td>
+                    <td className="px-3 py-2 break-all">{item.providerId}</td>
                     <td className="px-3 py-2 break-all text-muted-foreground">
-                      {item.providerId}
-                    </td>
+                      {item.modelId}
+                    </td>{" "}
                     <td className="px-3 py-2 text-muted-foreground">
                       {item.status}
                     </td>
