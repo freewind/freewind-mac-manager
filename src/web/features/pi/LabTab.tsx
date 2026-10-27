@@ -229,6 +229,8 @@ export const LabTab = ({
             value={providerId}
             onValueChange={(value) => selectProvider(value ?? "")}
             onInputValueChange={selectProvider}
+            /* 输入框里已填着当前值，内部按它过滤就只剩一项，看起来切不了 */
+            filter={null}
           >
             <ComboboxInput
               aria-label="Provider ID"
@@ -258,6 +260,8 @@ export const LabTab = ({
             value={modelId}
             onValueChange={(value) => selectModel(value ?? "")}
             onInputValueChange={selectModel}
+            /* 同 Provider：默认选中当前项，但仍要能展开选其它模型 */
+            filter={null}
           >
             <ComboboxInput
               aria-label="模型 ID"
