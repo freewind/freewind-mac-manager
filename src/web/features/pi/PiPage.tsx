@@ -9,6 +9,7 @@ import {
 } from "@shared/client-api"
 import { formatToSeconds } from "@shared/format"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { HighlightText } from "@web/components/HighlightText"
 import { PageHeader } from "@web/components/PageHeader"
 import { Button } from "@web/components/ui/button"
 import {
@@ -479,9 +480,17 @@ export const PiPage = () => {
                 <CardHeader>
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <CardTitle className="break-all">{entry.id}</CardTitle>
+                      <CardTitle className="break-all">
+                        <HighlightText
+                          text={entry.id}
+                          keyword={providerKeyword}
+                        />
+                      </CardTitle>
                       <CardDescription className="mt-1 break-all">
-                        {entry.provider.baseUrl}
+                        <HighlightText
+                          text={entry.provider.baseUrl}
+                          keyword={providerKeyword}
+                        />
                       </CardDescription>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
@@ -536,7 +545,11 @@ export const PiPage = () => {
                           className="flex flex-wrap items-center gap-2"
                         >
                           <span className="min-w-0 flex-1 break-all">
-                            {model.name ?? model.id} ·{" "}
+                            <HighlightText
+                              text={model.name ?? model.id}
+                              keyword={providerKeyword}
+                            />
+                            {" · "}
                             {model.contextWindow ?? "未声明"} context /{" "}
                             {model.maxTokens ?? "未声明"} 输出
                           </span>
