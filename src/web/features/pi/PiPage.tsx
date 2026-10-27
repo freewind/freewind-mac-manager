@@ -2,7 +2,6 @@ import type { PiBenchmarkResult } from "@shared/api-contract"
 import {
   ApiRequestError,
   addPiProvider,
-  deletePiBenchmarks,
   deletePiProvider,
   newRequestId,
   startPiBenchmark,
@@ -53,6 +52,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
+import { BenchmarkHistoryTab } from "./BenchmarkHistoryTab"
 import { GroupsTab } from "./GroupsTab"
 import { LabTab } from "./LabTab"
 import {
@@ -67,6 +67,7 @@ import { PI_TABS, type PiTab, usePiTab } from "./use-pi-tab"
 /** 分区在界面上的名字；顺序与 PI_TABS 一致。 */
 const PI_TAB_LABELS: Record<PiTab, string> = {
   models: "模型",
+  history: "测速历史",
   groups: "分组",
   settings: "设置",
   probe: "能力探测",
@@ -265,13 +266,6 @@ export const PiPage = () => {
     await queryClient.invalidateQueries({ queryKey: piKeys.benchmarks() })
     setPendingTargets((current) => current.filter((key) => !keys.includes(key)))
   }
-  const removeHistory = useMutation({
-    mutationFn: deletePiBenchmarks,
-    onSuccess: async (response) => {
-      if (response.status !== 204) toast.error("历史删除未完成")
-      await queryClient.invalidateQueries({ queryKey: piKeys.benchmarks() })
-    },
-  })
   const remove = useMutation({
     mutationFn: async (entry: ProviderEntry) =>
       deletePiProvider({
@@ -396,7 +390,9 @@ export const PiPage = () => {
           </div>
         ) : null}
       </header>
-      {activeTab === "groups" ? (
+      {activeTab === "history" ? (
+        <BenchmarkHistoryTab />
+      ) : activeTab === "groups" ? (
         <GroupsTab />
       ) : activeTab === "assistant" ? (
         <SettingsCard />
@@ -441,59 +437,6 @@ export const PiPage = () => {
               {busyBenchmarkKeys.size > 0 ? "测速中…" : "全部测速"}
             </Button>
           </div>
-
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle>测速历史（最多 100 条）</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {history.isLoading ? (
-                <p role="status">正在读取测速历史…</p>
-              ) : null}
-              {history.isError ? (
-                <p role="alert">测速历史读取失败：{history.error.message}</p>
-              ) : null}
-              {history.data?.benchmarks.length === 0 ? (
-                <p>暂无测速记录。</p>
-              ) : null}
-              {history.data?.benchmarks.map((item) => (
-                <div key={item.id} className="rounded border p-3 text-sm">
-                  <p>
-                    {item.providerId}/{item.modelId} · {item.status} · 配置上限{" "}
-                    {item.configuredMaxTokens} tokens
-                  </p>
-                  <p>
-                    首事件 {formatToSeconds(item.metrics.firstEventMs)} · 首正文{" "}
-                    {formatToSeconds(item.metrics.firstTextMs)} · 总时长{" "}
-                    {formatToSeconds(item.metrics.durationMs)}
-                  </p>
-                  <p>
-                    输入 {item.metrics.inputTokens ?? "—"} · 输出{" "}
-                    {item.metrics.outputTokens ?? "—"} · 文本输出{" "}
-                    {item.metrics.textOutputTokens ?? "—"} · 缓存读{" "}
-                    {item.metrics.cacheReadTokens ?? "—"} · 缓存写{" "}
-                    {item.metrics.cacheWriteTokens ?? "—"}
-                  </p>
-                  <p>
-                    正文 tokens/s：
-                    {item.metrics.outputTokensPerSecond ?? "—"} · 停止原因：
-                    {item.stopReason ?? "—"} · {item.error ?? "无错误"}
-                  </p>
-                  <p>
-                    {new Date(item.startedAt).toLocaleString()} · {item.message}
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => removeHistory.mutate([item.id])}
-                    disabled={removeHistory.isPending}
-                  >
-                    删除记录
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {query.data?.providers.map((entry) => (

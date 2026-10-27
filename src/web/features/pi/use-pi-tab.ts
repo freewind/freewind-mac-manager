@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react"
 /** Pi 页的分区；AI助手是助手域在 Pi 页的入口。 */
 export const PI_TABS = [
   "models",
+  "history",
   "groups",
   "settings",
   "probe",
