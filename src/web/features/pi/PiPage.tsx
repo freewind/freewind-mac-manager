@@ -98,9 +98,11 @@ type ProviderDraft = {
   modelsJson: string
 }
 
-/** 新增模型的表单：粘上 JSON 时以 JSON 为准，否则用下面的字段拼。 */
+/** 新增或修改模型的表单：粘上 JSON 时以 JSON 为准，否则用下面的字段拼。 */
 type ModelDraft = {
   providerId: string
+  /** 非空表示在改已有模型（值为原 id），空表示新增。 */
+  editingModelId: string | null
   id: string
   name: string
   contextWindow: string
@@ -411,7 +413,7 @@ export const PiPage = () => {
     },
     onError: (error) => toast.error(error.message || "删除模型失败"),
   })
-  /** 追加一个模型：手动添加与复制走同一条保存路径。 */
+  /** 追加或修改一个模型：两种入口共用同一套保存逻辑。 */
   const addModel = useMutation({
     mutationFn: async (draft: ModelDraft) => {
       const entry = query.data?.providers.find(
@@ -422,7 +424,11 @@ export const PiPage = () => {
         draft.json.trim() === "" ? null : parseModelJson(draft.json)
       const id = fromJson ? String(fromJson.id) : draft.id.trim()
       if (id === "") throw new Error("模型 id 不能为空")
-      if (entry.provider.models.some((model) => model.id === id))
+      if (
+        entry.provider.models.some(
+          (model) => model.id === id && model.id !== draft.editingModelId
+        )
+      )
         throw new Error("该 provider 已有同名模型 id")
       const thinkingLevelMap = parseThinkingLevelMap(draft.thinkingLevelMapJson)
       const input = [
@@ -438,6 +444,11 @@ export const PiPage = () => {
         ...optionalNumber("maxTokens", draft.maxTokens),
         ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
       }) as (typeof entry.provider.models)[number]
+      const models = draft.editingModelId
+        ? entry.provider.models.map((model) =>
+            model.id === draft.editingModelId ? next : model
+          )
+        : [...entry.provider.models, next]
       return unwrap(
         await updatePiProvider(entry.id, {
           providerId: entry.id,
@@ -445,13 +456,13 @@ export const PiPage = () => {
           provider: {
             ...entry.provider,
             name: entry.provider.name ?? entry.id,
-            models: [...entry.provider.models, next],
+            models,
           },
         })
       )
     },
     onSuccess: async () => {
-      toast.success("模型已添加")
+      toast.success("模型已保存")
       setModelDraft(null)
       await invalidate()
     },
@@ -809,6 +820,43 @@ export const PiPage = () => {
                                 <DropdownMenuItem
                                   className="min-h-8 text-sm"
                                   onClick={() =>
+                                    setModelDraft({
+                                      providerId: entry.id,
+                                      editingModelId: model.id,
+                                      id: model.id,
+                                      name: model.name ?? "",
+                                      contextWindow:
+                                        model.contextWindow === undefined
+                                          ? ""
+                                          : String(model.contextWindow),
+                                      maxTokens:
+                                        model.maxTokens === undefined
+                                          ? ""
+                                          : String(model.maxTokens),
+                                      json: "",
+                                      reasoning: model.reasoning === true,
+                                      inputText:
+                                        model.input === undefined ||
+                                        model.input.includes("text"),
+                                      inputImage:
+                                        model.input?.includes("image") ?? false,
+                                      thinkingLevelMapJson:
+                                        model.thinkingLevelMap
+                                          ? JSON.stringify(
+                                              model.thinkingLevelMap,
+                                              null,
+                                              2
+                                            )
+                                          : "",
+                                    })
+                                  }
+                                >
+                                  <Eye />
+                                  详情
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="min-h-8 text-sm"
+                                  onClick={() =>
                                     setPlaygroundTarget({
                                       provider: entry.id,
                                       model: model.id,
@@ -853,6 +901,7 @@ export const PiPage = () => {
                     onClick={() =>
                       setModelDraft({
                         providerId: entry.id,
+                        editingModelId: null,
                         id: "",
                         name: "",
                         contextWindow: "",
@@ -883,10 +932,13 @@ export const PiPage = () => {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>添加模型</DialogTitle>
+            <DialogTitle>
+              {modelDraft?.editingModelId ? "模型详情" : "添加模型"}
+            </DialogTitle>
             <DialogDescription>
-              模型会追加到「{modelDraft?.providerId}」的 models 列表；id
-              必须唯一。
+              {modelDraft?.editingModelId
+                ? `修改「${modelDraft.editingModelId}」的字段，保存后写回 models.json。`
+                : `模型会追加到「${modelDraft?.providerId}」的 models 列表；id 必须唯一。`}
             </DialogDescription>
           </DialogHeader>
           {modelDraft ? (
@@ -1018,7 +1070,11 @@ export const PiPage = () => {
                   (modelDraft?.id.trim() ?? "") === "")
               }
             >
-              {addModel.isPending ? "保存中…" : "添加"}
+              {addModel.isPending
+                ? "保存中…"
+                : modelDraft?.editingModelId
+                  ? "保存"
+                  : "添加"}
             </Button>
           </DialogFooter>
         </DialogContent>

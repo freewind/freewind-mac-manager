@@ -204,7 +204,8 @@ rg -n 'strokeWidth' src/web -g '!components/ui/**'
 | 模型列表优先 | 模型分区首屏是 Provider 列表，不出现测速历史列表 | 必 |
 | Provider 头部按钮 | 卡片右上「查看详情」打开可编辑表单（无模型列表 JSON，保存时模型不变）；「…」含整组测速 / 复制为新 Provider / 删除 Provider | 抽 |
 | 复制为新 Provider | 生成 `<id>-copy`（显示名加「(. copy)」，模型一并复制），不复制密钥；id 已存在时提示 | 必 |
-| 模型行展示 | 模型名用标签展示；未声明的 context / 输出显示「-」；「…」含打开 Playground / 复制模型信息 / 删除模型 | 抽 |
+| 模型行展示 | 模型名用标签展示；未声明的 context / 输出显示「-」；「…」含详情 / 打开 Playground / 复制模型信息 / 删除模型 | 抽 |
+| 模型详情可改 | 「…」→ 详情打开表单（id、名称、reasoning、输入类型、context、输出、thinking 映射），保存后卡片同步 | 必 |
 | 添加模型 | 卡片底部「添加模型」弹层可填 id、名称、reasoning、输入类型、context、输出、thinking 映射，或直接粘贴模型 JSON（粘贴优先）；JSON 非法、缺 id、id 重复都有明确提示 | 必 |
 | 复制模型信息 | 菜单项复制该模型 JSON 到剪贴板，可在其它 provider 粘贴添加 | 抽 |
 | Provider 详情弹层 | 「查看详情」弹出弹层展示原始 provider 配置，限高可滚动、密钥不回显 | 抽 |
