@@ -53,7 +53,6 @@ import {
   Eye,
   Gauge,
   MessageSquare,
-  Pencil,
   Plus,
   RefreshCw,
   Trash2,
@@ -241,8 +240,6 @@ export const PiPage = () => {
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
   /** 新增模型的表单草稿；null 表示弹层关闭。 */
   const [modelDraft, setModelDraft] = useState<ModelDraft | null>(null)
-  /** 待查看详情的 provider：弹层显示它的原始配置。 */
-  const [detailTarget, setDetailTarget] = useState<ProviderEntry | null>(null)
   /** 待确认删除的模型：provider 与 model 标识。 */
   const [deleteModelTarget, setDeleteModelTarget] = useState<{
     providerId: string
@@ -258,20 +255,24 @@ export const PiPage = () => {
   const save = useMutation({
     mutationFn: async () => {
       if (!draft || !query.data) throw new Error("请先加载配置")
-      let models: unknown
-      try {
-        models = JSON.parse(draft.modelsJson)
-      } catch {
-        throw new Error("模型列表不是有效 JSON")
+      const existing = editingId
+        ? query.data.providers.find((item) => item.id === editingId)?.provider
+        : undefined
+      /** 编辑不改模型列表：模型在卡片上逐条增删，避免整段 JSON 被误改。 */
+      let models = existing?.models
+      if (editingId === null) {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(draft.modelsJson)
+        } catch {
+          throw new Error("模型列表不是有效 JSON")
+        }
+        if (!Array.isArray(parsed)) throw new Error("模型列表必须是 JSON 数组")
+        models = parsed as typeof models
       }
-      if (!Array.isArray(models)) throw new Error("模型列表必须是 JSON 数组")
+      if (models === undefined) throw new Error("请先刷新配置后重试")
       const provider = {
-        ...asRecord(
-          editingId
-            ? query.data.providers.find((item) => item.id === editingId)
-                ?.provider
-            : undefined
-        ),
+        ...asRecord(existing),
         name: draft.name,
         baseUrl: draft.baseUrl,
         api: draft.api,
@@ -682,7 +683,7 @@ export const PiPage = () => {
                         size="sm"
                         variant="outline"
                         className="h-6"
-                        onClick={() => setDetailTarget(entry)}
+                        onClick={() => startEdit(entry)}
                       >
                         <Eye />
                         查看详情
@@ -714,13 +715,6 @@ export const PiPage = () => {
                           >
                             <Gauge />
                             整组测速
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="min-h-8 text-sm"
-                            onClick={() => startEdit(entry)}
-                          >
-                            <Pencil />
-                            编辑
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="min-h-8 text-sm"
@@ -880,30 +874,6 @@ export const PiPage = () => {
           </div>
         </div>
       )}
-
-      <Dialog
-        open={detailTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setDetailTarget(null)
-        }}
-      >
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Provider 详情：{detailTarget?.id}</DialogTitle>
-            <DialogDescription>
-              以下为 models.json 中的原始配置；密钥不回显。
-            </DialogDescription>
-          </DialogHeader>
-          <pre className="max-h-[60dvh] overflow-auto rounded border p-3 font-mono text-xs break-all whitespace-pre-wrap">
-            {detailTarget ? JSON.stringify(detailTarget.provider, null, 2) : ""}
-          </pre>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailTarget(null)}>
-              关闭
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={modelDraft !== null}
@@ -1069,7 +1039,9 @@ export const PiPage = () => {
               {editingId ? "编辑 Provider" : "新增 Provider"}
             </DialogTitle>
             <DialogDescription>
-              留空密钥会保留已有值；所有模型使用 Pi models.json 原生字段。
+              {editingId
+                ? "留空密钥会保留已有值；模型请在卡片上逐条添加或删除。"
+                : "留空密钥会保留已有值；所有模型使用 Pi models.json 原生字段。"}
             </DialogDescription>
           </DialogHeader>
           {draft ? (
@@ -1130,15 +1102,17 @@ export const PiPage = () => {
                   清除已保存密钥
                 </label>
               ) : null}
-              <Field label="模型列表 JSON（支持多个模型）">
-                <Textarea
-                  className="min-h-52 font-mono text-xs"
-                  value={draft.modelsJson}
-                  onChange={(event) =>
-                    setDraft({ ...draft, modelsJson: event.target.value })
-                  }
-                />
-              </Field>
+              {editingId === null ? (
+                <Field label="模型列表 JSON（支持多个模型）">
+                  <Textarea
+                    className="min-h-52 font-mono text-xs"
+                    value={draft.modelsJson}
+                    onChange={(event) =>
+                      setDraft({ ...draft, modelsJson: event.target.value })
+                    }
+                  />
+                </Field>
+              ) : null}
             </div>
           ) : null}
           <DialogFooter>

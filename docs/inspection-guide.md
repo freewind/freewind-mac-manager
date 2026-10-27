@@ -202,7 +202,7 @@ rg -n 'strokeWidth' src/web -g '!components/ui/**'
 |---|---|---|
 | 手机分区收进选择入口 | 窄屏只一个入口；切换分区不丢当前选择 | 必 |
 | 模型列表优先 | 模型分区首屏是 Provider 列表，不出现测速历史列表 | 必 |
-| Provider 头部按钮 | 卡片右上「查看详情」为独立按钮（与「首字」同款），点开弹层；「…」含整组测速 / 编辑 / 复制为新 Provider / 删除 Provider | 抽 |
+| Provider 头部按钮 | 卡片右上「查看详情」打开可编辑表单（无模型列表 JSON，保存时模型不变）；「…」含整组测速 / 复制为新 Provider / 删除 Provider | 抽 |
 | 复制为新 Provider | 生成 `<id>-copy`（显示名加「(. copy)」，模型一并复制），不复制密钥；id 已存在时提示 | 必 |
 | 模型行展示 | 模型名用标签展示；未声明的 context / 输出显示「-」；「…」含打开 Playground / 复制模型信息 / 删除模型 | 抽 |
 | 添加模型 | 卡片底部「添加模型」弹层可填 id、名称、reasoning、输入类型、context、输出、thinking 映射，或直接粘贴模型 JSON（粘贴优先）；JSON 非法、缺 id、id 重复都有明确提示 | 必 |
