@@ -44,7 +44,6 @@ import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
 import { Sheet, SheetContent, SheetTitle } from "@web/components/ui/sheet"
 import { Textarea } from "@web/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
 import { SettingsCard } from "@web/features/ai-assistant/SettingsCard"
 import {
   forgetPendingRequest,
@@ -655,22 +654,19 @@ export const PiPage = () => {
               value={providerKeyword}
               onChange={(event) => setProviderKeyword(event.target.value)}
             />
-            <ToggleGroup
+            <Button
               className="ml-auto"
+              size="sm"
               variant="outline"
-              value={[view]}
-              onValueChange={(values) => {
-                const next = values[0]
-                if (next === "card" || next === "row") setView(next)
-              }}
+              aria-label={
+                view === "card"
+                  ? "当前卡片视图，切换为行视图"
+                  : "当前行视图，切换为卡片视图"
+              }
+              onClick={() => setView(view === "card" ? "row" : "card")}
             >
-              <ToggleGroupItem value="card" aria-label="卡片视图">
-                <LayoutGrid />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="row" aria-label="行视图">
-                <List />
-              </ToggleGroupItem>
-            </ToggleGroup>
+              {view === "card" ? <LayoutGrid /> : <List />}
+            </Button>
             <Button
               size="sm"
               variant="outline"
