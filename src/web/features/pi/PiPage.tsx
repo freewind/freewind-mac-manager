@@ -48,6 +48,7 @@ import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import {
   Bot,
   ChevronDown,
+  Copy,
   Ellipsis,
   Eye,
   Gauge,
@@ -126,6 +127,18 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {}
 
+/** 数字输入转成可选字段：空串或非法值不写入，避免把可选字段写成 0。 */
+const optionalNumber = (
+  key: "contextWindow" | "maxTokens",
+  value: string
+): Record<string, number> => {
+  const text = value.trim()
+  if (text === "") return {}
+  const parsed = Number(text)
+  if (!Number.isFinite(parsed) || parsed <= 0) return {}
+  return { [key]: Math.trunc(parsed) }
+}
+
 /**
  * 模型行上的测速状态：提交中、测速中、首字耗时或失败原因。
  * 超过服务端上限仍停在 running 的记录不再算「测速中」，也不再阻止重测。
@@ -178,6 +191,14 @@ export const PiPage = () => {
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
+  /** 新增或复制模型的表单草稿；null 表示弹层关闭。 */
+  const [modelDraft, setModelDraft] = useState<{
+    providerId: string
+    id: string
+    name: string
+    contextWindow: string
+    maxTokens: string
+  } | null>(null)
   /** 待查看详情的 provider：弹层显示它的原始配置。 */
   const [detailTarget, setDetailTarget] = useState<ProviderEntry | null>(null)
   /** 待确认删除的模型：provider 与 model 标识。 */
@@ -346,6 +367,48 @@ export const PiPage = () => {
       await invalidate()
     },
     onError: (error) => toast.error(error.message || "删除模型失败"),
+  })
+  /** 追加一个模型：手动添加与复制走同一条保存路径。 */
+  const addModel = useMutation({
+    mutationFn: async (draft: {
+      providerId: string
+      id: string
+      name: string
+      contextWindow: string
+      maxTokens: string
+    }) => {
+      const entry = query.data?.providers.find(
+        (item) => item.id === draft.providerId
+      )
+      if (!entry || !query.data) throw new Error("请先刷新配置后重试")
+      const id = draft.id.trim()
+      if (id === "") throw new Error("模型 id 不能为空")
+      if (entry.provider.models.some((model) => model.id === id))
+        throw new Error("该 provider 已有同名模型 id")
+      const next = {
+        id,
+        ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
+        ...optionalNumber("contextWindow", draft.contextWindow),
+        ...optionalNumber("maxTokens", draft.maxTokens),
+      }
+      return unwrap(
+        await updatePiProvider(entry.id, {
+          providerId: entry.id,
+          signature: query.data.signature,
+          provider: {
+            ...entry.provider,
+            name: entry.provider.name ?? entry.id,
+            models: [...entry.provider.models, next],
+          },
+        })
+      )
+    },
+    onSuccess: async () => {
+      toast.success("模型已添加")
+      setModelDraft(null)
+      await invalidate()
+    },
+    onError: (error) => toast.error(error.message || "添加模型失败"),
   })
 
   const startEdit = (entry?: ProviderEntry) => {
@@ -673,6 +736,27 @@ export const PiPage = () => {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   className="min-h-8 text-sm"
+                                  onClick={() =>
+                                    setModelDraft({
+                                      providerId: entry.id,
+                                      id: `${model.id}-copy`,
+                                      name: `${model.name ?? model.id} copy`,
+                                      contextWindow:
+                                        model.contextWindow === undefined
+                                          ? ""
+                                          : String(model.contextWindow),
+                                      maxTokens:
+                                        model.maxTokens === undefined
+                                          ? ""
+                                          : String(model.maxTokens),
+                                    })
+                                  }
+                                >
+                                  <Copy />
+                                  复制当前模型
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="min-h-8 text-sm"
                                   variant="destructive"
                                   disabled={entry.provider.models.length <= 1}
                                   onClick={() =>
@@ -692,6 +776,23 @@ export const PiPage = () => {
                       )
                     })}
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-1"
+                    onClick={() =>
+                      setModelDraft({
+                        providerId: entry.id,
+                        id: "",
+                        name: "",
+                        contextWindow: "",
+                        maxTokens: "",
+                      })
+                    }
+                  >
+                    <Plus />
+                    添加模型
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -718,6 +819,86 @@ export const PiPage = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDetailTarget(null)}>
               关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={modelDraft !== null}
+        onOpenChange={(open) => {
+          if (!open && !addModel.isPending) setModelDraft(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加模型</DialogTitle>
+            <DialogDescription>
+              模型会追加到「{modelDraft?.providerId}」的 models 列表；id
+              必须唯一。
+            </DialogDescription>
+          </DialogHeader>
+          {modelDraft ? (
+            <div className="grid gap-3">
+              <Field label="模型 id（必填）">
+                <Input
+                  value={modelDraft.id}
+                  onChange={(event) =>
+                    setModelDraft({ ...modelDraft, id: event.target.value })
+                  }
+                />
+              </Field>
+              <Field label="显示名称（可选）">
+                <Input
+                  value={modelDraft.name}
+                  onChange={(event) =>
+                    setModelDraft({ ...modelDraft, name: event.target.value })
+                  }
+                />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="context window（可选）">
+                  <Input
+                    inputMode="numeric"
+                    value={modelDraft.contextWindow}
+                    onChange={(event) =>
+                      setModelDraft({
+                        ...modelDraft,
+                        contextWindow: event.target.value,
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="最大输出（可选）">
+                  <Input
+                    inputMode="numeric"
+                    value={modelDraft.maxTokens}
+                    onChange={(event) =>
+                      setModelDraft({
+                        ...modelDraft,
+                        maxTokens: event.target.value,
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setModelDraft(null)}
+              disabled={addModel.isPending}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={() => modelDraft && addModel.mutate(modelDraft)}
+              disabled={
+                addModel.isPending || (modelDraft?.id.trim() ?? "") === ""
+              }
+            >
+              {addModel.isPending ? "保存中…" : "添加"}
             </Button>
           </DialogFooter>
         </DialogContent>
