@@ -439,6 +439,28 @@ export const PiPage = () => {
     }
   }
 
+  /** 复制一个新的 provider：id 与显示名加后缀，密钥不能跟着走。 */
+  const copyProvider = useMutation({
+    mutationFn: async (entry: ProviderEntry) => {
+      if (!query.data) throw new Error("请先刷新配置后重试")
+      return unwrap(
+        await addPiProvider({
+          providerId: `${entry.id}-copy`,
+          signature: query.data.signature,
+          provider: {
+            ...entry.provider,
+            name: `${entry.provider.name ?? entry.id} (. copy)`,
+          },
+        })
+      )
+    },
+    onSuccess: async () => {
+      toast.success("已复制为新 Provider，请补充 API Key")
+      await invalidate()
+    },
+    onError: (error) => toast.error(error.message || "复制 Provider 失败"),
+  })
+
   const startEdit = (entry?: ProviderEntry) => {
     if (!entry) {
       setEditingId(null)
@@ -667,6 +689,14 @@ export const PiPage = () => {
                           >
                             <Pencil />
                             编辑
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="min-h-8 text-sm"
+                            onClick={() => copyProvider.mutate(entry)}
+                            disabled={copyProvider.isPending}
+                          >
+                            <Copy />
+                            复制为新 Provider
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="min-h-8 text-sm"
