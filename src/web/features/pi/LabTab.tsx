@@ -45,10 +45,13 @@ export const LabTab = ({
   mode,
   initialProvider = "",
   initialModel = "",
+  showHistory = true,
 }: {
   mode: "chat" | "probe"
   initialProvider?: string
   initialModel?: string
+  /** 近期请求列表：抽屉里就地试用时不带历史，其它入口保持显示。 */
+  showHistory?: boolean
 }) => {
   const models = usePiModels()
   const client = useQueryClient()
@@ -74,6 +77,7 @@ export const LabTab = ({
   const history = useQuery({
     queryKey: ["pi", "lab"],
     queryFn: fetchPiLabRuns,
+    enabled: showHistory,
     retry: false,
   })
   const run = useQuery({
@@ -384,26 +388,28 @@ export const LabTab = ({
           ))}
         </article>
       ) : null}
-      <div className="grid gap-2">
-        <h3>近期请求</h3>
-        {history.data
-          ?.filter((item) => item.mode === mode)
-          .map((item) => (
-            <Button
-              key={item.id}
-              variant="outline"
-              className="justify-start overflow-hidden"
-              onClick={() => {
-                setId(item.id)
-                setProvider(item.providerId)
-                setModel(item.modelId)
-                if (item.sessionId) setSession(item.sessionId)
-              }}
-            >
-              {item.modelId} · {item.status}
-            </Button>
-          ))}
-      </div>
+      {showHistory ? (
+        <div className="grid gap-2">
+          <h3>近期请求</h3>
+          {history.data
+            ?.filter((item) => item.mode === mode)
+            .map((item) => (
+              <Button
+                key={item.id}
+                variant="outline"
+                className="justify-start overflow-hidden"
+                onClick={() => {
+                  setId(item.id)
+                  setProvider(item.providerId)
+                  setModel(item.modelId)
+                  if (item.sessionId) setSession(item.sessionId)
+                }}
+              >
+                {item.modelId} · {item.status}
+              </Button>
+            ))}
+        </div>
+      ) : null}
     </div>
   )
 

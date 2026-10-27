@@ -859,6 +859,7 @@ export const PiPage = () => {
               mode="chat"
               initialProvider={playgroundTarget.provider}
               initialModel={playgroundTarget.model}
+              showHistory={false}
             />
           ) : null}
         </SheetContent>
