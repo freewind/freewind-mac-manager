@@ -447,10 +447,6 @@ export const PiPage = () => {
               <RefreshCw />
               刷新
             </Button>
-            <Button size="sm" onClick={() => startEdit()}>
-              <Plus />
-              添加 Provider
-            </Button>
           </div>
         ) : null}
       </header>
@@ -501,6 +497,10 @@ export const PiPage = () => {
             >
               <Gauge />
               {busyBenchmarkKeys.size > 0 ? "测速中…" : "全部测速"}
+            </Button>
+            <Button size="sm" onClick={() => startEdit()}>
+              <Plus />
+              添加 Provider
             </Button>
           </div>
 
