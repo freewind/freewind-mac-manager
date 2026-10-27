@@ -99,6 +99,32 @@ type ProviderDraft = {
   modelsJson: string
 }
 
+/** 新增模型的表单：粘上 JSON 时以 JSON 为准，否则用下面的字段拼。 */
+type ModelDraft = {
+  providerId: string
+  id: string
+  name: string
+  contextWindow: string
+  maxTokens: string
+  json: string
+}
+
+/** 粘贴的模型 JSON：必须是对象且带非空 id，其余字段原样保留。 */
+const parseModelJson = (text: string): Record<string, unknown> => {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new Error("模型 JSON 不是合法 JSON")
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    throw new Error("模型 JSON 必须是对象")
+  const id = (parsed as { id?: unknown }).id
+  if (typeof id !== "string" || id.trim() === "")
+    throw new Error("模型 JSON 需要非空的 id")
+  return { ...(parsed as Record<string, unknown>), id: id.trim() }
+}
+
 const emptyDraft = (): ProviderDraft => ({
   providerId: "",
   name: "",
@@ -191,14 +217,8 @@ export const PiPage = () => {
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
-  /** 新增或复制模型的表单草稿；null 表示弹层关闭。 */
-  const [modelDraft, setModelDraft] = useState<{
-    providerId: string
-    id: string
-    name: string
-    contextWindow: string
-    maxTokens: string
-  } | null>(null)
+  /** 新增模型的表单草稿；null 表示弹层关闭。 */
+  const [modelDraft, setModelDraft] = useState<ModelDraft | null>(null)
   /** 待查看详情的 provider：弹层显示它的原始配置。 */
   const [detailTarget, setDetailTarget] = useState<ProviderEntry | null>(null)
   /** 待确认删除的模型：provider 与 model 标识。 */
@@ -370,27 +390,23 @@ export const PiPage = () => {
   })
   /** 追加一个模型：手动添加与复制走同一条保存路径。 */
   const addModel = useMutation({
-    mutationFn: async (draft: {
-      providerId: string
-      id: string
-      name: string
-      contextWindow: string
-      maxTokens: string
-    }) => {
+    mutationFn: async (draft: ModelDraft) => {
       const entry = query.data?.providers.find(
         (item) => item.id === draft.providerId
       )
       if (!entry || !query.data) throw new Error("请先刷新配置后重试")
-      const id = draft.id.trim()
+      const fromJson =
+        draft.json.trim() === "" ? null : parseModelJson(draft.json)
+      const id = fromJson ? String(fromJson.id) : draft.id.trim()
       if (id === "") throw new Error("模型 id 不能为空")
       if (entry.provider.models.some((model) => model.id === id))
         throw new Error("该 provider 已有同名模型 id")
-      const next = {
+      const next = (fromJson ?? {
         id,
         ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
         ...optionalNumber("contextWindow", draft.contextWindow),
         ...optionalNumber("maxTokens", draft.maxTokens),
-      }
+      }) as (typeof entry.provider.models)[number]
       return unwrap(
         await updatePiProvider(entry.id, {
           providerId: entry.id,
@@ -410,6 +426,18 @@ export const PiPage = () => {
     },
     onError: (error) => toast.error(error.message || "添加模型失败"),
   })
+
+  /** 复制模型配置为 JSON：方便在另一个 provider 里直接粘贴添加。 */
+  const copyModelJson = async (
+    model: ProviderEntry["provider"]["models"][number]
+  ): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(model, null, 2))
+      toast.success("模型 JSON 已复制")
+    } catch {
+      toast.error("复制失败：浏览器拒绝了剪贴板访问")
+    }
+  }
 
   const startEdit = (entry?: ProviderEntry) => {
     if (!entry) {
@@ -736,24 +764,10 @@ export const PiPage = () => {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   className="min-h-8 text-sm"
-                                  onClick={() =>
-                                    setModelDraft({
-                                      providerId: entry.id,
-                                      id: `${model.id}-copy`,
-                                      name: `${model.name ?? model.id} copy`,
-                                      contextWindow:
-                                        model.contextWindow === undefined
-                                          ? ""
-                                          : String(model.contextWindow),
-                                      maxTokens:
-                                        model.maxTokens === undefined
-                                          ? ""
-                                          : String(model.maxTokens),
-                                    })
-                                  }
+                                  onClick={() => void copyModelJson(model)}
                                 >
                                   <Copy />
-                                  复制当前模型
+                                  复制模型信息
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   className="min-h-8 text-sm"
@@ -787,6 +801,7 @@ export const PiPage = () => {
                         name: "",
                         contextWindow: "",
                         maxTokens: "",
+                        json: "",
                       })
                     }
                   >
@@ -840,6 +855,18 @@ export const PiPage = () => {
           </DialogHeader>
           {modelDraft ? (
             <div className="grid gap-3">
+              <Field label="模型 JSON（粘贴后以它为准）">
+                <Textarea
+                  className="min-h-32 font-mono text-xs"
+                  value={modelDraft.json}
+                  onChange={(event) =>
+                    setModelDraft({
+                      ...modelDraft,
+                      json: event.target.value,
+                    })
+                  }
+                />
+              </Field>
               <Field label="模型 id（必填）">
                 <Input
                   value={modelDraft.id}
