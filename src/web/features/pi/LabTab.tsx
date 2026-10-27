@@ -15,6 +15,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@web/components/ui/collapsible"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@web/components/ui/combobox"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
 import { Textarea } from "@web/components/ui/textarea"
@@ -190,43 +198,85 @@ export const LabTab = ({
     onError: (error) => toast.error(error.message),
   })
   const selected = models.data?.providers.find((item) => item.id === providerId)
+  const providerIds = (models.data?.providers ?? []).map((item) => item.id)
+  const modelIds = (selected?.provider.models ?? []).map((item) => item.id)
+  /** provider 变化就换新会话并清空模型：旧模型不属于新 provider。 */
+  const selectProvider = (value: string): void => {
+    if (value === providerId) return
+    setProvider(value)
+    setModel("")
+    setSession(crypto.randomUUID())
+  }
+  /** 模型变化同样换新会话，避免把上一个模型的上下文带进来。 */
+  const selectModel = (value: string): void => {
+    if (value === modelId) return
+    setModel(value)
+    setSession(crypto.randomUUID())
+  }
   /** 参数区：桌面与结果并列的一列，手机上单独一屏。 */
   const paramsSection = (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2">
         <Label className="grid gap-2">
           Provider ID
-          <Input
-            list="lab-provider"
+          <Combobox
+            items={providerIds}
             value={providerId}
-            onChange={(event) => {
-              setProvider(event.target.value)
-              setModel("")
-              setSession(crypto.randomUUID())
-            }}
-          />
+            onValueChange={(value) => selectProvider(value ?? "")}
+            onInputValueChange={selectProvider}
+          >
+            <ComboboxInput
+              aria-label="Provider ID"
+              className="w-full"
+              placeholder="选择 Provider"
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>
+                {providerIds.length === 0
+                  ? "Pi 还没有配置 Provider"
+                  : "无匹配的 Provider"}
+              </ComboboxEmpty>
+              <ComboboxList>
+                {(item) => (
+                  <ComboboxItem key={item} value={item}>
+                    {item}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
         </Label>
-        <datalist id="lab-provider">
-          {models.data?.providers.map((item) => (
-            <option key={item.id} value={item.id} />
-          ))}
-        </datalist>
         <Label className="grid gap-2">
           模型 ID
-          <Input
-            list="lab-model"
+          <Combobox
+            items={modelIds}
             value={modelId}
-            onChange={(event) => {
-              setModel(event.target.value)
-              setSession(crypto.randomUUID())
-            }}
-          />
+            onValueChange={(value) => selectModel(value ?? "")}
+            onInputValueChange={selectModel}
+          >
+            <ComboboxInput
+              aria-label="模型 ID"
+              className="w-full"
+              placeholder={providerId === "" ? "请先选择 Provider" : "选择模型"}
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>
+                {providerId === ""
+                  ? "请先选择 Provider"
+                  : modelIds.length === 0
+                    ? "该 Provider 没有模型"
+                    : "无匹配的模型"}
+              </ComboboxEmpty>
+              <ComboboxList>
+                {(item) => (
+                  <ComboboxItem key={item} value={item}>
+                    {item}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
         </Label>
-        <datalist id="lab-model">
-          {selected?.provider.models.map((item) => (
-            <option key={item.id} value={item.id} />
-          ))}
-        </datalist>
         {mode === "probe" ? (
           <>
             <Label className="grid gap-2">
