@@ -21,11 +21,6 @@ import {
   CardTitle,
 } from "@web/components/ui/card"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@web/components/ui/collapsible"
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -53,6 +48,7 @@ import {
   Bot,
   ChevronDown,
   Ellipsis,
+  Eye,
   Gauge,
   MessageSquare,
   Pencil,
@@ -181,6 +177,8 @@ export const PiPage = () => {
   const [draft, setDraft] = useState<ProviderDraft | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProviderEntry | null>(null)
+  /** 待查看详情的 provider：弹层显示它的原始配置。 */
+  const [detailTarget, setDetailTarget] = useState<ProviderEntry | null>(null)
   /** 待确认删除的模型：provider 与 model 标识。 */
   const [deleteModelTarget, setDeleteModelTarget] = useState<{
     providerId: string
@@ -536,14 +534,6 @@ export const PiPage = () => {
                       </CardDescription>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => startEdit(entry)}
-                      >
-                        <Pencil />
-                        编辑
-                      </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
@@ -558,6 +548,16 @@ export const PiPage = () => {
                         />
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
+                            onClick={() => setDetailTarget(entry)}
+                          >
+                            <Eye />
+                            查看详情
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => startEdit(entry)}>
+                            <Pencil />
+                            编辑
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
                             variant="destructive"
                             onClick={() => setDeleteTarget(entry)}
                           >
@@ -568,27 +568,6 @@ export const PiPage = () => {
                       </DropdownMenu>
                     </div>
                   </div>
-                  <Collapsible className="mt-2">
-                    <CollapsibleTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs text-muted-foreground"
-                        >
-                          查看详情
-                        </Button>
-                      }
-                    />
-                    <CollapsibleContent>
-                      <pre className="mt-2 max-h-64 overflow-auto rounded border p-2 font-mono text-xs break-all whitespace-pre-wrap">
-                        {JSON.stringify(entry.provider, null, 2)}
-                      </pre>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        密钥不回显；以上为 models.json 中的原始配置。
-                      </p>
-                    </CollapsibleContent>
-                  </Collapsible>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-xs">
@@ -690,6 +669,30 @@ export const PiPage = () => {
           </div>
         </div>
       )}
+
+      <Dialog
+        open={detailTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailTarget(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Provider 详情：{detailTarget?.id}</DialogTitle>
+            <DialogDescription>
+              以下为 models.json 中的原始配置；密钥不回显。
+            </DialogDescription>
+          </DialogHeader>
+          <pre className="max-h-[60dvh] overflow-auto rounded border p-3 font-mono text-xs break-all whitespace-pre-wrap">
+            {detailTarget ? JSON.stringify(detailTarget.provider, null, 2) : ""}
+          </pre>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailTarget(null)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={draft !== null}
