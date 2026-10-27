@@ -6,7 +6,8 @@ import type { ReactNode } from "react"
  */
 export const HighlightText = (props: { text: string; keyword: string }) => {
   const keyword = props.keyword.trim()
-  if (keyword === "") return <>{props.text}</>
+  // 外层包一个 span：调用方多是 flex 容器，散开的文本节点会被 gap 拆出空白。
+  if (keyword === "") return <span>{props.text}</span>
   const haystack = props.text.toLowerCase()
   const needle = keyword.toLowerCase()
   const nodes: ReactNode[] = []
@@ -29,5 +30,5 @@ export const HighlightText = (props: { text: string; keyword: string }) => {
     )
     cursor = at + keyword.length
   }
-  return <>{nodes}</>
+  return <span>{nodes}</span>
 }
