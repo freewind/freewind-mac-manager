@@ -70,8 +70,6 @@ export const ApiPath = {
   caddyVersions: `${API_BASE}/caddy/versions`,
   caddyVersionRestore: `${API_BASE}/caddy/versions/:id/restore`,
   piModels: `${API_BASE}/pi/models`,
-  piModelGroups: `${API_BASE}/pi/model-groups`,
-  piModelGroup: `${API_BASE}/pi/model-groups/:groupId`,
   piSettings: `${API_BASE}/pi/settings`,
   piBenchmarks: `${API_BASE}/pi/benchmarks`,
   piBenchmark: `${API_BASE}/pi/benchmarks/:id`,

@@ -2,8 +2,6 @@ import type {
   PiBenchmarkList,
   PiBenchmarkRequest,
   PiBenchmarkResult,
-  PiModelGroupInput,
-  PiModelGroupsResponse,
   PiModelsResponse,
   PiProviderInput,
   PiSettingsInput,
@@ -110,33 +108,6 @@ export const fetchPiProviderApiKey = async (
   unwrap<{ apiKey: string | null }>(
     await apiClient.readPiProviderApiKey({ params: { providerId } })
   )
-
-export const fetchPiModelGroups = async (): Promise<PiModelGroupsResponse> =>
-  unwrap<PiModelGroupsResponse>(await apiClient.listPiModelGroups())
-
-export const addPiModelGroup = (input: {
-  groupId: string
-  signature: string
-  group: PiModelGroupInput
-}) => apiClient.addPiModelGroup({ body: input })
-
-export const replacePiModelGroup = (
-  groupId: string,
-  input: { signature: string; group: PiModelGroupInput }
-) =>
-  apiClient.replacePiModelGroup({
-    params: { groupId },
-    body: input,
-  })
-
-export const deletePiModelGroup = (input: {
-  groupId: string
-  signature: string
-}) =>
-  apiClient.deletePiModelGroup({
-    params: { groupId: input.groupId },
-    body: { signature: input.signature },
-  })
 
 export const fetchPiSettings = async (): Promise<PiSettingsResponse> =>
   unwrap<PiSettingsResponse>(await apiClient.getPiSettings())

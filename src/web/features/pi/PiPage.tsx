@@ -69,7 +69,6 @@ import {
 import { useState } from "react"
 import { toast } from "sonner"
 import { BenchmarkHistoryTab } from "./BenchmarkHistoryTab"
-import { GroupsTab } from "./GroupsTab"
 import { LabTab } from "./LabTab"
 import { PlaygroundTab, type PlaygroundTarget } from "./PlaygroundTab"
 import {
@@ -85,7 +84,6 @@ import { PI_TABS, type PiTab, usePiTab } from "./use-pi-tab"
 const PI_TAB_LABELS: Record<PiTab, string> = {
   models: "模型",
   history: "测速历史",
-  groups: "分组",
   settings: "设置",
   probe: "能力探测",
   chat: "Playground",
@@ -873,8 +871,6 @@ export const PiPage = () => {
       </header>
       {activeTab === "history" ? (
         <BenchmarkHistoryTab />
-      ) : activeTab === "groups" ? (
-        <GroupsTab />
       ) : activeTab === "assistant" ? (
         <SettingsCard />
       ) : activeTab === "settings" ? (

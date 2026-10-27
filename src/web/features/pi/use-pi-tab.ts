@@ -4,7 +4,6 @@ import { useSyncExternalStore } from "react"
 export const PI_TABS = [
   "models",
   "history",
-  "groups",
   "settings",
   "probe",
   "chat",

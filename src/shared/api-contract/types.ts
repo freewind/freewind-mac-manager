@@ -229,10 +229,6 @@ import type {
   PiSettingsResponseSchema,
 } from "./schemas/pi"
 import type {
-  PiModelGroupInputSchema,
-  PiModelGroupsResponseSchema,
-} from "./schemas/pi-model-groups"
-import type {
   ProcessEntrySchema,
   ProcessKindSchema,
   ProcessListResponseSchema,
@@ -255,8 +251,6 @@ export type PiModelsResponse = z.infer<typeof PiModelsResponseSchema>
 export type PiSettingsResponse = z.infer<typeof PiSettingsResponseSchema>
 export type PiSettingsDocument = z.infer<typeof PiSettingsDocumentSchema>
 export type PiSettingsInput = z.input<typeof PiSettingsMutationSchema>
-export type PiModelGroupInput = z.input<typeof PiModelGroupInputSchema>
-export type PiModelGroupsResponse = z.infer<typeof PiModelGroupsResponseSchema>
 export type AiAssistantSettingsResponse = z.infer<
   typeof AiAssistantSettingsResponseSchema
 >
