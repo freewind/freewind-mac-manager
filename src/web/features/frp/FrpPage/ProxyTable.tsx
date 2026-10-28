@@ -74,9 +74,7 @@ export const ProxyTable = (props: ProxyTableProps) => {
           <TableHead className="w-[1%] whitespace-nowrap">本地目标</TableHead>
           <TableHead className="w-[1%] whitespace-nowrap">远程端口</TableHead>
           <TableHead className="w-[1%] whitespace-nowrap">连通性</TableHead>
-          <TableHead className="w-full whitespace-nowrap text-right">
-            操作
-          </TableHead>
+          <TableHead className="w-full">操作</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -145,10 +143,7 @@ export const ProxyTable = (props: ProxyTableProps) => {
                   <span className="text-xs text-muted-foreground">未探测</span>
                 )}
               </TableCell>
-              <TableCell
-                className="whitespace-nowrap text-right"
-                onClick={(event) => event.stopPropagation()}
-              >
+              <TableCell onClick={(event) => event.stopPropagation()}>
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={
@@ -161,7 +156,7 @@ export const ProxyTable = (props: ProxyTableProps) => {
                       </Button>
                     }
                   />
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="start">
                     <DropdownMenuItem
                       disabled={model.saving}
                       onClick={() => onEdit(proxy)}
