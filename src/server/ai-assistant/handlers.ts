@@ -67,7 +67,7 @@ const executionResponse = (execution: ExecutionSnapshot) => ({
  * 请求标识可选：带上它，同一标识重复提交会复用同一次执行，不产生第二次副作用。
  * 格式与其它写操作一致，非法值直接拒绝，不静默忽略。
  */
-const readRequestId = (request: express.Request): string | null => {
+export const readRequestId = (request: express.Request): string | null => {
   const raw = request.headers[TASK_REQUEST_ID_HEADER]
   const value = Array.isArray(raw) ? raw[0] : raw
   if (value === undefined || value === "") return null

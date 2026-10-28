@@ -78,12 +78,51 @@ export type ExecutionObserver = {
   onEnd: () => void
 }
 
+/**
+ * 执行落库的适配层。
+ *
+ * AI 助手与 AI 话题的会话表不同，但执行生命周期完全一致：把写入点抽出来，
+ * 话题就能复用同一个运行器，而不必再写一套执行、重连与停止逻辑。
+ */
+export type ExecutionPersistence = {
+  /** 这个请求标识是否已经提交过：重启后内存没记录也不能重跑。 */
+  hasRequest: (requestId: string) => boolean
+  startRun: (
+    sessionId: string,
+    userMessage: { role: "user"; text: string },
+    requestId: string | null
+  ) => void
+  saveAnswer: (sessionId: string, answer: string) => void
+  finishRun: (
+    sessionId: string,
+    status: "done" | "unknown",
+    answer?: string | null
+  ) => void
+  /** 保存会话上下文（话题用）。失败表示上下文未保存，要如实告知。 */
+  saveContext?: (sessionId: string) => void
+}
+
+/** 默认适配层：AI 助手自己的会话表。 */
+export const assistantPersistence: ExecutionPersistence = {
+  hasRequest: (requestId) => findSessionByRequestId(requestId) !== null,
+  startRun: (sessionId, userMessage, requestId) => {
+    startSessionRun(sessionId, userMessage, requestId)
+  },
+  saveAnswer: (sessionId, answer) => {
+    saveSessionAnswer(sessionId, answer)
+  },
+  finishRun: (sessionId, status, answer) => {
+    finishSessionRun(sessionId, status, answer)
+  },
+}
+
 type Execution = {
   id: string
   sessionId: string
   requestId: string | null
   prompt: string
   session: StreamableSession
+  persistence: ExecutionPersistence
   status: ExecutionStatus
   cancelled: boolean
   cancelMessage: string | null
@@ -211,7 +250,14 @@ const persistFinish = (
   status: "done" | "unknown"
 ): string | null => {
   try {
-    finishSessionRun(execution.sessionId, status, execution.answer)
+    execution.persistence.finishRun(
+      execution.sessionId,
+      status,
+      execution.answer
+    )
+    // 上下文保存失败与终态保存失败一样重要：不保存就等于下次继续对话
+    // 丢掉这次的所有内容，必须让用户看到。
+    execution.persistence.saveContext?.(execution.sessionId)
     return null
   } catch (error) {
     console.error(
@@ -229,7 +275,7 @@ const persistAnswer = (execution: Execution): void => {
   if (!answer) return
   execution.answer = answer
   try {
-    saveSessionAnswer(execution.sessionId, answer)
+    execution.persistence.saveAnswer(execution.sessionId, answer)
   } catch (error) {
     console.error(
       `[mac-manager] AI 助手中间结果落盘失败（会话 ${execution.sessionId}）：${
@@ -303,6 +349,8 @@ export type StartExecutionInput = {
   sessionId: string
   prompt: string
   requestId?: string | null
+  /** 不传时按 AI 助手自己的会话表落库。 */
+  persistence?: ExecutionPersistence
 }
 
 export type StartExecutionResult = {
@@ -324,13 +372,14 @@ export const startExecution = (
   const now = Date.now()
   evictExpired(now)
 
+  const persistence = input.persistence ?? assistantPersistence
   const requestId = input.requestId ?? null
   if (requestId) {
     const existingId = byRequestId.get(requestId)
     const existing = existingId ? executions.get(existingId) : undefined
     if (existing) return { execution: toSnapshot(existing), reused: true }
     // 重启后内存里没有执行记录，但库里已经记过这个请求标识：不能再跑第二次。
-    if (findSessionByRequestId(requestId)) {
+    if (persistence.hasRequest(requestId)) {
       throw new PublicOperationError(
         409,
         "该请求标识已经提交过，结果未知，不能重复执行"
@@ -351,6 +400,7 @@ export const startExecution = (
     requestId,
     prompt: input.prompt,
     session: input.session,
+    persistence,
     status: "running",
     cancelled: false,
     cancelMessage: null,
@@ -364,7 +414,7 @@ export const startExecution = (
   }
 
   try {
-    startSessionRun(
+    persistence.startRun(
       input.sessionId,
       { role: "user", text: input.prompt },
       requestId

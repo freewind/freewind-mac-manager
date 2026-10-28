@@ -1,6 +1,7 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent"
 import {
   type ExecutionEvent,
+  type ExecutionPersistence,
   startExecution,
   subscribeExecution,
 } from "./runner"
@@ -85,13 +86,14 @@ export const streamSession = async (
   sessionId: string,
   prompt: string,
   response: SseResponse,
-  options?: { requestId?: string | null }
+  options?: { requestId?: string | null; persistence?: ExecutionPersistence }
 ): Promise<void> => {
   const started = startExecution({
     session,
     sessionId,
     prompt,
     requestId: options?.requestId ?? null,
+    ...(options?.persistence ? { persistence: options.persistence } : {}),
   })
   // 必须在写 SSE 头之前给出：客户端据此在断线后重新订阅同一执行。
   response.setHeader("x-ai-assistant-execution-id", started.execution.id)

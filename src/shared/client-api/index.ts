@@ -6,6 +6,8 @@ export {
 } from "./access-password"
 export * from "./ai-assistant"
 export * from "./ai-assistant-stream"
+export * from "./ai-topic"
+export * from "./ai-topic-stream"
 export * from "./auth"
 export * from "./auth-types"
 export * from "./caddy"

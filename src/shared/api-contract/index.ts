@@ -1,5 +1,6 @@
 export { contract } from "./contract"
 export { c } from "./init"
+export * from "./schemas/ai-topic"
 export { CADDY_APPLY_STATUSES, CADDY_MATCH_KINDS } from "./schemas/caddy"
 export * from "./schemas/common"
 export * from "./schemas/database"

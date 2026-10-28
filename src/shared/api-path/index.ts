@@ -90,6 +90,19 @@ export const ApiPath = {
    * 重连后按同一个 executionId 重新订阅即可，不会重发原指令。
    */
   aiAssistantExecutionEvents: `${API_BASE}/ai-assistant/executions/:executionId/events`,
+  /** AI 话题：一个话题一个 Agent 对话，话题下按线程组织消息。 */
+  aiTopics: `${API_BASE}/ai-topics`,
+  aiTopic: `${API_BASE}/ai-topics/:topicId`,
+  aiTopicThreads: `${API_BASE}/ai-topics/:topicId/threads`,
+  aiTopicThread: `${API_BASE}/ai-topics/:topicId/threads/:threadId`,
+  aiTopicThreadMessages: `${API_BASE}/ai-topics/:topicId/threads/:threadId/messages`,
+  /**
+   * 向话题提交一次对话（SSE，传输例外）。请求体带 threadId，
+   * 回复写回该线程或由 Agent 指定的线程。
+   */
+  aiTopicMessage: `${API_BASE}/ai-topics/:topicId/messages`,
+  /** 当前执行（用于停止）；没有执行时 409。 */
+  aiTopicExecutionStop: `${API_BASE}/ai-topics/:topicId/execution/stop`,
   dockerOverview: `${API_BASE}/docker/overview`,
   dockerContainers: `${API_BASE}/docker/containers`,
   dockerContainersAction: `${API_BASE}/docker/containers/action`,

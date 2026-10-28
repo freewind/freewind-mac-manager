@@ -96,7 +96,9 @@ const parseJson = (text: string): Record<string, unknown> => {
   }
 }
 
-const toStreamEvent = (event: SseEvent): AiAssistantStreamEvent | null => {
+export const toStreamEvent = (
+  event: SseEvent
+): AiAssistantStreamEvent | null => {
   const data = parseJson(event.data)
   if (event.event === "delta") {
     const delta = data.delta
@@ -143,7 +145,7 @@ const toStreamEvent = (event: SseEvent): AiAssistantStreamEvent | null => {
   return null
 }
 
-const readJsonBody = async (response: Response): Promise<unknown> => {
+export const readJsonBody = async (response: Response): Promise<unknown> => {
   try {
     const text = await response.text()
     return text ? JSON.parse(text) : undefined
@@ -156,7 +158,7 @@ const readJsonBody = async (response: Response): Promise<unknown> => {
  * 读取 SSE 流。reader 在 finally 里释放锁，结束时 flush decoder，
  * 保证最后一个多字节字符与未闭合的帧都不会丢。
  */
-const readSseStream = async (
+export const readSseStream = async (
   body: ReadableStream<Uint8Array>,
   signal: AbortSignal,
   onEvent: (event: SseEvent) => void
