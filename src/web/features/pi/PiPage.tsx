@@ -1540,10 +1540,7 @@ export const PiPage = () => {
   )
 }
 
-/**
- * 「全部测速」会真的发请求、真的花钱，所以先确认再发。
- * 确认弹层写明要测多少个模型，避免手滑全跑。
- */
+/** 全部测速会真的花钱，先确认一次。 */
 const BenchmarkAllButton = ({
   count,
   busy,
@@ -1564,8 +1561,8 @@ const BenchmarkAllButton = ({
           </Button>
         }
       />
-      <PopoverContent className="w-64" align="end">
-        <p>将对全部 {count} 个模型发起测速，会产生真实 API 请求与费用。</p>
+      <PopoverContent className="w-48" align="end">
+        <p>全部测速？</p>
         <div className="flex justify-end gap-2">
           <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
             取消
@@ -1577,7 +1574,7 @@ const BenchmarkAllButton = ({
               onConfirm()
             }}
           >
-            确认测速
+            确认
           </Button>
         </div>
       </PopoverContent>
