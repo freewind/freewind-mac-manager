@@ -1450,7 +1450,7 @@ export const PiPage = () => {
             <DialogTitle>删除 Provider？</DialogTitle>
             <DialogDescription>
               将从 Pi 的 models.json 删除「{deleteTarget?.id}
-              」。此操作会创建备份；默认 Provider 不能删除，须先更改默认设置。
+              」。默认 Provider 不能删除，须先更改默认设置。
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1483,7 +1483,7 @@ export const PiPage = () => {
             <DialogTitle>删除模型？</DialogTitle>
             <DialogDescription>
               将从 provider「{deleteModelTarget?.providerId}」删除模型「
-              {deleteModelTarget?.modelId}」。此操作会创建备份；若它是默认模型，
+              {deleteModelTarget?.modelId}」。若它是默认模型，
               须先在设置里更换默认模型。
             </DialogDescription>
           </DialogHeader>

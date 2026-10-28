@@ -282,18 +282,7 @@ const writeSettings = async (
     )
   }
   const file = settingsPath()
-  if (loaded.exists) {
-    const backup = `${file}.bak-${Date.now()}-${randomBytes(4).toString("hex")}`
-    try {
-      await fs.copyFile(file, backup, 1)
-      await fs.chmod(backup, loaded.mode & 0o777)
-    } catch {
-      throw new PublicOperationError(
-        500,
-        "无法建立配置备份，未修改 settings.json"
-      )
-    }
-  } else {
+  if (!loaded.exists) {
     await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
   }
   try {
@@ -444,13 +433,6 @@ const writeDocument = async (
       409,
       "models.json 已被其他程序修改，请刷新后重试"
     )
-  }
-  const backup = `${file}.bak-${Date.now()}-${randomBytes(4).toString("hex")}`
-  try {
-    await fs.copyFile(file, backup, 1)
-    await fs.chmod(backup, loaded.mode & 0o777)
-  } catch {
-    throw new PublicOperationError(500, "无法建立配置备份，未修改 models.json")
   }
   const contents = `${JSON.stringify({ ...loaded.document, providers }, null, 2)}\n`
   try {
