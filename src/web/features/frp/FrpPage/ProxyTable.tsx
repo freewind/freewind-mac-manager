@@ -69,11 +69,11 @@ export const ProxyTable = (props: ProxyTableProps) => {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-[1%] whitespace-nowrap">隧道名</TableHead>
-          <TableHead className="w-[1%] whitespace-nowrap">类型</TableHead>
-          <TableHead className="w-[1%] whitespace-nowrap">本地目标</TableHead>
-          <TableHead className="w-[1%] whitespace-nowrap">远程端口</TableHead>
-          <TableHead className="w-[1%] whitespace-nowrap">连通性</TableHead>
+          <TableHead>隧道名</TableHead>
+          <TableHead>类型</TableHead>
+          <TableHead>本地目标</TableHead>
+          <TableHead>远程端口</TableHead>
+          <TableHead>连通性</TableHead>
           <TableHead className="w-full">操作</TableHead>
         </TableRow>
       </TableHeader>
