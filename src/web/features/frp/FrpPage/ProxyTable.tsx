@@ -74,7 +74,9 @@ export const ProxyTable = (props: ProxyTableProps) => {
           <TableHead className="w-[1%] whitespace-nowrap">本地目标</TableHead>
           <TableHead className="w-[1%] whitespace-nowrap">远程端口</TableHead>
           <TableHead className="w-[1%] whitespace-nowrap">连通性</TableHead>
-          <TableHead className="whitespace-nowrap text-right">操作</TableHead>
+          <TableHead className="w-full whitespace-nowrap text-right">
+            操作
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
