@@ -38,6 +38,11 @@ import {
 } from "@web/components/ui/dropdown-menu"
 import { Input } from "@web/components/ui/input"
 import { Label } from "@web/components/ui/label"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@web/components/ui/popover"
 import { Sheet, SheetContent, SheetTitle } from "@web/components/ui/sheet"
 import { Textarea } from "@web/components/ui/textarea"
 import {
@@ -918,17 +923,11 @@ export const PiPage = () => {
             >
               {view === "card" ? <LayoutGrid /> : <List />}
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void runBenchmarks(allBenchmarkTargets)}
-              disabled={
-                allBenchmarkTargets.length === 0 || busyBenchmarkKeys.size > 0
-              }
-            >
-              <Gauge />
-              {busyBenchmarkKeys.size > 0 ? "测速中…" : "全部测速"}
-            </Button>
+            <BenchmarkAllButton
+              count={allBenchmarkTargets.length}
+              busy={busyBenchmarkKeys.size > 0}
+              onConfirm={() => void runBenchmarks(allBenchmarkTargets)}
+            />
             <Button size="sm" onClick={() => startEdit()}>
               <Plus />
               添加 Provider
@@ -1538,6 +1537,51 @@ export const PiPage = () => {
         </SheetContent>
       </Sheet>
     </div>
+  )
+}
+
+/**
+ * 「全部测速」会真的发请求、真的花钱，所以先确认再发。
+ * 确认弹层写明要测多少个模型，避免手滑全跑。
+ */
+const BenchmarkAllButton = ({
+  count,
+  busy,
+  onConfirm,
+}: {
+  count: number
+  busy: boolean
+  onConfirm: () => void
+}) => {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button size="sm" variant="outline" disabled={count === 0 || busy}>
+            <Gauge />
+            {busy ? "测速中…" : "全部测速"}
+          </Button>
+        }
+      />
+      <PopoverContent className="w-64" align="end">
+        <p>将对全部 {count} 个模型发起测速，会产生真实 API 请求与费用。</p>
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
+            取消
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setOpen(false)
+              onConfirm()
+            }}
+          >
+            确认测速
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
