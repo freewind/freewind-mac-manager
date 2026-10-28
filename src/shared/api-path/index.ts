@@ -92,6 +92,8 @@ export const ApiPath = {
   aiAssistantExecutionEvents: `${API_BASE}/ai-assistant/executions/:executionId/events`,
   /** AI 话题：一个话题一个 Agent 对话，话题下按线程组织消息。 */
   aiTopics: `${API_BASE}/ai-topics`,
+  /** 话题自己的 AI 配置（模型与提示词），与 AI 助手设置互不影响。 */
+  aiTopicSettings: `${API_BASE}/ai-topic-settings`,
   aiTopic: `${API_BASE}/ai-topics/:topicId`,
   aiTopicThreads: `${API_BASE}/ai-topics/:topicId/threads`,
   aiTopicThread: `${API_BASE}/ai-topics/:topicId/threads/:threadId`,

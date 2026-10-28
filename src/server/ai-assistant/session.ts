@@ -13,13 +13,11 @@ import { PublicOperationError } from "@server/common/public-error"
 import { PI_AGENT_DIR, PROJECT_ROOT } from "@server/env"
 import type { AiAssistantSettingsResponse } from "@shared/api-contract"
 import { AI_ASSISTANT_DEFAULT_TOOLS } from "@shared/api-contract/schemas/ai-assistant"
-import {
-  AI_ASSISTANT_DEFAULT_SYSTEM_PROMPT,
-  AI_TOPIC_DEFAULT_SYSTEM_PROMPT,
-} from "./config"
+import { AI_ASSISTANT_DEFAULT_SYSTEM_PROMPT } from "./config"
 import { createAssistantModelRuntime } from "./model-runtime"
 import { saveSession } from "./store"
 import { AI_ASSISTANT_TOOL_NAME, callMacManagerApi } from "./tool"
+import { buildTopicSystemPrompt, getAiTopicSettings } from "./topic-settings"
 import { saveTopicSettingsSnapshot } from "./topic-store"
 import {
   AI_TOPIC_TOOL_NAMES,
@@ -39,6 +37,9 @@ type CachedSession = {
 }
 
 const sessions = new Map<string, CachedSession>()
+
+/** 哪些缓存会话属于话题：设置变更时只需要重建这些。 */
+const topicSessionIds = new Set<string>()
 
 /**
  * 话题的执行上下文：本次提问来自哪个线程。
@@ -77,6 +78,7 @@ const cleanupIdleSessions = (now: number): void => {
     if (now - entry.lastUsedAt <= AI_ASSISTANT_SESSION_IDLE_MS) continue
     if (inFlight.has(id)) continue
     sessions.delete(id)
+    topicSessionIds.delete(id)
     entry.controller.abort()
     entry.session.dispose()
   }
@@ -122,7 +124,12 @@ const loadResourceLoader = async (
 }
 
 type BuildSessionInput = {
-  settings: AiAssistantSettingsResponse
+  /** 模型选择：助手与话题各用自己那份设置，互不影响。 */
+  model: {
+    providerId?: string
+    modelId?: string
+    thinkingLevel?: AiAssistantSettingsResponse["settings"]["thinkingLevel"]
+  }
   systemPrompt: string
   customTools: ToolDefinition[]
   /** 额外必须启用的工具名：漏掉自定义工具会被 SDK 的 allowlist 整体剔除。 */
@@ -133,17 +140,16 @@ type BuildSessionInput = {
 }
 
 const buildSession = async (input: BuildSessionInput) => {
-  const { providerId, modelId, thinkingLevel } = input.settings.settings
+  const { providerId, modelId, thinkingLevel } = input.model
   if (!providerId || !modelId) {
-    throw new PublicOperationError(400, "请先在设置中选择 AI 助手模型")
+    throw new PublicOperationError(400, "请先在设置中选择模型")
   }
   const controller = new AbortController()
   const runtime = await createAssistantModelRuntime(controller.signal)
   const model = runtime.getModel(providerId, modelId)
   if (!model) throw new PublicOperationError(404, "所选模型不在当前 Pi 配置中")
   const resourceLoader = await loadResourceLoader(input.systemPrompt)
-  const enabledTools = input.enabledTools ??
-    input.settings.settings.enabledTools ?? [...AI_ASSISTANT_DEFAULT_TOOLS]
+  const enabledTools = input.enabledTools ?? [...AI_ASSISTANT_DEFAULT_TOOLS]
   const { session } = await createAgentSession({
     cwd: PROJECT_ROOT,
     agentDir: PI_AGENT_DIR,
@@ -175,11 +181,12 @@ export const createSession = async (
   const now = Date.now()
   cleanupIdleSessions(now)
   const built = await buildSession({
-    settings,
+    model: settings.settings,
     systemPrompt:
       settings.settings.systemPrompt ?? AI_ASSISTANT_DEFAULT_SYSTEM_PROMPT,
     customTools: [callMacManagerApi],
     extraToolNames: [],
+    enabledTools: settings.settings.enabledTools,
     sessionManager: SessionManager.inMemory(),
   })
   const sessionId = randomUUID()
@@ -250,7 +257,6 @@ export const topicRunContext = (topicId: string): TopicRunContext => {
  */
 export const getOrCreateTopicSession = async (
   topicId: string,
-  settings: AiAssistantSettingsResponse,
   entriesText: string
 ): Promise<AgentSession> => {
   const now = Date.now()
@@ -260,10 +266,12 @@ export const getOrCreateTopicSession = async (
     cached.lastUsedAt = now
     return cached.session
   }
+  // 话题用自己那份设置：与 AI 助手的模型和提示词完全独立。
+  const settings = getAiTopicSettings()
   const runContext = topicRunContext(topicId)
   const built = await buildSession({
-    settings,
-    systemPrompt: AI_TOPIC_DEFAULT_SYSTEM_PROMPT,
+    model: settings.settings,
+    systemPrompt: buildTopicSystemPrompt(settings),
     customTools: [
       callMacManagerApi,
       ...createTopicToolset(topicId, runContext),
@@ -284,7 +292,21 @@ export const getOrCreateTopicSession = async (
     sessionManager: built.sessionManager,
     lastUsedAt: now,
   })
+  topicSessionIds.add(topicId)
   return built.session
+}
+
+/**
+ * 设置变更后重建话题会话：下次对话立即用新模型与新提示词。
+ *
+ * 正在执行的话题跳过：不能为了换配置把进行中的对话拨掉。上文已经存在
+ * 库里，执行结束后会从条目重建。
+ */
+export const disposeIdleTopicSessions = (): void => {
+  for (const topicId of [...topicSessionIds]) {
+    if (inFlight.has(topicId)) continue
+    disposeSession(topicId)
+  }
 }
 
 /**
@@ -316,6 +338,7 @@ export const getSession = (sessionId: string): AgentSession => {
 export const disposeSession = (sessionId: string): void => {
   inFlight.delete(sessionId)
   topicContexts.delete(sessionId)
+  topicSessionIds.delete(sessionId)
   const entry = sessions.get(sessionId)
   if (entry) {
     sessions.delete(sessionId)

@@ -7,7 +7,6 @@ import { AiTopicMessageRequestSchema } from "@shared/api-contract/schemas/ai-top
 import { ApiPath } from "@shared/api-path"
 import { initServer } from "@ts-rest/express"
 import type express from "express"
-import { getAiAssistantSettings } from "./config"
 import { readRequestId } from "./handlers"
 import {
   type ExecutionPersistence,
@@ -15,11 +14,13 @@ import {
   stopExecution,
 } from "./runner"
 import {
+  disposeIdleTopicSessions,
   getOrCreateTopicSession,
   serializeTopicSession,
   topicRunContext,
 } from "./session"
 import { streamSession } from "./stream"
+import { getAiTopicSettings, saveAiTopicSettings } from "./topic-settings"
 import {
   appendMessage,
   createThread,
@@ -44,6 +45,8 @@ const s = initServer()
 
 /** 只挑本域的路由；app.ts 负责与其它功能合并。 */
 export const aiTopicContract = {
+  getAiTopicSettings: contract.getAiTopicSettings,
+  saveAiTopicSettings: contract.saveAiTopicSettings,
   listAiTopics: contract.listAiTopics,
   createAiTopic: contract.createAiTopic,
   getAiTopic: contract.getAiTopic,
@@ -105,6 +108,23 @@ const topicPersistence: ExecutionPersistence = {
 
 export const createAiTopicRouter = () =>
   s.router(aiTopicContract, {
+    getAiTopicSettings: async () => {
+      try {
+        return { status: 200 as const, body: getAiTopicSettings() }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    saveAiTopicSettings: async ({ body }) => {
+      try {
+        const saved = saveAiTopicSettings(body)
+        // 空闲的话题会话立即重建：下次对话就用新模型与新提示词。
+        disposeIdleTopicSessions()
+        return { status: 200 as const, body: saved }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
     listAiTopics: async () => {
       try {
         return { status: 200 as const, body: { topics: listTopics() } }
@@ -261,7 +281,6 @@ export const registerAiTopicStreamEndpoint = (app: express.Express): void => {
       context.replied = false
       const session = await getOrCreateTopicSession(
         topicId,
-        getAiAssistantSettings(),
         readTopicEntries(topicId)
       )
       // 把线程身份写进指令：模型据此知道回答该写到哪个线程。

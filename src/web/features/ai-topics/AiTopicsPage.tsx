@@ -15,27 +15,23 @@ import {
   SheetTitle,
 } from "@web/components/ui/sheet"
 import { Skeleton } from "@web/components/ui/skeleton"
-import { useAiAssistantSettings } from "@web/features/ai-assistant/queries"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
-import { Bot, ChevronDown, MessagesSquare } from "lucide-react"
+import { Bot, ChevronDown, MessagesSquare, Settings2 } from "lucide-react"
 import { useCallback, useState } from "react"
 import {
   aiTopicKeys,
   useAiTopicMessagesQuery,
   useAiTopicQuery,
+  useAiTopicSettings,
   useAiTopicsQuery,
   useCreateAiTopic,
 } from "./queries"
 import { ThreadChat } from "./ThreadChat"
 import { ThreadPanel } from "./ThreadPanel"
 import { TopicList } from "./TopicList"
+import { TopicSettingsDialog } from "./TopicSettingsDialog"
 import { useAiTopicsLocation } from "./use-ai-topics-location"
-
-type AiTopicsPageProps = {
-  /** 「去设置选模型」的去处；由 App 提供，避免在页面里重复实现导航。 */
-  onOpenModelSettings?: () => void
-}
 
 /**
  * AI 话题页。
@@ -43,7 +39,7 @@ type AiTopicsPageProps = {
  * 手机默认单列：先看话题，进入后直接停在第一个线程，其余线程与话题从顶部
  * 切换；桌面同时展示话题、线程与对话三栏。两种布局共享同一份数据与动作。
  */
-export const AiTopicsPage = (props: AiTopicsPageProps) => {
+export const AiTopicsPage = () => {
   const isDesktop = useIsDesktop()
   const queryClient = useQueryClient()
   const location = useAiTopicsLocation()
@@ -51,8 +47,10 @@ export const AiTopicsPage = (props: AiTopicsPageProps) => {
   // 执行期间才轮询：话题只有一个 Agent，回答可能写进另一个线程。
   const [chatRunning, setChatRunning] = useState(false)
   const detailQuery = useAiTopicQuery(location.topicId, chatRunning)
-  const settings = useAiAssistantSettings(true)
+  const settings = useAiTopicSettings(true)
   const createTopic = useCreateAiTopic()
+
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const [topicSheet, setTopicSheet] = useState(false)
   const [threadSheet, setThreadSheet] = useState(false)
@@ -130,6 +128,14 @@ export const AiTopicsPage = (props: AiTopicsPageProps) => {
         <Bot className="size-4" />
         <PageHeader title="AI 话题" loading={topicsQuery.isPending} />
         <div className="ml-auto flex min-w-0 items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings2 aria-hidden="true" />
+            话题设置
+          </Button>
           {isDesktop ? null : (
             <>
               <Button
@@ -187,11 +193,11 @@ export const AiTopicsPage = (props: AiTopicsPageProps) => {
           <Alert role="status">
             <AlertTitle>还没有选择 AI 模型</AlertTitle>
             <AlertDescription className="flex flex-col gap-3">
-              <span>话题使用 AI 助手的模型设置，请先选择模型再对话。</span>
+              <span>话题用自己的模型，先选中一个模型再对话。</span>
               <Button
                 variant="outline"
                 className="w-fit"
-                onClick={() => props.onOpenModelSettings?.()}
+                onClick={() => setSettingsOpen(true)}
               >
                 去设置模型
               </Button>
@@ -257,6 +263,8 @@ export const AiTopicsPage = (props: AiTopicsPageProps) => {
           </div>
         )
       ) : null}
+
+      <TopicSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <Sheet open={topicSheet} onOpenChange={setTopicSheet}>
         <SheetContent side="left" className="w-72 gap-0 p-0">

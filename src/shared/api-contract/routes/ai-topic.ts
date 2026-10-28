@@ -6,6 +6,8 @@ import {
   AiTopicExecutionSchema,
   AiTopicListSchema,
   AiTopicPathSchema,
+  AiTopicSettingsMutationSchema,
+  AiTopicSettingsResponseSchema,
   AiTopicThreadCreateSchema,
   AiTopicThreadMessagesQuerySchema,
   AiTopicThreadMessagesSchema,
@@ -32,6 +34,18 @@ const errorResponses = {
  * 直接判掉。对话本身是 SSE 传输例外，见 handlers 的独立挂载。
  */
 export const aiTopicRoutes = {
+  /** 话题自己的设置：与 AI 助手设置完全独立，互不影响。 */
+  getAiTopicSettings: {
+    method: "GET",
+    path: toContractPath(ApiPath.aiTopicSettings),
+    responses: { 200: AiTopicSettingsResponseSchema, ...errorResponses },
+  },
+  saveAiTopicSettings: {
+    method: "PUT",
+    path: toContractPath(ApiPath.aiTopicSettings),
+    body: AiTopicSettingsMutationSchema,
+    responses: { 200: AiTopicSettingsResponseSchema, ...errorResponses },
+  },
   listAiTopics: {
     method: "GET",
     path: toContractPath(ApiPath.aiTopics),

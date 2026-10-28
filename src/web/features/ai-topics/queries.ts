@@ -1,14 +1,17 @@
+import type { AiTopicSettingsInput } from "@shared/api-contract"
 import {
   createAiTopic,
   createAiTopicThread,
   deleteAiTopic,
   deleteAiTopicThread,
   fetchAiTopic,
+  fetchAiTopicSettings,
   fetchAiTopicThreadMessages,
   listAiTopics,
   markAiTopicThreadRead,
   renameAiTopic,
   renameAiTopicThread,
+  saveAiTopicSettings,
   setAiTopicThreadArchived,
 } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -20,6 +23,7 @@ export const TOPIC_REFRESH_INTERVAL_MS = 2500
 export const aiTopicKeys = {
   all: ["ai-topics"] as const,
   list: () => [...aiTopicKeys.all, "list"] as const,
+  settings: () => [...aiTopicKeys.all, "settings"] as const,
   detail: (topicId: string) => [...aiTopicKeys.all, "detail", topicId] as const,
   messages: (topicId: string, threadId: string) =>
     [...aiTopicKeys.all, "messages", topicId, threadId] as const,
@@ -31,6 +35,25 @@ export const useAiTopicsQuery = () =>
     queryFn: listAiTopics,
     retry: false,
   })
+
+/** 话题自己的模型与提示词；与 AI 助手的设置互不影响。 */
+export const useAiTopicSettings = (enabled: boolean) =>
+  useQuery({
+    queryKey: aiTopicKeys.settings(),
+    queryFn: fetchAiTopicSettings,
+    enabled,
+    retry: false,
+  })
+
+export const useSaveAiTopicSettings = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: AiTopicSettingsInput) => saveAiTopicSettings(input),
+    onSuccess: (response) => {
+      queryClient.setQueryData(aiTopicKeys.settings(), response)
+    },
+  })
+}
 
 /**
  * 话题详情（话题 + 线程列表）。

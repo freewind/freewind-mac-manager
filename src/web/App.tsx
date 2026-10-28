@@ -219,9 +219,7 @@ export const App = () => {
           {feature === "database" ? <DatabasePage /> : null}
           {feature === "hardware" ? <HardwarePage /> : null}
           {feature === "mcp-servers" ? <McpServersPage /> : null}
-          {feature === "ai-topics" ? (
-            <AiTopicsPage onOpenModelSettings={openAiAssistantSettings} />
-          ) : null}
+          {feature === "ai-topics" ? <AiTopicsPage /> : null}
         </div>
       </SidebarInset>
       <AiAssistantDialog onOpenModelSettings={openAiAssistantSettings} />

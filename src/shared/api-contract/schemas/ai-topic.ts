@@ -1,5 +1,8 @@
 import { z } from "zod"
-import { AiAssistantExecutionSchema } from "./ai-assistant"
+import {
+  AI_ASSISTANT_THINKING_LEVELS,
+  AiAssistantExecutionSchema,
+} from "./ai-assistant"
 
 /**
  * AI 话题：一个话题对应一个 Agent 对话，话题下的线程只是问题与回答的组织方式。
@@ -142,6 +145,40 @@ export type AiTopicThreadCreate = z.infer<typeof AiTopicThreadCreateSchema>
 export type AiTopicThreadUpdate = z.infer<typeof AiTopicThreadUpdateSchema>
 export type AiTopicMessageRequest = z.infer<typeof AiTopicMessageRequestSchema>
 export type AiTopicExecution = z.infer<typeof AiTopicExecutionSchema>
+
+/**
+ * 话题自己的 AI 配置：与 AI 助手的设置完全独立。
+ *
+ * 两处各用各的模型与提示词：改助手的设置不会影响话题，反之亦然。
+ */
+export const AiTopicSettingsSchema = z.object({
+  providerId: z.string().min(1).max(256).optional(),
+  modelId: z.string().min(1).max(256).optional(),
+  thinkingLevel: z.enum(AI_ASSISTANT_THINKING_LEVELS).optional(),
+  systemPrompt: z.string().max(8000).optional(),
+})
+
+export const AiTopicSettingsResponseSchema = z.object({
+  settings: AiTopicSettingsSchema,
+  signature: z.string().length(64),
+  updatedAt: z.number(),
+  /** 默认提示词：界面用它区分「未自定义」与「已自定义」。 */
+  defaults: z.object({ systemPrompt: z.string() }),
+})
+
+export const AiTopicSettingsMutationSchema = z.object({
+  signature: z.string().length(64),
+  settings: AiTopicSettingsSchema,
+  clearFields: z
+    .array(z.enum(["providerId", "modelId", "thinkingLevel", "systemPrompt"]))
+    .default([]),
+})
+
+export type AiTopicSettings = z.infer<typeof AiTopicSettingsSchema>
+export type AiTopicSettingsResponse = z.infer<
+  typeof AiTopicSettingsResponseSchema
+>
+export type AiTopicSettingsInput = z.input<typeof AiTopicSettingsMutationSchema>
 
 /** 正文长度上限导出给服务端复用，避免两处各写一个数字。 */
 export const AI_TOPIC_BODY_MAX = BODY_MAX

@@ -2,6 +2,8 @@ import type {
   AiTopicDetail,
   AiTopicExecution,
   AiTopicList,
+  AiTopicSettingsInput,
+  AiTopicSettingsResponse,
   AiTopicThreadMessages,
   AiTopicThreadResponse,
 } from "@shared/api-contract"
@@ -9,6 +11,16 @@ import { apiClient, unwrap } from "./client"
 
 export const listAiTopics = async (): Promise<AiTopicList> =>
   unwrap<AiTopicList>(await apiClient.listAiTopics())
+
+/** 话题自己的设置：与 AI 助手设置完全独立。 */
+export const fetchAiTopicSettings =
+  async (): Promise<AiTopicSettingsResponse> =>
+    unwrap<AiTopicSettingsResponse>(await apiClient.getAiTopicSettings())
+
+export const saveAiTopicSettings = async (input: AiTopicSettingsInput) =>
+  unwrap<AiTopicSettingsResponse>(
+    await apiClient.saveAiTopicSettings({ body: input })
+  )
 
 export const fetchAiTopic = async (topicId: string): Promise<AiTopicDetail> =>
   unwrap<AiTopicDetail>(await apiClient.getAiTopic({ params: { topicId } }))
