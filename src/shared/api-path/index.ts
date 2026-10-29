@@ -105,6 +105,20 @@ export const ApiPath = {
   aiTopicMessage: `${API_BASE}/ai-topics/:topicId/messages`,
   /** 当前执行（用于停止）；没有执行时 409。 */
   aiTopicExecutionStop: `${API_BASE}/ai-topics/:topicId/execution/stop`,
+  /**
+   * AI 通话：一次通话是一个会话，消息线性排列，不分话题与线程。
+   * 语音在浏览器本地处理，服务端只收发文本。
+   */
+  aiCallSessions: `${API_BASE}/ai-call/sessions`,
+  aiCallSession: `${API_BASE}/ai-call/sessions/:sessionId`,
+  /** 向通话提交一次发言（SSE，传输例外）。 */
+  aiCallMessage: `${API_BASE}/ai-call/sessions/:sessionId/messages`,
+  /** 当前执行：中断后按它核实是否真的还在跑。 */
+  aiCallExecution: `${API_BASE}/ai-call/sessions/:sessionId/execution`,
+  /** 打断后停掉当前执行；没有正在执行时 409。 */
+  aiCallExecutionStop: `${API_BASE}/ai-call/sessions/:sessionId/execution/stop`,
+  /** 挂断：只标一个结束时间，历史保留。 */
+  aiCallFinish: `${API_BASE}/ai-call/sessions/:sessionId/finish`,
   dockerOverview: `${API_BASE}/docker/overview`,
   dockerContainers: `${API_BASE}/docker/containers`,
   dockerContainersAction: `${API_BASE}/docker/containers/action`,

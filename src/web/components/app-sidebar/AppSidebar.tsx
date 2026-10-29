@@ -33,6 +33,7 @@ import {
   Globe,
   type LucideIcon,
   MessagesSquare,
+  Phone,
   Router,
   Server,
   Settings,
@@ -58,6 +59,7 @@ export type FeatureKey =
   | "hardware"
   | "mcp-servers"
   | "ai-topics"
+  | "ai-call"
 
 type FeatureItem = {
   key: FeatureKey
@@ -77,6 +79,7 @@ const FEATURES: FeatureItem[] = [
   { key: "database", label: "数据库", icon: Database },
   { key: "pi", label: "Pi Agent", icon: Bot },
   { key: "ai-topics", label: "AI 话题", icon: MessagesSquare },
+  { key: "ai-call", label: "AI 通话", icon: Phone },
   { key: "mcp-servers", label: "MCP Servers", icon: Blocks },
   { key: "hardware", label: "硬件", icon: CircuitBoard },
 ]

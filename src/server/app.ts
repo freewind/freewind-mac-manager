@@ -10,6 +10,11 @@ import {
   createAiTopicRouter,
   registerAiTopicStreamEndpoint,
 } from "./ai-assistant/topic-handlers"
+import {
+  aiCallContract,
+  createAiCallRouter,
+  registerAiCallStreamEndpoint,
+} from "./ai-call/handlers"
 import { authContract, createAuthManager, createAuthRouter } from "./auth"
 import { caddyContract, createCaddyRouter } from "./caddy/handlers"
 import { clashVergeContract, clashVergeRouter } from "./clash-verge/handlers"
@@ -175,6 +180,8 @@ export const createApp = (injected?: {
   registerAiAssistantStreamEndpoint(app)
   createExpressEndpoints(aiTopicContract, createAiTopicRouter(), app, options)
   registerAiTopicStreamEndpoint(app)
+  createExpressEndpoints(aiCallContract, createAiCallRouter(), app, options)
+  registerAiCallStreamEndpoint(app)
   createExpressEndpoints(processesContract, processesRouter, app, options)
   createExpressEndpoints(
     systemServicesContract,

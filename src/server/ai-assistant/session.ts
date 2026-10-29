@@ -139,7 +139,8 @@ type BuildSessionInput = {
   sessionManager: SessionManager
 }
 
-const buildSession = async (input: BuildSessionInput) => {
+/** 导出给需要自定义工具集的子域（如 AI 通话）：它只换提示词与工具，不重写搭建逻辑。 */
+export const buildSession = async (input: BuildSessionInput) => {
   const { providerId, modelId, thinkingLevel } = input.model
   if (!providerId || !modelId) {
     throw new PublicOperationError(400, "请先在设置中选择模型")

@@ -9,6 +9,7 @@ import {
 } from "@web/components/ui/sidebar"
 import { AiAssistantButton } from "@web/features/ai-assistant/AiAssistantButton"
 import { AiAssistantDialog } from "@web/features/ai-assistant/AiAssistantDialog"
+import { AiCallPage } from "@web/features/ai-call/AiCallPage"
 import { AiTopicsPage } from "@web/features/ai-topics/AiTopicsPage"
 import { LoginPage } from "@web/features/auth/LoginPage"
 import { CaddyPage } from "@web/features/caddy/CaddyPage"
@@ -53,6 +54,7 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "hardware",
   "mcp-servers",
   "ai-topics",
+  "ai-call",
 ]
 
 const featureFromUrl = (): FeatureKey => {
@@ -220,6 +222,7 @@ export const App = () => {
           {feature === "hardware" ? <HardwarePage /> : null}
           {feature === "mcp-servers" ? <McpServersPage /> : null}
           {feature === "ai-topics" ? <AiTopicsPage /> : null}
+          {feature === "ai-call" ? <AiCallPage /> : null}
         </div>
       </SidebarInset>
       <AiAssistantDialog onOpenModelSettings={openAiAssistantSettings} />
