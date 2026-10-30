@@ -1,8 +1,11 @@
+import type { AiCallSettingsInput } from "@shared/api-contract"
 import {
   createAiCallSession,
   fetchAiCallSession,
+  fetchAiCallSettings,
   finishAiCallSession,
   listAiCallSessions,
+  saveAiCallSettings,
 } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
@@ -15,6 +18,7 @@ export const aiCallKeys = {
   list: () => [...aiCallKeys.all, "list"] as const,
   detail: (sessionId: string) =>
     [...aiCallKeys.all, "detail", sessionId] as const,
+  settings: () => [...aiCallKeys.all, "settings"] as const,
 }
 
 export const useAiCallSessionsQuery = () =>
@@ -73,6 +77,24 @@ export const useFinishAiCallSession = () => {
     onSuccess: (detail) => {
       void invalidate.list()
       void invalidate.detail(detail.session.id)
+    },
+  })
+}
+
+/** 通话设置：提示词决定它怎么说话、什么时候打断。 */
+export const useAiCallSettingsQuery = () =>
+  useQuery({
+    queryKey: aiCallKeys.settings(),
+    queryFn: fetchAiCallSettings,
+    retry: false,
+  })
+
+export const useSaveAiCallSettings = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: AiCallSettingsInput) => saveAiCallSettings(input),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(aiCallKeys.settings(), saved)
     },
   })
 }

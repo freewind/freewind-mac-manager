@@ -120,3 +120,33 @@ export type AiCallTranscribeRequest = z.infer<
 export type AiCallTranscribeResponse = z.infer<
   typeof AiCallTranscribeResponseSchema
 >
+
+/**
+ * 通话自己的 AI 配置：只存提示词。
+ *
+ * 模型沿用 AI 助手那份：通话就是助手的语音形态，不另配一套模型。
+ * 提示词决定它怎么说话、什么时候打断，和助手那段分开写。
+ */
+export const AiCallSettingsSchema = z.object({
+  systemPrompt: z.string().max(8000).optional(),
+})
+
+export const AiCallSettingsResponseSchema = z.object({
+  settings: AiCallSettingsSchema,
+  signature: z.string().length(64),
+  updatedAt: z.number(),
+  /** 默认提示词：界面用它区分「未自定义」与「已自定义」。 */
+  defaults: z.object({ systemPrompt: z.string() }),
+})
+
+export const AiCallSettingsMutationSchema = z.object({
+  signature: z.string().length(64),
+  settings: AiCallSettingsSchema,
+  clearFields: z.array(z.enum(["systemPrompt"])).default([]),
+})
+
+export type AiCallSettings = z.infer<typeof AiCallSettingsSchema>
+export type AiCallSettingsResponse = z.infer<
+  typeof AiCallSettingsResponseSchema
+>
+export type AiCallSettingsInput = z.input<typeof AiCallSettingsMutationSchema>

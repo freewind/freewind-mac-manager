@@ -9,7 +9,7 @@ import { buildSession } from "@server/ai-assistant/session"
 import { callMacManagerApi } from "@server/ai-assistant/tool"
 import { PublicOperationError } from "@server/common/public-error"
 import { PROJECT_ROOT } from "@server/env"
-import { AI_CALL_SYSTEM_PROMPT } from "./config"
+import { buildCallSystemPrompt, getAiCallSettings } from "./settings"
 import { AI_CALL_SPEAK_TOOL, createSpeakTool } from "./speak-tool"
 import { readCallEntries } from "./store"
 
@@ -76,7 +76,7 @@ export const getOrCreateCallSession = async (
   const settings = getAiAssistantSettings()
   const built = await buildSession({
     model: settings.settings,
-    systemPrompt: AI_CALL_SYSTEM_PROMPT,
+    systemPrompt: buildCallSystemPrompt(getAiCallSettings()),
     customTools: [callMacManagerApi, createSpeakTool(sessionId)],
     // 漏掉自定义工具名会被 SDK 的 allowlist 整体剔除，必须显式列出。
     extraToolNames: [AI_CALL_SPEAK_TOOL],
@@ -112,4 +112,17 @@ export const disposeCallSession = (sessionId: string): void => {
   sessions.delete(sessionId)
   entry.controller.abort()
   entry.session.dispose()
+}
+
+/**
+ * 丢陈旧的会话：设置（提示词）改过后，已建好的会话仍拿着旧提示词。
+ * 只丢空闲的，正在执行的那次不能丢，否则回答会半路断掉。
+ */
+export const disposeIdleCallSessions = (
+  isRunning: (sessionId: string) => boolean
+): void => {
+  for (const sessionId of [...sessions.keys()]) {
+    if (isRunning(sessionId)) continue
+    disposeCallSession(sessionId)
+  }
 }

@@ -18,8 +18,9 @@ import {
 import { Skeleton } from "@web/components/ui/skeleton"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { cn } from "cn"
-import { History, Phone } from "lucide-react"
+import { History, Phone, Settings } from "lucide-react"
 import { useCallback, useState } from "react"
+import { CallSettingsDialog } from "./CallSettingsDialog"
 import { CallStage } from "./CallStage"
 import {
   aiCallKeys,
@@ -50,6 +51,7 @@ export const AiCallPage = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   useHistoryOverlay(historyOpen, () => setHistoryOpen(false))
 
   const createSession = useCreateAiCallSession()
@@ -107,6 +109,14 @@ export const AiCallPage = () => {
     <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
       <PageHeader title="AI 通话" loading={sessionsQuery.isPending}>
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label="通话设置"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings aria-hidden />
+          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -183,6 +193,7 @@ export const AiCallPage = () => {
           </div>
         </SheetContent>
       </Sheet>
+      <CallSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   )
 }

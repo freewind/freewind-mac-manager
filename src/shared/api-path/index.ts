@@ -112,6 +112,8 @@ export const ApiPath = {
   aiCallSessions: `${API_BASE}/ai-call/sessions`,
   /** 语音识别：把一段 16k 单声道 PCM 交给服务端识别，返回文本。 */
   aiCallTranscribe: `${API_BASE}/ai-call/transcribe`,
+  /** 通话自己的设置：提示词与助手那段分开存。 */
+  aiCallSettings: `${API_BASE}/ai-call/settings`,
   aiCallSession: `${API_BASE}/ai-call/sessions/:sessionId`,
   /** 向通话提交一次发言（SSE，传输例外）。 */
   aiCallMessage: `${API_BASE}/ai-call/sessions/:sessionId/messages`,

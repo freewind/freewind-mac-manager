@@ -15,7 +15,8 @@ import { ApiPath } from "@shared/api-path"
 import { initServer } from "@ts-rest/express"
 import type express from "express"
 import { callPersistence } from "./persistence"
-import { getOrCreateCallSession } from "./session"
+import { disposeIdleCallSessions, getOrCreateCallSession } from "./session"
+import { getAiCallSettings, saveAiCallSettings } from "./settings"
 import {
   createCallSession,
   deleteCallSession,
@@ -32,6 +33,8 @@ const s = initServer()
 
 /** 只挑本域的路由；app.ts 负责与其它功能合并。 */
 export const aiCallContract = {
+  getAiCallSettings: contract.getAiCallSettings,
+  saveAiCallSettings: contract.saveAiCallSettings,
   transcribeAiCallAudio: contract.transcribeAiCallAudio,
   listAiCallSessions: contract.listAiCallSessions,
   createAiCallSession: contract.createAiCallSession,
@@ -51,6 +54,25 @@ const detail = (sessionId: string) => ({
 
 export const createAiCallRouter = () =>
   s.router(aiCallContract, {
+    getAiCallSettings: async () => {
+      try {
+        return { status: 200 as const, body: getAiCallSettings() }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    saveAiCallSettings: async ({ body }) => {
+      try {
+        const saved = saveAiCallSettings(body)
+        // 提示词改了就丢陈旧的会话：否则这次改完也要等到下次重启才生效。
+        disposeIdleCallSessions(
+          (sessionId) => runningExecutionId(sessionId) !== null
+        )
+        return { status: 200 as const, body: saved }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
     transcribeAiCallAudio: async ({ body }) => {
       try {
         const pcm = Buffer.from(body.audio, "base64")

@@ -2,6 +2,8 @@ import type {
   AiCallExecution,
   AiCallSessionDetail,
   AiCallSessionList,
+  AiCallSettingsInput,
+  AiCallSettingsResponse,
   AiCallTranscribeResponse,
 } from "@shared/api-contract"
 import { apiClient, unwrap } from "./client"
@@ -81,4 +83,15 @@ export const finishAiCallSession = async (
 ): Promise<AiCallSessionDetail> =>
   unwrap<AiCallSessionDetail>(
     await apiClient.finishAiCallSession({ params: { sessionId } })
+  )
+
+/** 通话自己的设置：可自定义说话的提示词，模型沿用 AI 助手那份。 */
+export const fetchAiCallSettings = async (): Promise<AiCallSettingsResponse> =>
+  unwrap<AiCallSettingsResponse>(await apiClient.getAiCallSettings())
+
+export const saveAiCallSettings = async (
+  input: AiCallSettingsInput
+): Promise<AiCallSettingsResponse> =>
+  unwrap<AiCallSettingsResponse>(
+    await apiClient.saveAiCallSettings({ body: input })
   )
