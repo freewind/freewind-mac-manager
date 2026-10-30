@@ -20,9 +20,10 @@ export default defineConfig(({ command }) => ({
     },
   },
   // 端口来自 APP_PORT 且 strict：被占用时直接启动失败，不自动换端口。
+  // host 用 0.0.0.0：手机在同一局域网可直接访问；安全边界靠访问密码，不靠回环绑定。
   server:
     command === "serve"
-      ? { port: resolveServerPort(), strictPort: true }
+      ? { port: resolveServerPort(), strictPort: true, host: "0.0.0.0" }
       : undefined,
   build: {
     outDir: "dist",

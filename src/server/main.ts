@@ -40,16 +40,22 @@ if (restoreOutcome?.status === "applied") {
 // 启动时先校验端口，缺失合法的 APP_PORT 就直接失败退出。
 const port = resolveServerPort()
 
-// 文件管理接口需要鉴权保护，同时只绑定本机回环地址。
-const server = app.listen(port, "127.0.0.1", () => {
-  console.log(`[mac-manager] 服务已启动：http://127.0.0.1:${port}`)
+/**
+ * 监听全部网卡：手机在同一局域网才能直接访问。
+ * 安全边界是访问密码（未配置密码时接口 fail-closed），不是回环绑定。
+ */
+const BIND_HOST = "0.0.0.0"
+const server = app.listen(port, BIND_HOST, () => {
+  console.log(
+    `[mac-manager] 服务已启动：http://127.0.0.1:${port}（监听 ${BIND_HOST}，局域网可直接访问）`
+  )
   startScheduler(tasks.runner)
   startTrafficSampler()
 })
 
 // 端口来自 APP_PORT：被占用时直接启动失败，不自动换端口。
 server.on("error", (error) => {
-  console.error(`[mac-manager] 无法监听 127.0.0.1:${port}：${error.message}`)
+  console.error(`[mac-manager] 无法监听 ${BIND_HOST}:${port}：${error.message}`)
   process.exit(1)
 })
 
