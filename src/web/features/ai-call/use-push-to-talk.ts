@@ -1,15 +1,17 @@
 import { useCallback, useRef, useState } from "react"
 
 /**
- * 按住说话：按下开始，松手后再多录一秒才真正结束。
+ * 按住说话：按下开始，松手后再多录 0.5 秒才收尾。
  *
- * 两个体验问题决定了这里的做法：
+ * 三条硬要求决定了这里的做法：
  *
- * 1. 按下那一刻不该等。麦克风与 worklet 只在第一次按下时启动，之后一直
- *    保持运行，按下只是打一个时间戳；另外取录音时往前多带 300ms，
- *    把「按下到真正开始」这段补回来，开头的字不会被削掉。
- * 2. 松手不该立刻停。人说完最后一个字才松手，这一瞬间的尾音很容易丢，
- *    所以松手后再录 1000ms 再收尾。
+ * 1. 按下就要有声音。麦克风与 worklet 常驻，按下只是记一个位置，
+ *    不去重建链路。
+ * 2. 开头不能丢。取录音时往前多拿 500ms，补上「按下到音频真正流动」的空隙。
+ * 3. 松手不能丢尾音。松手后再录 500ms。
+ *
+ * 位置按「块序号」记，不用时间戳：主线程忙时消息会成批到达，
+ * 时间戳会挤在一起，按时间切会把声音切碎——听起来就像变调。
  */
 
 const WORKLET_SOURCE = `
@@ -29,7 +31,7 @@ registerProcessor("call-capture", CallCapture)
 const PREROLL_MS = 500
 /** 松手后继续录的时长：接住最后一个字的尾音。 */
 const TAIL_MS = 500
-/** 环形缓冲最多留多久：够放一次说话，也不至于越攒越多。 */
+/** 缓冲最多留多久：够放一次说话，也不至于越攒越多。 */
 const BUFFER_MS = 15_000
 
 /**
@@ -67,12 +69,10 @@ export const toPcm16 = (samples: Float32Array): Uint8Array => {
   return new Uint8Array(view.buffer)
 }
 
-type Block = { at: number; data: Float32Array }
-
 export type PushToTalk = {
-  /** 按下：打一个开始标记。第一次按下会顺带启动麦克风。 */
+  /** 按下：记下当前位置。第一次按下会顺带启动麦克风。 */
   press: () => Promise<void>
-  /** 松手：再录一秒后返回这段时间的 16k 采样。 */
+  /** 松手：再录 500ms 后返回这段的 16k 采样。 */
   release: () => Promise<Float32Array | null>
   /** 正在录。界面据此显示按住状态。 */
   holding: boolean
@@ -84,11 +84,43 @@ export const usePushToTalk = (): PushToTalk => {
   const streamRef = useRef<MediaStream | null>(null)
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const nodeRef = useRef<AudioWorkletNode | null>(null)
-  const bufferRef = useRef<Block[] | null>(null)
+  const bufferRef = useRef<Float32Array[] | null>(null)
   const moduleLoadedRef = useRef<boolean | null>(null)
-  const startAtRef = useRef<number | null>(null)
+  /** 按下那一刻已有的块数：取录音时从这里往前多拿一段。 */
+  const startIndexRef = useRef<number | null>(null)
   const [holding, setHolding] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  /** 建一条采集链路：source → worklet → 静音输出。 */
+  const buildChain = useCallback(() => {
+    const context = contextRef.current
+    const stream = streamRef.current
+    if (!context || !stream) return
+    const old = nodeRef.current
+    if (old) {
+      old.port.onmessage = null
+      old.disconnect()
+    }
+    sourceRef.current?.disconnect()
+    const source = context.createMediaStreamSource(stream)
+    const node = new AudioWorkletNode(context, "call-capture")
+    // 只保留最近 15 秒的块：按块数算，不依赖主线程的时间戳。
+    const maxBlocks = Math.ceil((BUFFER_MS / 1000) * (context.sampleRate / 128))
+    node.port.onmessage = (event: MessageEvent<Float32Array>) => {
+      if (bufferRef.current === null) bufferRef.current = []
+      const buffer = bufferRef.current
+      buffer.push(event.data)
+      if (buffer.length > maxBlocks) buffer.splice(0, buffer.length - maxBlocks)
+    }
+    // worklet 必须连到输出，否则浏览器不会驱动它；用 0 增益避免自己听自己。
+    const mute = context.createGain()
+    mute.gain.value = 0
+    source.connect(node)
+    node.connect(mute)
+    mute.connect(context.destination)
+    sourceRef.current = source
+    nodeRef.current = node
+  }, [])
 
   /** 取麦克风与 AudioContext，只做一次（需要用户手势）。 */
   const ensureStarted = useCallback(async () => {
@@ -116,50 +148,20 @@ export const usePushToTalk = (): PushToTalk => {
     }
   }, [])
 
-  /**
-   * 重建采集节点。每次按下都新建一条链路：
-   * 长时间挂着的 worklet 在手机切后台、省电后会停止出数据（只推静音），
-   * 听上去就是一片空白或断断续续。重建只要几毫秒，不需要再要一次权限。
-   */
-  const buildChain = useCallback(() => {
-    const context = contextRef.current
-    const stream = streamRef.current
-    if (!context || !stream) return
-    const old = nodeRef.current
-    if (old) {
-      old.port.onmessage = null
-      old.disconnect()
-    }
-    sourceRef.current?.disconnect()
-    const source = context.createMediaStreamSource(stream)
-    const node = new AudioWorkletNode(context, "call-capture")
-    node.port.onmessage = (event: MessageEvent<Float32Array>) => {
-      const now = Date.now()
-      if (bufferRef.current === null) bufferRef.current = []
-      const buffer = bufferRef.current
-      buffer.push({ at: now, data: event.data })
-      // 只留最近一段：太老的块对下一次说话没有用。
-      while (buffer.length > 0 && now - buffer[0].at > BUFFER_MS) buffer.shift()
-    }
-    // worklet 必须连到输出，否则浏览器不会驱动它；用 0 增益避免自己听自己。
-    const mute = context.createGain()
-    mute.gain.value = 0
-    source.connect(node)
-    node.connect(mute)
-    mute.connect(context.destination)
-    sourceRef.current = source
-    nodeRef.current = node
-  }, [])
-
   const press = useCallback(async () => {
     setError(null)
     try {
       await ensureStarted()
       const context = contextRef.current
-      // 切过后台或被系统挂起时上下文会停掉，不恢复就只会收到静音。
-      if (context && context.state !== "running") await context.resume()
-      buildChain()
-      startAtRef.current = Date.now()
+      if (!context) return
+      // 上下文被系统挂起过就恢复；这种情况链路已经停了，必须重建。
+      if (context.state !== "running") {
+        await context.resume()
+        buildChain()
+      } else if (!nodeRef.current) {
+        buildChain()
+      }
+      startIndexRef.current = bufferRef.current?.length ?? 0
       setHolding(true)
     } catch (cause) {
       setHolding(false)
@@ -173,28 +175,32 @@ export const usePushToTalk = (): PushToTalk => {
 
   const release = useCallback(async (): Promise<Float32Array | null> => {
     setHolding(false)
-    const startAt = startAtRef.current
-    startAtRef.current = null
-    if (startAt === null) return null
-    const from = startAt - PREROLL_MS
-    const until = Date.now() + TAIL_MS
+    const startIndex = startIndexRef.current
+    startIndexRef.current = null
+    if (startIndex === null) return null
     // 松手后再多收一段：最后一个字的尾音通常就在这时。
     await new Promise((resolve) => setTimeout(resolve, TAIL_MS))
     const context = contextRef.current
     if (!context) return null
     const buffer = bufferRef.current ?? []
-    const blocks = buffer.filter(
-      (block) => block.at >= from && block.at <= until
+    // 往前多带一段：按下瞬间的那几个字往往已经进了缓冲。
+    const prerollBlocks = Math.ceil(
+      ((PREROLL_MS / 1000) * context.sampleRate) / 128
     )
-    // 只丢掉已经取走的块：剩下的让下一句继续用，连说几句不会互相吃掉。
-    bufferRef.current = buffer.filter((block) => block.at > until)
+    const from = Math.max(
+      0,
+      Math.min(startIndex, buffer.length) - prerollBlocks
+    )
+    const blocks = buffer.slice(from)
+    // 取完就丢，避免下一句把这些旧块也算进去。
+    bufferRef.current = []
     if (blocks.length === 0) return null
-    const total = blocks.reduce((sum, block) => sum + block.data.length, 0)
+    const total = blocks.reduce((sum, block) => sum + block.length, 0)
     const merged = new Float32Array(total)
     let offset = 0
     for (const block of blocks) {
-      merged.set(block.data, offset)
-      offset += block.data.length
+      merged.set(block, offset)
+      offset += block.length
     }
     return resample(merged, context.sampleRate, 16_000)
   }, [])
