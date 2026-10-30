@@ -1,7 +1,13 @@
-import { readFileSync } from "node:fs"
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import path from "node:path"
 import { PublicOperationError } from "@server/common/public-error"
-import { env, PI_AGENT_DIR } from "@server/env"
+import { DATA_DIR, env, PI_AGENT_DIR } from "@server/env"
 
 /**
  * 语音识别：把手机录下的一段音频交给 SenseAudio 的 OpenAI 兼容接口。
@@ -68,6 +74,44 @@ export class TranscribeUnavailableError extends Error {
   }
 }
 
+/**
+ * 把识别过的音频存一份，方便回头比对模型或复查识别质量。
+ *
+ * 只留在本机 data 目录（不入库），按时间戳命名，保留最近
+ * AI_CALL_AUDIO_KEEP 段；同名 .json 里记下模型与识别结果。
+ */
+const AUDIO_DIR = path.join(DATA_DIR, "ai-call-audio")
+const AUDIO_KEEP = 50
+
+const saveAudio = (wav: Buffer, text: string, model: string): void => {
+  try {
+    mkdirSync(AUDIO_DIR, { recursive: true })
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+    const base = path.join(AUDIO_DIR, stamp)
+    writeFileSync(`${base}.wav`, wav)
+    writeFileSync(
+      `${base}.json`,
+      `${JSON.stringify({ model, text, bytes: wav.length }, null, 2)}\n`
+    )
+    // 只留最近的若干段：录音占地方，太久以前的也没必要留。
+    const wavs = readdirSync(AUDIO_DIR)
+      .filter((name) => name.endsWith(".wav"))
+      .sort()
+    for (const name of wavs.slice(0, Math.max(0, wavs.length - AUDIO_KEEP))) {
+      const old = path.join(AUDIO_DIR, name)
+      rmSync(old, { force: true })
+      rmSync(old.replace(/\.wav$/, ".json"), { force: true })
+    }
+  } catch (error) {
+    // 存不上不能影响识别：这只是留样本的辅助能力。
+    console.error(
+      `[mac-manager] 识别音频保存失败：${
+        error instanceof Error ? error.message : "未知错误"
+      }`
+    )
+  }
+}
+
 /** 16k 单声道 16 位 PCM 加 WAV 头：接口按 OpenAI 约定收音频文件。 */
 const buildWav = (pcm: Buffer, sampleRate: number): Buffer => {
   const header = Buffer.alloc(44)
@@ -107,10 +151,11 @@ export const transcribePcm = async (pcm: Buffer): Promise<string> => {
   if (pcm.length > MAX_PCM_BYTES) {
     throw new PublicOperationError(400, "这段录音太长，请分段说")
   }
+  const wav = buildWav(pcm, 16_000)
   const form = new FormData()
   form.append(
     "file",
-    new Blob([new Uint8Array(buildWav(pcm, 16_000))], { type: "audio/wav" }),
+    new Blob([new Uint8Array(wav)], { type: "audio/wav" }),
     "audio.wav"
   )
   form.append("model", endpoint.model)
@@ -125,7 +170,10 @@ export const transcribePcm = async (pcm: Buffer): Promise<string> => {
       // 不回传响应正文：里面可能带服务商侧的内部信息。
       throw new PublicOperationError(500, "语音识别服务暂时不可用")
     }
-    return readText(await response.json())
+    const text = readText(await response.json())
+    // 只留成功的样本：失败的音频回头重试也有参考价值，但先保证噪声不大。
+    if (text) saveAudio(wav, text, endpoint.model)
+    return text
   } catch (error) {
     if (error instanceof PublicOperationError) throw error
     const timedOut =
