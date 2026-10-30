@@ -43,7 +43,7 @@ export const CallStage = (props: {
 
   /** 松手：识别这段音频，拿到文字就发出去。 */
   const finish = useCallback(async () => {
-    const samples = release()
+    const samples = await release()
     if (!samples) return
     if (samples.length / 16_000 < MIN_SECONDS) return
     setRecognizing(true)
@@ -127,7 +127,7 @@ export const CallStage = (props: {
           }}
           onPointerUp={() => void finish()}
           onPointerCancel={() => {
-            release()
+            void release()
           }}
           onContextMenu={(event) => event.preventDefault()}
         >
