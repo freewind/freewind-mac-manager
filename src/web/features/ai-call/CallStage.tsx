@@ -51,6 +51,11 @@ export const CallStage = (props: {
   /** 已识别但还没发送的片段：用户可能还在想下一句。 */
   const pendingRef = useRef<string[]>([])
   const quietTimer = useRef<number | null>(null)
+  /** 上一条已经发给服务端的文本：用来挡住同一句被发两次。 */
+  const lastSentRef = useRef<string | null>(null)
+  const lastSentAtRef = useRef<number | null>(null)
+  /** 识别是否在处理中：结果没回来就不能把半句发出去。 */
+  const recognizingRef = useRef(false)
 
   const { send, interrupt, reset } = call
   const recognizer = useSpeechRecognition()
@@ -62,12 +67,31 @@ export const CallStage = (props: {
 
   const flush = useCallback(() => {
     clearTimers()
+    // 识别还在路上：等它回来再决定，否则会把半句先发出去。
+    if (recognizingRef.current) {
+      quietTimer.current = window.setTimeout(flush, 400)
+      return
+    }
     const segments = pendingRef.current
     pendingRef.current = []
     setPendingText("")
     // 发前再清理一次：分段拼接后可能出现新的句首口水词。
     const text = cleanTranscript(segments.join(""))
     if (!text) return
+    // 同一句被切成两段、或识别重复输出时，上一条已经发过就不再发。
+    // 只在半分钟内、且不是「好」「对」这类短回答时才拦：短句连说两次很正常。
+    const duplicated =
+      text === lastSentRef.current ||
+      isRepeatedSegment(lastSentRef.current ?? "", text)
+    if (
+      text.length >= 4 &&
+      duplicated &&
+      Date.now() - (lastSentAtRef.current ?? 0) < 30_000
+    ) {
+      return
+    }
+    lastSentRef.current = text
+    lastSentAtRef.current = Date.now()
     setHeard(text)
     send(text)
   }, [clearTimers, send])
@@ -75,24 +99,19 @@ export const CallStage = (props: {
   /**
    * 收下一段识别文本，但不立即发送。
    *
-   * 说话中途停顿、换气都会被切成多段；每段都回复会打断节奏。
-   * 这里改成：每多一段就重新计 3 秒，停顿够久才当成一句说完。
+   * 计时不在里重置：识别要 1-2 秒，从文本到达开始算等于把停顿余量
+   * 吃掉一半，用户稍作停顿就会被当成说完。计时放在 onUtterance，
+   * 以「说完这句」为起点；这里只负责把片段拼起来。
    */
-  const pushSegment = useCallback(
-    (segment: string) => {
-      const next = cleanTranscript(segment)
-      if (!next) return
-      const previous = pendingRef.current.at(-1) ?? ""
-      // 同一句被切成两段时去掉重复的那段。
-      if (isRepeatedSegment(previous, next)) return
-      pendingRef.current = [...pendingRef.current, next]
-      const joined = pendingRef.current.join("")
-      setPendingText(joined)
-      if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
-      quietTimer.current = window.setTimeout(flush, QUIET_MS)
-    },
-    [flush]
-  )
+  const pushSegment = useCallback((segment: string) => {
+    const next = cleanTranscript(segment)
+    if (!next) return
+    const previous = pendingRef.current.at(-1) ?? ""
+    // 同一句被切成两段时去掉重复的那段。
+    if (isRepeatedSegment(previous, next)) return
+    pendingRef.current = [...pendingRef.current, next]
+    setPendingText(pendingRef.current.join(""))
+  }, [])
 
   /** 识别串行队列：两段音频几乎同时到达时，保证文本按说话顺序拼。 */
   const recognizeChain = useRef<Promise<unknown>>(Promise.resolve())
@@ -105,9 +124,13 @@ export const CallStage = (props: {
       setHeard(null)
     },
     onUtterance: (samples) => {
+      // 计时从「这句说完」开始：识别路上花的时间不占用停顿余量。
+      if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
+      quietTimer.current = window.setTimeout(flush, QUIET_MS)
       recognizeChain.current = recognizeChain.current
         .then(async () => {
           setRecognizing(true)
+          recognizingRef.current = true
           const result = await recognize(samples)
           if (result.text) {
             setUnheard(null)
@@ -120,7 +143,10 @@ export const CallStage = (props: {
         .catch(() => {
           // 具体原因已经由 recognizer 写进 error，这里不重复报。
         })
-        .finally(() => setRecognizing(false))
+        .finally(() => {
+          recognizingRef.current = false
+          setRecognizing(false)
+        })
     },
   })
 
@@ -134,6 +160,8 @@ export const CallStage = (props: {
     reset()
     clearTimers()
     pendingRef.current = []
+    lastSentRef.current = null
+    lastSentAtRef.current = null
     setPendingText("")
     await start()
     setLive(true)
