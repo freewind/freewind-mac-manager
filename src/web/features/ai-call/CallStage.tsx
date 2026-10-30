@@ -7,10 +7,7 @@ import { TranscriptList } from "./TranscriptList"
 import { cleanTranscript, isRepeatedSegment } from "./transcript"
 import { useCall } from "./use-call"
 import { useSpeechInput } from "./use-speech-input"
-import {
-  type RecognitionResult,
-  useSpeechRecognition,
-} from "./use-speech-recognition"
+import { useSpeechRecognition } from "./use-speech-recognition"
 
 /**
  * 通话区：一个按钮开始、一直说到挂断，期间不用再按任何东西。
@@ -41,8 +38,6 @@ export const CallStage = (props: {
   })
   const [recognizing, setRecognizing] = useState(false)
   const [live, setLive] = useState(false)
-  /** 上一段音频没识别出内容：把音频情况告诉用户，而不是静默丢掉。 */
-  const [unheard, setUnheard] = useState<RecognitionResult | null>(null)
   /** 刚发出去的那句话：让用户先确认听到的是什么。 */
   const [heard, setHeard] = useState<string | null>(null)
   /** 已识别、还在等用户说完的片段：界面要能看到，不能黑箱等待。 */
@@ -118,11 +113,9 @@ export const CallStage = (props: {
   const recognize = recognizer.recognize
 
   const input = useSpeechInput({
-    // 用户开口就打断：不管 AI 是在念还是在想，都该让位给他。
-    onSpeechStart: () => {
-      interrupt()
-      setHeard(null)
-    },
+    // 开口不再立刻打断：咳一下、环境噪声都会被当成插话，
+    // 把正在说的回答切掉却什么也没换来。等识别出内容再让位。
+    onSpeechStart: () => setHeard(null),
     onUtterance: (samples) => {
       // 计时从「这句说完」开始：识别路上花的时间不占用停顿余量。
       if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
@@ -133,12 +126,12 @@ export const CallStage = (props: {
           recognizingRef.current = true
           const result = await recognize(samples)
           if (result.text) {
-            setUnheard(null)
+            // 确认真的说了内容，这时才让 AI 停下来。
+            if (call.busy || call.phase === "speaking") interrupt()
             pushSegment(result.text)
             return
           }
-          setHeard(null)
-          setUnheard(result)
+          // 没识别出内容就当没说：不提示、不打断，也不影响正在念的回答。
         })
         .catch(() => {
           // 具体原因已经由 recognizer 写进 error，这里不重复报。
@@ -231,17 +224,6 @@ export const CallStage = (props: {
       {heard ? (
         <div className="border-b px-3 py-2 text-xs text-muted-foreground">
           听到：{heard}
-        </div>
-      ) : null}
-
-      {unheard ? (
-        <div className="flex items-start gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
-          <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
-          <span>
-            {unheard.peak < 0.02
-              ? `麦克风几乎没收到声音（峰值 ${unheard.peak.toFixed(3)}），请靠近麦克风再说一次。`
-              : `没听清，请再说一次（音频 ${unheard.seconds.toFixed(1)} 秒）。`}
-          </span>
         </div>
       ) : null}
 
