@@ -86,6 +86,11 @@ export const useSpeechOutput = (options: {
   if (bufferRef.current === null) bufferRef.current = { pending: "", queue: [] }
 
   const pumpRef = useRef<(() => void) | null>(null)
+  /**
+   * 打断代次。cancel 就加一，旧 utterance 的 onend/onerror 因此失效：
+   * 否则它会在新回答已经开始时再叫一次 pump，把新队列里的句子提前念掉。
+   */
+  const generationRef = useRef<number | null>(null)
   const settledRef = useRef(options.onSettled)
   settledRef.current = options.onSettled
   const [speaking, setSpeaking] = useState(false)
@@ -98,6 +103,7 @@ export const useSpeechOutput = (options: {
    */
   const pump = useCallback(() => {
     if (typeof window === "undefined") return
+    const generation = generationRef.current
     const next = bufferRef.current?.queue.shift()
     if (next === undefined) {
       setSpeaking(false)
@@ -108,8 +114,13 @@ export const useSpeechOutput = (options: {
     utterance.lang = "zh-CN"
     utterance.rate = 1.05
     // 出错也继续念下一句：一句坏掉不该把整段回答吞掉。
-    utterance.onend = () => pumpRef.current?.()
-    utterance.onerror = () => pumpRef.current?.()
+    // 被打断过的这一句不再驱动队列，交给自己后面的新句子。
+    const advance = (): void => {
+      if (generationRef.current !== generation) return
+      pumpRef.current?.()
+    }
+    utterance.onend = advance
+    utterance.onerror = advance
     setSpeaking(true)
     window.speechSynthesis.speak(utterance)
   }, [])
@@ -137,12 +148,18 @@ export const useSpeechOutput = (options: {
   }, [])
 
   const cancel = useCallback(() => {
+    generationRef.current = (generationRef.current ?? 0) + 1
     const current = bufferRef.current
     if (current) {
       current.pending = ""
       current.queue = []
     }
-    if (typeof window !== "undefined") window.speechSynthesis.cancel()
+    if (typeof window !== "undefined") {
+      // 光调 cancel 在 Chrome 上常常停不住已经在念的长句，
+      // 跟一个 resume 才会真正把它顶掉，新的回答才能立刻开口。
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.resume()
+    }
     setSpeaking(false)
   }, [])
 

@@ -122,12 +122,18 @@ export const useCall = (options: {
             setError("连接中断，结果未知，请重新点开这次通话核实")
           }
         } catch (cause) {
+          // 已经被新请求取代：既不是错误，也不能改动新的状态。
+          if (controllerRef.current !== controller) return
           if (interruptedRef.current) return
           setError(cause instanceof Error ? cause.message : "请求失败，请重试")
         } finally {
-          controllerRef.current = null
-          setBusy(false)
-          refreshRef.current()
+          // 只有自己还是当前请求时才收尾：旧请求晚一步结束，
+          // 不能把新请求的 controller 和 busy 一起清掉。
+          if (controllerRef.current === controller) {
+            controllerRef.current = null
+            setBusy(false)
+            refreshRef.current()
+          }
         }
       })()
     },
