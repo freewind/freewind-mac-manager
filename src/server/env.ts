@@ -54,17 +54,11 @@ export const env = {
     return process.env.CLASH_VERGE_SECRET
   },
   /**
-   * 语音识别：OpenAI 兼容的转写服务。
+   * 语音识别用的模型 id，对应 Pi 的 models.json 里的模型。
    *
-   * 默认指向 SenseAudio；换服务商时只改这三个值，代码不用动。
-   * key 未配置时通话页会直接提示不可用，不会静默转成空文本。
+   * 地址与密钥都从那份配置里反查，本应用不另存一份；
+   * 留空则用默认的识别模型。
    */
-  get ASR_BASE_URL() {
-    return process.env.ASR_BASE_URL ?? ""
-  },
-  get ASR_API_KEY() {
-    return process.env.ASR_API_KEY ?? ""
-  },
   get ASR_MODEL() {
     return process.env.ASR_MODEL ?? ""
   },

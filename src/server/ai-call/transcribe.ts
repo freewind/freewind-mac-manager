@@ -1,28 +1,81 @@
+import { readFileSync } from "node:fs"
+import path from "node:path"
 import { PublicOperationError } from "@server/common/public-error"
-import { env } from "@server/env"
+import { env, PI_AGENT_DIR } from "@server/env"
 
 /**
  * 语音识别：交给 SenseAudio 的 OpenAI 兼容接口。
  *
  * 手机只负责录音与上传，一段话几十 KB。识别在服务端完成，结果直接交给
- * Agent——模型输出的标点与数字都按原样保留，不在中间做“修补”，
+ * Agent——模型输出的标点与数字都按原样保留，不在中间做「修补」，
  * 改字反而会引入新的错误。
+ *
+ * 地址与密钥不另存一份：Pi 的 models.json 里已经有这个模型的定义，
+ * 这里按模型 id 反查出所属 provider，拿它的 baseUrl 与 apiKey。
+ * 换密钥、换服务商都只在 Pi 配置里改，本应用不维护第二份。
  */
 
-const DEFAULT_BASE_URL = "https://api.senseaudio.cn/v1"
-const DEFAULT_MODEL = "senseaudio-asr-lite-1.5-260319"
+/** 没有显式指定时用的识别模型：在 Pi 配置里按这个 id 查找 provider。 */
+const DEFAULT_MODEL_ID = "senseaudio-asr-lite-1.5-260319"
 /** 识别超时：正常一句话 1-2 秒，留足网络抖动余量。 */
 const TIMEOUT_MS = 25_000
 /** 单段音频上限：16k 16 位 60 秒约 1.9MB，再大就不像一句话了。 */
 const MAX_PCM_BYTES = 1_920_000
 
-/** 没配 key 时功能不可用：由上层转成明确的提示。 */
-export const isTranscribeConfigured = (): boolean => env.ASR_API_KEY !== ""
+type AsrEndpoint = { baseUrl: string; apiKey: string; model: string }
 
-/** 缺少凭据时给出可执行的下一步，不暴露内部配置。 */
+const modelsPath = (): string => path.join(PI_AGENT_DIR, "models.json")
+
+const pickString = (value: unknown): string =>
+  typeof value === "string" ? value.trim() : ""
+
+/**
+ * 在 Pi 配置里找识别模型的 provider。
+ *
+ * 找不到、结构不对、密钥写成 shell 命令都返回 null：识别只是通话的一环，
+ * 缺配置时给明确提示比抛未捕获异常有用。
+ */
+const resolveEndpoint = (): AsrEndpoint | null => {
+  const model = env.ASR_MODEL || DEFAULT_MODEL_ID
+  let raw: unknown
+  try {
+    raw = JSON.parse(readFileSync(modelsPath(), "utf8"))
+  } catch {
+    return null
+  }
+  const providers = (raw as { providers?: unknown }).providers
+  if (typeof providers !== "object" || providers === null) return null
+  for (const provider of Object.values(providers as Record<string, unknown>)) {
+    if (typeof provider !== "object" || provider === null) continue
+    const entry = provider as {
+      baseUrl?: unknown
+      apiKey?: unknown
+      models?: unknown
+    }
+    const baseUrl = pickString(entry.baseUrl)
+    const apiKey = pickString(entry.apiKey)
+    if (!baseUrl || !apiKey) continue
+    // 本应用不执行配置里的命令：这类凭据交给 Pi 自己解析。
+    if (apiKey.startsWith("!")) continue
+    if (!Array.isArray(entry.models)) continue
+    const hit = entry.models.some(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        pickString((item as { id?: unknown }).id) === model
+    )
+    if (hit) return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey, model }
+  }
+  return null
+}
+
+/** 配置齐全才可用：由上层转成明确的提示。 */
+export const isTranscribeConfigured = (): boolean => resolveEndpoint() !== null
+
+/** 缺少配置时给出可执行的下一步，不暴露内部路径。 */
 export class TranscribeUnavailableError extends Error {
   constructor() {
-    super("语音识别还没配置访问密钥")
+    super("语音识别模型未在 Pi 配置里找到，请先在 Pi 的 models.json 中配置")
     this.name = "TranscribeUnavailableError"
   }
 }
@@ -72,14 +125,12 @@ const readText = (payload: unknown): string => {
  * 的约定一致。
  */
 export const transcribePcm = async (pcm: Buffer): Promise<string> => {
-  const apiKey = env.ASR_API_KEY
-  if (!apiKey) throw new TranscribeUnavailableError()
+  const endpoint = resolveEndpoint()
+  if (!endpoint) throw new TranscribeUnavailableError()
   if (pcm.length === 0) return ""
   if (pcm.length > MAX_PCM_BYTES) {
     throw new PublicOperationError(400, "这段录音太长，请分段说")
   }
-  const baseUrl = env.ASR_BASE_URL || DEFAULT_BASE_URL
-  const model = env.ASR_MODEL || DEFAULT_MODEL
   return serial(async () => {
     const form = new FormData()
     form.append(
@@ -87,11 +138,11 @@ export const transcribePcm = async (pcm: Buffer): Promise<string> => {
       new Blob([new Uint8Array(buildWav(pcm, 16_000))], { type: "audio/wav" }),
       "audio.wav"
     )
-    form.append("model", model)
+    form.append("model", endpoint.model)
     try {
-      const response = await fetch(`${baseUrl}/audio/transcriptions`, {
+      const response = await fetch(`${endpoint.baseUrl}/audio/transcriptions`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
+        headers: { Authorization: `Bearer ${endpoint.apiKey}` },
         body: form,
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
