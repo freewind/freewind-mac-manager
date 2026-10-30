@@ -75,24 +75,51 @@ export class TranscribeUnavailableError extends Error {
 }
 
 /**
- * 把识别过的音频存一份，方便回头比对模型或复查识别质量。
+ * 把收到的音频存一份，不管识别成不成功。
  *
  * 只留在本机 data 目录（不入库），按时间戳命名，保留最近
- * AI_CALL_AUDIO_KEEP 段；同名 .json 里记下模型与识别结果。
+ * AUDIO_KEEP 段；同名 .json 先写模型与大小，识别出文本后再回写。
+ * 先存后识别：这样即使识别报错或者没听出东西，录音也还在，
+ * 随时可以自己听、或之后换模型重试。
  */
 const AUDIO_DIR = path.join(DATA_DIR, "ai-call-audio")
-const AUDIO_KEEP = 50
+const AUDIO_KEEP = 200
 
-const saveAudio = (wav: Buffer, text: string, model: string): void => {
+type AudioRecord = { base: string; wav: Buffer; model: string }
+
+const writeRecord = (
+  record: AudioRecord,
+  text: string,
+  error: string | null
+): void => {
+  try {
+    writeFileSync(
+      `${record.base}.json`,
+      `${JSON.stringify(
+        {
+          model: record.model,
+          text,
+          error,
+          bytes: record.wav.length,
+        },
+        null,
+        2
+      )}\n`
+    )
+  } catch {
+    // 写状态失败不影响主流程。
+  }
+}
+
+/** 先落盘音频，返回句柄；识别结果稍后回写。 */
+const saveAudio = (wav: Buffer, model: string): AudioRecord | null => {
   try {
     mkdirSync(AUDIO_DIR, { recursive: true })
     const stamp = new Date().toISOString().replace(/[:.]/g, "-")
     const base = path.join(AUDIO_DIR, stamp)
     writeFileSync(`${base}.wav`, wav)
-    writeFileSync(
-      `${base}.json`,
-      `${JSON.stringify({ model, text, bytes: wav.length }, null, 2)}\n`
-    )
+    const record = { base, wav, model }
+    writeRecord(record, "", null)
     // 只留最近的若干段：录音占地方，太久以前的也没必要留。
     const wavs = readdirSync(AUDIO_DIR)
       .filter((name) => name.endsWith(".wav"))
@@ -102,6 +129,7 @@ const saveAudio = (wav: Buffer, text: string, model: string): void => {
       rmSync(old, { force: true })
       rmSync(old.replace(/\.wav$/, ".json"), { force: true })
     }
+    return record
   } catch (error) {
     // 存不上不能影响识别：这只是留样本的辅助能力。
     console.error(
@@ -109,6 +137,7 @@ const saveAudio = (wav: Buffer, text: string, model: string): void => {
         error instanceof Error ? error.message : "未知错误"
       }`
     )
+    return null
   }
 }
 
@@ -141,17 +170,22 @@ const readText = (payload: unknown): string => {
 /**
  * 识别一段 16k 单声道 PCM。
  *
- * 音频只在内存里拼成 WAV 发出去，不落盘保存，与「通话内容只留在库里」
- * 的约定一致。
+ * 音频先落盘再送识别：识别失败或没听出内容时，录音仍然留着，
+ * 随时可以自己听、或者之后换模型重试。
  */
 export const transcribePcm = async (pcm: Buffer): Promise<string> => {
-  const endpoint = resolveEndpoint()
-  if (!endpoint) throw new TranscribeUnavailableError()
   if (pcm.length === 0) return ""
   if (pcm.length > MAX_PCM_BYTES) {
     throw new PublicOperationError(400, "这段录音太长，请分段说")
   }
   const wav = buildWav(pcm, 16_000)
+  const model = resolveEndpoint()?.model ?? "unknown"
+  const record = saveAudio(wav, model)
+  const endpoint = resolveEndpoint()
+  if (!endpoint) {
+    if (record) writeRecord(record, "", "识别模型未配置")
+    throw new TranscribeUnavailableError()
+  }
   const form = new FormData()
   form.append(
     "file",
@@ -171,10 +205,16 @@ export const transcribePcm = async (pcm: Buffer): Promise<string> => {
       throw new PublicOperationError(500, "语音识别服务暂时不可用")
     }
     const text = readText(await response.json())
-    // 只留成功的样本：失败的音频回头重试也有参考价值，但先保证噪声不大。
-    if (text) saveAudio(wav, text, endpoint.model)
+    if (record) writeRecord(record, text, null)
     return text
   } catch (error) {
+    if (record) {
+      writeRecord(
+        record,
+        "",
+        error instanceof Error ? error.message : "识别失败"
+      )
+    }
     if (error instanceof PublicOperationError) throw error
     const timedOut =
       error instanceof DOMException && error.name === "TimeoutError"
