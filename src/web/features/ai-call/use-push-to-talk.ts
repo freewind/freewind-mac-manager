@@ -85,13 +85,13 @@ export const usePushToTalk = (): PushToTalk => {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const nodeRef = useRef<AudioWorkletNode | null>(null)
   const bufferRef = useRef<Block[] | null>(null)
+  const moduleLoadedRef = useRef<boolean | null>(null)
   const startAtRef = useRef<number | null>(null)
   const [holding, setHolding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  /** 启动采集链路。只做一次，之后一直保持运行，按下时不再等待。 */
+  /** 取麦克风与 AudioContext，只做一次（需要用户手势）。 */
   const ensureStarted = useCallback(async () => {
-    if (nodeRef.current) return
     streamRef.current ??= await navigator.mediaDevices.getUserMedia({
       audio: {
         // 只留回声消除：不然朗读会被录进来。
@@ -102,19 +102,37 @@ export const usePushToTalk = (): PushToTalk => {
       },
     })
     contextRef.current ??= new AudioContext()
-    const context = contextRef.current
-    if (context.state === "suspended") await context.resume()
-    const url = URL.createObjectURL(
-      new Blob([WORKLET_SOURCE], { type: "application/javascript" })
-    )
-    try {
-      await context.audioWorklet.addModule(url)
-    } finally {
-      URL.revokeObjectURL(url)
+    if (moduleLoadedRef.current !== true) {
+      const context = contextRef.current
+      const url = URL.createObjectURL(
+        new Blob([WORKLET_SOURCE], { type: "application/javascript" })
+      )
+      try {
+        await context.audioWorklet.addModule(url)
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+      moduleLoadedRef.current = true
     }
-    const source = context.createMediaStreamSource(streamRef.current)
+  }, [])
+
+  /**
+   * 重建采集节点。每次按下都新建一条链路：
+   * 长时间挂着的 worklet 在手机切后台、省电后会停止出数据（只推静音），
+   * 听上去就是一片空白或断断续续。重建只要几毫秒，不需要再要一次权限。
+   */
+  const buildChain = useCallback(() => {
+    const context = contextRef.current
+    const stream = streamRef.current
+    if (!context || !stream) return
+    const old = nodeRef.current
+    if (old) {
+      old.port.onmessage = null
+      old.disconnect()
+    }
+    sourceRef.current?.disconnect()
+    const source = context.createMediaStreamSource(stream)
     const node = new AudioWorkletNode(context, "call-capture")
-    const cutoff = 0
     node.port.onmessage = (event: MessageEvent<Float32Array>) => {
       const now = Date.now()
       if (bufferRef.current === null) bufferRef.current = []
@@ -122,7 +140,6 @@ export const usePushToTalk = (): PushToTalk => {
       buffer.push({ at: now, data: event.data })
       // 只留最近一段：太老的块对下一次说话没有用。
       while (buffer.length > 0 && now - buffer[0].at > BUFFER_MS) buffer.shift()
-      void cutoff
     }
     // worklet 必须连到输出，否则浏览器不会驱动它；用 0 增益避免自己听自己。
     const mute = context.createGain()
@@ -138,6 +155,10 @@ export const usePushToTalk = (): PushToTalk => {
     setError(null)
     try {
       await ensureStarted()
+      const context = contextRef.current
+      // 切过后台或被系统挂起时上下文会停掉，不恢复就只会收到静音。
+      if (context && context.state !== "running") await context.resume()
+      buildChain()
       startAtRef.current = Date.now()
       setHolding(true)
     } catch (cause) {
@@ -148,7 +169,7 @@ export const usePushToTalk = (): PushToTalk => {
           : "无法打开麦克风，请检查设备与权限"
       )
     }
-  }, [ensureStarted])
+  }, [buildChain, ensureStarted])
 
   const release = useCallback(async (): Promise<Float32Array | null> => {
     setHolding(false)
