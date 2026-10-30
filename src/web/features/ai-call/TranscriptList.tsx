@@ -13,14 +13,27 @@ import { useEffect, useRef } from "react"
  */
 export const TranscriptList = (props: {
   messages: AiCallMessage[]
-  /** 正在生成、还没落库的回答。 */
+  /**
+   * 正在生成、还没落库的回答。
+   *
+   * 回答落库后消息列表里已经有一条同样的内容；这里用「最后一条回答以它结尾」
+   * 判断是否已经落库，落库后就不再画临时气泡，否则会看到同一句出现两次。
+   */
   liveText: string
   className?: string
 }) => {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const count = props.messages.length
   const live = props.liveText
-  const liveLength = live.length
+  const settled = [...props.messages]
+    .reverse()
+    .find((message) => message.role === "agent")
+  const liveTrimmed = live.trim()
+  const alreadyStored =
+    settled !== undefined &&
+    liveTrimmed !== "" &&
+    settled.body.trim().endsWith(liveTrimmed)
+  const liveLength = alreadyStored ? 0 : liveTrimmed.length
 
   // 新内容到达就贴到底部：通话时用户不该还要手动滚动才看到最新一句。
   // 依赖用的是「条数」与「已生成字数」，它们在 effect 里参与判断，
@@ -31,7 +44,6 @@ export const TranscriptList = (props: {
   }, [count, liveLength])
 
   const empty = count === 0 && !live
-
   return (
     <div
       className={cn(
@@ -65,7 +77,7 @@ export const TranscriptList = (props: {
           ) : null}
         </div>
       ))}
-      {live ? (
+      {live && !alreadyStored ? (
         <div className="flex flex-col items-start gap-1">
           <div className="max-w-[85%] rounded-2xl bg-muted px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
             {live}
