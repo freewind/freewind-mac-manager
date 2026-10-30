@@ -1,9 +1,10 @@
 import type {
   AiCallExecution,
+  AiCallPersona,
+  AiCallPersonaInput,
+  AiCallPersonaList,
   AiCallSessionDetail,
   AiCallSessionList,
-  AiCallSettingsInput,
-  AiCallSettingsResponse,
   AiCallTranscribeResponse,
 } from "@shared/api-contract"
 import { apiClient, unwrap } from "./client"
@@ -34,11 +35,12 @@ export const listAiCallSessions = async (): Promise<AiCallSessionList> =>
   unwrap<AiCallSessionList>(await apiClient.listAiCallSessions())
 
 /** 不传标题时由服务端按通话开始时间生成，用户不必先想名字。 */
-export const createAiCallSession = async (
+export const createAiCallSession = async (input: {
+  personaId: string
   title?: string
-): Promise<AiCallSessionDetail> =>
+}): Promise<AiCallSessionDetail> =>
   unwrap<AiCallSessionDetail>(
-    await apiClient.createAiCallSession({ body: title ? { title } : {} })
+    await apiClient.createAiCallSession({ body: input })
   )
 
 export const fetchAiCallSession = async (
@@ -85,13 +87,23 @@ export const finishAiCallSession = async (
     await apiClient.finishAiCallSession({ params: { sessionId } })
   )
 
-/** 通话自己的设置：可自定义说话的提示词，模型沿用 AI 助手那份。 */
-export const fetchAiCallSettings = async (): Promise<AiCallSettingsResponse> =>
-  unwrap<AiCallSettingsResponse>(await apiClient.getAiCallSettings())
+/** 通话角色：每个角色一套提示词与自己的模型。 */
+export const listAiCallPersonas = async (): Promise<AiCallPersonaList> =>
+  unwrap<AiCallPersonaList>(await apiClient.listAiCallPersonas())
 
-export const saveAiCallSettings = async (
-  input: AiCallSettingsInput
-): Promise<AiCallSettingsResponse> =>
-  unwrap<AiCallSettingsResponse>(
-    await apiClient.saveAiCallSettings({ body: input })
+export const createAiCallPersona = async (
+  input: AiCallPersonaInput
+): Promise<AiCallPersona> =>
+  unwrap<AiCallPersona>(await apiClient.createAiCallPersona({ body: input }))
+
+export const updateAiCallPersona = async (
+  personaId: string,
+  input: AiCallPersonaInput
+): Promise<AiCallPersona> =>
+  unwrap<AiCallPersona>(
+    await apiClient.updateAiCallPersona({ params: { personaId }, body: input })
   )
+
+export const deleteAiCallPersona = async (personaId: string): Promise<void> => {
+  unwrap<null>(await apiClient.deleteAiCallPersona({ params: { personaId } }))
+}

@@ -1,11 +1,13 @@
-import type { AiCallSettingsInput } from "@shared/api-contract"
+import type { AiCallPersonaInput } from "@shared/api-contract"
 import {
+  createAiCallPersona,
   createAiCallSession,
+  deleteAiCallPersona,
   fetchAiCallSession,
-  fetchAiCallSettings,
   finishAiCallSession,
+  listAiCallPersonas,
   listAiCallSessions,
-  saveAiCallSettings,
+  updateAiCallPersona,
 } from "@shared/client-api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
@@ -19,6 +21,7 @@ export const aiCallKeys = {
   detail: (sessionId: string) =>
     [...aiCallKeys.all, "detail", sessionId] as const,
   settings: () => [...aiCallKeys.all, "settings"] as const,
+  personas: () => [...aiCallKeys.all, "personas"] as const,
 }
 
 export const useAiCallSessionsQuery = () =>
@@ -62,7 +65,8 @@ const useInvalidateCall = () => {
 export const useCreateAiCallSession = () => {
   const invalidate = useInvalidateCall()
   return useMutation({
-    mutationFn: (title?: string) => createAiCallSession(title),
+    mutationFn: (input: { personaId: string; title?: string }) =>
+      createAiCallSession(input),
     onSuccess: (detail) => {
       void invalidate.list()
       void invalidate.detail(detail.session.id)
@@ -81,20 +85,41 @@ export const useFinishAiCallSession = () => {
   })
 }
 
-/** 通话设置：提示词决定它怎么说话、什么时候打断。 */
-export const useAiCallSettingsQuery = () =>
+/** 通话角色：每个角色一套提示词与自己的模型，可建多个。 */
+export const useAiCallPersonasQuery = () =>
   useQuery({
-    queryKey: aiCallKeys.settings(),
-    queryFn: fetchAiCallSettings,
+    queryKey: aiCallKeys.personas(),
+    queryFn: listAiCallPersonas,
     retry: false,
   })
 
-export const useSaveAiCallSettings = () => {
+const useInvalidatePersonas = () => {
   const queryClient = useQueryClient()
+  return () =>
+    queryClient.invalidateQueries({ queryKey: aiCallKeys.personas() })
+}
+
+export const useCreateAiCallPersona = () => {
+  const invalidate = useInvalidatePersonas()
   return useMutation({
-    mutationFn: (input: AiCallSettingsInput) => saveAiCallSettings(input),
-    onSuccess: (saved) => {
-      queryClient.setQueryData(aiCallKeys.settings(), saved)
-    },
+    mutationFn: (input: AiCallPersonaInput) => createAiCallPersona(input),
+    onSuccess: () => void invalidate(),
+  })
+}
+
+export const useUpdateAiCallPersona = () => {
+  const invalidate = useInvalidatePersonas()
+  return useMutation({
+    mutationFn: (input: { personaId: string; values: AiCallPersonaInput }) =>
+      updateAiCallPersona(input.personaId, input.values),
+    onSuccess: () => void invalidate(),
+  })
+}
+
+export const useDeleteAiCallPersona = () => {
+  const invalidate = useInvalidatePersonas()
+  return useMutation({
+    mutationFn: (personaId: string) => deleteAiCallPersona(personaId),
+    onSuccess: () => void invalidate(),
   })
 }

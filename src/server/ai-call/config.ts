@@ -24,13 +24,17 @@ export const AI_CALL_SPEAK_RULES = `语音输出规则（必须遵守）：
 不该说话的时候就不要调用 speak：
 - 环境噪声、别人在旁边聊天、识别错乱的碎片、只是「嗯」「啊」这类语气词：什么都不做最合适，不要解释、不要道歉、不要追问。`
 
-/** 默认提示词：用户没自定义时整段使用。 */
-export const AI_CALL_DEFAULT_SYSTEM_PROMPT = `你是 freewind-mac-manager 的语音助手，正在和用户打电话。用户只能听到你用 speak 工具说出来的内容。
+/** 默认提示词：角色没写提示词时只用这段硬规则。 */
+export const AI_CALL_DEFAULT_SYSTEM_PROMPT = AI_CALL_SPEAK_RULES
 
-${AI_CALL_SPEAK_RULES}
-
-工具规则：
-- 优先用 call_mac_manager_api 查本应用的流量、磁盘、进程、端口、文件、服务、Docker、Caddy、FRP 等能力。写操作返回 202 只表示任务已接收，必须再用 GET /api/tasks 核实结果，不能当成已完成。
-- 应用 API 满足不了时，用内置的 read / grep / ls / bash 查看本机文件与运行状态。
-- 危险动作（杀进程、删文件、重启服务、覆盖配置）在电话里没有确认界面：先用 speak 说清目标与影响，等用户明确说可以，再执行。
-- 写操作不自动重试。执行被打断时，如实说「结果不确定」。`
+/**
+ * 会话用的系统提示词：角色提示词 + 必带的说话规则。
+ *
+ * 角色只写“我是谁、该用什么语气”，不知道有 speak 这个工具；这段固定规则
+ * 不能随角色一起丢掉，否则通话会没声音。
+ */
+export const buildCallSystemPrompt = (custom: string): string => {
+  const trimmed = custom.trim()
+  if (!trimmed) return AI_CALL_SPEAK_RULES
+  return `${trimmed}\n\n${AI_CALL_SPEAK_RULES}`
+}

@@ -28,6 +28,7 @@ const SCHEMA = `
     entries TEXT NOT NULL DEFAULT '',
     request_id TEXT,
     interrupted_at INTEGER,
+    persona_id TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     finished_at INTEGER
@@ -65,6 +66,13 @@ const db = (): DatabaseSync => {
   const opened = new DatabaseSync(DATABASE_FILE, { timeout: 5000 })
   opened.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;${SCHEMA}`)
   database = opened
+  // 旧库没有 persona_id：建表语句不会给已存在的表补列，这里显式迁移。
+  const columns = opened
+    .prepare("PRAGMA table_info(ai_call_session)")
+    .all() as { name: string }[]
+  if (!columns.some((column) => column.name === "persona_id")) {
+    opened.exec("ALTER TABLE ai_call_session ADD COLUMN persona_id TEXT")
+  }
   // 上次进程留下的 running 都是中断，一律按结果未知收尾。
   opened
     .prepare(
@@ -81,6 +89,7 @@ type SessionRow = {
   entries: string
   request_id: string | null
   interrupted_at: number | null
+  persona_id: string | null
   created_at: number
   updated_at: number
   finished_at: number | null
@@ -123,6 +132,7 @@ const toSession = (row: SessionRow): AiCallSession => {
     updatedAt: row.updated_at,
     finishedAt: row.finished_at,
     interruptedAt: row.interrupted_at,
+    personaId: row.persona_id,
   }
 }
 
@@ -160,7 +170,10 @@ export const listCallSessions = (): AiCallSession[] =>
 export const getCallSession = (sessionId: string): AiCallSession =>
   toSession(readSessionRow(sessionId))
 
-export const createCallSession = (title?: string): AiCallSession => {
+export const createCallSession = (
+  title: string | undefined,
+  personaId: string
+): AiCallSession => {
   const now = Date.now()
   const trimmed = title?.trim() ?? ""
   if (trimmed.length > AI_CALL_TITLE_MAX) {
@@ -171,10 +184,10 @@ export const createCallSession = (title?: string): AiCallSession => {
     .prepare(
       `INSERT INTO ai_call_session(
          id, title, status, entries, request_id, interrupted_at,
-         created_at, updated_at, finished_at
-       ) VALUES (?, ?, 'idle', '', NULL, NULL, ?, ?, NULL)`
+         persona_id, created_at, updated_at, finished_at
+       ) VALUES (?, ?, 'idle', '', NULL, NULL, ?, ?, ?, NULL)`
     )
-    .run(id, trimmed || defaultTitle(now), now, now)
+    .run(id, trimmed || defaultTitle(now), personaId, now, now)
   return getCallSession(id)
 }
 

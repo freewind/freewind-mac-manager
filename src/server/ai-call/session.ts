@@ -9,9 +9,10 @@ import { buildSession } from "@server/ai-assistant/session"
 import { callMacManagerApi } from "@server/ai-assistant/tool"
 import { PublicOperationError } from "@server/common/public-error"
 import { PROJECT_ROOT } from "@server/env"
-import { buildCallSystemPrompt, getAiCallSettings } from "./settings"
+import { buildCallSystemPrompt } from "./config"
+import { requireCallPersona } from "./persona-store"
 import { AI_CALL_SPEAK_TOOL, createSpeakTool } from "./speak-tool"
-import { readCallEntries } from "./store"
+import { getCallSession, readCallEntries } from "./store"
 
 /**
  * 通话的 Agent 会话：一次通话一个会话，上下文在通话期间持续累积。
@@ -65,18 +66,27 @@ const parseStoredEntries = (entriesText: string): FileEntry[] => {
 /**
  * 取通话会话：内存里没有就按保存的条目恢复。
  *
- * 模型选择沿用 AI 助手那份设置：通话就是助手的语音形态，没理由让用户
- * 再配一遍。没有单独的通话设置界面，也就不需要第三张设置表。
+ * 提示词与模型都来自这次通话绑定的角色：不同角色是不同的人，不能用
+ * 同一套提示词。角色没指定模型时跟随 AI 助手当前模型。
  */
 export const getOrCreateCallSession = async (
   sessionId: string
 ): Promise<AgentSession> => {
   const cached = sessions.get(sessionId)
   if (cached) return cached.session
+  const session = getCallSession(sessionId)
+  if (!session.personaId) {
+    throw new PublicOperationError(400, "这次通话没有角色，请新建通话")
+  }
+  const persona = requireCallPersona(session.personaId)
   const settings = getAiAssistantSettings()
   const built = await buildSession({
-    model: settings.settings,
-    systemPrompt: buildCallSystemPrompt(getAiCallSettings()),
+    model: {
+      providerId: persona.providerId ?? settings.settings.providerId,
+      modelId: persona.modelId ?? settings.settings.modelId,
+      thinkingLevel: settings.settings.thinkingLevel,
+    },
+    systemPrompt: buildCallSystemPrompt(persona.systemPrompt),
     customTools: [callMacManagerApi, createSpeakTool(sessionId)],
     // 漏掉自定义工具名会被 SDK 的 allowlist 整体剔除，必须显式列出。
     extraToolNames: [AI_CALL_SPEAK_TOOL],

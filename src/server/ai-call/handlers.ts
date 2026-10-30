@@ -15,8 +15,14 @@ import { ApiPath } from "@shared/api-path"
 import { initServer } from "@ts-rest/express"
 import type express from "express"
 import { callPersistence } from "./persistence"
+import {
+  createCallPersona,
+  deleteCallPersona,
+  listCallPersonas,
+  requireCallPersona,
+  updateCallPersona,
+} from "./persona-store"
 import { disposeIdleCallSessions, getOrCreateCallSession } from "./session"
-import { getAiCallSettings, saveAiCallSettings } from "./settings"
 import {
   createCallSession,
   deleteCallSession,
@@ -33,8 +39,10 @@ const s = initServer()
 
 /** 只挑本域的路由；app.ts 负责与其它功能合并。 */
 export const aiCallContract = {
-  getAiCallSettings: contract.getAiCallSettings,
-  saveAiCallSettings: contract.saveAiCallSettings,
+  listAiCallPersonas: contract.listAiCallPersonas,
+  createAiCallPersona: contract.createAiCallPersona,
+  updateAiCallPersona: contract.updateAiCallPersona,
+  deleteAiCallPersona: contract.deleteAiCallPersona,
   transcribeAiCallAudio: contract.transcribeAiCallAudio,
   listAiCallSessions: contract.listAiCallSessions,
   createAiCallSession: contract.createAiCallSession,
@@ -54,21 +62,39 @@ const detail = (sessionId: string) => ({
 
 export const createAiCallRouter = () =>
   s.router(aiCallContract, {
-    getAiCallSettings: async () => {
+    listAiCallPersonas: async () => {
       try {
-        return { status: 200 as const, body: getAiCallSettings() }
+        return {
+          status: 200 as const,
+          body: { personas: listCallPersonas() },
+        }
       } catch (error) {
         return publicSystemError(error)
       }
     },
-    saveAiCallSettings: async ({ body }) => {
+    createAiCallPersona: async ({ body }) => {
       try {
-        const saved = saveAiCallSettings(body)
-        // 提示词改了就丢陈旧的会话：否则这次改完也要等到下次重启才生效。
+        return { status: 201 as const, body: createCallPersona(body) }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    updateAiCallPersona: async ({ params, body }) => {
+      try {
+        const persona = updateCallPersona(params.personaId, body)
+        // 提示词与模型都可能变了：丢空闲会话，下次通话才用新设置。
         disposeIdleCallSessions(
           (sessionId) => runningExecutionId(sessionId) !== null
         )
-        return { status: 200 as const, body: saved }
+        return { status: 200 as const, body: persona }
+      } catch (error) {
+        return publicSystemError(error)
+      }
+    },
+    deleteAiCallPersona: async ({ params }) => {
+      try {
+        deleteCallPersona(params.personaId)
+        return { status: 204 as const, body: null }
       } catch (error) {
         return publicSystemError(error)
       }
@@ -100,7 +126,13 @@ export const createAiCallRouter = () =>
     },
     createAiCallSession: async ({ body }) => {
       try {
-        const session = createCallSession(body.title)
+        // 不指定角色时用第一个：至少得有一个角色才能开始通话。
+        const personaId = body.personaId ?? listCallPersonas()[0]?.id
+        if (!personaId) {
+          throw new PublicOperationError(400, "请先在设置里创建一个通话角色")
+        }
+        requireCallPersona(personaId)
+        const session = createCallSession(body.title, personaId)
         return { status: 201 as const, body: detail(session.id) }
       } catch (error) {
         return publicSystemError(error)

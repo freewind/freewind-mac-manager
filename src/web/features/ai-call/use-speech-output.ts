@@ -99,6 +99,13 @@ export const useSpeechOutput = (options: {
   const settledRef = useRef(options.onSettled)
   settledRef.current = options.onSettled
   const [speaking, setSpeaking] = useState(false)
+  /**
+   * 是否真有一句在念。
+   *
+   * enqueue 与 flush 都会叫 pump，没有这个开关时第二次会把队列取空，
+   * 于是「正在说」刚亮就被关掉，界面上永远看不到说话状态。
+   */
+  const playingRef = useRef<boolean | null>(null)
 
   /**
    * 念下一句。
@@ -108,6 +115,8 @@ export const useSpeechOutput = (options: {
    */
   const pump = useCallback(() => {
     if (typeof window === "undefined") return
+    // 已经有一句在念：等它 onend 再推进，不能抢着取下一句。
+    if (playingRef.current === true) return
     const generation = generationRef.current
     const next = bufferRef.current?.queue.shift()
     if (next === undefined) {
@@ -121,14 +130,14 @@ export const useSpeechOutput = (options: {
     // 出错也继续念下一句：一句坏掉不该把整段回答吞掉。
     // 被打断过的这一句不再驱动队列，交给自己后面的新句子。
     const advance = (): void => {
+      playingRef.current = false
       if (generationRef.current !== generation) return
       pumpRef.current?.()
     }
     utterance.onend = advance
     utterance.onerror = advance
+    playingRef.current = true
     setSpeaking(true)
-    // 长时间不出声后 Chrome 会把队列挂成 paused，说话前顶一下。
-    window.speechSynthesis.resume()
     window.speechSynthesis.speak(utterance)
   }, [])
   pumpRef.current = pump
@@ -167,6 +176,7 @@ export const useSpeechOutput = (options: {
       window.speechSynthesis.cancel()
       window.speechSynthesis.resume()
     }
+    playingRef.current = false
     setSpeaking(false)
   }, [])
 

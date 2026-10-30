@@ -2,6 +2,11 @@ import { ApiPath, toContractPath } from "@shared/api-path"
 import { c } from "../init"
 import {
   AiCallExecutionSchema,
+  AiCallPersonaCreateSchema,
+  AiCallPersonaListSchema,
+  AiCallPersonaPathSchema,
+  AiCallPersonaSchema,
+  AiCallPersonaUpdateSchema,
   AiCallSessionCreateSchema,
   AiCallSessionDetailSchema,
   AiCallSessionListSchema,
@@ -41,6 +46,31 @@ export const aiCallRoutes = {
     path: toContractPath(ApiPath.aiCallSettings),
     body: AiCallSettingsMutationSchema,
     responses: { 200: AiCallSettingsResponseSchema, ...errorResponses },
+  },
+  /** 通话角色：每个角色一套提示词与自己的模型。 */
+  listAiCallPersonas: {
+    method: "GET",
+    path: toContractPath(ApiPath.aiCallPersonas),
+    responses: { 200: AiCallPersonaListSchema, ...errorResponses },
+  },
+  createAiCallPersona: {
+    method: "POST",
+    path: toContractPath(ApiPath.aiCallPersonas),
+    body: AiCallPersonaCreateSchema,
+    responses: { 201: AiCallPersonaSchema, ...errorResponses },
+  },
+  updateAiCallPersona: {
+    method: "PUT",
+    path: toContractPath(ApiPath.aiCallPersona),
+    pathParams: AiCallPersonaPathSchema,
+    body: AiCallPersonaUpdateSchema,
+    responses: { 200: AiCallPersonaSchema, ...errorResponses },
+  },
+  deleteAiCallPersona: {
+    method: "DELETE",
+    path: toContractPath(ApiPath.aiCallPersona),
+    pathParams: AiCallPersonaPathSchema,
+    responses: { 204: null, ...errorResponses },
   },
   /** 语音识别：服务端整句识别，结果直接交给 Agent。 */
   transcribeAiCallAudio: {

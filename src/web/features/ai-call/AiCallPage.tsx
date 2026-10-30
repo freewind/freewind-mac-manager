@@ -20,10 +20,11 @@ import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { cn } from "cn"
 import { History, Phone, Settings } from "lucide-react"
 import { useCallback, useState } from "react"
-import { CallSettingsDialog } from "./CallSettingsDialog"
+import { CallPersonaDialog } from "./CallPersonaDialog"
 import { CallStage } from "./CallStage"
 import {
   aiCallKeys,
+  useAiCallPersonasQuery,
   useAiCallSessionQuery,
   useAiCallSessionsQuery,
   useCreateAiCallSession,
@@ -51,7 +52,13 @@ export const AiCallPage = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [personasOpen, setPersonasOpen] = useState(false)
+  const [personaId, setPersonaId] = useState<string | null>(null)
+
+  const personasQuery = useAiCallPersonasQuery()
+  const personas = personasQuery.data?.personas ?? []
+  // 没显式选过就用第一个：至少得有一个角色才能开始通话。
+  const activePersonaId = personaId ?? personas[0]?.id ?? null
   useHistoryOverlay(historyOpen, () => setHistoryOpen(false))
 
   const createSession = useCreateAiCallSession()
@@ -71,12 +78,20 @@ export const AiCallPage = () => {
   }, [activeId, queryClient])
 
   const startNew = (): void => {
-    createSession.mutate(undefined, {
-      onSuccess: (detail) => {
-        setSelectedId(detail.session.id)
-        setHistoryOpen(false)
-      },
-    })
+    if (!activePersonaId) {
+      // 没有角色时开不了通话：直接把角色管理打开，别让用户白点一下。
+      setPersonasOpen(true)
+      return
+    }
+    createSession.mutate(
+      { personaId: activePersonaId },
+      {
+        onSuccess: (detail) => {
+          setSelectedId(detail.session.id)
+          setHistoryOpen(false)
+        },
+      }
+    )
   }
 
   const hangUp = (): void => {
@@ -105,6 +120,28 @@ export const AiCallPage = () => {
     </button>
   )
 
+  /** 角色选择：一次通话固定用一个角色，想换人就换一个再开新通话。 */
+  const personaRow =
+    personas.length > 0 ? (
+      <div className="flex shrink-0 gap-2 overflow-x-auto border-b px-3 py-2">
+        {personas.map((persona) => (
+          <button
+            key={persona.id}
+            type="button"
+            onClick={() => setPersonaId(persona.id)}
+            className={cn(
+              "shrink-0 rounded-full border px-3 py-1 text-xs transition-colors",
+              persona.id === activePersonaId
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground"
+            )}
+          >
+            {persona.name}
+          </button>
+        ))}
+      </div>
+    ) : null
+
   const header = (
     <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
       <PageHeader title="AI 通话" loading={sessionsQuery.isPending}>
@@ -112,8 +149,8 @@ export const AiCallPage = () => {
           <Button
             size="sm"
             variant="ghost"
-            aria-label="通话设置"
-            onClick={() => setSettingsOpen(true)}
+            aria-label="通话角色"
+            onClick={() => setPersonasOpen(true)}
           >
             <Settings aria-hidden />
           </Button>
@@ -143,6 +180,7 @@ export const AiCallPage = () => {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {header}
+        {personaRow}
         <div className="flex flex-col gap-3 p-4">
           <Skeleton className="h-6 w-40" />
           <Skeleton className="h-24 w-full" />
@@ -156,6 +194,7 @@ export const AiCallPage = () => {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {header}
+        {personaRow}
         <Empty className="flex-1">
           <EmptyHeader>
             <EmptyTitle>还没有通话</EmptyTitle>
@@ -175,6 +214,7 @@ export const AiCallPage = () => {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {header}
+      {personaRow}
       <CallStage
         sessionId={activeId}
         messages={detailQuery.data?.messages ?? []}
@@ -193,7 +233,7 @@ export const AiCallPage = () => {
           </div>
         </SheetContent>
       </Sheet>
-      <CallSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <CallPersonaDialog open={personasOpen} onOpenChange={setPersonasOpen} />
     </div>
   )
 }

@@ -45,6 +45,42 @@ export const AiCallSessionSchema = z.object({
    * 写完最后一条回答后，再据此给它打 interrupted 标记。
    */
   interruptedAt: z.number().nullable(),
+  /** 这次通话用哪个角色（提示词与模型都来自它）。 */
+  personaId: z.string().nullable(),
+})
+
+/**
+ * 通话角色：一套提示词加自己的模型。
+ *
+ * 与 AI 助手完全分开：助手是操作台，通话角色是聊天对象，两边提示词与
+ * 模型各管各的。不内置默认角色，用户建了才能开始通话。
+ */
+export const AiCallPersonaSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(60),
+  systemPrompt: z.string().max(8000),
+  /** 空表示跟随 AI 助手当前模型。 */
+  providerId: z.string().max(256).nullable(),
+  modelId: z.string().max(256).nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+
+export const AiCallPersonaListSchema = z.object({
+  personas: z.array(AiCallPersonaSchema),
+})
+
+export const AiCallPersonaCreateSchema = z.object({
+  name: z.string().min(1).max(60),
+  systemPrompt: z.string().max(8000).default(""),
+  providerId: z.string().max(256).optional(),
+  modelId: z.string().max(256).optional(),
+})
+
+export const AiCallPersonaUpdateSchema = AiCallPersonaCreateSchema
+
+export const AiCallPersonaPathSchema = z.object({
+  personaId: z.string().min(1).max(200),
 })
 
 export const AiCallSessionPathSchema = z.object({
@@ -63,6 +99,8 @@ export const AiCallSessionDetailSchema = z.object({
 export const AiCallSessionCreateSchema = z.object({
   /** 省略时服务端按通话开始时间生成标题。 */
   title: z.string().min(1).max(TITLE_MAX).optional(),
+  /** 这次通话用哪个角色；没有角色时不能开始通话。 */
+  personaId: z.string().min(1).max(200).optional(),
 })
 
 export const AiCallSessionUpdateSchema = z.object({
@@ -150,3 +188,7 @@ export type AiCallSettingsResponse = z.infer<
   typeof AiCallSettingsResponseSchema
 >
 export type AiCallSettingsInput = z.input<typeof AiCallSettingsMutationSchema>
+export type AiCallPersona = z.infer<typeof AiCallPersonaSchema>
+export type AiCallPersonaList = z.infer<typeof AiCallPersonaListSchema>
+export type AiCallPersonaInput = z.input<typeof AiCallPersonaCreateSchema>
+export type AiCallPersonaPath = z.infer<typeof AiCallPersonaPathSchema>

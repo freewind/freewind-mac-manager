@@ -114,6 +114,9 @@ export const ApiPath = {
   aiCallTranscribe: `${API_BASE}/ai-call/transcribe`,
   /** 通话自己的设置：提示词与助手那段分开存。 */
   aiCallSettings: `${API_BASE}/ai-call/settings`,
+  /** 通话角色：一套提示词加自己的模型，可建多个。 */
+  aiCallPersonas: `${API_BASE}/ai-call/personas`,
+  aiCallPersona: `${API_BASE}/ai-call/personas/:personaId`,
   aiCallSession: `${API_BASE}/ai-call/sessions/:sessionId`,
   /** 向通话提交一次发言（SSE，传输例外）。 */
   aiCallMessage: `${API_BASE}/ai-call/sessions/:sessionId/messages`,
