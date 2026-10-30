@@ -2,8 +2,9 @@ import type { AiCallMessage } from "@shared/api-contract"
 import { Button } from "@web/components/ui/button"
 import { cn } from "cn"
 import { LoaderCircle, Mic, PhoneOff, TriangleAlert } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { TranscriptList } from "./TranscriptList"
+import { cleanTranscript, isRepeatedSegment } from "./transcript"
 import { useCall } from "./use-call"
 import { useSpeechInput } from "./use-speech-input"
 import {
@@ -24,6 +25,11 @@ const PHASE_LABELS = {
   speaking: "正在说",
 } as const
 
+/** 说完最后一句后等这么久，确认真的不说了再发送。 */
+const QUIET_MS = 3_000
+/** 连续说话时的总上限：再久也不能一直不发。 */
+const MAX_WAIT_MS = 10_000
+
 export const CallStage = (props: {
   sessionId: string
   messages: AiCallMessage[]
@@ -39,11 +45,65 @@ export const CallStage = (props: {
   const [live, setLive] = useState(false)
   /** 上一段音频没识别出内容：把音频情况告诉用户，而不是静默丢掉。 */
   const [unheard, setUnheard] = useState<RecognitionResult | null>(null)
-  /** 刚识别出来、正在发给 AI 的那句话：让用户先确认听到的是什么。 */
+  /** 刚发出去的那句话：让用户先确认听到的是什么。 */
   const [heard, setHeard] = useState<string | null>(null)
+  /** 已识别、还在等用户说完的片段：界面要能看到，不能黑箱等待。 */
+  const [pendingText, setPendingText] = useState("")
+
+  /** 已识别但还没发送的片段：用户可能还在想下一句。 */
+  const pendingRef = useRef<string[]>([])
+  const quietTimer = useRef<number | null>(null)
+  const capTimer = useRef<number | null>(null)
 
   const { send, interrupt, reset } = call
   const recognizer = useSpeechRecognition()
+
+  const clearTimers = useCallback(() => {
+    if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
+    if (capTimer.current !== null) window.clearTimeout(capTimer.current)
+    quietTimer.current = null
+    capTimer.current = null
+  }, [])
+
+  const flush = useCallback(() => {
+    clearTimers()
+    const segments = pendingRef.current
+    pendingRef.current = []
+    setPendingText("")
+    // 发前再清理一次：分段拼接后可能出现新的句首口水词。
+    const text = cleanTranscript(segments.join(""))
+    if (!text) return
+    setHeard(text)
+    send(text)
+  }, [clearTimers, send])
+
+  /**
+   * 收下一段识别文本，但不立即发送。
+   *
+   * 说话中途停顿、换气都会被切成多段；每段都回复会打断节奏。
+   * 这里改成：每多一段就重新计 3 秒，连续说话时最多等 10 秒。
+   */
+  const pushSegment = useCallback(
+    (segment: string) => {
+      const next = cleanTranscript(segment)
+      if (!next) return
+      const previous = pendingRef.current.at(-1) ?? ""
+      // 同一句被切成两段时去掉重复的那段。
+      if (isRepeatedSegment(previous, next)) return
+      pendingRef.current = [...pendingRef.current, next]
+      setPendingText(pendingRef.current.join(""))
+      if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
+      quietTimer.current = window.setTimeout(flush, QUIET_MS)
+      if (capTimer.current === null) {
+        capTimer.current = window.setTimeout(flush, MAX_WAIT_MS)
+      }
+    },
+    [flush]
+  )
+
+  /** 识别串行队列：两段音频几乎同时到达时，保证文本按说话顺序拼。 */
+  const recognizeChain = useRef<Promise<unknown>>(Promise.resolve())
+  const recognize = recognizer.recognize
 
   const input = useSpeechInput({
     // 用户开口就打断：不管 AI 是在念还是在想，都该让位给他。
@@ -52,14 +112,13 @@ export const CallStage = (props: {
       setHeard(null)
     },
     onUtterance: (samples) => {
-      setRecognizing(true)
-      void recognizer
-        .recognize(samples)
-        .then((result) => {
+      recognizeChain.current = recognizeChain.current
+        .then(async () => {
+          setRecognizing(true)
+          const result = await recognize(samples)
           if (result.text) {
             setUnheard(null)
-            setHeard(result.text)
-            send(result.text)
+            pushSegment(result.text)
             return
           }
           setHeard(null)
@@ -80,20 +139,35 @@ export const CallStage = (props: {
 
   const beginCall = useCallback(async () => {
     reset()
+    clearTimers()
+    pendingRef.current = []
+    setPendingText("")
     await start()
     setLive(true)
-  }, [reset, start])
+  }, [clearTimers, reset, start])
 
   const hangUp = useCallback(() => {
+    // 挂断时把没发出去的片段丢掉：已经挂了还发一句会很奇怪。
+    clearTimers()
+    pendingRef.current = []
+    setPendingText("")
     stop()
     interrupt()
     setLive(false)
     props.onHangUp()
-  }, [interrupt, props, stop])
+  }, [clearTimers, interrupt, props, stop])
+
+  // 组件卸载时不能留着定时器：否则会在已经离开的页面上发消息。
+  useEffect(() => clearTimers, [clearTimers])
 
   const banner = recognizer.error ?? input.error
   const busy = call.phase === "thinking" || recognizing
-  const phaseLabel = recognizing ? "正在识别" : PHASE_LABELS[call.phase]
+  const waiting = pendingText.length > 0
+  const phaseLabel = recognizing
+    ? "正在识别"
+    : waiting
+      ? "等你说完…"
+      : PHASE_LABELS[call.phase]
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -124,6 +198,12 @@ export const CallStage = (props: {
         <div className="flex items-start gap-2 border-b px-3 py-2 text-xs text-destructive">
           <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
           <span>{banner}</span>
+        </div>
+      ) : null}
+
+      {pendingText ? (
+        <div className="border-b px-3 py-2 text-xs text-muted-foreground">
+          待发送：{pendingText}
         </div>
       ) : null}
 
