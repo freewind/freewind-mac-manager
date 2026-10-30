@@ -1,52 +1,35 @@
-import { execFile } from "node:child_process"
-import { existsSync } from "node:fs"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import path from "node:path"
-import { promisify } from "node:util"
 import { PublicOperationError } from "@server/common/public-error"
-import { MODELS_DIR } from "@server/env"
-
-const run = promisify(execFile)
+import { env } from "@server/env"
 
 /**
- * 本机语音识别：sherpa-onnx 的 Paraformer 中文模型。
+ * 语音识别：交给 SenseAudio 的 OpenAI 兼容接口。
  *
- * 为什么放服务端：手机浏览器只能跑 WASM，whisper-base 一次要好几秒还占满
- * 主线程；Mac 上原生二进制识别 5 秒音频只要 0.04 秒（实测 RTF 0.008）。
- * 手机只负责录音与上传，一段话几十 KB。
- *
- * 走外部命令而不是 Node 原生绑定：与 docker / caddy / frp 一样，
- * 二进制由脚本下载到 data/models，升级与排查都不牵扯 Node 依赖。
+ * 手机只负责录音与上传，一段话几十 KB。识别在服务端完成，结果直接交给
+ * Agent——模型输出的标点与数字都按原样保留，不在中间做“修补”，
+ * 改字反而会引入新的错误。
  */
 
-const SHERPA_DIR = path.join(MODELS_DIR, "sherpa")
-const BIN = path.join(SHERPA_DIR, "bin", "sherpa-onnx-offline")
-const MODEL_DIR = path.join(SHERPA_DIR, "sense-voice")
-const MODEL = path.join(MODEL_DIR, "model.int8.onnx")
-const TOKENS = path.join(MODEL_DIR, "tokens.txt")
-
-/** 识别超时：正常一句话几百毫秒，留足冷启动与慢盘的余量。 */
-const TIMEOUT_MS = 20_000
+const DEFAULT_BASE_URL = "https://api.senseaudio.cn/v1"
+const DEFAULT_MODEL = "senseaudio-asr-lite-1.5-260319"
+/** 识别超时：正常一句话 1-2 秒，留足网络抖动余量。 */
+const TIMEOUT_MS = 25_000
 /** 单段音频上限：16k 16 位 60 秒约 1.9MB，再大就不像一句话了。 */
 const MAX_PCM_BYTES = 1_920_000
-/** 交给 onnxruntime 的线程数：手机场景单人说话，4 条足够且不吃满 CPU。 */
-const NUM_THREADS = 4
 
-export const isTranscribeAvailable = (): boolean =>
-  existsSync(BIN) && existsSync(MODEL) && existsSync(TOKENS)
+/** 没配 key 时功能不可用：由上层转成明确的提示。 */
+export const isTranscribeConfigured = (): boolean => env.ASR_API_KEY !== ""
 
-/** 外部命令缺失时给出可执行的下一步，不暴露内部路径。 */
+/** 缺少凭据时给出可执行的下一步，不暴露内部配置。 */
 export class TranscribeUnavailableError extends Error {
   constructor() {
-    super("语音识别组件未安装，请先运行 pnpm models:sherpa")
+    super("语音识别还没配置访问密钥")
     this.name = "TranscribeUnavailableError"
   }
 }
 
 /**
- * 串行执行识别：一次通话只有一个麦克风，并发只会多开进程抢 CPU。
- * 排队而不是丢弃，前一句识别完立刻处理下一句。
+ * 串行执行识别：一次通话只有一个麦克风，并发只会多占配额、
+ * 让后一句排队更久。排队而不是丢弃，前一句识别完立刻处理下一句。
  */
 let queue: Promise<unknown> = Promise.resolve()
 const serial = <T>(task: () => Promise<T>): Promise<T> => {
@@ -56,7 +39,7 @@ const serial = <T>(task: () => Promise<T>): Promise<T> => {
   return next
 }
 
-/** 16k 单声道 16 位 PCM 加 WAV 头：sherpa 只吃标准 WAV 文件。 */
+/** 16k 单声道 16 位 PCM 加 WAV 头：接口按 OpenAI 约定收音频文件。 */
 const buildWav = (pcm: Buffer, sampleRate: number): Buffer => {
   const header = Buffer.alloc(44)
   header.write("RIFF", 0, "ascii")
@@ -75,71 +58,56 @@ const buildWav = (pcm: Buffer, sampleRate: number): Buffer => {
   return Buffer.concat([header, pcm])
 }
 
-/**
- * 从命令输出里取识别文本。
- *
- * sherpa 先打印配置与耗时，最后一行是 JSON；逐行从后往前找第一个
- * 带 text 的 JSON，避免把前面的日志误当结果。
- */
-const parseText = (stdout: string): string => {
-  const lines = stdout.trim().split("\n")
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index].trim()
-    if (!line.startsWith("{")) continue
-    try {
-      const parsed = JSON.parse(line) as { text?: unknown }
-      if (typeof parsed.text === "string") return parsed.text.trim()
-    } catch {
-      // 不是 JSON 就继续往前找。
-    }
-  }
-  return ""
+/** 从接口响应里取识别文本，结构不对就当空结果。 */
+const readText = (payload: unknown): string => {
+  if (typeof payload !== "object" || payload === null) return ""
+  const text = (payload as { text?: unknown }).text
+  return typeof text === "string" ? text.trim() : ""
 }
 
 /**
  * 识别一段 16k 单声道 PCM。
  *
- * 临时文件用完即删：音频不落盘保留，与「通话内容只留在库里」的约定一致。
+ * 音频只在内存里拼成 WAV 发出去，不落盘保存，与「通话内容只留在库里」
+ * 的约定一致。
  */
 export const transcribePcm = async (pcm: Buffer): Promise<string> => {
-  if (!isTranscribeAvailable()) throw new TranscribeUnavailableError()
+  const apiKey = env.ASR_API_KEY
+  if (!apiKey) throw new TranscribeUnavailableError()
   if (pcm.length === 0) return ""
   if (pcm.length > MAX_PCM_BYTES) {
     throw new PublicOperationError(400, "这段录音太长，请分段说")
   }
+  const baseUrl = env.ASR_BASE_URL || DEFAULT_BASE_URL
+  const model = env.ASR_MODEL || DEFAULT_MODEL
   return serial(async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), "mac-manager-asr-"))
-    const wav = path.join(dir, "audio.wav")
+    const form = new FormData()
+    form.append(
+      "file",
+      new Blob([new Uint8Array(buildWav(pcm, 16_000))], { type: "audio/wav" }),
+      "audio.wav"
+    )
+    form.append("model", model)
     try {
-      await writeFile(wav, buildWav(pcm, 16_000))
-      const { stdout } = await run(
-        BIN,
-        [
-          `--tokens=${TOKENS}`,
-          `--sense-voice-model=${MODEL}`,
-          // 中文为主：英文单词（Docker、zip）仍会按原样识别。
-          "--sense-voice-language=zh",
-          // 数字归一化：「三点半」变「3点半」，交给 AI 时更好理解。
-          "--sense-voice-use-itn=true",
-          `--num-threads=${NUM_THREADS}`,
-          wav,
-        ],
-        { timeout: TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 }
-      )
-      return parseText(stdout)
+      const response = await fetch(`${baseUrl}/audio/transcriptions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      })
+      if (!response.ok) {
+        // 不回传响应正文：里面可能带服务商侧的内部信息。
+        throw new PublicOperationError(500, "语音识别服务暂时不可用")
+      }
+      return readText(await response.json())
     } catch (error) {
-      // 超时与崩溃都不回传命令输出：里面可能带本机路径。
+      if (error instanceof PublicOperationError) throw error
       const timedOut =
-        typeof error === "object" &&
-        error !== null &&
-        "killed" in error &&
-        (error as { killed?: boolean }).killed === true
+        error instanceof DOMException && error.name === "TimeoutError"
       throw new PublicOperationError(
         500,
         timedOut ? "语音识别超时，请再说一次" : "语音识别失败，请再说一次"
       )
-    } finally {
-      await rm(dir, { recursive: true, force: true })
     }
   })
 }

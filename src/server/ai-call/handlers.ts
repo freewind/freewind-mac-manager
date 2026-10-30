@@ -59,7 +59,7 @@ export const createAiCallRouter = () =>
           body: { text: await transcribePcm(pcm) },
         }
       } catch (error) {
-        // 组件未安装不是「内部错误」：告诉用户该跑哪条命令。
+        // 没配密钥不是内部错误：告诉用户缺什么，而不是让通话静默没反应。
         if (error instanceof TranscribeUnavailableError) {
           return { status: 500 as const, body: { message: error.message } }
         }

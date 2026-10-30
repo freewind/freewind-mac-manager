@@ -15,7 +15,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:openapi": "tsx scripts/generate-openapi.ts",
-    "models:sherpa": "tsx scripts/fetch-sherpa-asr.ts",
     "prepare": "husky"
   },
   "lint-staged": {

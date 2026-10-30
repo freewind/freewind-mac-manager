@@ -107,10 +107,10 @@ export const ApiPath = {
   aiTopicExecutionStop: `${API_BASE}/ai-topics/:topicId/execution/stop`,
   /**
    * AI 通话：一次通话是一个会话，消息线性排列，不分话题与线程。
-   * 录音在手机上，语音识别在本机 sherpa-onnx（见 aiCallTranscribe）。
+   * 录音在手机上，语音识别在服务端（见 aiCallTranscribe）。
    */
   aiCallSessions: `${API_BASE}/ai-call/sessions`,
-  /** 语音识别：把一段 16k 单声道 PCM 交给本机 sherpa-onnx，返回文本。 */
+  /** 语音识别：把一段 16k 单声道 PCM 交给服务端识别，返回文本。 */
   aiCallTranscribe: `${API_BASE}/ai-call/transcribe`,
   aiCallSession: `${API_BASE}/ai-call/sessions/:sessionId`,
   /** 向通话提交一次发言（SSE，传输例外）。 */

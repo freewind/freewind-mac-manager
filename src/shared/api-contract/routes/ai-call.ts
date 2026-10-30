@@ -28,7 +28,7 @@ const errorResponses = {
  * 对话本身是 SSE 传输例外，见 handlers 里的独立挂载。
  */
 export const aiCallRoutes = {
-  /** 语音识别：本机 sherpa-onnx 整句识别，不依赖外网。 */
+  /** 语音识别：服务端整句识别，结果直接交给 Agent。 */
   transcribeAiCallAudio: {
     method: "POST",
     path: toContractPath(ApiPath.aiCallTranscribe),

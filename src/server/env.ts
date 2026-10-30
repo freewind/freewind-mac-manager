@@ -53,6 +53,21 @@ export const env = {
   get CLASH_VERGE_SECRET() {
     return process.env.CLASH_VERGE_SECRET
   },
+  /**
+   * 语音识别：OpenAI 兼容的转写服务。
+   *
+   * 默认指向 SenseAudio；换服务商时只改这三个值，代码不用动。
+   * key 未配置时通话页会直接提示不可用，不会静默转成空文本。
+   */
+  get ASR_BASE_URL() {
+    return process.env.ASR_BASE_URL ?? ""
+  },
+  get ASR_API_KEY() {
+    return process.env.ASR_API_KEY ?? ""
+  },
+  get ASR_MODEL() {
+    return process.env.ASR_MODEL ?? ""
+  },
 }
 
 /**

@@ -97,7 +97,7 @@ export type AiCallMessageRequest = z.infer<typeof AiCallMessageRequestSchema>
 export type AiCallExecution = z.infer<typeof AiCallExecutionSchema>
 
 /**
- * 语音识别：手机只负责录音，识别在本机用 sherpa-onnx 跑。
+ * 语音识别：手机只负责录音，识别在服务端走云端接口。
  *
  * 音频以 16k 单声道 16 位 PCM 的 base64 上传：一段话几十 KB，
  * 比在手机上用 WASM 跑大模型快一个数量级，也不占手机 CPU。

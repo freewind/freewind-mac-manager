@@ -9,7 +9,7 @@ import { apiClient, unwrap } from "./client"
 /**
  * 上传一段 16k 单声道 PCM 做识别。
  *
- * 识别在服务端用 sherpa-onnx 跑：手机不需要下载模型，也不占 CPU。
+ * 识别在服务端走云端接口：手机不需要下载模型，也不占 CPU。
  */
 export const transcribeAiCallAudio = async (
   audio: Uint8Array
