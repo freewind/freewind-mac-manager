@@ -4,7 +4,12 @@ import { cn } from "cn"
 import { LoaderCircle, Mic, PhoneOff, TriangleAlert } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { TranscriptList } from "./TranscriptList"
-import { cleanTranscript, isRepeatedSegment } from "./transcript"
+import {
+  cleanTranscript,
+  endsWithCue,
+  isRepeatedSegment,
+  stripEndCue,
+} from "./transcript"
 import { useCall } from "./use-call"
 import { useSpeechInput } from "./use-speech-input"
 import {
@@ -25,10 +30,10 @@ const PHASE_LABELS = {
   speaking: "正在说",
 } as const
 
-/** 说完最后一句后等这么久，确认真的不说了再发送。 */
-const QUIET_MS = 3_000
-/** 连续说话时的总上限：再久也不能一直不发。 */
-const MAX_WAIT_MS = 10_000
+/** 说完「回答」后等这么久，确认真的不说了就发送。 */
+const QUIET_WITH_CUE_MS = 3_000
+/** 没有结束口令时，静默这么久才发送：用户可能还在想下一句。 */
+const QUIET_DEFAULT_MS = 10_000
 
 export const CallStage = (props: {
   sessionId: string
@@ -53,16 +58,13 @@ export const CallStage = (props: {
   /** 已识别但还没发送的片段：用户可能还在想下一句。 */
   const pendingRef = useRef<string[]>([])
   const quietTimer = useRef<number | null>(null)
-  const capTimer = useRef<number | null>(null)
 
   const { send, interrupt, reset } = call
   const recognizer = useSpeechRecognition()
 
   const clearTimers = useCallback(() => {
     if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
-    if (capTimer.current !== null) window.clearTimeout(capTimer.current)
     quietTimer.current = null
-    capTimer.current = null
   }, [])
 
   const flush = useCallback(() => {
@@ -71,7 +73,8 @@ export const CallStage = (props: {
     pendingRef.current = []
     setPendingText("")
     // 发前再清理一次：分段拼接后可能出现新的句首口水词。
-    const text = cleanTranscript(segments.join(""))
+    // 结束口令「回答」只用来控制时机，不当正文发出去。
+    const text = stripEndCue(cleanTranscript(segments.join("")))
     if (!text) return
     setHeard(text)
     send(text)
@@ -80,8 +83,8 @@ export const CallStage = (props: {
   /**
    * 收下一段识别文本，但不立即发送。
    *
-   * 说话中途停顿、换气都会被切成多段；每段都回复会打断节奏。
-   * 这里改成：每多一段就重新计 3 秒，连续说话时最多等 10 秒。
+   * 说到「……回答」并停顿 3 秒就发；没说口令时静默 10 秒才发，
+   * 给用户留出想下一句的时间。中途停顿、换气被切成多段时只是重新计时。
    */
   const pushSegment = useCallback(
     (segment: string) => {
@@ -91,12 +94,13 @@ export const CallStage = (props: {
       // 同一句被切成两段时去掉重复的那段。
       if (isRepeatedSegment(previous, next)) return
       pendingRef.current = [...pendingRef.current, next]
-      setPendingText(pendingRef.current.join(""))
+      const joined = pendingRef.current.join("")
+      setPendingText(joined)
       if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
-      quietTimer.current = window.setTimeout(flush, QUIET_MS)
-      if (capTimer.current === null) {
-        capTimer.current = window.setTimeout(flush, MAX_WAIT_MS)
-      }
+      quietTimer.current = window.setTimeout(
+        flush,
+        endsWithCue(joined) ? QUIET_WITH_CUE_MS : QUIET_DEFAULT_MS
+      )
     },
     [flush]
   )

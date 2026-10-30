@@ -25,6 +25,20 @@ export const cleanTranscript = (input: string): string => {
   return text
 }
 
+/** 结束口令：说完它并停顿，就表示这段话说完了。 */
+export const END_CUE = "回答"
+
+/** 文本是否以结束口令结尾。 */
+export const endsWithCue = (text: string): boolean =>
+  text.trimEnd().endsWith(END_CUE)
+
+/** 口令只用于控制发送时机，不进入对话内容。 */
+export const stripEndCue = (text: string): string => {
+  const trimmed = text.trimEnd()
+  if (!trimmed.endsWith(END_CUE)) return text
+  return trimmed.slice(0, -END_CUE.length).trim()
+}
+
 /**
  * 同一句被切成两段时去掉重复的那段。
  *
