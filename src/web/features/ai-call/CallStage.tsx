@@ -6,7 +6,10 @@ import { useCallback, useEffect, useState } from "react"
 import { TranscriptList } from "./TranscriptList"
 import { useCall } from "./use-call"
 import { useSpeechInput } from "./use-speech-input"
-import { useSpeechRecognition } from "./use-speech-recognition"
+import {
+  type RecognitionResult,
+  useSpeechRecognition,
+} from "./use-speech-recognition"
 
 /**
  * 通话区：一个按钮开始、一直说到挂断，期间不用再按任何东西。
@@ -34,6 +37,10 @@ export const CallStage = (props: {
   })
   const [recognizing, setRecognizing] = useState(false)
   const [live, setLive] = useState(false)
+  /** 上一段音频没识别出内容：把音频情况告诉用户，而不是静默丢掉。 */
+  const [unheard, setUnheard] = useState<RecognitionResult | null>(null)
+  /** 刚识别出来、正在发给 AI 的那句话：让用户先确认听到的是什么。 */
+  const [heard, setHeard] = useState<string | null>(null)
 
   const { send, interrupt, reset } = call
   const recognizer = useSpeechRecognition()
@@ -42,13 +49,21 @@ export const CallStage = (props: {
     // 用户开口就打断：不管 AI 是在念还是在想，都该让位给他。
     onSpeechStart: () => {
       interrupt()
+      setHeard(null)
     },
     onUtterance: (samples) => {
       setRecognizing(true)
       void recognizer
         .recognize(samples)
-        .then((text) => {
-          if (text) send(text)
+        .then((result) => {
+          if (result.text) {
+            setUnheard(null)
+            setHeard(result.text)
+            send(result.text)
+            return
+          }
+          setHeard(null)
+          setUnheard(result)
         })
         .catch(() => {
           // 具体原因已经由 recognizer 写进 error，这里不重复报。
@@ -113,6 +128,23 @@ export const CallStage = (props: {
         <div className="flex items-start gap-2 border-b px-3 py-2 text-xs text-destructive">
           <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
           <span>{banner}</span>
+        </div>
+      ) : null}
+
+      {heard ? (
+        <div className="border-b px-3 py-2 text-xs text-muted-foreground">
+          听到：{heard}
+        </div>
+      ) : null}
+
+      {unheard ? (
+        <div className="flex items-start gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
+          <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+          <span>
+            {unheard.peak < 0.02
+              ? `麦克风几乎没收到声音（峰值 ${unheard.peak.toFixed(3)}），请靠近麦克风再说一次。`
+              : `没听清，请再说一次（音频 ${unheard.seconds.toFixed(1)} 秒）。`}
+          </span>
         </div>
       ) : null}
 
