@@ -28,13 +28,14 @@ const PACKAGE = `sherpa-onnx-${VERSION}-osx-universal2-static.tar.bz2`
 const PACKAGE_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/${VERSION}/${PACKAGE}`
 const BIN_IN_TAR = `${PACKAGE.replace(/\.tar\.bz2$/, "")}/bin/sherpa-onnx-offline`
 
-const MODEL_ARCHIVE = "sherpa-onnx-paraformer-zh-small-2024-03-09.tar.bz2"
+const MODEL_ARCHIVE =
+  "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2"
 const MODEL_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MODEL_ARCHIVE}`
-const MODEL_DIR_IN_TAR = "sherpa-onnx-paraformer-zh-small-2024-03-09"
+const MODEL_DIR_IN_TAR = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17"
 
 const TARGET_DIR = path.join(MODELS_DIR, "sherpa")
 const BIN_PATH = path.join(TARGET_DIR, "bin", "sherpa-onnx-offline")
-const PARA_DIR = path.join(TARGET_DIR, "paraformer")
+const PARA_DIR = path.join(TARGET_DIR, "sense-voice")
 
 const formatSize = (bytes: number): string =>
   `${(bytes / 1024 / 1024).toFixed(1)}MB`
@@ -86,7 +87,7 @@ const main = async (): Promise<void> => {
 
     const modelPath = path.join(PARA_DIR, "model.int8.onnx")
     const tokensPath = path.join(PARA_DIR, "tokens.txt")
-    if (ensureFile(modelPath, 40 * 1024 * 1024) && existsSync(tokensPath)) {
+    if (ensureFile(modelPath, 100 * 1024 * 1024) && existsSync(tokensPath)) {
       console.log(`  跳过（已存在）：${modelPath}`)
     } else {
       const archive = path.join(work, MODEL_ARCHIVE)
@@ -100,7 +101,7 @@ const main = async (): Promise<void> => {
       copyFileSync(path.join(work, MODEL_DIR_IN_TAR, "tokens.txt"), tokensPath)
       await rm(archive, { force: true })
       console.log(
-        `  完成：paraformer（${formatSize(statSync(modelPath).size)}）`
+        `  完成：sense-voice（${formatSize(statSync(modelPath).size)}）`
       )
     }
   } finally {

@@ -22,7 +22,7 @@ const run = promisify(execFile)
 
 const SHERPA_DIR = path.join(MODELS_DIR, "sherpa")
 const BIN = path.join(SHERPA_DIR, "bin", "sherpa-onnx-offline")
-const MODEL_DIR = path.join(SHERPA_DIR, "paraformer")
+const MODEL_DIR = path.join(SHERPA_DIR, "sense-voice")
 const MODEL = path.join(MODEL_DIR, "model.int8.onnx")
 const TOKENS = path.join(MODEL_DIR, "tokens.txt")
 
@@ -116,9 +116,12 @@ export const transcribePcm = async (pcm: Buffer): Promise<string> => {
         BIN,
         [
           `--tokens=${TOKENS}`,
-          `--paraformer=${MODEL}`,
+          `--sense-voice-model=${MODEL}`,
+          // 中文为主：英文单词（Docker、zip）仍会按原样识别。
+          "--sense-voice-language=zh",
+          // 数字归一化：「三点半」变「3点半」，交给 AI 时更好理解。
+          "--sense-voice-use-itn=true",
           `--num-threads=${NUM_THREADS}`,
-          "--decoding-method=greedy_search",
           wav,
         ],
         { timeout: TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 }
