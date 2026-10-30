@@ -11,7 +11,6 @@ import { PublicOperationError } from "@server/common/public-error"
 import { PROJECT_ROOT } from "@server/env"
 import { buildCallSystemPrompt } from "./config"
 import { requireCallPersona } from "./persona-store"
-import { AI_CALL_SPEAK_TOOL, createSpeakTool } from "./speak-tool"
 import { getCallSession, readCallEntries } from "./store"
 
 /**
@@ -87,9 +86,9 @@ export const getOrCreateCallSession = async (
       thinkingLevel: settings.settings.thinkingLevel,
     },
     systemPrompt: buildCallSystemPrompt(persona.systemPrompt),
-    customTools: [callMacManagerApi, createSpeakTool(sessionId)],
+    customTools: [callMacManagerApi],
     // 漏掉自定义工具名会被 SDK 的 allowlist 整体剔除，必须显式列出。
-    extraToolNames: [AI_CALL_SPEAK_TOOL],
+    extraToolNames: [],
     enabledTools: [...CALL_BUILTIN_TOOLS],
     sessionManager: SessionManager.inMemory(
       PROJECT_ROOT,
