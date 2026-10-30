@@ -105,16 +105,6 @@ export const CallStage = (props: {
     const samples = await release()
     if (!samples) return
     if (samples.length / 16_000 < MIN_SECONDS) return
-    // 几乎全是静音：不上传、不识别，直接提示。
-    let peak = 0
-    for (const value of samples) {
-      const level = Math.abs(value)
-      if (level > peak) peak = level
-    }
-    if (peak < 0.01) {
-      setNotice("麦克风没有收到声音，请检查权限与设备")
-      return
-    }
     if (queueRef.current === null) queueRef.current = []
     queueRef.current.push(samples)
     // 正在说话就先排队：识别在上一条上花时间，也不能让这次的话丢掉。
