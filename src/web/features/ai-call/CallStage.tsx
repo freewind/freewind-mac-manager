@@ -159,7 +159,13 @@ export const CallStage = (props: {
         type="button"
         aria-label="按住说话"
         aria-pressed={talk.holding}
-        className="flex shrink-0 touch-none select-none flex-col items-center gap-2 border-t px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        className={`flex shrink-0 touch-none select-none flex-col items-center gap-2 border-t px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-colors ${
+          talk.holding
+            ? canceling
+              ? "bg-destructive/15"
+              : "bg-emerald-500/15"
+            : ""
+        }`}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId)
           startYRef.current = event.clientY
@@ -201,16 +207,22 @@ export const CallStage = (props: {
       >
         <span
           className={`flex size-20 items-center justify-center rounded-full transition-transform ${
-            canceling
-              ? "scale-95 bg-muted text-muted-foreground"
-              : talk.holding
+            talk.holding
+              ? canceling
                 ? "scale-95 bg-destructive text-destructive-foreground"
-                : "bg-primary text-primary-foreground"
+                : "scale-95 bg-emerald-500 text-white"
+              : "bg-primary text-primary-foreground"
           }`}
         >
           <Mic className="size-7" aria-hidden />
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span
+          className={`text-xs ${
+            talk.holding && canceling
+              ? "text-destructive"
+              : "text-muted-foreground"
+          }`}
+        >
           {canceling ? "松开取消" : talk.holding ? "松手发送" : "按住说话"}
         </span>
       </button>
