@@ -7,11 +7,11 @@ import { useCall } from "./use-call"
 import { type PushToTalk, toPcm16, usePushToTalk } from "./use-push-to-talk"
 
 /**
- * 通话区：按住说话，松手就发。
+ * 通话区：按住底部整块区域说话，松手就发。
  *
- * 交互照微信语音来：手指按住开始录音，松手结束并把音频交给服务端识别，
- * 拿到的文字直接发给 Agent，回答一边显示一边朗读。再次按下时立刻停声——
- * 用户要说话了，回答不该继续念。
+ * 连续说话不阻塞：每松手一次就排进队列，识别一段接一段地跑，
+ * 等队列空了再把这次的所有文字合成一句发给 Agent。
+ * 这样「说一句、停一下、再补一句」不会被拆成两次提问。
  */
 
 const STATUS_LABELS = {
@@ -20,8 +20,10 @@ const STATUS_LABELS = {
   speaking: "正在说",
 } as const
 
-/** 太短的录音多半是误触：低于这个时长不送服务端，省一次请求。 */
-const MIN_SECONDS = 0.25
+/** 太短的录音多半是误触：低于这个时长不送服务端（这段不含前后补偿）。 */
+const MIN_SECONDS = 0.5
+/** 队列空了以后再等这么久才发送：给紧接着的下一句留合并机会。 */
+const MERGE_WINDOW_MS = 800
 
 export const CallStage = (props: {
   sessionId: string
@@ -35,38 +37,78 @@ export const CallStage = (props: {
   const talk: PushToTalk = usePushToTalk()
   const [recognizing, setRecognizing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  /** 识别中不允许再按：连按会连着发两次，后一次会把前一次的中止掉。 */
-  const recognizingRef = useRef<boolean | null>(null)
 
   const { send, abortStream, cancelSpeech, unlockSpeech } = call
   const { press, release } = talk
 
-  /** 松手：识别这段音频，拿到文字就发出去。 */
+  /** 待识别的录音片段：处理一段时后面的排着。 */
+  const queueRef = useRef<Float32Array[] | null>(null)
+  /** 本次提问已经识别出来的文字，攒齐后一次发出去。 */
+  const partsRef = useRef<string[] | null>(null)
+  const drainingRef = useRef<boolean | null>(null)
+  const mergeTimerRef = useRef<number | null>(null)
+
+  const flushToAgent = useCallback(async () => {
+    const parts = partsRef.current ?? []
+    partsRef.current = []
+    const text = parts.join("")
+    if (!text.trim()) return
+    // 等旧执行真正停下再发，否则停止请求会把新回答一起杀掉。
+    await abortStream()
+    send(text)
+  }, [abortStream, send])
+
+  /** 串行识别队列里剩下的片段；队列空后留一个合并窗口再发送。 */
+  const drain = useCallback(async () => {
+    if (drainingRef.current === true) return
+    drainingRef.current = true
+    try {
+      for (;;) {
+        const samples = queueRef.current?.shift()
+        if (!samples) break
+        setRecognizing(true)
+        try {
+          const text = await transcribeAiCallAudio(toPcm16(samples))
+          if (text.trim()) {
+            if (partsRef.current === null) partsRef.current = []
+            partsRef.current.push(text.trim())
+            setNotice(null)
+          } else {
+            setNotice("没听清，再说一次")
+          }
+        } catch (cause) {
+          setNotice(
+            cause instanceof Error ? cause.message : "识别失败，请再说一次"
+          )
+        } finally {
+          setRecognizing(false)
+        }
+      }
+    } finally {
+      drainingRef.current = false
+    }
+    if (mergeTimerRef.current !== null)
+      window.clearTimeout(mergeTimerRef.current)
+    mergeTimerRef.current = window.setTimeout(() => {
+      mergeTimerRef.current = null
+      void flushToAgent()
+    }, MERGE_WINDOW_MS)
+  }, [flushToAgent])
+
   const finish = useCallback(async () => {
     const samples = await release()
     if (!samples) return
     if (samples.length / 16_000 < MIN_SECONDS) return
-    setRecognizing(true)
-    recognizingRef.current = true
-    setNotice(null)
-    try {
-      const text = await transcribeAiCallAudio(toPcm16(samples))
-      if (!text.trim()) {
-        setNotice("没听清，再说一次")
-        return
-      }
-      // 等旧执行真正停下再发：否则 stop 会把刚要开始的回答一起杀掉。
-      await abortStream()
-      send(text)
-    } catch (cause) {
-      setNotice(cause instanceof Error ? cause.message : "识别失败，请再说一次")
-    } finally {
-      recognizingRef.current = false
-      setRecognizing(false)
+    if (queueRef.current === null) queueRef.current = []
+    queueRef.current.push(samples)
+    // 正在说话就先排队：识别在上一条上花时间，也不能让这次的话丢掉。
+    if (mergeTimerRef.current !== null) {
+      window.clearTimeout(mergeTimerRef.current)
+      mergeTimerRef.current = null
     }
-  }, [abortStream, release, send])
+    void drain()
+  }, [drain, release])
 
-  const phase = recognizing ? "thinking" : call.phase
   const statusLabel = recognizing ? "正在识别" : STATUS_LABELS[call.phase]
 
   return (
@@ -76,7 +118,7 @@ export const CallStage = (props: {
           className={
             call.phase === "speaking"
               ? "size-2 shrink-0 rounded-full bg-emerald-500"
-              : phase === "thinking"
+              : call.phase === "thinking" || recognizing
                 ? "size-2 shrink-0 rounded-full bg-amber-500"
                 : "size-2 shrink-0 rounded-full bg-muted-foreground/50"
           }
@@ -85,7 +127,7 @@ export const CallStage = (props: {
         <span className="text-sm" role="status">
           {statusLabel}
         </span>
-        {phase === "thinking" ? (
+        {call.phase === "thinking" || recognizing ? (
           <LoaderCircle
             className="size-3.5 animate-spin text-muted-foreground motion-reduce:animate-none"
             aria-hidden
@@ -106,37 +148,39 @@ export const CallStage = (props: {
         className="flex-1 px-3 py-4"
       />
 
-      <div className="flex shrink-0 flex-col items-center gap-2 border-t px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <button
-          type="button"
-          aria-label="按住说话"
-          aria-pressed={talk.holding}
-          className={`flex size-20 touch-none select-none items-center justify-center rounded-full transition-transform ${
+      {/* 整条底部都是按住区：手指落哪儿都能说，不必对准那个圆。 */}
+      <button
+        type="button"
+        aria-label="按住说话"
+        aria-pressed={talk.holding}
+        className="flex shrink-0 touch-none select-none flex-col items-center gap-2 border-t px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId)
+          // 要在手势里做：解锁朗读、停掉正在念的回答。
+          unlockSpeech()
+          cancelSpeech()
+          setNotice(null)
+          void press()
+        }}
+        onPointerUp={() => void finish()}
+        onPointerCancel={() => {
+          void release()
+        }}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        <span
+          className={`flex size-20 items-center justify-center rounded-full transition-transform ${
             talk.holding
               ? "scale-95 bg-destructive text-destructive-foreground"
               : "bg-primary text-primary-foreground"
           }`}
-          onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture(event.pointerId)
-            if (recognizingRef.current === true) return
-            // 要在手势里做：解锁朗读、停掉正在念的回答。
-            unlockSpeech()
-            cancelSpeech()
-            setNotice(null)
-            void press()
-          }}
-          onPointerUp={() => void finish()}
-          onPointerCancel={() => {
-            void release()
-          }}
-          onContextMenu={(event) => event.preventDefault()}
         >
           <Mic className="size-7" aria-hidden />
-        </button>
+        </span>
         <span className="text-xs text-muted-foreground">
           {talk.holding ? "松手发送" : "按住说话"}
         </span>
-      </div>
+      </button>
     </div>
   )
 }

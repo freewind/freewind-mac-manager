@@ -26,9 +26,9 @@ registerProcessor("call-capture", CallCapture)
 `
 
 /** 按下之前多带的一段：补上从按下到音频真正流动的时间。 */
-const PREROLL_MS = 300
+const PREROLL_MS = 500
 /** 松手后继续录的时长：接住最后一个字的尾音。 */
-const TAIL_MS = 1_000
+const TAIL_MS = 500
 /** 环形缓冲最多留多久：够放一次说话，也不至于越攒越多。 */
 const BUFFER_MS = 15_000
 
@@ -155,14 +155,18 @@ export const usePushToTalk = (): PushToTalk => {
     const startAt = startAtRef.current
     startAtRef.current = null
     if (startAt === null) return null
+    const from = startAt - PREROLL_MS
+    const until = Date.now() + TAIL_MS
     // 松手后再多收一段：最后一个字的尾音通常就在这时。
     await new Promise((resolve) => setTimeout(resolve, TAIL_MS))
     const context = contextRef.current
     if (!context) return null
-    const from = startAt - PREROLL_MS
-    const blocks = (bufferRef.current ?? []).filter((block) => block.at >= from)
-    // 取完就丢，避免下一句把这些旧块也算进去。
-    bufferRef.current = []
+    const buffer = bufferRef.current ?? []
+    const blocks = buffer.filter(
+      (block) => block.at >= from && block.at <= until
+    )
+    // 只丢掉已经取走的块：剩下的让下一句继续用，连说几句不会互相吃掉。
+    bufferRef.current = buffer.filter((block) => block.at > until)
     if (blocks.length === 0) return null
     const total = blocks.reduce((sum, block) => sum + block.data.length, 0)
     const merged = new Float32Array(total)
