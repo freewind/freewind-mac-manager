@@ -3,6 +3,7 @@ import { Button } from "@web/components/ui/button"
 import { cn } from "cn"
 import { LoaderCircle, Mic, PhoneOff, TriangleAlert } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { playConnectTone, playDialTone, playHangUpTone } from "./call-sounds"
 import { TranscriptList } from "./TranscriptList"
 import { cleanTranscript, isRepeatedSegment } from "./transcript"
 import { useCall } from "./use-call"
@@ -38,10 +39,10 @@ export const CallStage = (props: {
   })
   const [recognizing, setRecognizing] = useState(false)
   const [live, setLive] = useState(false)
-  /** 刚发出去的那句话：让用户先确认听到的是什么。 */
-  const [heard, setHeard] = useState<string | null>(null)
-  /** 已识别、还在等用户说完的片段：界面要能看到，不能黑箱等待。 */
+  /** 已识别、还在等用户说完的片段：不展示，只用来判断状态。 */
   const [pendingText, setPendingText] = useState("")
+  /** 波动环：直接改 CSS 变量，不走 state，避免每个音频块都重渲染。 */
+  const waveRef = useRef<HTMLSpanElement | null>(null)
 
   /** 已识别但还没发送的片段：用户可能还在想下一句。 */
   const pendingRef = useRef<string[]>([])
@@ -89,7 +90,6 @@ export const CallStage = (props: {
     lastSentAtRef.current = Date.now()
     // 只中止旧请求，不停语音：要不要打断正在念的内容交给模型用 speak 决定。
     abortStream()
-    setHeard(text)
     send(text)
   }, [abortStream, clearTimers, send])
 
@@ -115,9 +115,12 @@ export const CallStage = (props: {
   const recognize = recognizer.recognize
 
   const input = useSpeechInput({
-    // 开口不再立刻打断：咳一下、环境噪声都会被当成插话，
-    // 把正在说的回答切掉却什么也没换来。等识别出内容再让位。
-    onSpeechStart: () => setHeard(null),
+    // 开口不打断：咳一下、环境噪声都会被当成插话。
+    onSpeechStart: () => undefined,
+    // 麦克风电平驱动按钮波动。
+    onLevel: (level) => {
+      waveRef.current?.style.setProperty("--level", level.toFixed(3))
+    },
     onUtterance: (samples) => {
       // 计时从「这句说完」开始：识别路上花的时间不占用停顿余量。
       if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
@@ -158,7 +161,9 @@ export const CallStage = (props: {
     setPendingText("")
     // 先在手势里把发声解锁：等到模型说话时已经不在手势里了。
     unlockSpeech()
+    playDialTone()
     await start()
+    playConnectTone()
     setLive(true)
   }, [clearTimers, reset, start, unlockSpeech])
 
@@ -170,6 +175,7 @@ export const CallStage = (props: {
     stop()
     abortStream()
     cancelSpeech()
+    playHangUpTone()
     setLive(false)
     props.onHangUp()
   }, [abortStream, cancelSpeech, clearTimers, props, stop])
@@ -218,18 +224,6 @@ export const CallStage = (props: {
         </div>
       ) : null}
 
-      {pendingText ? (
-        <div className="border-b px-3 py-2 text-xs text-muted-foreground">
-          待发送：{pendingText}
-        </div>
-      ) : null}
-
-      {heard ? (
-        <div className="border-b px-3 py-2 text-xs text-muted-foreground">
-          听到：{heard}
-        </div>
-      ) : null}
-
       {call.error ? (
         <div className="flex items-start gap-2 border-b px-3 py-2 text-xs text-destructive">
           <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
@@ -245,15 +239,33 @@ export const CallStage = (props: {
 
       <div className="flex shrink-0 items-center justify-center gap-3 border-t px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         {live ? (
-          <Button
-            size="lg"
-            variant="destructive"
-            className="h-14 gap-2 rounded-full px-6"
-            onClick={hangUp}
-          >
-            <PhoneOff aria-hidden />
-            挂断
-          </Button>
+          <>
+            {/* 通话中指示：随麦克风电平轻微起伏，像在跟着你说话。 */}
+            <span
+              ref={waveRef}
+              role="status"
+              className="flex h-14 items-center gap-2 rounded-full border px-5 text-sm"
+              style={{
+                transform: "scale(calc(1 + var(--level, 0) * 0.12))",
+                transition: "transform 120ms ease-out",
+              }}
+            >
+              <span
+                className="size-2.5 rounded-full bg-emerald-500"
+                aria-hidden
+              />
+              通话中
+            </span>
+            <Button
+              size="lg"
+              variant="destructive"
+              className="h-14 gap-2 rounded-full px-6"
+              onClick={hangUp}
+            >
+              <PhoneOff aria-hidden />
+              挂断
+            </Button>
+          </>
         ) : (
           <Button
             size="lg"

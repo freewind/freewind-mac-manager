@@ -151,11 +151,19 @@ export const useSpeechInput = (options: {
   onSpeechStart: () => void
   /** 一整句话说完：交出 16kHz 单声道 float32 采样。 */
   onUtterance: (samples: Float32Array) => void
+  /**
+   * 每块音频的电平（0-1，已放大）。界面拿它做波动反馈。
+   *
+   * 不走 state：每秒二十多次的更新会让整棵树重渲染，长列表会卡。
+   */
+  onLevel?: (level: number) => void
 }): SpeechInput => {
   const startRef = useRef(options.onSpeechStart)
   startRef.current = options.onSpeechStart
   const utteranceRef = useRef(options.onUtterance)
   utteranceRef.current = options.onUtterance
+  const levelRef = useRef(options.onLevel)
+  levelRef.current = options.onLevel
 
   const contextRef = useRef<AudioContext | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -186,6 +194,8 @@ export const useSpeechInput = (options: {
       const state = stateRef.current
       const level = rootMeanSquare(samples)
       const blockMs = (samples.length / TARGET_RATE) * 1000
+      // 麦克风电平给界面做波动：放大一点，安静时也有可见的呼吸感。
+      levelRef.current?.(Math.min(1, level * 6))
 
       // 每块都先放进开头缓冲。确认开口前的那一小段也要带上：
       // 「能听到吗」的「能」往往轻而短，等超过阈值才开录就会被削掉。
