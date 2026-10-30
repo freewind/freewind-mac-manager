@@ -31,6 +31,8 @@ export type CallController = {
   abortStream: () => void
   /** 立刻停声：模型用 speak 要求打断时用。 */
   cancelSpeech: () => void
+  /** 解锁发声：必须在用户手势里调用，否则手机浏览器会拦掉后面所有朗读。 */
+  unlockSpeech: () => void
   /** 清掉文字与错误（切换到别的通话时用）。 */
   reset: () => void
 }
@@ -74,6 +76,7 @@ export const useCall = (options: {
   })
 
   const cancelSpeech = useCallback(() => speech.cancel(), [speech])
+  const unlockSpeech = useCallback(() => speech.unlock(), [speech])
 
   /**
    * 中止在途请求。
@@ -198,6 +201,7 @@ export const useCall = (options: {
     send,
     abortStream,
     cancelSpeech,
+    unlockSpeech,
     reset,
   }
 }

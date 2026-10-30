@@ -74,6 +74,11 @@ export type SpeechOutput = {
   flush: () => void
   /** 丢弃待念内容并立刻停声；用户打断时调用。 */
   cancel: () => void
+  /**
+   * 解锁发声。手机浏览器只允许在用户手势里开口，
+   * 通话开始时先发一个无声的句子把它打开，后面模型说话才不会被静默拦下。
+   */
+  unlock: () => void
   /** 是否正在出声。界面据此显示「正在说话」。 */
   speaking: boolean
 }
@@ -122,6 +127,8 @@ export const useSpeechOutput = (options: {
     utterance.onend = advance
     utterance.onerror = advance
     setSpeaking(true)
+    // 长时间不出声后 Chrome 会把队列挂成 paused，说话前顶一下。
+    window.speechSynthesis.resume()
     window.speechSynthesis.speak(utterance)
   }, [])
   pumpRef.current = pump
@@ -163,6 +170,15 @@ export const useSpeechOutput = (options: {
     setSpeaking(false)
   }, [])
 
+  const unlock = useCallback(() => {
+    if (typeof window === "undefined") return
+    // 手机浏览器要求在用户手势里第一次开口；否则后面模型的每一句
+    // 都会被当成自动播放拦掉，既没声音也没任何提示。
+    const utterance = new SpeechSynthesisUtterance(" ")
+    utterance.volume = 0
+    window.speechSynthesis.speak(utterance)
+  }, [])
+
   // 离开页面时必须停声：否则切走之后声音还在响，且没有入口能停。
   useEffect(
     () => () => {
@@ -171,5 +187,5 @@ export const useSpeechOutput = (options: {
     []
   )
 
-  return { enqueue, flush, cancel, speaking }
+  return { enqueue, flush, cancel, unlock, speaking }
 }

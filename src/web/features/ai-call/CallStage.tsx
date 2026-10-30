@@ -52,7 +52,7 @@ export const CallStage = (props: {
   /** 识别是否在处理中：结果没回来就不能把半句发出去。 */
   const recognizingRef = useRef(false)
 
-  const { send, abortStream, cancelSpeech, reset } = call
+  const { send, abortStream, cancelSpeech, unlockSpeech, reset } = call
   const recognizer = useSpeechRecognition()
 
   const clearTimers = useCallback(() => {
@@ -156,9 +156,11 @@ export const CallStage = (props: {
     lastSentRef.current = null
     lastSentAtRef.current = null
     setPendingText("")
+    // 先在手势里把发声解锁：等到模型说话时已经不在手势里了。
+    unlockSpeech()
     await start()
     setLive(true)
-  }, [clearTimers, reset, start])
+  }, [clearTimers, reset, start, unlockSpeech])
 
   const hangUp = useCallback(() => {
     // 挂断时把没发出去的片段丢掉：已经挂了还发一句会很奇怪。
