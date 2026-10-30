@@ -4,12 +4,7 @@ import { cn } from "cn"
 import { LoaderCircle, Mic, PhoneOff, TriangleAlert } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { TranscriptList } from "./TranscriptList"
-import {
-  cleanTranscript,
-  endsWithCue,
-  isRepeatedSegment,
-  stripEndCue,
-} from "./transcript"
+import { cleanTranscript, isRepeatedSegment } from "./transcript"
 import { useCall } from "./use-call"
 import { useSpeechInput } from "./use-speech-input"
 import {
@@ -30,10 +25,8 @@ const PHASE_LABELS = {
   speaking: "正在说",
 } as const
 
-/** 说完「回答」后等这么久，确认真的不说了就发送。 */
-const QUIET_WITH_CUE_MS = 3_000
-/** 没有结束口令时，静默这么久才发送：用户可能还在想下一句。 */
-const QUIET_DEFAULT_MS = 10_000
+/** 说完最后两字后等这么久，确认真的不说了就发送。 */
+const QUIET_MS = 3_000
 
 export const CallStage = (props: {
   sessionId: string
@@ -73,8 +66,7 @@ export const CallStage = (props: {
     pendingRef.current = []
     setPendingText("")
     // 发前再清理一次：分段拼接后可能出现新的句首口水词。
-    // 结束口令「回答」只用来控制时机，不当正文发出去。
-    const text = stripEndCue(cleanTranscript(segments.join("")))
+    const text = cleanTranscript(segments.join(""))
     if (!text) return
     setHeard(text)
     send(text)
@@ -83,8 +75,8 @@ export const CallStage = (props: {
   /**
    * 收下一段识别文本，但不立即发送。
    *
-   * 说到「……回答」并停顿 3 秒就发；没说口令时静默 10 秒才发，
-   * 给用户留出想下一句的时间。中途停顿、换气被切成多段时只是重新计时。
+   * 说话中途停顿、换气都会被切成多段；每段都回复会打断节奏。
+   * 这里改成：每多一段就重新计 3 秒，停顿够久才当成一句说完。
    */
   const pushSegment = useCallback(
     (segment: string) => {
@@ -97,10 +89,7 @@ export const CallStage = (props: {
       const joined = pendingRef.current.join("")
       setPendingText(joined)
       if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
-      quietTimer.current = window.setTimeout(
-        flush,
-        endsWithCue(joined) ? QUIET_WITH_CUE_MS : QUIET_DEFAULT_MS
-      )
+      quietTimer.current = window.setTimeout(flush, QUIET_MS)
     },
     [flush]
   )

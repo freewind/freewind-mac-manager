@@ -9,9 +9,6 @@
 /** 句首标点：模型会在句首带上逗号等，删完语气词后可能暴露出来。 */
 const LEADING_PUNCT = /^[\s，。、？！；："'“”‘’,.?!;:…）】」]+/
 
-/** 句尾标点：判断结束口令时要忽略它们。 */
-const TRAILING_PUNCT = /[\s，。、？！；："'“”‘’,.?!;:…（【「]+$/
-
 /** 句首语气词：反复出现时一并削掉。 */
 const LEADING_FILLERS = /^(?:嗯+|啊+|呃+|额+|哦+|噢+|唉+|诶+|欸+|唔+|咳+|哼+)/
 
@@ -30,20 +27,6 @@ export const cleanTranscript = (input: string): string => {
     text = next
   }
   return text
-}
-
-/** 结束口令：说完它并停顿，就表示这段话说完了。 */
-export const END_CUE = "回答"
-
-/** 文本是否以结束口令结尾（忽略句尾标点）。 */
-export const endsWithCue = (text: string): boolean =>
-  text.replace(TRAILING_PUNCT, "").endsWith(END_CUE)
-
-/** 口令只用于控制发送时机，不进入对话内容。 */
-export const stripEndCue = (text: string): string => {
-  const trimmed = text.replace(TRAILING_PUNCT, "")
-  if (!trimmed.endsWith(END_CUE)) return text
-  return trimmed.slice(0, -END_CUE.length).trim()
 }
 
 /**
