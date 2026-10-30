@@ -22,6 +22,8 @@ const STATUS_LABELS = {
 
 /** 太短的录音多半是误触：低于这个时长不送服务端（这段不含前后补偿）。 */
 const MIN_SECONDS = 0.5
+/** 向上滑出这个距离就算撤销：与微信语音的手感一致。 */
+const CANCEL_DISTANCE = 60
 /** 队列空了以后再等这么久才发送：给紧接着的下一句留合并机会。 */
 const MERGE_WINDOW_MS = 800
 
@@ -37,6 +39,10 @@ export const CallStage = (props: {
   const talk: PushToTalk = usePushToTalk()
   const [recognizing, setRecognizing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  /** 手指是否已滑出取消区：松手时这段录音直接丢掉。 */
+  const [canceling, setCanceling] = useState(false)
+  const cancelingRef = useRef<boolean | null>(null)
+  const startYRef = useRef<number | null>(null)
 
   const { send, abortStream, cancelSpeech, unlockSpeech } = call
   const { press, release } = talk
@@ -156,29 +162,56 @@ export const CallStage = (props: {
         className="flex shrink-0 touch-none select-none flex-col items-center gap-2 border-t px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId)
+          startYRef.current = event.clientY
+          cancelingRef.current = false
+          setCanceling(false)
           // 要在手势里做：解锁朗读、停掉正在念的回答。
           unlockSpeech()
           cancelSpeech()
           setNotice(null)
           void press()
         }}
-        onPointerUp={() => void finish()}
+        onPointerMove={(event) => {
+          if (startYRef.current === null) return
+          const upward = startYRef.current - event.clientY
+          const next = upward > CANCEL_DISTANCE
+          if (next === cancelingRef.current) return
+          cancelingRef.current = next
+          setCanceling(next)
+        }}
+        onPointerUp={() => {
+          const cancelled = cancelingRef.current === true
+          startYRef.current = null
+          cancelingRef.current = false
+          setCanceling(false)
+          if (cancelled) {
+            // 撤销：这段录音直接丢掉，既不识别也不发送。
+            void release()
+            return
+          }
+          void finish()
+        }}
         onPointerCancel={() => {
+          startYRef.current = null
+          cancelingRef.current = false
+          setCanceling(false)
           void release()
         }}
         onContextMenu={(event) => event.preventDefault()}
       >
         <span
           className={`flex size-20 items-center justify-center rounded-full transition-transform ${
-            talk.holding
-              ? "scale-95 bg-destructive text-destructive-foreground"
-              : "bg-primary text-primary-foreground"
+            canceling
+              ? "scale-95 bg-muted text-muted-foreground"
+              : talk.holding
+                ? "scale-95 bg-destructive text-destructive-foreground"
+                : "bg-primary text-primary-foreground"
           }`}
         >
           <Mic className="size-7" aria-hidden />
         </span>
         <span className="text-xs text-muted-foreground">
-          {talk.holding ? "松手发送" : "按住说话"}
+          {canceling ? "松开取消" : talk.holding ? "松手发送" : "按住说话"}
         </span>
       </button>
     </div>
