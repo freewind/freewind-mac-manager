@@ -12,10 +12,6 @@ import {
   AiCallSessionListSchema,
   AiCallSessionPathSchema,
   AiCallSessionUpdateSchema,
-  AiCallSettingsMutationSchema,
-  AiCallSettingsResponseSchema,
-  AiCallTranscribeRequestSchema,
-  AiCallTranscribeResponseSchema,
 } from "../schemas/ai-call"
 import { ApiErrorSchema } from "../schemas/common"
 
@@ -36,17 +32,6 @@ const errorResponses = {
  */
 export const aiCallRoutes = {
   /** 通话自己的设置：与 AI 助手的设置分开，可自定义说话的提示词。 */
-  getAiCallSettings: {
-    method: "GET",
-    path: toContractPath(ApiPath.aiCallSettings),
-    responses: { 200: AiCallSettingsResponseSchema, ...errorResponses },
-  },
-  saveAiCallSettings: {
-    method: "PUT",
-    path: toContractPath(ApiPath.aiCallSettings),
-    body: AiCallSettingsMutationSchema,
-    responses: { 200: AiCallSettingsResponseSchema, ...errorResponses },
-  },
   /** 通话角色：每个角色一套提示词与自己的模型。 */
   listAiCallPersonas: {
     method: "GET",
@@ -71,13 +56,6 @@ export const aiCallRoutes = {
     path: toContractPath(ApiPath.aiCallPersona),
     pathParams: AiCallPersonaPathSchema,
     responses: { 204: null, ...errorResponses },
-  },
-  /** 语音识别：服务端整句识别，结果直接交给 Agent。 */
-  transcribeAiCallAudio: {
-    method: "POST",
-    path: toContractPath(ApiPath.aiCallTranscribe),
-    body: AiCallTranscribeRequestSchema,
-    responses: { 200: AiCallTranscribeResponseSchema, ...errorResponses },
   },
   listAiCallSessions: {
     method: "GET",

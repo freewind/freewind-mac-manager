@@ -28,7 +28,6 @@ import {
   useAiCallSessionQuery,
   useAiCallSessionsQuery,
   useCreateAiCallSession,
-  useFinishAiCallSession,
 } from "./queries"
 
 /** 会话标题两侧的时间格式：手机上一行放得下就够了。 */
@@ -50,7 +49,6 @@ export const AiCallPage = () => {
   const queryClient = useQueryClient()
   const sessionsQuery = useAiCallSessionsQuery()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [personasOpen, setPersonasOpen] = useState(false)
   const [personaId, setPersonaId] = useState<string | null>(null)
@@ -62,12 +60,11 @@ export const AiCallPage = () => {
   useHistoryOverlay(historyOpen, () => setHistoryOpen(false))
 
   const createSession = useCreateAiCallSession()
-  const finishSession = useFinishAiCallSession()
 
   const sessions = sessionsQuery.data?.sessions ?? []
   // 没有显式选择时停在最近一次通话：进来就能接着上次的话题说。
   const activeId = selectedId ?? sessions[0]?.id ?? null
-  const detailQuery = useAiCallSessionQuery(activeId, busy)
+  const detailQuery = useAiCallSessionQuery(activeId)
 
   const refresh = useCallback(() => {
     if (!activeId) return
@@ -92,11 +89,6 @@ export const AiCallPage = () => {
         },
       }
     )
-  }
-
-  const hangUp = (): void => {
-    if (!activeId) return
-    finishSession.mutate(activeId)
   }
 
   const renderSessionRow = (session: AiCallSession) => (
@@ -199,12 +191,12 @@ export const AiCallPage = () => {
           <EmptyHeader>
             <EmptyTitle>还没有通话</EmptyTitle>
             <EmptyDescription>
-              开始一次通话，说的话会一直留在历史里
+              新建一次对话，之后说的话都会留在历史里
             </EmptyDescription>
           </EmptyHeader>
           <Button onClick={startNew} disabled={createSession.isPending}>
             <Phone aria-hidden />
-            开始通话
+            新对话
           </Button>
         </Empty>
       </div>
@@ -219,8 +211,6 @@ export const AiCallPage = () => {
         sessionId={activeId}
         messages={detailQuery.data?.messages ?? []}
         onRefresh={refresh}
-        onBusyChange={setBusy}
-        onHangUp={hangUp}
       />
       <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
         <SheetContent className="w-80">

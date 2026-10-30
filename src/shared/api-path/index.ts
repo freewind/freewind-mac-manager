@@ -107,13 +107,9 @@ export const ApiPath = {
   aiTopicExecutionStop: `${API_BASE}/ai-topics/:topicId/execution/stop`,
   /**
    * AI 通话：一次通话是一个会话，消息线性排列，不分话题与线程。
-   * 录音在手机上，语音识别在服务端（见 aiCallTranscribe）。
+   * 文字由手机系统语音输入法打进输入框，不再上传音频。
    */
   aiCallSessions: `${API_BASE}/ai-call/sessions`,
-  /** 语音识别：把一段 16k 单声道 PCM 交给服务端识别，返回文本。 */
-  aiCallTranscribe: `${API_BASE}/ai-call/transcribe`,
-  /** 通话自己的设置：提示词与助手那段分开存。 */
-  aiCallSettings: `${API_BASE}/ai-call/settings`,
   /** 通话角色：一套提示词加自己的模型，可建多个。 */
   aiCallPersonas: `${API_BASE}/ai-call/personas`,
   aiCallPersona: `${API_BASE}/ai-call/personas/:personaId`,

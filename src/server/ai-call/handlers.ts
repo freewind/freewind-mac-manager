@@ -33,7 +33,6 @@ import {
   markCallInterrupted,
   renameCallSession,
 } from "./store"
-import { TranscribeUnavailableError, transcribePcm } from "./transcribe"
 
 const s = initServer()
 
@@ -43,7 +42,6 @@ export const aiCallContract = {
   createAiCallPersona: contract.createAiCallPersona,
   updateAiCallPersona: contract.updateAiCallPersona,
   deleteAiCallPersona: contract.deleteAiCallPersona,
-  transcribeAiCallAudio: contract.transcribeAiCallAudio,
   listAiCallSessions: contract.listAiCallSessions,
   createAiCallSession: contract.createAiCallSession,
   getAiCallSession: contract.getAiCallSession,
@@ -96,21 +94,6 @@ export const createAiCallRouter = () =>
         deleteCallPersona(params.personaId)
         return { status: 204 as const, body: null }
       } catch (error) {
-        return publicSystemError(error)
-      }
-    },
-    transcribeAiCallAudio: async ({ body }) => {
-      try {
-        const pcm = Buffer.from(body.audio, "base64")
-        return {
-          status: 200 as const,
-          body: { text: await transcribePcm(pcm) },
-        }
-      } catch (error) {
-        // 没配密钥不是内部错误：告诉用户缺什么，而不是让通话静默没反应。
-        if (error instanceof TranscribeUnavailableError) {
-          return { status: 500 as const, body: { message: error.message } }
-        }
         return publicSystemError(error)
       }
     },
