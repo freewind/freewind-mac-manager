@@ -93,11 +93,7 @@ export const CallStage = (props: {
 
   const banner = recognizer.error ?? input.error
   const busy = call.phase === "thinking" || recognizing
-  const phaseLabel = recognizer.warming
-    ? `首次加载语音模型 ${Math.round(recognizer.progress * 100)}%`
-    : recognizing
-      ? "正在识别"
-      : PHASE_LABELS[call.phase]
+  const phaseLabel = recognizing ? "正在识别" : PHASE_LABELS[call.phase]
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

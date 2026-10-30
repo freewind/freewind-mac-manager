@@ -7,6 +7,8 @@ import {
   AiCallSessionListSchema,
   AiCallSessionPathSchema,
   AiCallSessionUpdateSchema,
+  AiCallTranscribeRequestSchema,
+  AiCallTranscribeResponseSchema,
 } from "../schemas/ai-call"
 import { ApiErrorSchema } from "../schemas/common"
 
@@ -26,6 +28,13 @@ const errorResponses = {
  * 对话本身是 SSE 传输例外，见 handlers 里的独立挂载。
  */
 export const aiCallRoutes = {
+  /** 语音识别：本机 sherpa-onnx 整句识别，不依赖外网。 */
+  transcribeAiCallAudio: {
+    method: "POST",
+    path: toContractPath(ApiPath.aiCallTranscribe),
+    body: AiCallTranscribeRequestSchema,
+    responses: { 200: AiCallTranscribeResponseSchema, ...errorResponses },
+  },
   listAiCallSessions: {
     method: "GET",
     path: toContractPath(ApiPath.aiCallSessions),

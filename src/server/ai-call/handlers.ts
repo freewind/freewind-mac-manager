@@ -26,11 +26,13 @@ import {
   markCallInterrupted,
   renameCallSession,
 } from "./store"
+import { TranscribeUnavailableError, transcribePcm } from "./transcribe"
 
 const s = initServer()
 
 /** 只挑本域的路由；app.ts 负责与其它功能合并。 */
 export const aiCallContract = {
+  transcribeAiCallAudio: contract.transcribeAiCallAudio,
   listAiCallSessions: contract.listAiCallSessions,
   createAiCallSession: contract.createAiCallSession,
   getAiCallSession: contract.getAiCallSession,
@@ -49,6 +51,21 @@ const detail = (sessionId: string) => ({
 
 export const createAiCallRouter = () =>
   s.router(aiCallContract, {
+    transcribeAiCallAudio: async ({ body }) => {
+      try {
+        const pcm = Buffer.from(body.audio, "base64")
+        return {
+          status: 200 as const,
+          body: { text: await transcribePcm(pcm) },
+        }
+      } catch (error) {
+        // 组件未安装不是「内部错误」：告诉用户该跑哪条命令。
+        if (error instanceof TranscribeUnavailableError) {
+          return { status: 500 as const, body: { message: error.message } }
+        }
+        return publicSystemError(error)
+      }
+    },
     listAiCallSessions: async () => {
       try {
         return {

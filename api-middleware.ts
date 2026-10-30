@@ -10,9 +10,6 @@ type ConnectMiddleware = (
 /** server 与契约变化都要重建 app，否则改了代码路由仍是旧的。 */
 const RELOADED_PREFIXES = ["src/server/", "src/shared/"]
 
-/** 这些前缀交给后端 app：/api 是接口，/models 是语音识别模型文件。 */
-const BACKEND_PREFIXES = ["/api", "/models"]
-
 /**
  * dev 时把后端 API 作为中间件挂进 Vite dev server，页面与 /api 共用一个端口。
  *
@@ -46,7 +43,7 @@ export const devApiPlugin = (): Plugin => ({
     server.watcher.on("unlink", dropCachedApp)
 
     server.middlewares.use((request, response, next) => {
-      if (!BACKEND_PREFIXES.some((prefix) => request.url?.startsWith(prefix))) {
+      if (!request.url?.startsWith("/api")) {
         next()
         return
       }

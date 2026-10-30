@@ -43,7 +43,6 @@ import {
 } from "./disk-growth/handlers"
 import { createDockerRouter, dockerContract } from "./docker/handlers"
 import { createDockerService, type DockerServiceCli } from "./docker/service"
-import { MODELS_DIR } from "./env"
 import {
   createFilesRouter,
   filesContract,
@@ -113,12 +112,6 @@ export const createApp = (injected?: {
   const auth = createAuthManager()
   createExpressEndpoints(authContract, createAuthRouter(), app, options)
   app.use(auth.middleware)
-  // 语音识别模型由本应用自己提供：局域网下载比外网快得多，
-  // 也不依赖手机能不能访问 HuggingFace。模型不含敏感数据，不需要鉴权。
-  app.use(
-    "/models",
-    express.static(MODELS_DIR, { maxAge: "30d", fallthrough: false })
-  )
   createExpressEndpoints(healthContract, healthRouter, app, options)
   createExpressEndpoints(
     mcpServersContract,

@@ -2,8 +2,31 @@ import type {
   AiCallExecution,
   AiCallSessionDetail,
   AiCallSessionList,
+  AiCallTranscribeResponse,
 } from "@shared/api-contract"
 import { apiClient, unwrap } from "./client"
+
+/**
+ * 上传一段 16k 单声道 PCM 做识别。
+ *
+ * 识别在服务端用 sherpa-onnx 跑：手机不需要下载模型，也不占 CPU。
+ */
+export const transcribeAiCallAudio = async (
+  audio: Uint8Array
+): Promise<string> => {
+  let binary = ""
+  // 逐块转字符，避免大数组一次性展开撑爆调用栈。
+  const chunk = 0x8000
+  for (let index = 0; index < audio.length; index += chunk) {
+    binary += String.fromCharCode(...audio.subarray(index, index + chunk))
+  }
+  const result = unwrap<AiCallTranscribeResponse>(
+    await apiClient.transcribeAiCallAudio({
+      body: { audio: btoa(binary), sampleRate: 16_000 },
+    })
+  )
+  return result.text
+}
 
 export const listAiCallSessions = async (): Promise<AiCallSessionList> =>
   unwrap<AiCallSessionList>(await apiClient.listAiCallSessions())

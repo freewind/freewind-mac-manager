@@ -1,95 +1,15 @@
+import { transcribeAiCallAudio } from "@shared/client-api"
 import { useCallback, useState } from "react"
 
 /**
- * 浏览器里跑 whisper 做语音识别。
+ * 语音识别：录音在手机上做，识别交给本机的 sherpa-onnx。
  *
- * 为什么不放服务端：服务端要装 onnxruntime 原生包（一百多 MB），这台机器
- * 上 x64 Node 跑在 arm64 Mac 里，那个包直接找不到匹配的二进制，整个后端
- * 都会起不来。浏览器里 onnxruntime-web 走 WASM，任何设备都能用。
+ * 之前是在浏览器里用 WASM 跑 whisper-base：模型 74MB、自回归解码，
+ * 手机上要好几秒还占满主线程，所以又慢又卡。改成把一段 16k PCM
+ * 传回服务端后，Mac 原生识别 5 秒音频只要几十毫秒（实测 RTF 0.008）。
  *
- * 模型文件由本应用自己提供（/models），不再从 HuggingFace 下载：
- * 局域网传几十 MB 比外网稳定得多，也不依赖手机能否访问外网。
+ * 代价是识别依赖服务在线；通话本来就要连服务，离线时识别出来也没处发。
  */
-
-/** 用多语言版而不是 .en 版：中文识别必须用多语言模型。 */
-const MODEL_ID = "Xenova/whisper-base"
-
-/**
- * 模型放在应用自己的静态目录下，路径与 scripts/fetch-whisper-model.ts
- * 下载的目录结构一致：<MODELS_DIR>/Xenova/whisper-base/...
- */
-const LOCAL_MODEL_PATH = "/models/"
-
-/**
- * 只依赖确实要用到的调用签名，避免把整条 pipeline 的类型拖进来。
- * 识别结果是 `{ text }`，其余字段（分块时间戳等）这里不需要。
- */
-type Transcriber = (
-  audio: Float32Array,
-  options: { language?: string; task: string }
-) => Promise<{ text: string }>
-
-/** 模块级单例：多个组件共用同一份已加载模型，不必各自再下一遍。 */
-let loading: Promise<Transcriber> | null = null
-
-/** transformers.js 上报的下载进度；`progress` 是 0-100，不是 0-1。 */
-type ProgressReport = {
-  status?: string
-  file?: string
-  loaded?: number
-  total?: number
-  progress?: number
-}
-
-/**
- * 逐文件聚合下载进度。
- *
- * 每个文件各报 0-100，直接拿来当总进度会超过 100%（实测到过 1220%）；
- * 这里按「已下载字节 / 总字节」算，并把结果夹在 0-1。
- */
-const createProgressMeter = (onProgress: (ratio: number) => void) => {
-  const files = new Map<string, { loaded: number; total: number }>()
-  return (report: ProgressReport): void => {
-    if (report.status !== "progress" || !report.file) return
-    const total = typeof report.total === "number" ? report.total : 0
-    if (total <= 0) return
-    files.set(report.file, {
-      loaded: Math.min(report.loaded ?? 0, total),
-      total,
-    })
-    let loaded = 0
-    let sum = 0
-    for (const item of files.values()) {
-      loaded += item.loaded
-      sum += item.total
-    }
-    if (sum > 0) onProgress(Math.min(1, loaded / sum))
-  }
-}
-
-const loadTranscriber = (
-  onProgress: (ratio: number) => void
-): Promise<Transcriber> => {
-  if (loading) return loading
-  loading = (async () => {
-    const { env, pipeline } = await import("@huggingface/transformers")
-    // 只用本应用提供的模型文件：下载失败时立刻报错，不会悄悄回退到外网。
-    env.allowRemoteModels = false
-    env.allowLocalModels = true
-    env.localModelPath = LOCAL_MODEL_PATH
-    const created = await pipeline("automatic-speech-recognition", MODEL_ID, {
-      // 量化版体积约为 fp32 的四分之一，中文日常对话的质量损失很小。
-      dtype: "q8",
-      progress_callback: createProgressMeter(onProgress),
-    })
-    return created as unknown as Transcriber
-  })().catch((error: unknown) => {
-    // 失败不缓存：模型补好后下一次点开通话应该还能重试。
-    loading = null
-    throw error
-  })
-  return loading
-}
 
 /** 一次识别的结果：文本加上音频本身的情况，便于判断「没听清」是谁的问题。 */
 export type RecognitionResult = {
@@ -109,54 +29,45 @@ const measure = (samples: Float32Array): { seconds: number; peak: number } => {
   return { seconds: samples.length / 16_000, peak }
 }
 
+/** 峰值低于这个值就不用识别：纯静音会被模型“听”成句无意义的话。 */
+const MIN_PEAK = 0.01
+
+/** Float32（-1..1）转 16k 单声道 16 位 PCM：服务端按这个格式拼 WAV。 */
+const toPcm16 = (samples: Float32Array): Uint8Array => {
+  const view = new DataView(new ArrayBuffer(samples.length * 2))
+  for (let index = 0; index < samples.length; index += 1) {
+    const value = Math.max(-1, Math.min(1, samples[index]))
+    view.setInt16(index * 2, value < 0 ? value * 0x8000 : value * 0x7fff, true)
+  }
+  return new Uint8Array(view.buffer)
+}
+
 export type SpeechRecognizer = {
   /** 识别一段 16kHz 单声道音频；返回空文本表示没听出内容。 */
   recognize: (samples: Float32Array) => Promise<RecognitionResult>
-  /** 模型正在下载或初始化。 */
-  warming: boolean
-  /** 模型加载进度 0-1。 */
-  progress: number
   error: string | null
 }
 
 export const useSpeechRecognition = (): SpeechRecognizer => {
-  const [warming, setWarming] = useState(false)
-  const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const recognize = useCallback(async (samples: Float32Array) => {
     setError(null)
     const measured = measure(samples)
-    let transcriber: Transcriber
-    if (loading) {
-      transcriber = await loading
-    } else {
-      setWarming(true)
-      setProgress(0)
-      try {
-        transcriber = await loadTranscriber(setProgress)
-      } catch (cause) {
-        setError(
-          cause instanceof Error
-            ? `语音模型加载失败：${cause.message}`
-            : "语音模型加载失败"
-        )
-        throw cause
-      } finally {
-        setWarming(false)
-      }
+    // 静音不送服务：Paraformer 对纯静音会编出一句话，白传还添乱。
+    if (measured.peak < MIN_PEAK) return { text: "", ...measured }
+    try {
+      const text = await transcribeAiCallAudio(toPcm16(samples))
+      return { text: text.trim(), ...measured }
+    } catch (cause) {
+      setError(
+        cause instanceof Error && cause.message
+          ? cause.message
+          : "语音识别失败，请再说一次"
+      )
+      throw cause
     }
-    const output = await transcriber(samples, {
-      language: "chinese",
-      task: "transcribe",
-    })
-    const text = output.text.trim()
-    if (text) return { text, ...measured }
-    // 指定中文却什么都没识别出来时，再用自动检测试一次：
-    // 某些量化模型对强制语言 token 很敏感，换一种解码方式往往能出字。
-    const fallback = await transcriber(samples, { task: "transcribe" })
-    return { text: fallback.text.trim(), ...measured }
   }, [])
 
-  return { recognize, warming, progress, error }
+  return { recognize, error }
 }
