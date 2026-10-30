@@ -20,7 +20,12 @@ class CallCapture extends AudioWorkletProcessor {
 registerProcessor("call-capture", CallCapture)
 `
 
-/** 线性插值到目标采样率：手机 AudioContext 多是 48k，接口要 16k。 */
+/**
+ * 下采样到目标采样率：每段取平均，相当于顺带做了一个低通。
+ *
+ * 直接抽点会把高于 8k 的成分折到语音带里（混叠），听上去沙沙的、
+ * 模型也很难认；取平均能把这部分压下去。
+ */
 const resample = (
   input: Float32Array,
   from: number,
@@ -31,12 +36,11 @@ const resample = (
   const length = Math.floor(input.length / ratio)
   const output = new Float32Array(length)
   for (let index = 0; index < length; index += 1) {
-    const position = index * ratio
-    const low = Math.floor(position)
-    const fraction = position - low
-    const a = input[low] ?? 0
-    const b = input[low + 1] ?? a
-    output[index] = a * (1 - fraction) + b * fraction
+    const start = Math.floor(index * ratio)
+    const end = Math.min(input.length, Math.floor((index + 1) * ratio))
+    let sum = 0
+    for (let cursor = start; cursor < end; cursor += 1) sum += input[cursor]
+    output[index] = sum / Math.max(1, end - start)
   }
   return output
 }
@@ -64,22 +68,43 @@ export type PushToTalk = {
 export const usePushToTalk = (): PushToTalk => {
   const contextRef = useRef<AudioContext | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const nodeRef = useRef<AudioWorkletNode | null>(null)
   const chunksRef = useRef<Float32Array[] | null>(null)
   const moduleLoadedRef = useRef<boolean | null>(null)
   const [holding, setHolding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  /**
+   * 断开上一次的节点。
+   *
+   * 不断开源节点的话，旧 worklet 会继续往缓冲区里推数据，新一段录音就会
+   * 混进上一段的声音，听上去像重叠的胡话。
+   */
+  const teardown = useCallback(() => {
+    const node = nodeRef.current
+    if (node) {
+      node.port.onmessage = null
+      node.disconnect()
+    }
+    sourceRef.current?.disconnect()
+    sourceRef.current = null
+    nodeRef.current = null
+  }, [])
+
   const press = useCallback(async () => {
     setError(null)
+    teardown()
     chunksRef.current = []
     try {
       streamRef.current ??= await navigator.mediaDevices.getUserMedia({
         audio: {
-          // 回声消除：朗读时不会把自己的声音录进去。
+          // 只留回声消除：不然朗读会被录进来。
+          // 降噪与自动增益会把语音削碎，听上去失真，模型也认不准——
+          // 宁可留点环境噪声，也别把字削掉。
           echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          noiseSuppression: false,
+          autoGainControl: false,
         },
       })
       contextRef.current ??= new AudioContext()
@@ -107,9 +132,11 @@ export const usePushToTalk = (): PushToTalk => {
       source.connect(node)
       node.connect(mute)
       mute.connect(context.destination)
+      sourceRef.current = source
       nodeRef.current = node
       setHolding(true)
     } catch (cause) {
+      teardown()
       setHolding(false)
       setError(
         cause instanceof Error && cause.name === "NotAllowedError"
@@ -117,11 +144,10 @@ export const usePushToTalk = (): PushToTalk => {
           : "无法打开麦克风，请检查设备与权限"
       )
     }
-  }, [])
+  }, [teardown])
 
   const release = useCallback((): Float32Array | null => {
-    nodeRef.current?.disconnect()
-    nodeRef.current = null
+    teardown()
     setHolding(false)
     const context = contextRef.current
     const chunks = chunksRef.current ?? []
@@ -135,7 +161,7 @@ export const usePushToTalk = (): PushToTalk => {
       offset += chunk.length
     }
     return resample(merged, context.sampleRate, 16_000)
-  }, [])
+  }, [teardown])
 
   return { press, release, holding, error }
 }
