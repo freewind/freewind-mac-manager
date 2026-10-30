@@ -29,6 +29,9 @@ const NOISE_FLOOR_MS = 400
 const MAX_UTTERANCE_MS = 30_000
 /** 阈值下限：完全安静的环境里底噪接近 0，不留下限会被风吹草动触发。 */
 const MIN_THRESHOLD = 0.006
+/** 开头预留的音频：确认开口前也先留着，否则第一个字会被削掉。 */
+const PREROLL_MS = 300
+
 /** 阈值相对底噪的倍数。 */
 const THRESHOLD_RATIO = 2.5
 
@@ -113,6 +116,9 @@ type DetectorState = {
   silentMs: number
   chunks: Float32Array[]
   length: number
+  /** 最近一珰音频：确认开口时整段带上，避免首个字被截断。 */
+  preroll: Float32Array[]
+  prerollLength: number
 }
 
 const initialState = (): DetectorState => ({
@@ -124,6 +130,8 @@ const initialState = (): DetectorState => ({
   silentMs: 0,
   chunks: [],
   length: 0,
+  preroll: [],
+  prerollLength: 0,
 })
 
 export type SpeechInput = {
@@ -179,6 +187,19 @@ export const useSpeechInput = (options: {
       const level = rootMeanSquare(samples)
       const blockMs = (samples.length / TARGET_RATE) * 1000
 
+      // 每块都先放进开头缓冲。确认开口前的那一小段也要带上：
+      // 「能听到吗」的「能」往往轻而短，等超过阈值才开录就会被削掉。
+      state.preroll.push(samples)
+      state.prerollLength += samples.length
+      while (
+        state.prerollLength > (TARGET_RATE * PREROLL_MS) / 1000 &&
+        state.preroll.length > 1
+      ) {
+        const removed = state.preroll.shift()
+        if (!removed) break
+        state.prerollLength -= removed.length
+      }
+
       if (state.phase === "calibrating") {
         state.noiseTotal += level * samples.length
         state.noiseCount += samples.length
@@ -200,11 +221,13 @@ export const useSpeechInput = (options: {
         }
         state.speechMs += blockMs
         if (state.speechMs < SPEECH_ONSET_MS) return
-        // 确认开口：先把这一次的采样带上，避免第一个字被切掉。
+        // 确认开口：把开头缓冲整段带上，首个字也跟着进去。
         state.phase = "recording"
         state.silentMs = 0
-        state.chunks = [samples]
-        state.length = samples.length
+        state.chunks = [...state.preroll]
+        state.length = state.prerollLength
+        state.preroll = []
+        state.prerollLength = 0
         setRecording(true)
         startRef.current()
         return
