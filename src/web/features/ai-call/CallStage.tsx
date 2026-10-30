@@ -1,22 +1,27 @@
 import type { AiCallMessage } from "@shared/api-contract"
-import { Bot, LoaderCircle, TriangleAlert } from "lucide-react"
-import { useCallback, useRef, useState } from "react"
+import { transcribeAiCallAudio } from "@shared/client-api"
+import { LoaderCircle, Mic, TriangleAlert } from "lucide-react"
+import { useCallback, useState } from "react"
 import { TranscriptList } from "./TranscriptList"
 import { useCall } from "./use-call"
+import { type PushToTalk, toPcm16, usePushToTalk } from "./use-push-to-talk"
 
 /**
- * 通话区：一个输入框，说完就发。
+ * 通话区：按住说话，松手就发。
  *
- * 文字不再由网页录音识别，而是用户用手机自带的语音输入法打进输入框：
- * 输入法组合期间（下划线）不发送，松手落定（compositionend）立刻发送。
- * 用户一开始输入就停掉正在念的回答——他在说话，就不该继续念。
+ * 交互照微信语音来：手指按住开始录音，松手结束并把音频交给服务端识别，
+ * 拿到的文字直接发给 Agent，回答一边显示一边朗读。再次按下时立刻停声——
+ * 用户要说话了，回答不该继续念。
  */
 
 const STATUS_LABELS = {
-  listening: "随时可以输入",
+  listening: "按住说话",
   thinking: "正在想",
   speaking: "正在说",
 } as const
+
+/** 太短的录音多半是误触：低于这个时长不送服务端，省一次请求。 */
+const MIN_SECONDS = 0.25
 
 export const CallStage = (props: {
   sessionId: string
@@ -27,28 +32,37 @@ export const CallStage = (props: {
     sessionId: props.sessionId,
     onRefresh: props.onRefresh,
   })
-  const [text, setText] = useState("")
-  /** 输入法是否在组合中：这期间有下划线，不能发。 */
-  const composingRef = useRef<boolean | null>(null)
+  const talk: PushToTalk = usePushToTalk()
+  const [recognizing, setRecognizing] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const { send, abortStream, cancelSpeech, unlockSpeech } = call
+  const { press, release } = talk
 
-  const submit = useCallback(
-    (value: string) => {
-      const prompt = value.trim()
-      if (!prompt) return
-      setText("")
-      // 发新问题前让旧执行收尾；正在念的声音由模型用 speak 决定是否打断。
+  /** 松手：识别这段音频，拿到文字就发出去。 */
+  const finish = useCallback(async () => {
+    const samples = release()
+    if (!samples) return
+    if (samples.length / 16_000 < MIN_SECONDS) return
+    setRecognizing(true)
+    setNotice(null)
+    try {
+      const text = await transcribeAiCallAudio(toPcm16(samples))
+      if (!text.trim()) {
+        setNotice("没听清，再说一次")
+        return
+      }
       abortStream()
-      // 在用户手势里解锁发声，等模型说话时已经离开手势栈了。
-      unlockSpeech()
-      send(prompt)
-    },
-    [abortStream, send, unlockSpeech]
-  )
+      send(text)
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "识别失败，请再说一次")
+    } finally {
+      setRecognizing(false)
+    }
+  }, [abortStream, release, send])
 
-  const statusLabel =
-    call.phase === "speaking" ? "正在说" : STATUS_LABELS[call.phase]
+  const phase = recognizing ? "thinking" : call.phase
+  const statusLabel = recognizing ? "正在识别" : STATUS_LABELS[call.phase]
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -57,7 +71,7 @@ export const CallStage = (props: {
           className={
             call.phase === "speaking"
               ? "size-2 shrink-0 rounded-full bg-emerald-500"
-              : call.phase === "thinking"
+              : phase === "thinking"
                 ? "size-2 shrink-0 rounded-full bg-amber-500"
                 : "size-2 shrink-0 rounded-full bg-muted-foreground/50"
           }
@@ -66,7 +80,7 @@ export const CallStage = (props: {
         <span className="text-sm" role="status">
           {statusLabel}
         </span>
-        {call.phase === "thinking" ? (
+        {phase === "thinking" ? (
           <LoaderCircle
             className="size-3.5 animate-spin text-muted-foreground motion-reduce:animate-none"
             aria-hidden
@@ -74,10 +88,10 @@ export const CallStage = (props: {
         ) : null}
       </div>
 
-      {call.error ? (
+      {(talk.error ?? notice ?? call.error) ? (
         <div className="flex items-start gap-2 border-b px-3 py-2 text-xs text-destructive">
           <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
-          <span>{call.error}</span>
+          <span>{talk.error ?? notice ?? call.error}</span>
         </div>
       ) : null}
 
@@ -87,47 +101,35 @@ export const CallStage = (props: {
         className="flex-1 px-3 py-4"
       />
 
-      <div className="flex shrink-0 items-end gap-2 border-t px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <textarea
-          value={text}
-          rows={1}
-          placeholder="用语音输入法说，松手就发"
-          aria-label="输入要说的话"
-          className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border bg-transparent px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          onChange={(event) => {
-            // 用户一动笔就停声：他要说话了，回答不该继续念。
-            cancelSpeech()
-            setText(event.target.value)
-          }}
-          onCompositionStart={() => {
-            composingRef.current = true
-            cancelSpeech()
-          }}
-          onCompositionEnd={(event) => {
-            composingRef.current = false
-            const value = event.currentTarget.value
-            setText(value)
-            // 语音输入法松手落定就是一句完整的话，直接发。
-            submit(value)
-          }}
-          onKeyDown={(event) => {
-            cancelSpeech()
-            if (event.key !== "Enter" || event.shiftKey) return
-            // 输入法组合中的回车是选词，不是发送。
-            if (composingRef.current === true) return
-            event.preventDefault()
-            submit(event.currentTarget.value)
-          }}
-        />
+      <div className="flex shrink-0 flex-col items-center gap-2 border-t px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <button
           type="button"
-          onClick={() => submit(text)}
-          disabled={text.trim() === ""}
-          aria-label="发送"
-          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
+          aria-label="按住说话"
+          aria-pressed={talk.holding}
+          className={`flex size-20 touch-none select-none items-center justify-center rounded-full transition-transform ${
+            talk.holding
+              ? "scale-95 bg-destructive text-destructive-foreground"
+              : "bg-primary text-primary-foreground"
+          }`}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId)
+            // 要在手势里做：解锁朗读、停掉正在念的回答。
+            unlockSpeech()
+            cancelSpeech()
+            setNotice(null)
+            void press()
+          }}
+          onPointerUp={() => void finish()}
+          onPointerCancel={() => {
+            release()
+          }}
+          onContextMenu={(event) => event.preventDefault()}
         >
-          <Bot aria-hidden />
+          <Mic className="size-7" aria-hidden />
         </button>
+        <span className="text-xs text-muted-foreground">
+          {talk.holding ? "松手发送" : "按住说话"}
+        </span>
       </div>
     </div>
   )

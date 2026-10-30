@@ -12,6 +12,8 @@ import {
   AiCallSessionListSchema,
   AiCallSessionPathSchema,
   AiCallSessionUpdateSchema,
+  AiCallTranscribeRequestSchema,
+  AiCallTranscribeResponseSchema,
 } from "../schemas/ai-call"
 import { ApiErrorSchema } from "../schemas/common"
 
@@ -31,6 +33,13 @@ const errorResponses = {
  * 对话本身是 SSE 传输例外，见 handlers 里的独立挂载。
  */
 export const aiCallRoutes = {
+  /** 语音识别：服务端整句识别，结果直接交给 Agent。 */
+  transcribeAiCallAudio: {
+    method: "POST",
+    path: toContractPath(ApiPath.aiCallTranscribe),
+    body: AiCallTranscribeRequestSchema,
+    responses: { 200: AiCallTranscribeResponseSchema, ...errorResponses },
+  },
   /** 通话自己的设置：与 AI 助手的设置分开，可自定义说话的提示词。 */
   /** 通话角色：每个角色一套提示词与自己的模型。 */
   listAiCallPersonas: {

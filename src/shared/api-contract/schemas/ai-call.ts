@@ -133,6 +133,31 @@ export type AiCallSessionCreate = z.infer<typeof AiCallSessionCreateSchema>
 export type AiCallSessionUpdate = z.infer<typeof AiCallSessionUpdateSchema>
 export type AiCallMessageRequest = z.infer<typeof AiCallMessageRequestSchema>
 export type AiCallExecution = z.infer<typeof AiCallExecutionSchema>
+
+/**
+ * 语音识别：手机按住录音，松手上传，识别在服务端完成。
+ *
+ * 音频以 16k 单声道 16 位 PCM 的 base64 上传：一段话几十 KB，
+ * 手机不需要跑模型，也不必依赖输入法的组合事件。
+ */
+export const AiCallTranscribeRequestSchema = z.object({
+  /** base64 编码的 Int16 小端 PCM。 */
+  audio: z.string().min(1).max(2_600_000),
+  /** 采样率，目前只接受 16000。 */
+  sampleRate: z.literal(16_000),
+})
+
+export const AiCallTranscribeResponseSchema = z.object({
+  /** 识别文本；空串表示没听出内容。 */
+  text: z.string(),
+})
+
+export type AiCallTranscribeRequest = z.infer<
+  typeof AiCallTranscribeRequestSchema
+>
+export type AiCallTranscribeResponse = z.infer<
+  typeof AiCallTranscribeResponseSchema
+>
 /**
  * 通话自己的 AI 配置：只存提示词。
  *
