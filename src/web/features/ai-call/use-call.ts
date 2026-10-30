@@ -27,7 +27,7 @@ export type CallController = {
   /** 提交一句话。空文本会被忽略。 */
   send: (text: string) => void
   /** 中止在途请求，但不碰正在念的内容：用户提了新问题时用。 */
-  abortStream: () => void
+  abortStream: () => Promise<void>
   /** 立刻停声：模型用 speak 要求打断时用。 */
   cancelSpeech: () => void
   /** 解锁发声：必须在用户手势里调用，否则手机浏览器会拦掉后面所有朗读。 */
@@ -69,20 +69,20 @@ export const useCall = (options: {
   /**
    * 中止在途请求。
    *
-   * 只停请求、不停语音：服务端同一会话只允许一次执行，新问题必须先让旧的
-   * 收尾；但已经念到一半的话要不要打断，交给模型用 speak 决定。
+   * 没有在途请求时什么都不做：尤其不能发 stop——那个请求会晚一步到达，
+   * 把紧接着开始的新执行杀掉，表现为「发出去了但没有回答」。
+   * 有在途请求时要等 stop 真正完成，再发新的。
    */
-  const abortStream = useCallback(() => {
+  const abortStream = useCallback(async () => {
+    const controller = controllerRef.current
+    if (!controller) return
     interruptedRef.current = true
-    controllerRef.current?.abort()
+    controller.abort()
     controllerRef.current = null
     setBusy(false)
-    if (sessionId) {
-      // 必须通知服务端停：不停的话执行会自己跑完，下一次提问会被 409 挡住。
-      void stopAiCallExecution(sessionId).catch(() => {
-        // 已经结束（409）或网络失败都不影响本地，无须打扰用户。
-      })
-    }
+    if (!sessionId) return
+    // 必须等它结束：否则 stop 会落在新执行上，把新回答一起停掉。
+    await stopAiCallExecution(sessionId).catch(() => undefined)
   }, [sessionId])
 
   const send = useCallback(

@@ -1,7 +1,7 @@
 import type { AiCallMessage } from "@shared/api-contract"
 import { transcribeAiCallAudio } from "@shared/client-api"
 import { LoaderCircle, Mic, TriangleAlert } from "lucide-react"
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { TranscriptList } from "./TranscriptList"
 import { useCall } from "./use-call"
 import { type PushToTalk, toPcm16, usePushToTalk } from "./use-push-to-talk"
@@ -35,6 +35,8 @@ export const CallStage = (props: {
   const talk: PushToTalk = usePushToTalk()
   const [recognizing, setRecognizing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  /** 识别中不允许再按：连按会连着发两次，后一次会把前一次的中止掉。 */
+  const recognizingRef = useRef<boolean | null>(null)
 
   const { send, abortStream, cancelSpeech, unlockSpeech } = call
   const { press, release } = talk
@@ -45,6 +47,7 @@ export const CallStage = (props: {
     if (!samples) return
     if (samples.length / 16_000 < MIN_SECONDS) return
     setRecognizing(true)
+    recognizingRef.current = true
     setNotice(null)
     try {
       const text = await transcribeAiCallAudio(toPcm16(samples))
@@ -52,11 +55,13 @@ export const CallStage = (props: {
         setNotice("没听清，再说一次")
         return
       }
-      abortStream()
+      // 等旧执行真正停下再发：否则 stop 会把刚要开始的回答一起杀掉。
+      await abortStream()
       send(text)
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "识别失败，请再说一次")
     } finally {
+      recognizingRef.current = false
       setRecognizing(false)
     }
   }, [abortStream, release, send])
@@ -113,6 +118,7 @@ export const CallStage = (props: {
           }`}
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture(event.pointerId)
+            if (recognizingRef.current === true) return
             // 要在手势里做：解锁朗读、停掉正在念的回答。
             unlockSpeech()
             cancelSpeech()
