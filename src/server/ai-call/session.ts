@@ -10,14 +10,14 @@ import { callMacManagerApi } from "@server/ai-assistant/tool"
 import { PublicOperationError } from "@server/common/public-error"
 import { PROJECT_ROOT } from "@server/env"
 import { AI_CALL_SYSTEM_PROMPT } from "./config"
+import { AI_CALL_SPEAK_TOOL, createSpeakTool } from "./speak-tool"
 import { readCallEntries } from "./store"
 
 /**
  * 通话的 Agent 会话：一次通话一个会话，上下文在通话期间持续累积。
  *
- * 与话题的差别只有三处：系统提示词是口语化的、不挂线程工具、
- * 回答直接走正文（语音念的就是正文）。会话的搭建与恢复仍复用助手的
- * buildSession，不另写一套。
+ * 与话题的差别：系统提示词是口语化的、不挂线程工具，回答只能通过
+ * speak 工具说出来。会话的搭建与恢复仍复用助手的 buildSession。
  */
 
 /**
@@ -77,8 +77,9 @@ export const getOrCreateCallSession = async (
   const built = await buildSession({
     model: settings.settings,
     systemPrompt: AI_CALL_SYSTEM_PROMPT,
-    customTools: [callMacManagerApi],
-    extraToolNames: [],
+    customTools: [callMacManagerApi, createSpeakTool(sessionId)],
+    // 漏掉自定义工具名会被 SDK 的 allowlist 整体剔除，必须显式列出。
+    extraToolNames: [AI_CALL_SPEAK_TOOL],
     enabledTools: [...CALL_BUILTIN_TOOLS],
     sessionManager: SessionManager.inMemory(
       PROJECT_ROOT,

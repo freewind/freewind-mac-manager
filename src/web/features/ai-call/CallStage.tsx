@@ -51,10 +51,8 @@ export const CallStage = (props: {
   const lastSentAtRef = useRef<number | null>(null)
   /** 识别是否在处理中：结果没回来就不能把半句发出去。 */
   const recognizingRef = useRef(false)
-  /** AI 是否正在想或正在说：发新问题前才需要让它让位。 */
-  const aiActiveRef = useRef(false)
 
-  const { send, interrupt, reset } = call
+  const { send, abortStream, cancelSpeech, reset } = call
   const recognizer = useSpeechRecognition()
 
   const clearTimers = useCallback(() => {
@@ -89,12 +87,11 @@ export const CallStage = (props: {
     }
     lastSentRef.current = text
     lastSentAtRef.current = Date.now()
-    // 到这一步才真正要发给 Agent：这时才让它把正在说的停下来。
-    // 识别消息在路上、噪声被转成文字都不应该动手。
-    if (aiActiveRef.current) interrupt()
+    // 只中止旧请求，不停语音：要不要打断正在念的内容交给模型用 speak 决定。
+    abortStream()
     setHeard(text)
     send(text)
-  }, [clearTimers, interrupt, send])
+  }, [abortStream, clearTimers, send])
 
   /**
    * 收下一段识别文本，但不立即发送。
@@ -169,17 +166,16 @@ export const CallStage = (props: {
     pendingRef.current = []
     setPendingText("")
     stop()
-    interrupt()
+    abortStream()
+    cancelSpeech()
     setLive(false)
     props.onHangUp()
-  }, [clearTimers, interrupt, props, stop])
+  }, [abortStream, cancelSpeech, clearTimers, props, stop])
 
   // 组件卸载时不能留着定时器：否则会在已经离开的页面上发消息。
   useEffect(() => clearTimers, [clearTimers])
 
   const banner = recognizer.error ?? input.error
-  // 渲染时同步一次：flush 是异步回调，靠它读最新状态。
-  aiActiveRef.current = call.phase === "thinking" || call.phase === "speaking"
   const busy = call.phase === "thinking" || recognizing
   const waiting = pendingText.length > 0
   const phaseLabel = recognizing
