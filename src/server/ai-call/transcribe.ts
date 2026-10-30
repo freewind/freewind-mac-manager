@@ -17,8 +17,13 @@ import { DATA_DIR, env, PI_AGENT_DIR } from "@server/env"
  * 拿它的 baseUrl 与 apiKey——换密钥、换服务商都只改那处配置。
  */
 
-/** 没有显式指定时用的识别模型：在 Pi 配置里按这个 id 查找 provider。 */
-const DEFAULT_MODEL_ID = "senseaudio/senseaudio-asr-lite-1.5-260319"
+/**
+ * 没有显式指定时用的识别模型：在 Pi 配置里按这个 id 查找 provider。
+ *
+ * 用 pro 而不是 lite：lite 会把语音“顺”成通顺但不同的句子
+ * （「瞎聊」识别成「想聊」），pro 在这类近音词上稳一些，耗时接近。
+ */
+const DEFAULT_MODEL_ID = "senseaudio/senseaudio-asr-pro-1.5-260319"
 /** 识别超时：正常一句话 1-2 秒，留足网络抖动余量。 */
 const TIMEOUT_MS = 25_000
 /** 单段音频上限：16k 16 位 60 秒约 1.9MB，再大就不像一句话了。 */
