@@ -2,6 +2,7 @@ import {
   DatabaseIdentifierSchema,
   DatabaseRecordLocatorKeySchema,
   DatabaseRecordsQuerySchema,
+  DatabaseScopeSchema,
 } from "@shared/api-contract"
 import { z } from "zod"
 
@@ -31,18 +32,24 @@ export class DatabaseQueryError extends Error {
 }
 
 export const DatabaseQueryJobSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("list_tables") }),
+  z.object({
+    kind: z.literal("list_tables"),
+    database: DatabaseScopeSchema.default("settings"),
+  }),
   z.object({
     kind: z.literal("table_detail"),
+    database: DatabaseScopeSchema.default("settings"),
     table: DatabaseIdentifierSchema,
   }),
   z.object({
     kind: z.literal("list_records"),
+    database: DatabaseScopeSchema.default("settings"),
     table: DatabaseIdentifierSchema,
     query: DatabaseRecordsQuerySchema,
   }),
   z.object({
     kind: z.literal("get_record"),
+    database: DatabaseScopeSchema.default("settings"),
     table: DatabaseIdentifierSchema,
     key: DatabaseRecordLocatorKeySchema,
   }),

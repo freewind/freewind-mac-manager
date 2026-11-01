@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type {
   ClashMergeConfig,
   SaveClashMergeConfigBody,
@@ -74,6 +74,6 @@ let singleton: ClashMergeStore | null = null
 
 /** 应用内共用一个连接：SQLite 单库多连接会放大锁竞争。 */
 export const getClashMergeStore = (): ClashMergeStore => {
-  singleton ??= new ClashMergeStore(DATABASE_FILE)
+  singleton ??= new ClashMergeStore(SETTINGS_DATABASE_FILE)
   return singleton
 }

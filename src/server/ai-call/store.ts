@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { PublicOperationError } from "@server/common/public-error"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type {
   AiCallMessage,
   AiCallSession,
@@ -62,8 +62,8 @@ let database: DatabaseSync | null = null
 
 const db = (): DatabaseSync => {
   if (database) return database
-  mkdirSync(path.dirname(DATABASE_FILE), { recursive: true })
-  const opened = new DatabaseSync(DATABASE_FILE, { timeout: 5000 })
+  mkdirSync(path.dirname(SETTINGS_DATABASE_FILE), { recursive: true })
+  const opened = new DatabaseSync(SETTINGS_DATABASE_FILE, { timeout: 5000 })
   opened.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;${SCHEMA}`)
   database = opened
   // 旧库没有 persona_id：建表语句不会给已存在的表补列，这里显式迁移。

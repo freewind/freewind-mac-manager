@@ -1,5 +1,5 @@
 import type { TaskRunner, TaskSubmitResult } from "@server/common/tasks/runner"
-import { DATABASE_FILE } from "@server/env"
+import { CACHE_DATABASE_FILE } from "@server/env"
 import type { ScanTaskResult } from "@shared/api-contract"
 import { ScanTaskResultSchema } from "@shared/api-contract/schemas/disk-growth"
 import { scanTaskTarget } from "@shared/task-targets"
@@ -16,7 +16,7 @@ let store: DiskGrowthStore | null = null
 
 /** 读接口共用的存储连接（只读路径）；扫描写入在后台执行器里独立完成。 */
 export const diskGrowthStore = (): DiskGrowthStore => {
-  store ??= new DiskGrowthStore(DATABASE_FILE)
+  store ??= new DiskGrowthStore(CACHE_DATABASE_FILE)
   return store
 }
 
@@ -34,8 +34,14 @@ const toCompletedResponse = (outcome: {
 /**
  * 提交一次扫描任务。
  *
- * requestId 为空表示不是客户端请求发起（例如每日定时扫描）；两者共用同一个
- * 目标锁，因此定时扫描与手动扫描不会同时跑。
+ * requestId 为空表示不是客户端请求发起（例如每日定时扫描），也意味着这次扫描
+ * 会落库成快照；两者共用同一个目标锁，因此定时扫描与手动扫描不会同时跑。
+ */
+/**
+ * 提交一次扫描任务。
+ *
+ * requestId 为空表示不是客户端请求发起（例如每日定时扫描），也意味着这次扫描
+ * 会落库成快照；两者共用同一个目标锁，因此定时扫描与手动扫描不会同时跑。
  */
 export const submitScanTask = (
   runner: TaskRunner,
@@ -44,7 +50,11 @@ export const submitScanTask = (
   runner.submit({
     kind: SCAN_KIND,
     target: scanTaskTarget(SCAN_ROOT),
-    payload: { root: SCAN_ROOT },
+    payload: {
+      root: SCAN_ROOT,
+      // 手动扫描只做对比：不写快照，避免挤掉定时快照、破坏对比基线。
+      savedBy: requestId === null ? "scheduled" : "manual",
+    },
     requestId,
     toCompletedResponse,
   })

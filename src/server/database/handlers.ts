@@ -3,6 +3,7 @@ import type {
   DatabaseDeleteResult,
   DatabaseRecordResponse,
   DatabaseRecordsResponse,
+  DatabaseScope,
   DatabaseTable,
   DatabaseTablesResponse,
 } from "@shared/api-contract"
@@ -42,8 +43,8 @@ export const databaseContract = {
  * handler 只依赖这一层，测试可以整体替换，不必碰真实业务库。
  */
 export type DatabaseService = {
-  listTables: () => Promise<DatabaseTablesResponse>
-  getTable: (table: string) => Promise<DatabaseTable>
+  listTables: (database: DatabaseScope) => Promise<DatabaseTablesResponse>
+  getTable: (table: string, database: DatabaseScope) => Promise<DatabaseTable>
   listRecords: (
     input: DatabaseListRecordsInput
   ) => Promise<DatabaseRecordsResponse>
@@ -55,7 +56,7 @@ export type DatabaseService = {
 }
 
 export type DatabaseServiceOptions = {
-  /** 只允许测试注入；生产用 env.DATABASE_FILE 的默认值。 */
+  /** 只允许测试注入；生产用 env.SETTINGS_DATABASE_FILE 的默认值。 */
   env?: NodeJS.ProcessEnv
   queryRunner?: DatabaseQueryRunner
   mutationRunner?: DatabaseMutationRunner
@@ -68,8 +69,8 @@ export const createDatabaseService = (
   const mutation =
     options.mutationRunner ?? createMutationRunner({ env: options.env })
   return {
-    listTables: () => query.listTables(),
-    getTable: (table) => query.getTable(table),
+    listTables: (database) => query.listTables(database),
+    getTable: (table, database) => query.getTable(table, database),
     listRecords: (input) => query.listRecords(input),
     getRecord: (input) => query.getRecord(input),
     insert: (input) => mutation.insert(input),
@@ -114,19 +115,22 @@ const fail = (error: unknown): { status: ErrorStatus; body: ErrorBody } =>
 
 export const createDatabaseRouter = (service: DatabaseService) =>
   s.router(databaseContract, {
-    listDatabaseTables: async () => {
+    listDatabaseTables: async ({ query }) => {
       try {
-        return { status: 200 as const, body: await service.listTables() }
+        return {
+          status: 200 as const,
+          body: await service.listTables(query.database),
+        }
       } catch (error) {
         return fail(error)
       }
     },
 
-    getDatabaseTable: async ({ params }) => {
+    getDatabaseTable: async ({ params, query }) => {
       try {
         return {
           status: 200 as const,
-          body: await service.getTable(params.table),
+          body: await service.getTable(params.table, query.database),
         }
       } catch (error) {
         return fail(error)
@@ -138,6 +142,7 @@ export const createDatabaseRouter = (service: DatabaseService) =>
         return {
           status: 200 as const,
           body: await service.listRecords({
+            database: query.database,
             table: params.table,
             page: query.page,
             pageSize: query.pageSize,
@@ -155,6 +160,7 @@ export const createDatabaseRouter = (service: DatabaseService) =>
         return {
           status: 200 as const,
           body: await service.getRecord({
+            database: query.database,
             table: params.table,
             key: query.key,
           }),
@@ -170,6 +176,7 @@ export const createDatabaseRouter = (service: DatabaseService) =>
         return {
           status: 201 as const,
           body: await service.insert({
+            database: body.database,
             table: params.table,
             values: body.values,
           }),
@@ -184,6 +191,7 @@ export const createDatabaseRouter = (service: DatabaseService) =>
         return {
           status: 200 as const,
           body: await service.update({
+            database: body.database,
             table: params.table,
             key: body.key,
             expectedSignature: body.expectedSignature,
@@ -200,6 +208,7 @@ export const createDatabaseRouter = (service: DatabaseService) =>
         return {
           status: 200 as const,
           body: await service.delete({
+            database: body.database,
             table: params.table,
             items: body.items,
           }),

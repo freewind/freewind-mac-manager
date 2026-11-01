@@ -19,9 +19,18 @@ export const WEB_DIST_DIR = path.join(PROJECT_ROOT, "dist")
 export const DATA_DIR = path.join(PROJECT_ROOT, "data")
 /** 本机模型目录（whisper 等）：不入库，由脚本下载后由应用静态提供。 */
 export const MODELS_DIR = path.join(DATA_DIR, "models")
-/** 单库文件：默认在项目 data 目录，可用 MAC_MANAGER_DB_FILE 覆盖（测试指向临时文件）。 */
-export const DATABASE_FILE = path.resolve(
-  process.env.MAC_MANAGER_DB_FILE ?? path.join(DATA_DIR, "snapshots.sqlite3")
+/**
+ * 两个库文件，按「删掉会不会丢内容」分开：
+ * - 设置库：配置与历史记录，不可删除，体积小；
+ * - 缓存库：扫描结果、流量采样、任务与调用记录，删掉后应用自动重建。
+ * 各自可用环境变量覆盖（测试指向临时文件）。
+ */
+export const SETTINGS_DATABASE_FILE = path.resolve(
+  process.env.MAC_MANAGER_SETTINGS_DB_FILE ??
+    path.join(DATA_DIR, "settings.sqlite3")
+)
+export const CACHE_DATABASE_FILE = path.resolve(
+  process.env.MAC_MANAGER_CACHE_DB_FILE ?? path.join(DATA_DIR, "cache.sqlite3")
 )
 export const PI_AGENT_DIR = path.resolve(
   process.env.PI_CODING_AGENT_DIR ??

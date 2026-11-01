@@ -45,16 +45,20 @@ export const useDatabase = () => {
   const queryClient = useQueryClient()
   const { online } = usePwaStatus()
   const navigation = useDatabaseNavigation()
-  const { table, page, pageSize, filters, sorts } = navigation.state
+  const { database, table, page, pageSize, filters, sorts } = navigation.state
 
   const recordsQueryInput = useMemo<DatabaseRecordsQueryInput>(
-    () => ({ page, pageSize, filters, sorts }),
-    [page, pageSize, filters, sorts]
+    () => ({ database, page, pageSize, filters, sorts }),
+    [database, page, pageSize, filters, sorts]
   )
 
-  const tablesQuery = useDatabaseTablesQuery()
-  const tableQuery = useDatabaseTableQuery(table)
-  const recordsQuery = useDatabaseRecordsQuery(table, recordsQueryInput)
+  const tablesQuery = useDatabaseTablesQuery(database)
+  const tableQuery = useDatabaseTableQuery(database, table)
+  const recordsQuery = useDatabaseRecordsQuery(
+    database,
+    table,
+    recordsQueryInput
+  )
 
   /**
    * 本地选择：连同所属表一起记，切表后自然失效（纯派生，不靠 effect 清空）。
@@ -66,7 +70,7 @@ export const useDatabase = () => {
   } | null>(null)
   const selectedKey =
     selection !== null && selection.table === table ? selection.key : null
-  const recordQuery = useDatabaseRecordQuery(table, selectedKey)
+  const recordQuery = useDatabaseRecordQuery(database, table, selectedKey)
 
   const createMutation = useCreateDatabaseRecord()
   const updateMutation = useUpdateDatabaseRecord()
@@ -150,7 +154,7 @@ export const useDatabase = () => {
   ): Promise<boolean> => {
     if (table === null) return Promise.resolve(false)
     return runAction(
-      () => createMutation.mutateAsync({ table, body: { values } }),
+      () => createMutation.mutateAsync({ database, table, body: { values } }),
       "已新增 1 条记录"
     )
   }
@@ -164,6 +168,7 @@ export const useDatabase = () => {
     return runAction(
       () =>
         updateMutation.mutateAsync({
+          database,
           table,
           key,
           body: { key, expectedSignature, values },
@@ -176,15 +181,17 @@ export const useDatabase = () => {
   const deleteRecords = (items: DatabaseDeleteTarget[]): Promise<boolean> => {
     if (table === null || items.length === 0) return Promise.resolve(false)
     return runAction(
-      () => deleteMutation.mutateAsync({ table, body: { items } }),
+      () => deleteMutation.mutateAsync({ database, table, body: { items } }),
       `已删除 ${items.length} 条记录`
     )
   }
 
   /** 手动刷新表列表：新建的业务表刷新后即可见，不做轮询。 */
   const refreshTables = useCallback(async (): Promise<void> => {
-    await queryClient.refetchQueries({ queryKey: databaseKeys.tables() })
-  }, [queryClient])
+    await queryClient.refetchQueries({
+      queryKey: databaseKeys.tables(database),
+    })
+  }, [queryClient, database])
 
   return {
     // 远程数据
@@ -208,11 +215,13 @@ export const useDatabase = () => {
         recordsQuery.dataUpdatedAt
       ) || null,
     // 导航状态（来自 URL）
+    database,
     table,
     page,
     pageSize,
     filters,
     sorts,
+    selectDatabase: navigation.selectDatabase,
     selectTable: navigation.selectTable,
     setPage: navigation.setPage,
     setPageSize: navigation.setPageSize,

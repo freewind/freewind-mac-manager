@@ -8,7 +8,7 @@ import {
   releaseRestoreLock,
   waitForDatabaseUsersExit,
 } from "@server/common/database-maintenance"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type { TaskProgress } from "@shared/api-contract"
 import { describeError, formatBytes } from "@shared/format"
 import {
@@ -67,7 +67,7 @@ export const RESTORE_WAIT_USERS_TIMEOUT_MS = 30_000
 export type RestoreRunOptions = {
   stateDir?: string
   backupDir?: string
-  /** 当前应用库；默认 env.DATABASE_FILE，测试注入临时库。 */
+  /** 当前应用库；默认 env.SETTINGS_DATABASE_FILE，测试注入临时库。 */
   databaseFile?: string
   report?: (progress: TaskProgress) => void
   /** 等待使用者退出的上限。 */
@@ -225,7 +225,7 @@ export const runPendingRestore = async (
     stateDir: options.stateDir,
     probe: options.probe,
   }
-  const databaseFile = options.databaseFile ?? DATABASE_FILE
+  const databaseFile = options.databaseFile ?? SETTINGS_DATABASE_FILE
   const backupDir = resolveBackupDirectory(options.backupDir)
   const freeBytes = options.freeBytes ?? freeBytesAt
   const now = options.now ?? ((): number => Date.now())

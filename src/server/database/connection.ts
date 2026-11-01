@@ -1,6 +1,14 @@
 import { existsSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
-import { DATABASE_FILE } from "@server/env"
+import { CACHE_DATABASE_FILE, SETTINGS_DATABASE_FILE } from "@server/env"
+import type { DatabaseScope } from "@shared/api-contract"
+
+/**
+ * 库选择到文件路径的映射：数据库页只在这两个库之间切换，
+ * 缓存库缺失时由第一个可写连接自动建库。
+ */
+export const databaseFileOf = (scope: DatabaseScope): string =>
+  scope === "cache" ? CACHE_DATABASE_FILE : SETTINGS_DATABASE_FILE
 
 /** 有界锁等待：数据库被别的写事务占用时最多等 5 秒，超时直接报错。 */
 export const DATABASE_BUSY_TIMEOUT_MS = 5000
@@ -8,7 +16,7 @@ export const DATABASE_BUSY_TIMEOUT_MS = 5000
 export type DatabaseMode = "readwrite" | "readonly"
 
 export type OpenDatabaseOptions = {
-  /** 只允许测试显式注入临时库；生产走 env.DATABASE_FILE。 */
+  /** 只允许测试显式注入临时库；生产走 env.SETTINGS_DATABASE_FILE。 */
   file?: string
   mode?: DatabaseMode
 }
@@ -26,7 +34,7 @@ export const openDatabase = (
   options: OpenDatabaseOptions = {}
 ): DatabaseSync => {
   const mode = options.mode ?? "readwrite"
-  const file = options.file ?? DATABASE_FILE
+  const file = options.file ?? SETTINGS_DATABASE_FILE
   if (mode === "readonly" && !existsSync(file)) {
     throw new Error(`[mac-manager] 数据库文件不存在：${file}`)
   }

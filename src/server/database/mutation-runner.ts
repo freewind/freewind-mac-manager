@@ -9,6 +9,7 @@ import type {
   DatabaseDeleteResult,
   DatabaseRecordLocatorKey,
   DatabaseRecordResponse,
+  DatabaseScope,
   SqliteWritableValue,
 } from "@shared/api-contract"
 import {
@@ -42,11 +43,13 @@ const RESULT_SCHEMAS = {
 } as const
 
 export type MutationInsertInput = {
+  database: DatabaseScope
   table: string
   values: Record<string, SqliteWritableValue>
 }
 
 export type MutationUpdateInput = {
+  database: DatabaseScope
   table: string
   key: DatabaseRecordLocatorKey
   expectedSignature: string
@@ -54,6 +57,7 @@ export type MutationUpdateInput = {
 }
 
 export type MutationDeleteInput = {
+  database: DatabaseScope
   table: string
   items: Array<{
     key: DatabaseRecordLocatorKey
@@ -301,12 +305,14 @@ export const createMutationRunner = (
     insert: async (input) =>
       (await runJob({
         kind: "insert",
+        database: input.database,
         table: input.table,
         values: input.values,
       })) as DatabaseRecordResponse,
     update: async (input) =>
       (await runJob({
         kind: "update",
+        database: input.database,
         table: input.table,
         key: input.key,
         expectedSignature: input.expectedSignature,
@@ -315,6 +321,7 @@ export const createMutationRunner = (
     delete: async (input) =>
       (await runJob({
         kind: "delete",
+        database: input.database,
         table: input.table,
         items: input.items,
       })) as DatabaseDeleteResult,

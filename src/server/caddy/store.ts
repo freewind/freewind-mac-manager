@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type {
   CaddyMatchKind,
   CaddyRule,
@@ -401,6 +401,6 @@ let singleton: CaddyStore | null = null
  * 测试则直接 new CaddyStore(临时文件) 注入。
  */
 export const getCaddyStore = (): CaddyStore => {
-  singleton ??= new CaddyStore(DATABASE_FILE)
+  singleton ??= new CaddyStore(SETTINGS_DATABASE_FILE)
   return singleton
 }

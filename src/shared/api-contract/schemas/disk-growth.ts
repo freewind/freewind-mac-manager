@@ -27,9 +27,16 @@ export const ScansResponseSchema = z.object({
 /**
  * 扫描任务完成后的结果：只带足以定位快照与说明规模的字段，
  * 条文明细仍由 listEntries/subtree 按需读取，不进入任务记录。
+ *
+ * 手动扫描只做对比、不落库：此时 saved 为 false、snapshotId 为 null，
+ * 差值相对库中最新快照给出，避免手动查看挤掉定时快照、破坏对比基线。
  */
 export const ScanTaskResultSchema = z.object({
-  snapshotId: z.number(),
+  snapshotId: z.number().nullable(),
+  saved: z.boolean(),
+  baselineSnapshotId: z.number().nullable(),
+  deltaTotalSize: z.number().nullable(),
+  deltaFileCount: z.number().nullable(),
   fileCount: z.number(),
   dirCount: z.number(),
   totalSize: z.number(),

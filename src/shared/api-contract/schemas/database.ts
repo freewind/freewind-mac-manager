@@ -352,7 +352,21 @@ export const DatabaseSortSchema = z.object({
   direction: DatabaseSortDirectionSchema,
 })
 
+/**
+ * 数据库页管理的两个库：设置库不可删、体积小；缓存库可随时删除重建。
+ * 缺省一律按设置库处理，避免旧客户端与新客户端看到不同内容。
+ */
+export const DATABASE_SCOPES = ["settings", "cache"] as const
+export const DatabaseScopeSchema = z.enum(DATABASE_SCOPES)
+export type DatabaseScope = z.infer<typeof DatabaseScopeSchema>
+
+/** 只带库选择的查询参数：表清单与单表结构用。 */
+export const DatabaseScopeQuerySchema = z.object({
+  database: DatabaseScopeSchema.default("settings"),
+})
+
 export const DatabaseRecordsQuerySchema = z.object({
+  database: DatabaseScopeSchema.default("settings"),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce
     .number()
@@ -365,6 +379,7 @@ export const DatabaseRecordsQuerySchema = z.object({
 })
 
 export const DatabaseRecordQuerySchema = z.object({
+  database: DatabaseScopeSchema.default("settings"),
   key: DatabaseRecordLocatorKeySchema,
 })
 
@@ -385,6 +400,7 @@ export const DatabaseRecordsResponseSchema = z.object({
  */
 export const DatabaseInsertBodySchema = z
   .object({
+    database: DatabaseScopeSchema.default("settings"),
     values: z.record(DatabaseIdentifierSchema, SqliteWritableValueSchema),
   })
   .refine((body) => Object.keys(body.values).length <= DATABASE_COLUMN_MAX, {
@@ -398,6 +414,7 @@ export const DatabaseInsertBodySchema = z
  */
 export const DatabaseUpdateBodySchema = z
   .object({
+    database: DatabaseScopeSchema.default("settings"),
     key: DatabaseRecordLocatorKeySchema,
     expectedSignature: DatabaseRecordSignatureSchema,
     values: z.record(DatabaseIdentifierSchema, SqliteWritableValueSchema),
@@ -418,6 +435,7 @@ export const DatabaseDeleteItemSchema = z.object({
 
 /** 批量删除：单条删除就是一个元素的批量，不另开一套结构。 */
 export const DatabaseDeleteBodySchema = z.object({
+  database: DatabaseScopeSchema.default("settings"),
   items: z.array(DatabaseDeleteItemSchema).min(1).max(DATABASE_DELETE_MAX),
 })
 

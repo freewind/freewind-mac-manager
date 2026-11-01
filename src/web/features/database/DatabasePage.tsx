@@ -1,5 +1,6 @@
 import type {
   DatabaseRecord,
+  DatabaseScope,
   DatabaseTable,
   SqliteWritableValue,
 } from "@shared/api-contract"
@@ -277,6 +278,19 @@ export const DatabasePage = () => {
     model.selectTable(next)
   }
 
+  /** 换库同样先处理未保存草稿：两个库的同名表不是同一个对象。 */
+  const selectDatabase = (next: DatabaseScope): void => {
+    if (dirty) {
+      setPageNotice("有未保存的草稿：请先保存或取消，再切换库")
+      return
+    }
+    setDialog(null)
+    setDraft(null)
+    setChecked(new Map())
+    setPageNotice(null)
+    model.selectDatabase(next)
+  }
+
   const detailsFor = (table: DatabaseTable) => (
     <RecordDetails
       table={table}
@@ -430,6 +444,25 @@ export const DatabasePage = () => {
             )}
 
             <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col gap-1">
+                <Label>库</Label>
+                <ToggleGroup
+                  variant="outline"
+                  value={[model.database]}
+                  disabled={dirty}
+                  onValueChange={(values) => {
+                    const next = values[0]
+                    if (next) selectDatabase(next as DatabaseScope)
+                  }}
+                >
+                  <ToggleGroupItem value="settings" className="px-3">
+                    设置库
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="cache" className="px-3">
+                    缓存库
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="database-table">表</Label>
                 <Combobox

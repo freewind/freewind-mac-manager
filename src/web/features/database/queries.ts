@@ -3,6 +3,7 @@ import type {
   DatabaseFilter,
   DatabaseInsertBody,
   DatabaseRecordLocatorKey,
+  DatabaseScope,
   DatabaseSort,
   DatabaseUpdateBody,
 } from "@shared/api-contract"
@@ -29,14 +30,21 @@ const ALL = ["database"] as const
 /** 查询 key 按域导出：表名、页码、页大小、筛选、排序全部进 key。 */
 export const databaseKeys = {
   all: ALL,
-  tables: () => [...ALL, "tables"] as const,
-  table: (table: string) => [...ALL, "table", table] as const,
+  tables: (database: DatabaseScope) => [...ALL, "tables", database] as const,
+  table: (database: DatabaseScope, table: string) =>
+    [...ALL, "table", database, table] as const,
   /** 某张表的全部记录查询（用于失效，不限页码与筛选）。 */
-  recordsScope: (table: string) => [...ALL, "records", table] as const,
-  records: (table: string, query: DatabaseRecordsQueryInput) =>
+  recordsScope: (database: DatabaseScope, table: string) =>
+    [...ALL, "records", database, table] as const,
+  records: (
+    database: DatabaseScope,
+    table: string,
+    query: DatabaseRecordsQueryInput
+  ) =>
     [
       ...ALL,
       "records",
+      database,
       table,
       query.page,
       query.pageSize,
@@ -44,9 +52,13 @@ export const databaseKeys = {
       query.sorts,
     ] as const,
   /** 某张表的全部单条记录查询（用于失效）。 */
-  recordScope: (table: string) => [...ALL, "record", table] as const,
-  record: (table: string, key: DatabaseRecordLocatorKey) =>
-    [...ALL, "record", table, key] as const,
+  recordScope: (database: DatabaseScope, table: string) =>
+    [...ALL, "record", database, table] as const,
+  record: (
+    database: DatabaseScope,
+    table: string,
+    key: DatabaseRecordLocatorKey
+  ) => [...ALL, "record", database, table, key] as const,
 }
 
 /** 只读查询的有界重试次数。 */
@@ -68,42 +80,48 @@ export const shouldRetryDatabaseRead = (
   )
 
 /** 表列表：手动刷新即可看到新建的业务表，不做轮询。 */
-export const useDatabaseTablesQuery = () =>
+export const useDatabaseTablesQuery = (database: DatabaseScope) =>
   useQuery({
-    queryKey: databaseKeys.tables(),
+    queryKey: databaseKeys.tables(database),
     // signal 由 TanStack Query 提供：查询被取消时真正中断请求
-    queryFn: ({ signal }) => fetchDatabaseTables({ signal }),
+    queryFn: ({ signal }) => fetchDatabaseTables(database, { signal }),
     retry: shouldRetryDatabaseRead,
   })
 
-export const useDatabaseTableQuery = (table: string | null) =>
+export const useDatabaseTableQuery = (
+  database: DatabaseScope,
+  table: string | null
+) =>
   useQuery({
-    queryKey: databaseKeys.table(table ?? ""),
-    queryFn: ({ signal }) => fetchDatabaseTable(table ?? "", { signal }),
+    queryKey: databaseKeys.table(database, table ?? ""),
+    queryFn: ({ signal }) =>
+      fetchDatabaseTable(table ?? "", database, { signal }),
     enabled: table !== null,
     retry: shouldRetryDatabaseRead,
   })
 
 export const useDatabaseRecordsQuery = (
+  database: DatabaseScope,
   table: string | null,
   query: DatabaseRecordsQueryInput
 ) =>
   useQuery({
-    queryKey: databaseKeys.records(table ?? "", query),
+    queryKey: databaseKeys.records(database, table ?? "", query),
     queryFn: ({ signal }) =>
-      fetchDatabaseRecords(table ?? "", query, { signal }),
+      fetchDatabaseRecords(table ?? "", { ...query, database }, { signal }),
     enabled: table !== null,
     retry: shouldRetryDatabaseRead,
   })
 
 export const useDatabaseRecordQuery = (
+  database: DatabaseScope,
   table: string | null,
   key: DatabaseRecordLocatorKey | null
 ) =>
   useQuery({
-    queryKey: databaseKeys.record(table ?? "", key ?? []),
+    queryKey: databaseKeys.record(database, table ?? "", key ?? []),
     queryFn: ({ signal }) =>
-      fetchDatabaseRecord(table ?? "", key ?? [], { signal }),
+      fetchDatabaseRecord(table ?? "", key ?? [], database, { signal }),
     enabled: table !== null && key !== null,
     retry: shouldRetryDatabaseRead,
   })
@@ -111,16 +129,19 @@ export const useDatabaseRecordQuery = (
 /** 写成功后失效本域相关 key：表列表、表结构、该表的记录与单条记录。 */
 export const invalidateDatabaseTable = async (
   queryClient: QueryClient,
+  database: DatabaseScope,
   table: string
 ): Promise<void> => {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: databaseKeys.tables() }),
-    queryClient.invalidateQueries({ queryKey: databaseKeys.table(table) }),
+    queryClient.invalidateQueries({ queryKey: databaseKeys.tables(database) }),
     queryClient.invalidateQueries({
-      queryKey: databaseKeys.recordsScope(table),
+      queryKey: databaseKeys.table(database, table),
     }),
     queryClient.invalidateQueries({
-      queryKey: databaseKeys.recordScope(table),
+      queryKey: databaseKeys.recordsScope(database, table),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: databaseKeys.recordScope(database, table),
     }),
   ])
 }
@@ -131,11 +152,12 @@ export const invalidateDatabaseTable = async (
  */
 const rereadAfterUnknownResult = async (
   queryClient: QueryClient,
+  database: DatabaseScope,
   table: string,
   error: unknown
 ): Promise<void> => {
   if (error instanceof ApiRequestError && error.resultUnknown) {
-    await invalidateDatabaseTable(queryClient, table)
+    await invalidateDatabaseTable(queryClient, database, table)
   }
 }
 
@@ -149,57 +171,60 @@ export const DATABASE_MUTATION_OPTIONS = {
 } as const
 
 export type CreateDatabaseRecordInput = {
+  database: DatabaseScope
   table: string
-  body: DatabaseInsertBody
+  body: Omit<DatabaseInsertBody, "database">
 }
 
 export const useCreateDatabaseRecord = () => {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateDatabaseRecordInput) =>
-      createDatabaseRecord(input.table, input.body),
+      createDatabaseRecord(input.table, input.body, input.database),
     ...DATABASE_MUTATION_OPTIONS,
     onSuccess: (_result, input) =>
-      invalidateDatabaseTable(queryClient, input.table),
+      invalidateDatabaseTable(queryClient, input.database, input.table),
     onError: (error, input) =>
-      rereadAfterUnknownResult(queryClient, input.table, error),
+      rereadAfterUnknownResult(queryClient, input.database, input.table, error),
   })
 }
 
 export type UpdateDatabaseRecordInput = {
+  database: DatabaseScope
   table: string
   key: DatabaseRecordLocatorKey
-  body: DatabaseUpdateBody
+  body: Omit<DatabaseUpdateBody, "database">
 }
 
 export const useUpdateDatabaseRecord = () => {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: UpdateDatabaseRecordInput) =>
-      updateDatabaseRecord(input.table, input.body),
+      updateDatabaseRecord(input.table, input.body, input.database),
     ...DATABASE_MUTATION_OPTIONS,
     onSuccess: (_result, input) =>
-      invalidateDatabaseTable(queryClient, input.table),
+      invalidateDatabaseTable(queryClient, input.database, input.table),
     onError: (error, input) =>
-      rereadAfterUnknownResult(queryClient, input.table, error),
+      rereadAfterUnknownResult(queryClient, input.database, input.table, error),
   })
 }
 
 export type DeleteDatabaseRecordsInput = {
+  database: DatabaseScope
   table: string
-  body: DatabaseDeleteBody
+  body: Omit<DatabaseDeleteBody, "database">
 }
 
 export const useDeleteDatabaseRecords = () => {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: DeleteDatabaseRecordsInput) =>
-      deleteDatabaseRecords(input.table, input.body),
+      deleteDatabaseRecords(input.table, input.body, input.database),
     ...DATABASE_MUTATION_OPTIONS,
     onSuccess: (_result, input) =>
-      invalidateDatabaseTable(queryClient, input.table),
+      invalidateDatabaseTable(queryClient, input.database, input.table),
     onError: (error, input) =>
-      rereadAfterUnknownResult(queryClient, input.table, error),
+      rereadAfterUnknownResult(queryClient, input.database, input.table, error),
   })
 }
 

@@ -1,5 +1,5 @@
 import path from "node:path"
-import { DATA_DIR, DATABASE_FILE } from "@server/env"
+import { CACHE_DATABASE_FILE, DATA_DIR } from "@server/env"
 import type {
   TaskProgress,
   TrafficChild,
@@ -27,7 +27,7 @@ const LEGACY_DATABASE_FILE = path.join(DATA_DIR, "traffic.sqlite3")
 let store: TrafficStore | null = null
 
 const trafficStore = (): TrafficStore => {
-  store ??= new TrafficStore(DATABASE_FILE)
+  store ??= new TrafficStore(CACHE_DATABASE_FILE)
   return store
 }
 
@@ -40,7 +40,7 @@ let initialized = false
 export const initializeTraffic = (): void => {
   if (initialized) return
   trafficStore()
-  migrateTrafficDatabase(DATABASE_FILE, LEGACY_DATABASE_FILE)
+  migrateTrafficDatabase(CACHE_DATABASE_FILE, LEGACY_DATABASE_FILE)
   initialized = true
 }
 

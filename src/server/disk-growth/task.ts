@@ -1,4 +1,4 @@
-import { DATABASE_FILE } from "@server/env"
+import { CACHE_DATABASE_FILE } from "@server/env"
 import {
   type ScanTaskResult,
   TASK_KINDS,
@@ -101,7 +101,7 @@ export const runDeleteScansTask = async (options: {
   report: (progress: TaskProgress) => void
   databaseFile?: string
 }): Promise<{ result: { removed: number }; message: string }> => {
-  const store = new DiskGrowthStore(options.databaseFile ?? DATABASE_FILE)
+  const store = new DiskGrowthStore(options.databaseFile ?? CACHE_DATABASE_FILE)
   try {
     options.report({
       done: 0,
@@ -142,8 +142,12 @@ const toTaskProgress = (progress: ScanProgress): TaskProgress => ({
   currentTarget: progress.currentTarget,
 })
 
-/** 执行器入参：只接受扫描根，不接受任何模块、命令或 shell 片段。 */
-export const ScanPayloadSchema = z.object({ root: z.string().min(1) })
+/** 执行器入参：只接受扫描根与保存方式，不接受任何模块、命令或 shell 片段。 */
+export const ScanPayloadSchema = z.object({
+  root: z.string().min(1),
+  /** 只有定时扫描落库；手动扫描只对比，不写快照。 */
+  savedBy: z.enum(["scheduled", "manual"]).default("scheduled"),
+})
 
 export type ScanOutcome = {
   result: ScanTaskResult
@@ -160,6 +164,8 @@ export type ScanOutcome = {
  */
 export const runScanTask = async (options: {
   root: string
+  /** 定时扫描落库成快照；手动扫描只与最新快照对比，不写库。 */
+  savedBy: "scheduled" | "manual"
   report: (progress: TaskProgress) => void
   /**
    * 依赖注入点：默认是真实全盘扫描与真实数据库。
@@ -172,7 +178,7 @@ export const runScanTask = async (options: {
   config?: ScanConfig
   databaseFile?: string
 }): Promise<ScanOutcome> => {
-  const store = new DiskGrowthStore(options.databaseFile ?? DATABASE_FILE)
+  const store = new DiskGrowthStore(options.databaseFile ?? CACHE_DATABASE_FILE)
   const scan = options.scan ?? scanFileSystem
   const startedAt = Date.now() / 1000
   try {
@@ -192,6 +198,36 @@ export const runScanTask = async (options: {
       currentTarget: null,
     })
 
+    const scope = `${result.dirCount} 个目录、${result.fileCount} 个文件`
+    const incompleteSuffix = result.incomplete
+      ? "；部分内容无法读取，结果可能不完整"
+      : ""
+
+    // 手动扫描只做对比：不写库，避免挤掉定时快照、破坏对比基线。
+    if (options.savedBy === "manual") {
+      const baseline = store.listSnapshots()[0] ?? null
+      return {
+        result: {
+          snapshotId: null,
+          saved: false,
+          baselineSnapshotId: baseline?.id ?? null,
+          deltaTotalSize: baseline
+            ? Math.round(result.totalSize) - baseline.totalSize
+            : null,
+          deltaFileCount: baseline
+            ? result.fileCount - baseline.fileCount
+            : null,
+          fileCount: result.fileCount,
+          dirCount: result.dirCount,
+          totalSize: Math.round(result.totalSize),
+        },
+        message: baseline
+          ? `已扫描 ${scope}，与快照 #${baseline.id} 对比，未保存${incompleteSuffix}`
+          : `已扫描 ${scope}，暂无历史快照可对比，未保存${incompleteSuffix}`,
+        incomplete: result.incomplete,
+      }
+    }
+
     const snapshotId = store.insertSnapshot(result, {
       startedAt,
       finishedAt: Date.now() / 1000,
@@ -199,10 +235,13 @@ export const runScanTask = async (options: {
     })
     store.pruneSnapshots(KEEP_SNAPSHOTS)
 
-    const scope = `${result.dirCount} 个目录、${result.fileCount} 个文件`
     return {
       result: {
         snapshotId,
+        saved: true,
+        baselineSnapshotId: null,
+        deltaTotalSize: null,
+        deltaFileCount: null,
         fileCount: result.fileCount,
         dirCount: result.dirCount,
         totalSize: result.totalSize,

@@ -171,6 +171,7 @@ export const taskExecutors: TaskExecutor[] = [
       if (!parsed.success) throw new Error("扫描任务载荷非法")
       const outcome = await runScanTask({
         root: parsed.data.root,
+        savedBy: parsed.data.savedBy,
         report: context.report,
       })
       return {

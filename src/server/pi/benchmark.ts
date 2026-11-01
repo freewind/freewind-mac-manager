@@ -7,7 +7,7 @@ import {
   readStoredCredential,
 } from "@earendil-works/pi-coding-agent"
 import { PublicOperationError } from "@server/common/public-error"
-import { DATABASE_FILE, PI_AGENT_DIR } from "@server/env"
+import { CACHE_DATABASE_FILE, PI_AGENT_DIR } from "@server/env"
 import type {
   PiBenchmarkResult,
   PiBenchmarkTaskPayload,
@@ -349,7 +349,7 @@ const progressOf = (metrics: MutableMetrics, stage: string): TaskProgress => ({
 export const createPiBenchmarkService = (
   overrides: Partial<BenchmarkDependencies> = {}
 ) => {
-  const databaseFile = overrides.databaseFile ?? DATABASE_FILE
+  const databaseFile = overrides.databaseFile ?? CACHE_DATABASE_FILE
   const db = initDatabase(databaseFile)
   const dependencies: BenchmarkDependencies = {
     databaseFile,

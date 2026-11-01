@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type {
   CollaborationComment,
   CollaborationThread,
@@ -173,13 +173,13 @@ const orderIds = (current: string[], orderedIds: string[]): string[] => {
 }
 
 /**
- * 协作存储。默认使用项目统一数据库（env.DATABASE_FILE）；
+ * 协作存储。默认使用项目统一数据库（env.SETTINGS_DATABASE_FILE）；
  * CLI 与测试可以显式传入别的库文件，但不能自行拼业务库路径。
  */
 export class CollaborationStore {
   private readonly db: DatabaseSync
 
-  constructor(file: string = DATABASE_FILE) {
+  constructor(file: string = SETTINGS_DATABASE_FILE) {
     mkdirSync(path.dirname(file), { recursive: true })
     this.db = new DatabaseSync(file, { timeout: 5000 })
     this.db.exec("PRAGMA journal_mode = WAL")

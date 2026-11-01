@@ -3,7 +3,7 @@ import path from "node:path"
 import { backup, DatabaseSync } from "node:sqlite"
 import type { Readable } from "node:stream"
 import { closeDatabase, openDatabase } from "@server/database/connection"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type {
   DatabaseBackup,
   DatabaseBackupCreated,
@@ -127,7 +127,7 @@ export type DatabaseBackupServiceOptions = {
   backupDir?: string
   /** 维护状态目录；默认取 env，测试注入临时目录。 */
   stateDir?: string
-  /** 被备份的库；默认取 env.DATABASE_FILE。 */
+  /** 被备份的库；默认取 env.SETTINGS_DATABASE_FILE。 */
   sourceFile?: string
   now?: () => number
   createId?: () => string
@@ -280,7 +280,7 @@ export const createDatabaseBackupService = (
 ): DatabaseBackupService => {
   const backupDir = resolveBackupDirectory(options.backupDir)
   const stateDir = resolveBackupStateDirectory(options.stateDir)
-  const sourceFile = options.sourceFile ?? DATABASE_FILE
+  const sourceFile = options.sourceFile ?? SETTINGS_DATABASE_FILE
   const now = options.now ?? ((): number => Date.now())
   const createId = options.createId ?? createBackupId
   const freeBytes = options.freeBytes ?? freeBytesAt

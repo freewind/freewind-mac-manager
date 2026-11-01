@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { PublicOperationError } from "@server/common/public-error"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type { AiAssistantSessionSummary as AiAssistantSession } from "@shared/api-contract"
 import { AiAssistantSessionSchema } from "@shared/api-contract/schemas/ai-assistant"
 
@@ -25,8 +25,8 @@ const markOrphanRunsUnknown = (): void => {
 
 const db = (): DatabaseSync => {
   if (database) return database
-  mkdirSync(path.dirname(DATABASE_FILE), { recursive: true })
-  const opened = new DatabaseSync(DATABASE_FILE, { timeout: 5000 })
+  mkdirSync(path.dirname(SETTINGS_DATABASE_FILE), { recursive: true })
+  const opened = new DatabaseSync(SETTINGS_DATABASE_FILE, { timeout: 5000 })
   opened.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;
     CREATE TABLE IF NOT EXISTS ai_assistant_session (
       id TEXT PRIMARY KEY,

@@ -6,6 +6,7 @@ import type {
   DatabaseRecordLocatorKey,
   DatabaseRecordResponse,
   DatabaseRecordsResponse,
+  DatabaseScope,
   DatabaseSort,
   DatabaseTable,
   DatabaseTablesResponse,
@@ -20,6 +21,7 @@ import { apiClient, unwrap } from "./client"
 
 /** 筛选、排序与分页的入参；数组会按 extended query 形式序列化。 */
 export type DatabaseRecordsQueryInput = {
+  database: DatabaseScope
   page: number
   pageSize: number
   filters: DatabaseFilter[]
@@ -28,22 +30,26 @@ export type DatabaseRecordsQueryInput = {
 
 // ---- 只读查询：支持取消（AbortSignal 透传到 fetch） ----
 
-export const fetchDatabaseTables = async (options?: {
-  signal?: AbortSignal
-}): Promise<DatabaseTablesResponse> =>
+export const fetchDatabaseTables = async (
+  database: DatabaseScope,
+  options?: { signal?: AbortSignal }
+): Promise<DatabaseTablesResponse> =>
   unwrap<DatabaseTablesResponse>(
     await apiClient.listDatabaseTables({
+      query: { database },
       fetchOptions: { signal: options?.signal },
     })
   )
 
 export const fetchDatabaseTable = async (
   table: string,
+  database: DatabaseScope,
   options?: { signal?: AbortSignal }
 ): Promise<DatabaseTable> =>
   unwrap<DatabaseTable>(
     await apiClient.getDatabaseTable({
       params: { table },
+      query: { database },
       fetchOptions: { signal: options?.signal },
     })
   )
@@ -65,12 +71,13 @@ export const fetchDatabaseRecords = async (
 export const fetchDatabaseRecord = async (
   table: string,
   key: DatabaseRecordLocatorKey,
+  database: DatabaseScope,
   options?: { signal?: AbortSignal }
 ): Promise<DatabaseRecordResponse> =>
   unwrap<DatabaseRecordResponse>(
     await apiClient.getDatabaseRecord({
       params: { table },
-      query: { key },
+      query: { key, database },
       fetchOptions: { signal: options?.signal },
     })
   )
@@ -83,25 +90,37 @@ export const fetchDatabaseRecord = async (
 
 export const createDatabaseRecord = async (
   table: string,
-  body: DatabaseInsertBody
+  body: Omit<DatabaseInsertBody, "database">,
+  database: DatabaseScope
 ): Promise<DatabaseRecordResponse> =>
   unwrap<DatabaseRecordResponse>(
-    await apiClient.createDatabaseRecord({ params: { table }, body })
+    await apiClient.createDatabaseRecord({
+      params: { table },
+      body: { ...body, database },
+    })
   )
 
 export const updateDatabaseRecord = async (
   table: string,
-  body: DatabaseUpdateBody
+  body: Omit<DatabaseUpdateBody, "database">,
+  database: DatabaseScope
 ): Promise<DatabaseRecordResponse> =>
   unwrap<DatabaseRecordResponse>(
-    await apiClient.updateDatabaseRecord({ params: { table }, body })
+    await apiClient.updateDatabaseRecord({
+      params: { table },
+      body: { ...body, database },
+    })
   )
 
 /** 批量删除是原子动作：要么全删成功，要么整批回滚并以 409/404 报错。 */
 export const deleteDatabaseRecords = async (
   table: string,
-  body: DatabaseDeleteBody
+  body: Omit<DatabaseDeleteBody, "database">,
+  database: DatabaseScope
 ): Promise<DatabaseDeleteResult> =>
   unwrap<DatabaseDeleteResult>(
-    await apiClient.deleteDatabaseRecords({ params: { table }, body })
+    await apiClient.deleteDatabaseRecords({
+      params: { table },
+      body: { ...body, database },
+    })
   )

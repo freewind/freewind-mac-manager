@@ -95,7 +95,7 @@ export const createApp = (injected?: {
    */
   mcpServers?: McpServersService
   /**
-   * 仅测试使用：替换协作数据存储。缺省时使用 env.DATABASE_FILE 指向的库。
+   * 仅测试使用：替换协作数据存储。缺省时使用 env.SETTINGS_DATABASE_FILE 指向的库。
    */
   collaboration?: CollaborationStore
 }): express.Express => {

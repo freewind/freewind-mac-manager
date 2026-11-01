@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type {
   McpCallKind,
   McpCallRecord,
@@ -404,6 +404,6 @@ let singleton: McpServerStore | null = null
  * 测试直接 new McpServerStore(临时文件) 注入，不碰真实库。
  */
 export const getMcpServerStore = (): McpServerStore => {
-  singleton ??= new McpServerStore(DATABASE_FILE)
+  singleton ??= new McpServerStore(SETTINGS_DATABASE_FILE)
   return singleton
 }

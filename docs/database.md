@@ -14,6 +14,19 @@
 刷新、分享链接与浏览器前进后退都能恢复；切换表会清空旧筛选、排序与页码（页大小作为显示偏好保留）。
 记录值与签名不写进 URL。
 
+## 两个库
+
+应用把持久化分成两份，按「删掉会不会丢内容」划界，不按体积划界：
+
+| 库 | 文件 | 内容 | 能不能删 |
+| --- | --- | --- | --- |
+| 设置库 | `<项目>/data/settings.sqlite3` | 配置、对话与协作记录、MCP 配置与调用记录、Caddy 规则、合并订阅设置 | 不能删；删了会丢配置与历史记录 |
+| 缓存库 | `<项目>/data/cache.sqlite3` | 磁盘增长快照（`scan` / `entry`）、流量采样与快照、任务记录、Pi 实验记录 | 可以随时删；服务启动后自动重建 |
+
+- 数据库页顶部可切换两个库；同名表在两个库里是不同对象，换库会清空表选择与筛选。
+- 备份只覆盖设置库，缓存库不进备份，也不需要恢复。
+- 删缓存库：先停服务，删掉 `data/cache.sqlite3` 及其 `-wal` / `-shm`，再启动服务。
+
 ## 能做与不能做
 
 | 能做 | 不能做 |
@@ -213,7 +226,8 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 | --- | --- | --- |
 | `MAC_MANAGER_BACKUP_DIR` | `<项目>/data/database-backups` | 备份文件目录（下载与恢复来源） |
 | `MAC_MANAGER_BACKUP_STATE_DIR` | `<项目>/data/database-backup-state` | 恢复计划、进行中标记等维护状态，与备份文件分开 |
-| `MAC_MANAGER_DB_FILE` | `<项目>/data/snapshots.sqlite3` | 应用库；测试一律改道到临时文件 |
+| `MAC_MANAGER_SETTINGS_DB_FILE` | `<项目>/data/settings.sqlite3` | 设置库；测试一律改道到临时文件 |
+| `MAC_MANAGER_CACHE_DB_FILE` | `<项目>/data/cache.sqlite3` | 缓存库；可删除重建，测试同样改道临时文件 |
 
 服务端口由 `APP_PORT` 注入（dev 51509 / 生产 51510），与备份无关。
 
@@ -269,7 +283,7 @@ pnpm test                                                        # 全量
 
 证据文件：`src/server/database/backups/acceptance.test.ts`（14 条）。
 隔离：临时库与临时备份/状态目录（`vi.hoisted` 改道三个环境变量），
-不碰真实 `data/snapshots.sqlite3`、真实备份目录与任何 launchd 服务。
+不碰真实库（`data/settings.sqlite3`）、真实备份目录与任何 launchd 服务。
 
 | # | 用例名 | 断言要点 |
 | --- | --- | --- |
@@ -319,7 +333,7 @@ pnpm test                                                        # 全量
 1. `pnpm typecheck` 与 `pnpm lint` 干净，lint 的 9 条警告为既有同类问题（见「已知边界」）。
 2. 验收范围（备份域当时 13 条、clash 验收 12 条、database 与 clash 服务端全部用例）在六轮全量中从未失败；单跑复核：备份验收 13/13（任务 65 后的现值为 14 条）、clash 验收 12/12。
 3. 全量未拿到零失败：偶发失败集中在并行负载下的压线用例（`service.test` 两条多备份用例、`tasks/integration` 两条），单跑全部稳定通过；已建议另立「测试耗时治理」任务（克隆化或显式超时），不阻塞本验收。
-4. 真实数据红线：执行前静态核查全部测试的隔离——引用 `DATABASE_FILE` 的 3 个测试分别用 `vi.hoisted`、`vi.mock("@server/env")`、服务参数改道；`FILE_ROOT` 用 `vi.stubEnv`；无硬编码 `data/` 路径；clash 测试均不触发真实控制接口发现（显式 URL 或 socket、`AUTO_DISCOVER=0`、mock fetch）。真实 `data/snapshots.sqlite3`（2.6GB）与 launchd 常驻服务全程未被测试触碰。
+4. 真实数据红线：执行前静态核查全部测试的隔离——引用数据库文件常量的 3 个测试分别用 `vi.hoisted`、`vi.mock("@server/env")`、服务参数改道；`FILE_ROOT` 用 `vi.stubEnv`；无硬编码 `data/` 路径；clash 测试均不触发真实控制接口发现（显式 URL 或 socket、`AUTO_DISCOVER=0`、mock fetch）。真实 `data/snapshots.sqlite3`（2.6GB）与 launchd 常驻服务全程未被测试触碰。
 5. 不跑真实浏览器与手机（任务 55）。
 
 ### 人工验收步骤（未执行，留任务 18/55）

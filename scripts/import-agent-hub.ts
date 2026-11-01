@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { importAgentHubData } from "@server/collaboration/import"
 import { CollaborationStore } from "@server/collaboration/store"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 
 /**
  * 把 freewind-agent-hub 的 data/db.json 导入 mac-manager 的统一数据库。
@@ -10,7 +10,7 @@ import { DATABASE_FILE } from "@server/env"
  *   pnpm tsx scripts/import-agent-hub.ts --source <db.json> [--target <sqlite>] [--yes]
  *
  * - --source：源 db.json 路径，必填；
- * - --target：目标库路径，缺省为项目数据库（env.DATABASE_FILE）；
+ * - --target：目标库路径，缺省为项目数据库（env.SETTINGS_DATABASE_FILE）；
  * - --yes：确认允许写入缺省的项目数据库，避免误动生产库。
  */
 
@@ -23,7 +23,7 @@ type Args = {
 const USAGE = `用法：pnpm tsx scripts/import-agent-hub.ts --source <db.json> [--target <sqlite>] [--yes]
 
   --source <path>  必填，freewind-agent-hub 的 data/db.json
-  --target <path>  可选，目标 SQLite；缺省为项目数据库（env.DATABASE_FILE）
+  --target <path>  可选，目标 SQLite；缺省为项目数据库（env.SETTINGS_DATABASE_FILE）
   --yes            确认允许写入缺省的项目数据库`
 
 const parseArgs = (argv: string[]): Args => {
@@ -69,7 +69,7 @@ const main = (): void => {
   }
 
   // 缺省目标就是项目生产库：必须显式确认，避免默认就对它动手。
-  const target = args.target ?? DATABASE_FILE
+  const target = args.target ?? SETTINGS_DATABASE_FILE
   if (!args.target && !args.yes) {
     console.error(
       `[mac-manager] 目标库缺省为项目数据库：${target}\n` +

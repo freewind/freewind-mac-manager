@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { PublicOperationError } from "@server/common/public-error"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type { AiCallPersona } from "@shared/api-contract"
 
 /**
@@ -30,8 +30,8 @@ let database: DatabaseSync | null = null
 
 const db = (): DatabaseSync => {
   if (database) return database
-  mkdirSync(path.dirname(DATABASE_FILE), { recursive: true })
-  const opened = new DatabaseSync(DATABASE_FILE, { timeout: 5000 })
+  mkdirSync(path.dirname(SETTINGS_DATABASE_FILE), { recursive: true })
+  const opened = new DatabaseSync(SETTINGS_DATABASE_FILE, { timeout: 5000 })
   opened.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;${SCHEMA}`)
   database = opened
   return database

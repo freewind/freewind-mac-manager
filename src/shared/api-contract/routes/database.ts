@@ -8,6 +8,7 @@ import {
   DatabaseRecordResponseSchema,
   DatabaseRecordsQuerySchema,
   DatabaseRecordsResponseSchema,
+  DatabaseScopeQuerySchema,
   DatabaseTablePathParamsSchema,
   DatabaseTableSchema,
   DatabaseTablesResponseSchema,
@@ -33,6 +34,7 @@ export const databaseRoutes = {
   listDatabaseTables: {
     method: "GET",
     path: toContractPath(ApiPath.databaseTables),
+    query: DatabaseScopeQuerySchema,
     responses: {
       200: DatabaseTablesResponseSchema,
       ...errorResponses,
@@ -43,6 +45,7 @@ export const databaseRoutes = {
     method: "GET",
     path: toContractPath(ApiPath.databaseTable),
     pathParams: DatabaseTablePathParamsSchema,
+    query: DatabaseScopeQuerySchema,
     responses: {
       200: DatabaseTableSchema,
       ...errorResponses,

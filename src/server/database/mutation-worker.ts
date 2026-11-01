@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite"
-import { closeDatabase, openDatabase } from "./connection"
+import { closeDatabase, databaseFileOf, openDatabase } from "./connection"
 import {
   DatabaseMutationError,
   type MutationJob,
@@ -28,9 +28,12 @@ const readJob = async (): Promise<string> => {
   return Buffer.concat(chunks).toString("utf8").trim()
 }
 
-const openWritable = (): DatabaseSync => {
+const openWritable = (job: MutationJob): DatabaseSync => {
   try {
-    return openDatabase({ mode: "readwrite" })
+    return openDatabase({
+      file: databaseFileOf(job.database),
+      mode: "readwrite",
+    })
   } catch (error) {
     // 连连接都建不起来，可以确定没有发生任何写入
     process.stderr.write(
@@ -45,7 +48,7 @@ const openWritable = (): DatabaseSync => {
 }
 
 const execute = (job: MutationJob): unknown => {
-  const database = openWritable()
+  const database = openWritable(job)
   let result: unknown
   try {
     switch (job.kind) {

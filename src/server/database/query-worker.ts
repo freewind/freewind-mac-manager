@@ -1,4 +1,4 @@
-import { closeDatabase, openDatabase } from "./connection"
+import { closeDatabase, databaseFileOf, openDatabase } from "./connection"
 import { getTable, listTables } from "./metadata"
 import { getRecord, listRecords } from "./query"
 import {
@@ -29,7 +29,10 @@ const readJob = async (): Promise<string> => {
 }
 
 const execute = (job: DatabaseQueryJob): unknown => {
-  const database = openDatabase({ mode: "readonly" })
+  const database = openDatabase({
+    file: databaseFileOf(job.database),
+    mode: "readonly",
+  })
   try {
     switch (job.kind) {
       case "list_tables":

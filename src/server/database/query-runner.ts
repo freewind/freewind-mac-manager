@@ -10,6 +10,7 @@ import type {
   DatabaseRecordLocatorKey,
   DatabaseRecordResponse,
   DatabaseRecordsResponse,
+  DatabaseScope,
   DatabaseSort,
   DatabaseTable,
   DatabaseTablesResponse,
@@ -47,6 +48,7 @@ const RESULT_SCHEMAS = {
 } as const
 
 export type DatabaseListRecordsInput = {
+  database: DatabaseScope
   table: string
   page: number
   pageSize: number
@@ -55,13 +57,14 @@ export type DatabaseListRecordsInput = {
 }
 
 export type DatabaseGetRecordInput = {
+  database: DatabaseScope
   table: string
   key: DatabaseRecordLocatorKey
 }
 
 export type DatabaseQueryRunner = {
-  listTables: () => Promise<DatabaseTablesResponse>
-  getTable: (table: string) => Promise<DatabaseTable>
+  listTables: (database: DatabaseScope) => Promise<DatabaseTablesResponse>
+  getTable: (table: string, database: DatabaseScope) => Promise<DatabaseTable>
   listRecords: (
     input: DatabaseListRecordsInput
   ) => Promise<DatabaseRecordsResponse>
@@ -285,15 +288,24 @@ export const createQueryRunner = (
   }
 
   return {
-    listTables: async () =>
-      (await runJob({ kind: "list_tables" })) as DatabaseTablesResponse,
-    getTable: async (table) =>
-      (await runJob({ kind: "table_detail", table })) as DatabaseTable,
+    listTables: async (database) =>
+      (await runJob({
+        kind: "list_tables",
+        database,
+      })) as DatabaseTablesResponse,
+    getTable: async (table, database) =>
+      (await runJob({
+        kind: "table_detail",
+        database,
+        table,
+      })) as DatabaseTable,
     listRecords: async (input) =>
       (await runJob({
         kind: "list_records",
+        database: input.database,
         table: input.table,
         query: {
+          database: input.database,
           page: input.page,
           pageSize: input.pageSize,
           filters: input.filters,
@@ -303,6 +315,7 @@ export const createQueryRunner = (
     getRecord: async (input) =>
       (await runJob({
         kind: "get_record",
+        database: input.database,
         table: input.table,
         key: input.key,
       })) as DatabaseRecordResponse,

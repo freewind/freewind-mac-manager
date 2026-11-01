@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { PublicOperationError } from "@server/common/public-error"
-import { DATABASE_FILE } from "@server/env"
+import { SETTINGS_DATABASE_FILE } from "@server/env"
 import type {
   AiAssistantSettingsDocument as AiAssistantSettings,
   AiAssistantSettingsResponse,
@@ -44,8 +44,8 @@ let database: DatabaseSync | null = null
 
 const db = (): DatabaseSync => {
   if (database) return database
-  mkdirSync(path.dirname(DATABASE_FILE), { recursive: true })
-  database = new DatabaseSync(DATABASE_FILE, { timeout: 5000 })
+  mkdirSync(path.dirname(SETTINGS_DATABASE_FILE), { recursive: true })
+  database = new DatabaseSync(SETTINGS_DATABASE_FILE, { timeout: 5000 })
   database.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;
     CREATE TABLE IF NOT EXISTS ai_assistant_settings (
       id INTEGER PRIMARY KEY CHECK(id=1),

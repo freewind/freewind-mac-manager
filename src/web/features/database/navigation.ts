@@ -1,10 +1,16 @@
-import type { DatabaseFilter, DatabaseSort } from "@shared/api-contract"
+import type {
+  DatabaseFilter,
+  DatabaseScope,
+  DatabaseSort,
+} from "@shared/api-contract"
 import {
   DATABASE_FILTER_MAX,
   DATABASE_PAGE_SIZE_MAX,
+  DATABASE_SCOPES,
   DATABASE_SORT_MAX,
   DatabaseFilterSchema,
   DatabaseIdentifierSchema,
+  DatabaseScopeSchema,
   DatabaseSortSchema,
 } from "@shared/api-contract"
 import { useMemo, useSyncExternalStore } from "react"
@@ -16,6 +22,7 @@ import { z } from "zod"
  * 记录值、签名这类数据不进 URL。
  */
 export const DATABASE_URL_PARAMS = {
+  database: "dbDatabase",
   table: "dbTable",
   page: "dbPage",
   pageSize: "dbPageSize",
@@ -28,6 +35,7 @@ export const DEFAULT_DATABASE_PAGE_SIZE = 50
 export const MAX_DATABASE_PAGE = 100_000
 
 export type DatabaseUrlState = {
+  database: DatabaseScope
   table: string | null
   page: number
   pageSize: number
@@ -36,6 +44,7 @@ export type DatabaseUrlState = {
 }
 
 export const DEFAULT_DATABASE_URL_STATE: DatabaseUrlState = {
+  database: DATABASE_SCOPES[0],
   table: null,
   page: 1,
   pageSize: DEFAULT_DATABASE_PAGE_SIZE,
@@ -84,7 +93,13 @@ export const databaseStateFromUrl = (): DatabaseUrlState => {
   const pageSize = pageSizeSchema.safeParse(
     params.get(DATABASE_URL_PARAMS.pageSize)
   )
+  const database = DatabaseScopeSchema.safeParse(
+    params.get(DATABASE_URL_PARAMS.database)
+  )
   return {
+    database: database.success
+      ? database.data
+      : DEFAULT_DATABASE_URL_STATE.database,
     table: table.success ? table.data : null,
     page: page.success ? page.data : DEFAULT_DATABASE_URL_STATE.page,
     pageSize: pageSize.success
@@ -103,6 +118,10 @@ const writeUrl = (next: DatabaseUrlState, mode: "push" | "replace"): void => {
     else url.searchParams.set(key, value)
   }
   set(DATABASE_URL_PARAMS.table, next.table)
+  set(
+    DATABASE_URL_PARAMS.database,
+    next.database === DEFAULT_DATABASE_URL_STATE.database ? null : next.database
+  )
   set(DATABASE_URL_PARAMS.page, next.page === 1 ? null : String(next.page))
   set(
     DATABASE_URL_PARAMS.pageSize,
@@ -135,6 +154,7 @@ const serverSnapshot = (): string => JSON.stringify(DEFAULT_DATABASE_URL_STATE)
 
 export type DatabaseNavigation = {
   state: DatabaseUrlState
+  selectDatabase: (database: DatabaseScope) => void
   selectTable: (table: string | null) => void
   setPage: (page: number) => void
   setPageSize: (pageSize: number) => void
@@ -152,12 +172,25 @@ export const useDatabaseNavigation = (): DatabaseNavigation => {
 
   return {
     state,
+    selectDatabase: (database: DatabaseScope): void => {
+      if (database === state.database) return
+      // 换库必须清空表与查询：同名表在两个库里是不同对象
+      writeUrl(
+        {
+          ...DEFAULT_DATABASE_URL_STATE,
+          database,
+          pageSize: state.pageSize,
+        },
+        "push"
+      )
+    },
     selectTable: (table: string | null): void => {
       if (table === state.table) return
       // 切表必须清空旧条件与页码：旧筛选、排序在新表上没有意义
       writeUrl(
         {
           ...DEFAULT_DATABASE_URL_STATE,
+          database: state.database,
           table,
           pageSize: state.pageSize,
         },

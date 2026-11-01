@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { PublicOperationError } from "@server/common/public-error"
-import { DATABASE_FILE } from "@server/env"
+import { CACHE_DATABASE_FILE } from "@server/env"
 import {
   type PiLabPayload,
   PiLabPayloadSchema,
@@ -18,8 +18,8 @@ const RETENTION_MS = 24 * 60 * 60 * 1000
 let database: DatabaseSync | null = null
 const db = (): DatabaseSync => {
   if (database) return database
-  mkdirSync(path.dirname(DATABASE_FILE), { recursive: true })
-  database = new DatabaseSync(DATABASE_FILE, { timeout: 5000 })
+  mkdirSync(path.dirname(CACHE_DATABASE_FILE), { recursive: true })
+  database = new DatabaseSync(CACHE_DATABASE_FILE, { timeout: 5000 })
   database.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;
     CREATE TABLE IF NOT EXISTS pi_lab_run (
       id TEXT PRIMARY KEY, session_id TEXT, result TEXT NOT NULL, updated_at INTEGER NOT NULL

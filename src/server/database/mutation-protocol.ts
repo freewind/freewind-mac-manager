@@ -4,6 +4,7 @@ import {
   DatabaseIdentifierSchema,
   DatabaseRecordLocatorKeySchema,
   DatabaseRecordSignatureSchema,
+  DatabaseScopeSchema,
   SqliteWritableValueSchema,
 } from "@shared/api-contract"
 import { z } from "zod"
@@ -45,12 +46,14 @@ export class DatabaseMutationError extends Error {
 export const MutationJobSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("insert"),
+    database: DatabaseScopeSchema.default("settings"),
     table: DatabaseIdentifierSchema,
     /** 省略的列交给数据库默认值；空对象表示 DEFAULT VALUES。 */
     values: z.record(DatabaseIdentifierSchema, SqliteWritableValueSchema),
   }),
   z.object({
     kind: z.literal("update"),
+    database: DatabaseScopeSchema.default("settings"),
     table: DatabaseIdentifierSchema,
     key: DatabaseRecordLocatorKeySchema,
     expectedSignature: DatabaseRecordSignatureSchema,
@@ -58,6 +61,7 @@ export const MutationJobSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("delete"),
+    database: DatabaseScopeSchema.default("settings"),
     table: DatabaseIdentifierSchema,
     items: z.array(DatabaseDeleteItemSchema).min(1).max(DATABASE_DELETE_MAX),
   }),

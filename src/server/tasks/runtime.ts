@@ -4,7 +4,7 @@ import {
   createProcessHost,
   type TaskRunnerHost,
 } from "@server/common/tasks/worker-host"
-import { DATABASE_FILE, taskWorkerCommand } from "@server/env"
+import { CACHE_DATABASE_FILE, taskWorkerCommand } from "@server/env"
 import { TASK_RESPONSE_THRESHOLD_MS } from "@shared/task-policy"
 
 export type TaskRuntime = {
@@ -25,7 +25,7 @@ export const createTaskRuntime = (options?: {
   recoverInterrupted?: boolean
 }): TaskRuntime => {
   const ownsStore = options?.store === undefined
-  const store = options?.store ?? new TaskStore(DATABASE_FILE)
+  const store = options?.store ?? new TaskStore(CACHE_DATABASE_FILE)
   const host =
     options?.host ??
     createProcessHost({

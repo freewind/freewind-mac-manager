@@ -118,6 +118,18 @@ import {
 } from "react"
 import { toast } from "sonner"
 
+/** 手动扫描没有新快照，提示只需说明与基线的差值。 */
+const describeScanComparison = (result: ScanTaskResult): string => {
+  if (result.baselineSnapshotId === null) {
+    return "扫描完成，暂无历史快照可对比"
+  }
+  const size = formatSignedBytes(result.deltaTotalSize ?? 0)
+  const files = result.deltaFileCount ?? 0
+  const fileText =
+    files === 0 ? "文件数不变" : `文件 ${files > 0 ? "+" : ""}${files}`
+  return `与快照 #${result.baselineSnapshotId} 对比：${size}，${fileText}`
+}
+
 const INDENT = 14
 
 /** 顶部只报一句话扫描进度，完整任务详情在任务中心。 */
@@ -190,7 +202,11 @@ export const DiskGrowthPage = () => {
     kind: TASK_KINDS.diskScan,
     target: scanTaskTarget("/"),
     run: (requestId) => triggerScan(requestId),
-    onCompleted: refreshAfterScan,
+    onCompleted: (result) => {
+      refreshAfterScan()
+      // 手动扫描只做对比：没有新快照，提示与基线的差值就够。
+      if (!result.saved) toast.success(describeScanComparison(result))
+    },
   })
   const isSearching = keyword.trim().length > 0
 
@@ -264,11 +280,11 @@ export const DiskGrowthPage = () => {
           <ActionButton
             size="sm"
             busy={scan.busy}
-            busyLabel="扫描中…"
+            busyLabel="对比中…"
             onClick={() => void scan.run(undefined)}
           >
             <RefreshCw />
-            立即扫描
+            立即对比
           </ActionButton>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
