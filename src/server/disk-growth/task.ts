@@ -217,5 +217,9 @@ export const runScanTask = async (options: {
   }
 }
 
-/** 与 service 保持同一份保留策略，避免两处数字漂移。 */
-export const KEEP_SNAPSHOTS = 90
+/**
+ * 与 service 保持同一份保留策略，避免两处数字漂移。
+ * 只留最新与上一份：增长对比的基线永远取前一份，历史趋势看 scan 表的汇总列，
+ * 多留的完整文件树只是重复占空间。
+ */
+export const KEEP_SNAPSHOTS = 2

@@ -1,8 +1,16 @@
-import { mkdirSync } from "node:fs"
+import { mkdirSync, statSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import type { GrowthEntry, ScanSnapshot, TreeNode } from "@shared/api-contract"
 import type { ScanEntryRow, ScanResult } from "./scanner"
+
+/** SQLite 的 auto_vacuum=INCREMENTAL 取值。 */
+const AUTO_VACUUM_MODE_INCREMENTAL = 2
+/**
+ * 首次把老库切到 incremental vacuum 时允许 VACUUM 的体积上限。
+ * 更大的库跳过，避免首次访问卡在整库重写上，留给一次手动维护。
+ */
+const AUTO_VACUUM_MAX_BYTES = 256 * 1024 * 1024
 
 type EntryKind = "dir" | "file"
 
@@ -22,9 +30,22 @@ export class DiskGrowthStore {
     mkdirSync(path.dirname(file), { recursive: true })
     // 后台执行器可能与父进程同时写这份库，这里给出有界等待而不是立刻失败。
     this.db = new DatabaseSync(file, { timeout: 5000 })
+    // 删掉的快照要能把页真正还给磁盘：auto_vacuum 必须在库还没有数据页时设置，
+    // 老库改完要 VACUUM 一次才生效。
+    this.db.exec("PRAGMA auto_vacuum = INCREMENTAL")
+    this.enableIncrementalVacuum(file)
     this.db.exec("PRAGMA journal_mode = WAL")
     this.db.exec("PRAGMA synchronous = NORMAL")
     this.migrate()
+  }
+
+  private enableIncrementalVacuum(file: string): void {
+    const row = this.db.prepare("PRAGMA auto_vacuum").get() as
+      | { auto_vacuum: number }
+      | undefined
+    if (row?.auto_vacuum === AUTO_VACUUM_MODE_INCREMENTAL) return
+    if (statSync(file).size > AUTO_VACUUM_MAX_BYTES) return
+    this.db.exec("VACUUM")
   }
 
   private migrate(): void {
@@ -49,8 +70,9 @@ export class DiskGrowthStore {
         folded INTEGER NOT NULL DEFAULT 0
       );
       CREATE INDEX IF NOT EXISTS idx_entry_scan_parent ON entry(scan_id, parent);
-      CREATE INDEX IF NOT EXISTS idx_entry_scan_path ON entry(scan_id, path);
     `)
+    // 关键词搜索用的是前置通配符 LIKE，这个索引帮不上忙，只白占空间。
+    this.db.exec("DROP INDEX IF EXISTS idx_entry_scan_path")
   }
 
   insertSnapshot(
@@ -248,6 +270,8 @@ export class DiskGrowthStore {
         `DELETE FROM scan WHERE id NOT IN (SELECT id FROM scan ORDER BY started_at DESC LIMIT ?)`
       )
       .run(keep)
+    // 快照的 entry 是库体积的绝对大头，删完立刻回收，不让文件停在历史峰值。
+    this.db.exec("PRAGMA incremental_vacuum")
   }
 }
 
