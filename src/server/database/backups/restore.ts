@@ -242,7 +242,7 @@ export const runPendingRestore = async (
   const read = readRestorePlan(context)
   if (read.corrupt) {
     const message = "恢复计划文件损坏，无法判定恢复进度，已停下报告"
-    console.warn(`[mac-manager] ${message}；不执行恢复，也不清理计划文件`)
+    console.warn(`[computer-manager] ${message}；不执行恢复，也不清理计划文件`)
     return { status: "unknown", planId: null, phase: "accepted", message }
   }
   const plan = read.plan
@@ -311,7 +311,9 @@ export const runPendingRestore = async (
         context,
       })
     } catch (error) {
-      console.warn(`[mac-manager] 恢复状态写入失败：${describeError(error)}`)
+      console.warn(
+        `[computer-manager] 恢复状态写入失败：${describeError(error)}`
+      )
     }
     return { status: "unknown", planId, phase, message }
   }
@@ -323,7 +325,9 @@ export const runPendingRestore = async (
     try {
       transitionRestorePlan("failed", { phase, message, context })
     } catch (error) {
-      console.warn(`[mac-manager] 恢复状态写入失败：${describeError(error)}`)
+      console.warn(
+        `[computer-manager] 恢复状态写入失败：${describeError(error)}`
+      )
     }
     return { status: "failed", planId, phase, message }
   }
@@ -508,7 +512,7 @@ export const runPendingRestore = async (
       )
       if (interruptedTasks > 0) {
         console.warn(
-          `[mac-manager] 恢复临时库中 ${interruptedTasks} 个运行任务已标为结果未知，不自动重做`
+          `[computer-manager] 恢复临时库中 ${interruptedTasks} 个运行任务已标为结果未知，不自动重做`
         )
       }
     }
@@ -642,7 +646,7 @@ export const runPendingRestore = async (
     })
     // 只报告数据层结果；整体成功由入口在启动迁移通过后宣布。
     console.warn(
-      `[mac-manager] 恢复数据已应用并复验通过：计划 ${applied.id}，当前库签名 ${contentSignature.slice(0, 16)}；启动迁移通过后才算整体完成`
+      `[computer-manager] 恢复数据已应用并复验通过：计划 ${applied.id}，当前库签名 ${contentSignature.slice(0, 16)}；启动迁移通过后才算整体完成`
     )
     return {
       status: "applied",

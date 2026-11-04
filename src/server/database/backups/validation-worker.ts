@@ -42,7 +42,7 @@ const main = async (): Promise<void> => {
   } catch (error) {
     // 细节只留在服务端日志里；文件不合格的具体原因由校验结果本身给出。
     process.stderr.write(
-      `[mac-manager] 备份校验失败：${error instanceof Error ? error.message : "未知错误"}\n`
+      `[computer-manager] 备份校验失败：${error instanceof Error ? error.message : "未知错误"}\n`
     )
     write({ type: "failed", error: "备份校验未能完成" })
   }

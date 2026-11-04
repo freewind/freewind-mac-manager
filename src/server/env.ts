@@ -8,7 +8,9 @@ const findRoot = (start: string): string => {
     if (fs.existsSync(path.join(dir, "package.json"))) return dir
     const parent = path.dirname(dir)
     if (parent === dir) {
-      throw new Error("[mac-manager] 未向上找到 package.json，项目根定位失败")
+      throw new Error(
+        "[computer-manager] 未向上找到 package.json，项目根定位失败"
+      )
     }
     dir = parent
   }
@@ -24,13 +26,19 @@ export const MODELS_DIR = path.join(DATA_DIR, "models")
  * - 设置库：配置与历史记录，不可删除，体积小；
  * - 缓存库：扫描结果、流量采样、任务与调用记录，删掉后应用自动重建。
  * 各自可用环境变量覆盖（测试指向临时文件）。
+ *
+ * 旧名兼容：下面 5 个 COMPUTER_MANAGER_* 变量都是新名优先、MAC_MANAGER_* 回退，
+ * 等外部配置迁完即可删掉回退那一行。
  */
 export const SETTINGS_DATABASE_FILE = path.resolve(
-  process.env.MAC_MANAGER_SETTINGS_DB_FILE ??
+  process.env.COMPUTER_MANAGER_SETTINGS_DB_FILE ??
+    process.env.MAC_MANAGER_SETTINGS_DB_FILE ??
     path.join(DATA_DIR, "settings.sqlite3")
 )
 export const CACHE_DATABASE_FILE = path.resolve(
-  process.env.MAC_MANAGER_CACHE_DB_FILE ?? path.join(DATA_DIR, "cache.sqlite3")
+  process.env.COMPUTER_MANAGER_CACHE_DB_FILE ??
+    process.env.MAC_MANAGER_CACHE_DB_FILE ??
+    path.join(DATA_DIR, "cache.sqlite3")
 )
 export const PI_AGENT_DIR = path.resolve(
   process.env.PI_CODING_AGENT_DIR ??
@@ -100,7 +108,9 @@ export const CLASH_VERGE_PROFILES_FILE = path.resolve(
 
 /** 登录密码只从 .env 读取；未配置时返回空串，由调用方按“未配置”处理。 */
 export const getAuthPassword = (): string =>
-  process.env.MAC_MANAGER_PASSWORD ?? ""
+  process.env.COMPUTER_MANAGER_PASSWORD ??
+  process.env.MAC_MANAGER_PASSWORD ??
+  ""
 
 export const isAuthConfigured = (): boolean => getAuthPassword() !== ""
 /**
@@ -129,11 +139,13 @@ export const CADDY_LAUNCHD_LABEL = "com.freewind.caddy"
 export const CADDY_BACKUP_DIR = path.join(DATA_DIR, "caddy-backups")
 
 /**
- * 应用库的备份目录：默认放项目 data 下，可用 MAC_MANAGER_BACKUP_DIR 覆盖
+ * 应用库的备份目录：默认放项目 data 下，可用 COMPUTER_MANAGER_BACKUP_DIR 覆盖
  * （测试指向临时目录）。备份文件与清单都只在这里，不写回被备份的库。
  */
 export const DATABASE_BACKUP_DIR = path.resolve(
-  process.env.MAC_MANAGER_BACKUP_DIR ?? path.join(DATA_DIR, "database-backups")
+  process.env.COMPUTER_MANAGER_BACKUP_DIR ??
+    process.env.MAC_MANAGER_BACKUP_DIR ??
+    path.join(DATA_DIR, "database-backups")
 )
 
 /**
@@ -141,7 +153,8 @@ export const DATABASE_BACKUP_DIR = path.resolve(
  * 避免维护状态混进可下载的备份产物里。
  */
 export const DATABASE_BACKUP_STATE_DIR = path.resolve(
-  process.env.MAC_MANAGER_BACKUP_STATE_DIR ??
+  process.env.COMPUTER_MANAGER_BACKUP_STATE_DIR ??
+    process.env.MAC_MANAGER_BACKUP_STATE_DIR ??
     path.join(DATA_DIR, "database-backup-state")
 )
 
@@ -156,7 +169,7 @@ export const resolveServerPort = (): number => {
   const port = Number(process.env.APP_PORT)
   if (!Number.isInteger(port) || port <= 0) {
     throw new Error(
-      "[mac-manager] 缺少合法的 APP_PORT 环境变量（端口必须显式指定）"
+      "[computer-manager] 缺少合法的 APP_PORT 环境变量（端口必须显式指定）"
     )
   }
   return port

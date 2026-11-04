@@ -5,13 +5,13 @@
 
 ## 机制
 
-无状态认证：服务端不保存 session，每次请求直接核对 `MAC_MANAGER_PASSWORD`。
+无状态认证：服务端不保存 session，每次请求直接核对 `COMPUTER_MANAGER_PASSWORD`。
 因此 dev 热重载不会清掉登录态，也不会因为进程重启让人被动登出。
 
 | 环节 | 做法 |
 | --- | --- |
-| 密码来源 | 只从项目根 `.env` 的 `MAC_MANAGER_PASSWORD` 读取（[src/server/env.ts](../src/server/env.ts)） |
-| Cookie 名 | `mac_manager_access_token`，前后端共用 [src/shared/auth.ts](../src/shared/auth.ts) |
+| 密码来源 | 只从项目根 `.env` 的 `COMPUTER_MANAGER_PASSWORD` 读取（[src/server/env.ts](../src/server/env.ts)） |
+| Cookie 名 | `computer_manager_access_token`，前后端共用 [src/shared/auth.ts](../src/shared/auth.ts) |
 | 普通请求 | 前端从 cookie 读出密码放进 `Authorization: Bearer`（[src/shared/client-api/access-password.ts](../src/shared/client-api/access-password.ts)） |
 | 浏览器原生请求 | 下载、`<img>` 等无法自设 header，靠 cookie 自动携带；服务端先看 Bearer，再看 cookie |
 | 禁止的凭据渠道 | `?token=` query 参数；URL 会进访问日志、浏览器历史与 Referer |

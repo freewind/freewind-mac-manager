@@ -9,7 +9,7 @@ const outputPath = join(projectRoot, "generated", "openapi.yaml")
 
 const document = generateOpenApi(contract, {
   info: {
-    title: "Freewind Mac Manager",
+    title: "Freewind Computer Manager",
     version: "0.0.1",
   },
   // contract 的 pathPrefix 已把 /api 加回 path，所以 server 用同源根路径。

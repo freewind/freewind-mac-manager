@@ -42,7 +42,7 @@ export const LoginPage = ({ configured, onAuthenticated }: LoginPageProps) => {
         onSubmit={submit}
       >
         <div className="space-y-1">
-          <h1 className="text-lg font-semibold">Mac Manager</h1>
+          <h1 className="text-lg font-semibold">Computer Manager</h1>
           <p className="text-sm text-muted-foreground">
             登录以访问本机控制面板
           </p>
@@ -74,7 +74,7 @@ export const LoginPage = ({ configured, onAuthenticated }: LoginPageProps) => {
         ) : (
           <Alert variant="destructive">
             <AlertDescription>
-              服务尚未配置密码。请设置 MAC_MANAGER_PASSWORD 后重启。
+              服务尚未配置密码。请设置 COMPUTER_MANAGER_PASSWORD 后重启。
             </AlertDescription>
           </Alert>
         )}

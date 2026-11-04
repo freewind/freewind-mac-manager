@@ -1,7 +1,7 @@
 import { TaskAcceptedSchema } from "@shared/api-contract"
 import { useSyncExternalStore } from "react"
 
-const STORAGE_KEY = "mac-manager.pending-requests"
+const STORAGE_KEY = "computer-manager.pending-requests"
 const listeners = new Set<() => void>()
 let cachedRaw: string | null = null
 let cachedItems: PendingRequest[] = []

@@ -35,7 +35,7 @@ const Root = () => (
 
 const container = document.getElementById("root")
 if (!container) {
-  throw new Error("[mac-manager] 找不到 #root 挂载点")
+  throw new Error("[computer-manager] 找不到 #root 挂载点")
 }
 
 createRoot(container).render(<Root />)

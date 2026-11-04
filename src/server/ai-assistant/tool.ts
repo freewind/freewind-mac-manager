@@ -4,7 +4,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent"
 import { getAuthPassword, resolveServerPort } from "@server/env"
 import { TASK_REQUEST_ID_HEADER } from "@shared/api-contract/schemas/common"
 
-export const AI_ASSISTANT_TOOL_NAME = "call_mac_manager_api"
+export const AI_ASSISTANT_TOOL_NAME = "call_computer_manager_api"
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const
 type ApiMethod = (typeof METHODS)[number]
@@ -148,13 +148,13 @@ const parseBody = (text: string): unknown => {
  * 说明口径：这里只负责「把请求发出去、把状态与响应体带回来」，
  * 不会替用户确认危险动作——那一步必须由模型先讲清目标与影响、拿到明确同意。
  */
-export const callMacManagerApi = defineTool({
+export const callComputerManagerApi = defineTool({
   name: AI_ASSISTANT_TOOL_NAME,
   label: "调用本应用 API",
   description:
-    "通过 freewind-mac-manager 自己的 HTTP API（只允许 127.0.0.1 当前端口）调用应用能力，覆盖只读与写操作端点，例如流量、磁盘、进程、端口、文件、系统服务、Docker、Caddy、FRP、任务。这是操作本应用功能的首选方式：入参由助手侧与应用侧各校验一次。写操作会带上任务请求标识并走任务运行时，返回 202 只表示任务已被接收，完成与否必须再用 GET /api/tasks 查任务状态核实，不能当成已完成；4xx/5xx 一律是失败。这个接口不会替你确认危险动作：杀进程、删文件、重启服务、覆盖配置前，必须先把目标和影响告诉用户并拿到明确同意。path 必须是本应用的真实接口路径，如 /api/docker/containers；不要调用 /api/ai-assistant/* 或 /api/auth/*。",
+    "通过 freewind-computer-manager 自己的 HTTP API（只允许 127.0.0.1 当前端口）调用应用能力，覆盖只读与写操作端点，例如流量、磁盘、进程、端口、文件、系统服务、Docker、Caddy、FRP、任务。这是操作本应用功能的首选方式：入参由助手侧与应用侧各校验一次。写操作会带上任务请求标识并走任务运行时，返回 202 只表示任务已被接收，完成与否必须再用 GET /api/tasks 查任务状态核实，不能当成已完成；4xx/5xx 一律是失败。这个接口不会替你确认危险动作：杀进程、删文件、重启服务、覆盖配置前，必须先把目标和影响告诉用户并拿到明确同意。path 必须是本应用的真实接口路径，如 /api/docker/containers；不要调用 /api/ai-assistant/* 或 /api/auth/*。",
   promptGuidelines: [
-    "操作本应用功能时优先用 call_mac_manager_api；应用 API 无法满足时才用 read/bash/write/edit/grep/ls。",
+    "操作本应用功能时优先用 call_computer_manager_api；应用 API 无法满足时才用 read/bash/write/edit/grep/ls。",
     "写操作返回 202 只代表任务已接收：必须用 GET /api/tasks 核实结果，不能当作完成。危险动作先说明目标与影响并得到用户明确确认。",
   ],
   parameters: Type.Object({

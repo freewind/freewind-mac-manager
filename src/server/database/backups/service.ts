@@ -514,7 +514,7 @@ export const createDatabaseBackupService = (
     } catch (error) {
       // 文件已经落地且校验通过，清单没写上由下次核实接管，不因此报失败。
       console.warn(
-        `[mac-manager] 备份已发布但清单更新失败，将在下次核实时接管：${describeError(error)}`
+        `[computer-manager] 备份已发布但清单更新失败，将在下次核实时接管：${describeError(error)}`
       )
     }
     return published
@@ -1122,12 +1122,12 @@ export const reconcileDatabaseBackupsAtStartup = (): void => {
         report.staleMarker
       if (changed) {
         console.warn(
-          `[mac-manager] 启动核实备份目录：${JSON.stringify(report)}`
+          `[computer-manager] 启动核实备份目录：${JSON.stringify(report)}`
         )
       }
     } catch (error) {
       console.warn(
-        `[mac-manager] 启动核实备份目录失败：${describeError(error)}`
+        `[computer-manager] 启动核实备份目录失败：${describeError(error)}`
       )
     }
   })()

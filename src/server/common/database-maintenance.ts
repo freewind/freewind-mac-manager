@@ -422,13 +422,13 @@ export const runStartupMaintenanceBarrier = async <T>(
       ? "无法证明数据库使用者已全部退出"
       : `仍有 ${wait.scan.active.length} 个数据库使用者在运行`
     console.warn(
-      `[mac-manager] 暂不执行数据库恢复：${reason}，等待 ${wait.waitedMs} 毫秒后放弃本次恢复，计划留待下次启动`
+      `[computer-manager] 暂不执行数据库恢复：${reason}，等待 ${wait.waitedMs} 毫秒后放弃本次恢复，计划留待下次启动`
     )
     return null
   }
   if (wait.waitedMs > 0) {
     console.warn(
-      `[mac-manager] 已等待 ${wait.waitedMs} 毫秒，数据库使用者全部退出，开始执行恢复`
+      `[computer-manager] 已等待 ${wait.waitedMs} 毫秒，数据库使用者全部退出，开始执行恢复`
     )
   }
   return await options.executeRestore()

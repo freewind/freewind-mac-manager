@@ -22,7 +22,7 @@ const indexHtml = (): string => `<!DOCTYPE html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Mac Manager API Docs</title>
+    <title>Computer Manager API Docs</title>
     <link rel="stylesheet" href="/api-docs/swagger-ui.css" />
     <style>body { margin: 0; }</style>
   </head>

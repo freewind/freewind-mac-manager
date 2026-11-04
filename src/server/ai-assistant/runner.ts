@@ -261,7 +261,7 @@ const persistFinish = (
     return null
   } catch (error) {
     console.error(
-      `[mac-manager] AI 助手历史保存失败（会话 ${execution.sessionId}，终态 ${status}）：${
+      `[computer-manager] AI 助手历史保存失败（会话 ${execution.sessionId}，终态 ${status}）：${
         error instanceof Error ? error.message : "未知错误"
       }`
     )
@@ -278,7 +278,7 @@ const persistAnswer = (execution: Execution): void => {
     execution.persistence.saveAnswer(execution.sessionId, answer)
   } catch (error) {
     console.error(
-      `[mac-manager] AI 助手中间结果落盘失败（会话 ${execution.sessionId}）：${
+      `[computer-manager] AI 助手中间结果落盘失败（会话 ${execution.sessionId}）：${
         error instanceof Error ? error.message : "未知错误"
       }`
     )

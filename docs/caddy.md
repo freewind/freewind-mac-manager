@@ -1,7 +1,7 @@
 # Caddy 网关
 
-这份文档说明 mac-manager 里的「Caddy 网关」管什么、怎么用、失败时是什么语义，
-以及现在还没验证的部分。Caddy 本身仍是这台机器的常驻服务，mac-manager 不接管它的安装与运行。
+这份文档说明 computer-manager 里的「Caddy 网关」管什么、怎么用、失败时是什么语义，
+以及现在还没验证的部分。Caddy 本身仍是这台机器的常驻服务，computer-manager 不接管它的安装与运行。
 
 ## 管什么、不管什么
 
@@ -24,12 +24,12 @@
 受管区域由站点块内的一对标记圈定：
 
 ```
-	# mac-manager:rules:start
-	# 本区域由 mac-manager 生成，手工改动会在下次应用时被覆盖。
+	# computer-manager:rules:start
+	# 本区域由 computer-manager 生成，手工改动会在下次应用时被覆盖。
 	handle_path /alpha/* {
 		reverse_proxy 127.0.0.1:15001
 	}
-	# mac-manager:rules:end
+	# computer-manager:rules:end
 ```
 
 - 应用时**只替换两个标记之间的内容**，标记行本身、站点块、`tls` 行、全局选项块与注释
@@ -67,7 +67,7 @@
    但先把规则包进标记再点导入同样能导入成功（已存在的匹配条件会跳过）。
    导入只写数据库，不改文件。
 3. **手工把同一批规则包进成对标记**：在站点块内、这批规则的前后各加一行
-   `# mac-manager:rules:start` 与 `# mac-manager:rules:end`（缩进与规则一致，用制表符）。
+   `# computer-manager:rules:start` 与 `# computer-manager:rules:end`（缩进与规则一致，用制表符）。
 4. **打开管理接口**：在全局选项块里把 `admin off` 改成 `admin 127.0.0.1:2019`。
    `admin off` 时无法通过管理接口热加载，初始化这次变更是它唯一必须重启的改动。
 5. **重启服务**：`launchctl kickstart -k gui/$(id -u)/com.freewind.caddy`（或用

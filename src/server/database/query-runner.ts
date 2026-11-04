@@ -247,7 +247,7 @@ export const createQueryRunner = (
         if (settled) {
           if (stderr.trim().length > 0) {
             console.error(
-              `[mac-manager] 数据库查询子进程输出：${stderr.trim()}`
+              `[computer-manager] 数据库查询子进程输出：${stderr.trim()}`
             )
           }
           return
@@ -259,7 +259,9 @@ export const createQueryRunner = (
           return
         }
         if (stderr.trim().length > 0) {
-          console.error(`[mac-manager] 数据库查询子进程输出：${stderr.trim()}`)
+          console.error(
+            `[computer-manager] 数据库查询子进程输出：${stderr.trim()}`
+          )
         }
         fail(
           new DatabaseQueryError(

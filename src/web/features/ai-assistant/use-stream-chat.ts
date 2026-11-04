@@ -8,7 +8,7 @@ import type { ChatStatus, UIMessage } from "ai"
 import { useCallback, useRef, useState } from "react"
 
 /** 自定义工具在 Agent Elements 里走「用户工具」通道，才能命中 toolRenderers。 */
-export const AI_ASSISTANT_TOOL_NAME = "call_mac_manager_api"
+export const AI_ASSISTANT_TOOL_NAME = "call_computer_manager_api"
 const USER_TOOL_PART_PREFIX = "tool-mcp__user-tools__"
 
 /** 内置工具映射到官方专用卡片；未收录的走通用卡片回退。 */

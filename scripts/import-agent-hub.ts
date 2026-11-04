@@ -4,7 +4,7 @@ import { CollaborationStore } from "@server/collaboration/store"
 import { SETTINGS_DATABASE_FILE } from "@server/env"
 
 /**
- * 把 freewind-agent-hub 的 data/db.json 导入 mac-manager 的统一数据库。
+ * 把 freewind-agent-hub 的 data/db.json 导入 computer-manager 的统一数据库。
  *
  * 用法：
  *   pnpm tsx scripts/import-agent-hub.ts --source <db.json> [--target <sqlite>] [--yes]
@@ -56,14 +56,16 @@ const main = (): void => {
     args = parseArgs(process.argv.slice(2))
   } catch (error) {
     console.error(
-      `[mac-manager] ${error instanceof Error ? error.message : "参数错误"}`
+      `[computer-manager] ${error instanceof Error ? error.message : "参数错误"}`
     )
     console.error(USAGE)
     process.exit(1)
   }
 
   if (!args.source) {
-    console.error("[mac-manager] 缺少 --source（agent-hub 的 db.json 路径）")
+    console.error(
+      "[computer-manager] 缺少 --source（agent-hub 的 db.json 路径）"
+    )
     console.error(USAGE)
     process.exit(1)
   }
@@ -72,7 +74,7 @@ const main = (): void => {
   const target = args.target ?? SETTINGS_DATABASE_FILE
   if (!args.target && !args.yes) {
     console.error(
-      `[mac-manager] 目标库缺省为项目数据库：${target}\n` +
+      `[computer-manager] 目标库缺省为项目数据库：${target}\n` +
         "如确实要写入它，请加 --yes；否则用 --target 指定别的库文件。"
     )
     process.exit(1)
@@ -83,7 +85,7 @@ const main = (): void => {
     raw = JSON.parse(readFileSync(args.source, "utf8"))
   } catch (error) {
     console.error(
-      `[mac-manager] 读取源文件失败：${
+      `[computer-manager] 读取源文件失败：${
         error instanceof Error ? error.message : "未知错误"
       }`
     )
@@ -93,7 +95,7 @@ const main = (): void => {
   const store = new CollaborationStore(target)
   try {
     const result = importAgentHubData(store, raw)
-    console.log(`[mac-manager] 已从 ${args.source} 导入到 ${target}`)
+    console.log(`[computer-manager] 已从 ${args.source} 导入到 ${target}`)
     const line = (label: string, counts: typeof result.topics): void => {
       console.log(
         `  ${label}：新增 ${counts.inserted}，跳过 ${counts.skipped}，冲突 ${counts.conflicted}`
@@ -117,7 +119,7 @@ const main = (): void => {
     )
   } catch (error) {
     console.error(
-      `[mac-manager] 导入失败，未写入任何数据：${
+      `[computer-manager] 导入失败，未写入任何数据：${
         error instanceof Error ? error.message : "未知错误"
       }`
     )

@@ -398,7 +398,9 @@ export const createBackupValidationRunner = (
         children.delete(child)
         if (settled) {
           if (stderr.trim().length > 0) {
-            console.error(`[mac-manager] 备份校验子进程输出：${stderr.trim()}`)
+            console.error(
+              `[computer-manager] 备份校验子进程输出：${stderr.trim()}`
+            )
           }
           return
         }
@@ -409,7 +411,9 @@ export const createBackupValidationRunner = (
           return
         }
         if (stderr.trim().length > 0) {
-          console.error(`[mac-manager] 备份校验子进程输出：${stderr.trim()}`)
+          console.error(
+            `[computer-manager] 备份校验子进程输出：${stderr.trim()}`
+          )
         }
         fail(
           new Error(

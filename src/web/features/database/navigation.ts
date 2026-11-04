@@ -137,7 +137,7 @@ const writeUrl = (next: DatabaseUrlState, mode: "push" | "replace"): void => {
   )
   const target = `${url.pathname}${url.search}${url.hash}`
   // 保留应用内导航标记，App 的返回按钮才认得这是应用内导航。
-  const state = { ...window.history.state, macManagerFeature: true }
+  const state = { ...window.history.state, computerManagerFeature: true }
   if (mode === "push") window.history.pushState(state, "", target)
   else window.history.replaceState(state, "", target)
   window.dispatchEvent(new PopStateEvent("popstate"))

@@ -57,7 +57,9 @@ const toRecord = (row: TaskStoredRow): TaskRecord | null => {
     updatedAt: row.updatedAt,
   })
   if (!parsed.success) {
-    console.warn(`[mac-manager] 任务 ${row.id} 的记录无法通过校验，已跳过返回`)
+    console.warn(
+      `[computer-manager] 任务 ${row.id} 的记录无法通过校验，已跳过返回`
+    )
     return null
   }
   return parsed.data

@@ -63,5 +63,5 @@ export const MCP_MAX_SCHEMA_PROPERTIES = 64
 export const MCP_MAX_DESCRIPTION_CHARS = 2000
 
 /** 客户端标识：发给服务端用于识别调用方。 */
-export const MCP_CLIENT_NAME = "freewind-mac-manager"
+export const MCP_CLIENT_NAME = "freewind-computer-manager"
 export const MCP_CLIENT_VERSION = "0.0.1"

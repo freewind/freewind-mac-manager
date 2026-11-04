@@ -63,7 +63,7 @@ const openFeature = (feature: "processes" | "ports"): void => {
   const url = new URL(window.location.href)
   url.searchParams.set("feature", feature)
   window.history.pushState(
-    { ...window.history.state, macManagerFeature: true },
+    { ...window.history.state, computerManagerFeature: true },
     "",
     url
   )

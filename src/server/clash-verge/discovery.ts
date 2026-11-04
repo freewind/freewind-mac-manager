@@ -308,7 +308,7 @@ export const resolveControllerTarget = async (
   lastFailure = { error, at: now() }
   // 只记候选地址，不含任何凭据
   console.warn(
-    `[mac-manager] Clash Verge 控制接口未发现，已尝试：${tried.join("、") || "无候选"}`
+    `[computer-manager] Clash Verge 控制接口未发现，已尝试：${tried.join("、") || "无候选"}`
   )
   throw error
 }

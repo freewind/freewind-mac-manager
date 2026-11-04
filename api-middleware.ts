@@ -55,7 +55,7 @@ export const devApiPlugin = (): Plugin => ({
         .catch((error: unknown) => {
           // app 建不起来时不能把请求挂在半空：交给 Vite 兜底会让页面
           // 拿到 HTML 当成接口数据，前端渲染时直接崩溃。
-          console.error("[mac-manager] 后端 app 加载失败", error)
+          console.error("[computer-manager] 后端 app 加载失败", error)
           response.statusCode = 502
           response.setHeader("content-type", "application/json; charset=utf-8")
           response.end(JSON.stringify({ message: "后端接口加载失败" }))

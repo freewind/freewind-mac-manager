@@ -29,7 +29,7 @@ const summarize = (value: unknown, limit = 600): string => {
 }
 
 /**
- * call_mac_manager_api 的只读展示卡片。
+ * call_computer_manager_api 的只读展示卡片。
  *
  * 只是展示助手刚才调了哪个接口、结果如何；真正的执行与校验都在后端，
  * 这里不做任何动作，也不提供重试入口。

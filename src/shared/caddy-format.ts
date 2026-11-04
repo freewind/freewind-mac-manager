@@ -10,8 +10,8 @@
  */
 
 /** 托管区域的起止标记，成对出现时其中的规则才算本功能管理。 */
-export const CADDY_MANAGED_START = "# mac-manager:rules:start"
-export const CADDY_MANAGED_END = "# mac-manager:rules:end"
+export const CADDY_MANAGED_START = "# computer-manager:rules:start"
+export const CADDY_MANAGED_END = "# computer-manager:rules:end"
 
 export type CaddyMatchKind = "host" | "path"
 export type CaddyRuleOrigin = "managed" | "external"
@@ -403,7 +403,7 @@ export type ManagedRuleForGenerate = CaddyRuleSignatureInput & { id: string }
 
 /** 受管区域内的说明行，随标记一起写进文件，提醒不要手工改。 */
 export const CADDY_MANAGED_NOTICE =
-  "# 本区域由 mac-manager 生成，手工改动会在下次应用时被覆盖。"
+  "# 本区域由 computer-manager 生成，手工改动会在下次应用时被覆盖。"
 
 /** 站点块一层的缩进：标记行与规则块同层。 */
 const INDENT = "\t"

@@ -78,13 +78,15 @@ export const startScheduler = (runner: TaskRunner): void => {
     }
     const delay = next.getTime() - now.getTime()
     console.log(
-      `[mac-manager] 下次自动扫描：${next.toLocaleString("zh-CN")}（${Math.round(delay / 1000)} 秒后）`
+      `[computer-manager] 下次自动扫描：${next.toLocaleString("zh-CN")}（${Math.round(delay / 1000)} 秒后）`
     )
     setTimeout(() => {
       void submitScanTask(runner, null).then(
         (outcome) =>
-          console.log(`[mac-manager] 定时扫描：${describeOutcome(outcome)}`),
-        (error) => console.error(`[mac-manager] 定时扫描失败：${error}`)
+          console.log(
+            `[computer-manager] 定时扫描：${describeOutcome(outcome)}`
+          ),
+        (error) => console.error(`[computer-manager] 定时扫描失败：${error}`)
       )
       scheduleNext()
     }, delay)

@@ -1,4 +1,4 @@
-# AGENTS.md — freewind-mac-manager 开发规范
+# AGENTS.md — freewind-computer-manager 开发规范
 
 本文是本项目的开发标准。修改前先读本文；不能把规范要求当成已经完成的功能。
 
@@ -191,7 +191,7 @@ src/
 
 - 使用清晰的命名导出；函数声明或箭头函数按语义选择，不为语法形式批量迁移。第三方生成代码和工具配置遵循各自要求。
 - 保持 TypeScript strict，未知输入用 `unknown` 并校验；禁止 `any`、`ts-ignore` 和用 lint suppression 掩盖问题。
-- 中文注释解释原因。应用日志用 `[mac-manager]` 前缀并脱敏，不在业务路径散落调试 `console.log`。
+- 中文注释解释原因。应用日志用 `[computer-manager]` 前缀并脱敏，不在业务路径散落调试 `console.log`。
 - Biome 使用官方 recommended 规则，手写代码不得关闭推荐规则；团队额外规则按适用性接入，配置与插件必须可复现。
 - 格式沿用无分号、双引号、2 空格、行宽 80，由 Biome 统一处理；官方 shadcn 组件与 hook、生成物不参与格式化、import 整理或自动修复，手写代码的检查范围覆盖源码、脚本、测试与配置。
 - Biome 不替代 TypeScript 的类型检查；`typecheck` 必须独立运行 TypeScript 7 的 `tsc --noEmit`，构建复用该脚本。旧编译器 API 的工具依赖另行核实，不能静默改回旧类型检查器。

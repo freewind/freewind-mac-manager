@@ -6,7 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent"
 import { getAiAssistantSettings } from "@server/ai-assistant/config"
 import { buildSession } from "@server/ai-assistant/session"
-import { callMacManagerApi } from "@server/ai-assistant/tool"
+import { callComputerManagerApi } from "@server/ai-assistant/tool"
 import { PublicOperationError } from "@server/common/public-error"
 import { PROJECT_ROOT } from "@server/env"
 import { buildCallSystemPrompt } from "./config"
@@ -86,7 +86,7 @@ export const getOrCreateCallSession = async (
       thinkingLevel: settings.settings.thinkingLevel,
     },
     systemPrompt: buildCallSystemPrompt(persona.systemPrompt),
-    customTools: [callMacManagerApi],
+    customTools: [callComputerManagerApi],
     // 漏掉自定义工具名会被 SDK 的 allowlist 整体剔除，必须显式列出。
     extraToolNames: [],
     enabledTools: [...CALL_BUILTIN_TOOLS],

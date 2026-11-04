@@ -1,4 +1,4 @@
-const SHELL_CACHE = `mac-manager-shell-${"__SHELL_VERSION__"}`
+const SHELL_CACHE = `computer-manager-shell-${"__SHELL_VERSION__"}`
 const SHELL_URLS = ["__SHELL_URLS__"]
 
 self.addEventListener("install", (event) => {
@@ -16,7 +16,10 @@ self.addEventListener("activate", (event) => {
           keys
             .filter(
               (key) =>
-                key.startsWith("mac-manager-shell-") && key !== SHELL_CACHE
+                // 旧前缀 mac-manager-shell- 是改名前的缓存，一次性清掉
+                (key.startsWith("computer-manager-shell-") ||
+                  key.startsWith("mac-manager-shell-")) &&
+                key !== SHELL_CACHE
             )
             .map((key) => caches.delete(key))
         )

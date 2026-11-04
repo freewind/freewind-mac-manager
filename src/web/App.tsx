@@ -78,8 +78,9 @@ const featureUrl = (feature: FeatureKey, piTab?: string) => {
 const isAppFeatureHistory = (state: unknown): boolean =>
   typeof state === "object" &&
   state !== null &&
-  "macManagerFeature" in state &&
-  (state as { macManagerFeature?: boolean }).macManagerFeature === true
+  "computerManagerFeature" in state &&
+  (state as { computerManagerFeature?: boolean }).computerManagerFeature ===
+    true
 
 const featureNavigationSnapshot = (): string =>
   `${featureFromUrl()}:${isAppFeatureHistory(window.history.state)}`
@@ -100,7 +101,11 @@ const useFeatureNavigation = () => {
 
   const selectFeature = (next: FeatureKey): void => {
     if (next === feature) return
-    window.history.pushState({ macManagerFeature: true }, "", featureUrl(next))
+    window.history.pushState(
+      { computerManagerFeature: true },
+      "",
+      featureUrl(next)
+    )
     window.dispatchEvent(
       new PopStateEvent("popstate", { state: window.history.state })
     )
@@ -116,7 +121,7 @@ const useFeatureNavigation = () => {
  */
 const openAiAssistantSettings = (): void => {
   window.history.pushState(
-    { macManagerFeature: true },
+    { computerManagerFeature: true },
     "",
     featureUrl("pi", "assistant")
   )
@@ -137,7 +142,7 @@ export const App = () => {
       queryClient.clear()
       markUnauthenticated()
     }
-    window.addEventListener("mac-manager:unauthorized", onUnauthorized)
+    window.addEventListener("computer-manager:unauthorized", onUnauthorized)
     const onVisibilityChange = (): void => {
       if (document.visibilityState === "visible" && navigator.onLine) {
         void refreshAuthStatus(false)
@@ -148,7 +153,10 @@ export const App = () => {
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange)
       window.removeEventListener("online", onVisibilityChange)
-      window.removeEventListener("mac-manager:unauthorized", onUnauthorized)
+      window.removeEventListener(
+        "computer-manager:unauthorized",
+        onUnauthorized
+      )
     }
   }, [queryClient])
 

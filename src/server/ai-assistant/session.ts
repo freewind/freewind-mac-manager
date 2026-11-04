@@ -16,7 +16,7 @@ import { AI_ASSISTANT_DEFAULT_TOOLS } from "@shared/api-contract/schemas/ai-assi
 import { AI_ASSISTANT_DEFAULT_SYSTEM_PROMPT } from "./config"
 import { createAssistantModelRuntime } from "./model-runtime"
 import { saveSession } from "./store"
-import { AI_ASSISTANT_TOOL_NAME, callMacManagerApi } from "./tool"
+import { AI_ASSISTANT_TOOL_NAME, callComputerManagerApi } from "./tool"
 import { buildTopicSystemPrompt, getAiTopicSettings } from "./topic-settings"
 import { saveTopicSettingsSnapshot } from "./topic-store"
 import {
@@ -185,7 +185,7 @@ export const createSession = async (
     model: settings.settings,
     systemPrompt:
       settings.settings.systemPrompt ?? AI_ASSISTANT_DEFAULT_SYSTEM_PROMPT,
-    customTools: [callMacManagerApi],
+    customTools: [callComputerManagerApi],
     extraToolNames: [],
     enabledTools: settings.settings.enabledTools,
     sessionManager: SessionManager.inMemory(),
@@ -233,7 +233,7 @@ const parseStoredEntries = (entriesText: string): FileEntry[] => {
 
 /**
  * 话题只开放只读的内置工具：它用来讨论与理解项目，不该顺手动文件。
- * 需要操作本机能力时走 call_mac_manager_api，写操作仍要用户确认。
+ * 需要操作本机能力时走 call_computer_manager_api，写操作仍要用户确认。
  */
 const TOPIC_BUILTIN_TOOLS = ["read", "grep", "ls"] as const
 
@@ -274,7 +274,7 @@ export const getOrCreateTopicSession = async (
     model: settings.settings,
     systemPrompt: buildTopicSystemPrompt(settings),
     customTools: [
-      callMacManagerApi,
+      callComputerManagerApi,
       ...createTopicToolset(topicId, runContext),
     ],
     extraToolNames: [...AI_TOPIC_TOOL_NAMES],

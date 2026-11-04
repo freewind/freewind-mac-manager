@@ -133,7 +133,7 @@ const saveAudio = (wav: Buffer, model: string): AudioRecord | null => {
   } catch (error) {
     // 存不上不能影响识别：这只是留样本的辅助能力。
     console.error(
-      `[mac-manager] 识别音频保存失败：${
+      `[computer-manager] 识别音频保存失败：${
         error instanceof Error ? error.message : "未知错误"
       }`
     )

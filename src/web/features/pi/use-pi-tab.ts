@@ -66,7 +66,7 @@ export const usePiTab = (): {
       if (next === tab) return
       // 保留既有历史状态标记，App 的返回按钮才认得这是应用内导航。
       window.history.pushState(
-        { ...window.history.state, macManagerFeature: true },
+        { ...window.history.state, computerManagerFeature: true },
         "",
         piTabUrl(next)
       )

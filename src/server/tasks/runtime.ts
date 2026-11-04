@@ -45,7 +45,7 @@ export const createTaskRuntime = (options?: {
     const count = runner.recoverInterrupted()
     if (count > 0) {
       console.log(
-        `[mac-manager] ${count} 个任务在上次服务中断，已标记为结果未知`
+        `[computer-manager] ${count} 个任务在上次服务中断，已标记为结果未知`
       )
     }
     // 退出时同步回收执行子进程：开发环境热重启等路径不会走 main.ts 的关闭流程。

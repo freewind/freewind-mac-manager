@@ -37,7 +37,7 @@ const openWritable = (job: MutationJob): DatabaseSync => {
   } catch (error) {
     // 连连接都建不起来，可以确定没有发生任何写入
     process.stderr.write(
-      `[mac-manager] 无法打开数据库：${error instanceof Error ? error.message : "未知错误"}\n`
+      `[computer-manager] 无法打开数据库：${error instanceof Error ? error.message : "未知错误"}\n`
     )
     throw new DatabaseMutationError(
       500,
@@ -126,7 +126,7 @@ const main = async (): Promise<void> => {
     }
     // 细节只留在服务端日志里，返回给客户端的只有通用说明
     process.stderr.write(
-      `[mac-manager] 数据库写入失败：${error instanceof Error ? error.message : "未知错误"}\n`
+      `[computer-manager] 数据库写入失败：${error instanceof Error ? error.message : "未知错误"}\n`
     )
     write({
       type: "failed",

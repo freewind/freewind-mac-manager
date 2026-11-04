@@ -224,10 +224,10 @@ pnpm vitest run src/server/database/acceptance.test.ts   # 本次端到端验收
 
 | 环境变量 | 默认值 | 作用 |
 | --- | --- | --- |
-| `MAC_MANAGER_BACKUP_DIR` | `<项目>/data/database-backups` | 备份文件目录（下载与恢复来源） |
-| `MAC_MANAGER_BACKUP_STATE_DIR` | `<项目>/data/database-backup-state` | 恢复计划、进行中标记等维护状态，与备份文件分开 |
-| `MAC_MANAGER_SETTINGS_DB_FILE` | `<项目>/data/settings.sqlite3` | 设置库；测试一律改道到临时文件 |
-| `MAC_MANAGER_CACHE_DB_FILE` | `<项目>/data/cache.sqlite3` | 缓存库；可删除重建，测试同样改道临时文件 |
+| `COMPUTER_MANAGER_BACKUP_DIR` | `<项目>/data/database-backups` | 备份文件目录（下载与恢复来源） |
+| `COMPUTER_MANAGER_BACKUP_STATE_DIR` | `<项目>/data/database-backup-state` | 恢复计划、进行中标记等维护状态，与备份文件分开 |
+| `COMPUTER_MANAGER_SETTINGS_DB_FILE` | `<项目>/data/settings.sqlite3` | 设置库；测试一律改道到临时文件 |
+| `COMPUTER_MANAGER_CACHE_DB_FILE` | `<项目>/data/cache.sqlite3` | 缓存库；可删除重建，测试同样改道临时文件 |
 
 服务端口由 `APP_PORT` 注入（dev 51509 / 生产 51510），与备份无关。
 

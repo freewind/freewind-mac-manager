@@ -36,7 +36,7 @@ export const openDatabase = (
   const mode = options.mode ?? "readwrite"
   const file = options.file ?? SETTINGS_DATABASE_FILE
   if (mode === "readonly" && !existsSync(file)) {
-    throw new Error(`[mac-manager] 数据库文件不存在：${file}`)
+    throw new Error(`[computer-manager] 数据库文件不存在：${file}`)
   }
   const database = new DatabaseSync(file, {
     readOnly: mode === "readonly",

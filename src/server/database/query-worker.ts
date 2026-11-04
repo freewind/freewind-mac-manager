@@ -103,7 +103,7 @@ const main = async (): Promise<void> => {
     }
     // 细节只留在服务端日志里，返回给客户端的只有一句通用说明
     process.stderr.write(
-      `[mac-manager] 数据库查询失败：${error instanceof Error ? error.message : "未知错误"}\n`
+      `[computer-manager] 数据库查询失败：${error instanceof Error ? error.message : "未知错误"}\n`
     )
     write({ type: "failed", error: "数据库查询失败", httpStatus: 500 })
   }

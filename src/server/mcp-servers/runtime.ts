@@ -384,7 +384,7 @@ export class McpRuntime {
         // 服务端没声明这项能力时按「没有」处理；其它错误记日志但不让连接失败。
         if (error instanceof McpError && error.code === -32601) return fallback
         console.error(
-          `[mac-manager] 读取 ${label} 失败：${describeFailure(error)}`
+          `[computer-manager] 读取 ${label} 失败：${describeFailure(error)}`
         )
         return fallback
       }

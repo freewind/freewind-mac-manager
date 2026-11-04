@@ -266,7 +266,9 @@ export const createMutationRunner = (
       child.on("close", (code, signalName) => {
         children.delete(child)
         if (stderr.trim().length > 0) {
-          console.error(`[mac-manager] 数据库写子进程输出：${stderr.trim()}`)
+          console.error(
+            `[computer-manager] 数据库写子进程输出：${stderr.trim()}`
+          )
         }
         if (settled) return
         if (buffer.trim().length > 0) handleLine(buffer)

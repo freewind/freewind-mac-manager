@@ -36,7 +36,7 @@ const navigate = (next: AiTopicsLocation): void => {
   else url.searchParams.delete("thread")
   // 保留已有历史标记：App 的返回按钮靠它判断这是应用内导航。
   window.history.pushState(
-    { ...window.history.state, macManagerFeature: true },
+    { ...window.history.state, computerManagerFeature: true },
     "",
     url
   )

@@ -8,7 +8,7 @@ const assets = (await readdir(path.join(dist, "assets"))).sort()
 const urls = [
   "/index.html",
   "/manifest.webmanifest",
-  "/mac-manager-icon.svg",
+  "/computer-manager-icon.svg",
   ...assets.map((name) => `/assets/${name}`),
 ]
 const hash = createHash("sha256")

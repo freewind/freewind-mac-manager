@@ -9,7 +9,7 @@ import { getAuthPassword, isAuthConfigured } from "./env"
 /**
  * 访问密码认证：无状态，不保存会话。
  *
- * - 密码的唯一来源仍是 .env 的 MAC_MANAGER_PASSWORD（见 env.ts）；每次请求直接核对。
+ * - 密码的唯一来源仍是 .env 的 COMPUTER_MANAGER_PASSWORD（见 env.ts）；每次请求直接核对。
  * - 凭据双来源：Authorization: Bearer（普通请求）+ cookie（浏览器原生请求如
  *   下载、<img> 无法自设 header，只能靠它自动携带）；禁用 query 参数取 token，
  *   因为 URL 会进访问日志、浏览器历史与 Referer。

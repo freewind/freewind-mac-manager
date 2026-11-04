@@ -1,14 +1,14 @@
 import { useEffect, useId, useRef } from "react"
 
-type OverlayHistoryState = { macManagerOverlays?: string[] }
+type OverlayHistoryState = { computerManagerOverlays?: string[] }
 const stackOf = (state: unknown): string[] => {
   if (
     typeof state !== "object" ||
     state === null ||
-    !("macManagerOverlays" in state)
+    !("computerManagerOverlays" in state)
   )
     return []
-  const stack = (state as OverlayHistoryState).macManagerOverlays
+  const stack = (state as OverlayHistoryState).computerManagerOverlays
   return Array.isArray(stack)
     ? stack.filter((id): id is string => typeof id === "string")
     : []
@@ -25,7 +25,7 @@ export const useHistoryOverlay = (open: boolean, onClose: () => void) => {
     const stack = stackOf(window.history.state)
     if (open && !wasOpen.current) {
       window.history.pushState(
-        { ...window.history.state, macManagerOverlays: [...stack, id] },
+        { ...window.history.state, computerManagerOverlays: [...stack, id] },
         "",
         window.location.href
       )
@@ -36,7 +36,7 @@ export const useHistoryOverlay = (open: boolean, onClose: () => void) => {
         window.history.replaceState(
           {
             ...window.history.state,
-            macManagerOverlays: stack.filter((item) => item !== id),
+            computerManagerOverlays: stack.filter((item) => item !== id),
           },
           "",
           window.location.href
@@ -64,7 +64,7 @@ export const useHistoryOverlay = (open: boolean, onClose: () => void) => {
           window.history.replaceState(
             {
               ...window.history.state,
-              macManagerOverlays: stack.filter((item) => item !== id),
+              computerManagerOverlays: stack.filter((item) => item !== id),
             },
             "",
             window.location.href

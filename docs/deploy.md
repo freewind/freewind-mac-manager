@@ -5,8 +5,8 @@
 
 ## 生产服务怎么跑
 
-生产服务是 launchd 用户级常驻服务 `com.freewind.mac-manager`，plist 在项目外
-（`~/Library/LaunchAgents/com.freewind.mac-manager.plist`），它执行的命令是 `pnpm start`。
+生产服务是 launchd 用户级常驻服务 `com.freewind.computer-manager`，plist 在项目外
+（`~/Library/LaunchAgents/com.freewind.computer-manager.plist`），它执行的命令是 `pnpm start`。
 
 [package.json](../package.json) 的 `start` 只做一件事：
 
@@ -29,7 +29,7 @@ pnpm deploy:prod
 本项目已有生产与开发两个 launchd 服务，后缀也点明了重启的是生产服务。
 
 等价于 `pnpm build` 成功后才执行
-`launchctl kickstart -k gui/$(id -u)/com.freewind.mac-manager`。
+`launchctl kickstart -k gui/$(id -u)/com.freewind.computer-manager`。
 脚本复用现有 `build`，不复制构建命令；对已安装的 launchd 服务用 kickstart 重启，
 不生成、不改动 plist。
 

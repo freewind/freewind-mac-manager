@@ -1,6 +1,6 @@
 {
-  "name": "Mac Manager",
-  "short_name": "Mac Manager",
+  "name": "Computer Manager",
+  "short_name": "Computer Manager",
   "description": "个人 Mac 控制台",
   "start_url": "/?feature=overview",
   "display": "standalone",
@@ -9,7 +9,7 @@
   "lang": "zh-CN",
   "icons": [
     {
-      "src": "/mac-manager-icon.svg",
+      "src": "/computer-manager-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

@@ -42,7 +42,7 @@ const errorMessage = (body: unknown): string | null => {
 
 export const dispatchUnauthorized = (): void => {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("mac-manager:unauthorized"))
+    window.dispatchEvent(new Event("computer-manager:unauthorized"))
   }
 }
 

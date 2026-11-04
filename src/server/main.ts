@@ -34,7 +34,7 @@ app.use(express.static(WEB_DIST_DIR))
 
 // 走到这里说明启动迁移也成功了：只有此时才宣布恢复整体完成。
 if (restoreOutcome?.status === "applied") {
-  console.log(`[mac-manager] ${restoreOutcome.message}，启动迁移已通过`)
+  console.log(`[computer-manager] ${restoreOutcome.message}，启动迁移已通过`)
 }
 
 // 启动时先校验端口，缺失合法的 APP_PORT 就直接失败退出。
@@ -47,7 +47,7 @@ const port = resolveServerPort()
 const BIND_HOST = "0.0.0.0"
 const server = app.listen(port, BIND_HOST, () => {
   console.log(
-    `[mac-manager] 服务已启动：http://127.0.0.1:${port}（监听 ${BIND_HOST}，局域网可直接访问）`
+    `[computer-manager] 服务已启动：http://127.0.0.1:${port}（监听 ${BIND_HOST}，局域网可直接访问）`
   )
   startScheduler(tasks.runner)
   startTrafficSampler()
@@ -55,7 +55,9 @@ const server = app.listen(port, BIND_HOST, () => {
 
 // 端口来自 APP_PORT：被占用时直接启动失败，不自动换端口。
 server.on("error", (error) => {
-  console.error(`[mac-manager] 无法监听 ${BIND_HOST}:${port}：${error.message}`)
+  console.error(
+    `[computer-manager] 无法监听 ${BIND_HOST}:${port}：${error.message}`
+  )
   process.exit(1)
 })
 
@@ -65,7 +67,7 @@ server.on("error", (error) => {
  * 中止不等价于失败：结果无法确认的任务会被标成未知，重启后不会自动重做。
  */
 const shutdown = (signal: string): void => {
-  console.log(`[mac-manager] 收到 ${signal}，正在停止服务`)
+  console.log(`[computer-manager] 收到 ${signal}，正在停止服务`)
   server.close()
   tasks.runner.shutdown()
   tasks.store.close()
