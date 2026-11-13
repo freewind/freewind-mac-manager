@@ -19,8 +19,9 @@ export const useAiTopicsLocation = (): AiTopicsLocation & {
   >
   const navigate = useNavigate()
   const current: AiTopicsLocation = {
-    topicId: search.topic ?? null,
-    threadId: search.thread ?? null,
+    // 与原实现一致：空串也按未选中处理，避免手工构造的空参数进入查询。
+    topicId: search.topic || null,
+    threadId: search.thread || null,
   }
 
   return {
