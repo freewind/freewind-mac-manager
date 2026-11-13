@@ -32,14 +32,11 @@ export const clashVergeKeys = {
   mergeConfig: ["clash-verge", "merge-config"] as const,
 }
 
-const isPageVisible = () =>
-  typeof document === "undefined" || document.visibilityState === "visible"
-
 export const useClashVergeStatusQuery = () =>
   useQuery({
     queryKey: clashVergeKeys.status,
     queryFn: ({ signal }) => fetchClashVergeStatus({ signal }),
-    refetchInterval: () => (isPageVisible() ? 5000 : false),
+    refetchInterval: 5000,
     retry: false,
   })
 
@@ -47,7 +44,7 @@ export const useClashVergeProxiesQuery = () =>
   useQuery({
     queryKey: clashVergeKeys.proxies,
     queryFn: ({ signal }) => fetchClashVergeProxies({ signal }),
-    refetchInterval: () => (isPageVisible() ? 30000 : false),
+    refetchInterval: 30000,
     retry: false,
   })
 
@@ -55,7 +52,7 @@ export const useClashVergeConnectionsQuery = () =>
   useQuery({
     queryKey: clashVergeKeys.connections,
     queryFn: ({ signal }) => fetchClashVergeConnections({ signal }),
-    refetchInterval: () => (isPageVisible() ? 5000 : false),
+    refetchInterval: 5000,
     retry: false,
   })
 
