@@ -177,9 +177,6 @@ export const App = () => {
         feature: "pi",
         piTab: "assistant",
       }),
-    }).then(() => {
-      // Pi 页分区仍走自管的 popstate 订阅，而 router 导航不派发该事件，这里补一次通知。
-      window.dispatchEvent(new PopStateEvent("popstate"))
     })
   }
 

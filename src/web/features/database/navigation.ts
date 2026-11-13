@@ -13,7 +13,8 @@ import {
   DatabaseScopeSchema,
   DatabaseSortSchema,
 } from "@shared/api-contract"
-import { useMemo, useSyncExternalStore } from "react"
+import { useNavigate, useSearch } from "@tanstack/react-router"
+import { useMemo } from "react"
 import { z } from "zod"
 
 /**
@@ -82,19 +83,21 @@ const parseSorts = (raw: string | null): DatabaseSort[] => {
   }
 }
 
-/** 从当前 URL 读出导航状态；任何非法参数都回落到默认值。 */
-export const databaseStateFromUrl = (): DatabaseUrlState => {
-  if (typeof window === "undefined") return DEFAULT_DATABASE_URL_STATE
-  const params = new URL(window.location.href).searchParams
+type DatabaseSearchParams = Record<string, string | undefined>
+
+/** 从 router 的搜索参数读出导航状态；任何非法参数都回落到默认值。 */
+export const databaseStateFromSearch = (
+  search: DatabaseSearchParams
+): DatabaseUrlState => {
   const table = DatabaseIdentifierSchema.safeParse(
-    params.get(DATABASE_URL_PARAMS.table)
+    search[DATABASE_URL_PARAMS.table]
   )
-  const page = pageSchema.safeParse(params.get(DATABASE_URL_PARAMS.page))
+  const page = pageSchema.safeParse(search[DATABASE_URL_PARAMS.page])
   const pageSize = pageSizeSchema.safeParse(
-    params.get(DATABASE_URL_PARAMS.pageSize)
+    search[DATABASE_URL_PARAMS.pageSize]
   )
   const database = DatabaseScopeSchema.safeParse(
-    params.get(DATABASE_URL_PARAMS.database)
+    search[DATABASE_URL_PARAMS.database]
   )
   return {
     database: database.success
@@ -105,52 +108,10 @@ export const databaseStateFromUrl = (): DatabaseUrlState => {
     pageSize: pageSize.success
       ? pageSize.data
       : DEFAULT_DATABASE_URL_STATE.pageSize,
-    filters: parseFilters(params.get(DATABASE_URL_PARAMS.filters)),
-    sorts: parseSorts(params.get(DATABASE_URL_PARAMS.sorts)),
+    filters: parseFilters(search[DATABASE_URL_PARAMS.filters] ?? null),
+    sorts: parseSorts(search[DATABASE_URL_PARAMS.sorts] ?? null),
   }
 }
-
-/** 默认值不写进 URL，链接保持干净。 */
-const writeUrl = (next: DatabaseUrlState, mode: "push" | "replace"): void => {
-  const url = new URL(window.location.href)
-  const set = (key: string, value: string | null): void => {
-    if (value === null) url.searchParams.delete(key)
-    else url.searchParams.set(key, value)
-  }
-  set(DATABASE_URL_PARAMS.table, next.table)
-  set(
-    DATABASE_URL_PARAMS.database,
-    next.database === DEFAULT_DATABASE_URL_STATE.database ? null : next.database
-  )
-  set(DATABASE_URL_PARAMS.page, next.page === 1 ? null : String(next.page))
-  set(
-    DATABASE_URL_PARAMS.pageSize,
-    next.pageSize === DEFAULT_DATABASE_PAGE_SIZE ? null : String(next.pageSize)
-  )
-  set(
-    DATABASE_URL_PARAMS.filters,
-    next.filters.length === 0 ? null : JSON.stringify(next.filters)
-  )
-  set(
-    DATABASE_URL_PARAMS.sorts,
-    next.sorts.length === 0 ? null : JSON.stringify(next.sorts)
-  )
-  const target = `${url.pathname}${url.search}${url.hash}`
-  // 保留应用内导航标记，App 的返回按钮才认得这是应用内导航。
-  const state = { ...window.history.state, computerManagerFeature: true }
-  if (mode === "push") window.history.pushState(state, "", target)
-  else window.history.replaceState(state, "", target)
-  window.dispatchEvent(new PopStateEvent("popstate"))
-}
-
-const subscribe = (onChange: () => void): (() => void) => {
-  window.addEventListener("popstate", onChange)
-  return () => window.removeEventListener("popstate", onChange)
-}
-
-/** 快照必须是稳定字符串，否则 useSyncExternalStore 会每渲染都判定为变化。 */
-const snapshot = (): string => JSON.stringify(databaseStateFromUrl())
-const serverSnapshot = (): string => JSON.stringify(DEFAULT_DATABASE_URL_STATE)
 
 export type DatabaseNavigation = {
   state: DatabaseUrlState
@@ -164,18 +125,42 @@ export type DatabaseNavigation = {
 }
 
 export const useDatabaseNavigation = (): DatabaseNavigation => {
-  const encoded = useSyncExternalStore(subscribe, snapshot, serverSnapshot)
-  const state = useMemo(
-    () => JSON.parse(encoded) as DatabaseUrlState,
-    [encoded]
-  )
+  const search = useSearch({ strict: false }) as DatabaseSearchParams
+  const navigate = useNavigate()
+  const state = useMemo(() => databaseStateFromSearch(search), [search])
+
+  const write = (next: DatabaseUrlState, mode: "push" | "replace"): void => {
+    void navigate({
+      to: ".",
+      replace: mode === "replace",
+      // 默认值不写进 URL，链接保持干净。
+      search: (prev: DatabaseSearchParams) => ({
+        ...prev,
+        [DATABASE_URL_PARAMS.table]: next.table ?? undefined,
+        [DATABASE_URL_PARAMS.database]:
+          next.database === DEFAULT_DATABASE_URL_STATE.database
+            ? undefined
+            : next.database,
+        [DATABASE_URL_PARAMS.page]:
+          next.page === 1 ? undefined : String(next.page),
+        [DATABASE_URL_PARAMS.pageSize]:
+          next.pageSize === DEFAULT_DATABASE_PAGE_SIZE
+            ? undefined
+            : String(next.pageSize),
+        [DATABASE_URL_PARAMS.filters]:
+          next.filters.length === 0 ? undefined : JSON.stringify(next.filters),
+        [DATABASE_URL_PARAMS.sorts]:
+          next.sorts.length === 0 ? undefined : JSON.stringify(next.sorts),
+      }),
+    })
+  }
 
   return {
     state,
     selectDatabase: (database: DatabaseScope): void => {
       if (database === state.database) return
       // 换库必须清空表与查询：同名表在两个库里是不同对象
-      writeUrl(
+      write(
         {
           ...DEFAULT_DATABASE_URL_STATE,
           database,
@@ -187,7 +172,7 @@ export const useDatabaseNavigation = (): DatabaseNavigation => {
     selectTable: (table: string | null): void => {
       if (table === state.table) return
       // 切表必须清空旧条件与页码：旧筛选、排序在新表上没有意义
-      writeUrl(
+      write(
         {
           ...DEFAULT_DATABASE_URL_STATE,
           database: state.database,
@@ -200,21 +185,21 @@ export const useDatabaseNavigation = (): DatabaseNavigation => {
     setPage: (page: number): void => {
       const next = pageSchema.safeParse(page)
       if (!next.success) return
-      writeUrl({ ...state, page: next.data }, "push")
+      write({ ...state, page: next.data }, "push")
     },
     setPageSize: (pageSize: number): void => {
       const next = pageSizeSchema.safeParse(pageSize)
       if (!next.success) return
-      writeUrl({ ...state, pageSize: next.data, page: 1 }, "push")
+      write({ ...state, pageSize: next.data, page: 1 }, "push")
     },
     setFilters: (filters: DatabaseFilter[]): void => {
-      writeUrl({ ...state, filters, page: 1 }, "push")
+      write({ ...state, filters, page: 1 }, "push")
     },
     setSorts: (sorts: DatabaseSort[]): void => {
-      writeUrl({ ...state, sorts, page: 1 }, "push")
+      write({ ...state, sorts, page: 1 }, "push")
     },
     clearQuery: (): void => {
-      writeUrl({ ...state, filters: [], sorts: [], page: 1 }, "push")
+      write({ ...state, filters: [], sorts: [], page: 1 }, "push")
     },
   }
 }

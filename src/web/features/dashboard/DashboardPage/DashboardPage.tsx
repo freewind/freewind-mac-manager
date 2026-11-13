@@ -1,5 +1,6 @@
 import type { DiskVolume } from "@shared/api-contract"
 import { formatBytes } from "@shared/format"
+import { useNavigate } from "@tanstack/react-router"
 import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Badge } from "@web/components/ui/badge"
@@ -55,25 +56,20 @@ import type { ReactNode } from "react"
 /** 端口卡只做摘要：完整列表在「端口管理」页，卡片里不再自己滚。 */
 const PORT_SUMMARY_LIMIT = 6
 
-/**
- * 跳到对应功能页。与侧栏用同一套 URL 协议：写 feature 参数后派发 popstate，
- * App 订阅它切页，不做整页刷新。
- */
-const openFeature = (feature: "processes" | "ports"): void => {
-  const url = new URL(window.location.href)
-  url.searchParams.set("feature", feature)
-  window.history.pushState(
-    { ...window.history.state, computerManagerFeature: true },
-    "",
-    url
-  )
-  window.dispatchEvent(
-    new PopStateEvent("popstate", { state: window.history.state })
-  )
-}
-
 export const DashboardPage = () => {
   const model = useDashboard()
+  const navigate = useNavigate()
+
+  /** 跳到对应功能页：与侧栏同一套 URL 协议，由 router 切页，不做整页刷新。 */
+  const openFeature = (feature: "processes" | "ports"): void => {
+    void navigate({
+      to: ".",
+      search: (prev: Record<string, string | undefined>) => ({
+        ...prev,
+        feature,
+      }),
+    })
+  }
   const overview = model.overview
   const summaryPorts = model.ports.slice(0, PORT_SUMMARY_LIMIT)
 
