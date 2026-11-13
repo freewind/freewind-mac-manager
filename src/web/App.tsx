@@ -1,5 +1,6 @@
 import { clearAccessPasswordCookie } from "@shared/client-api"
 import { useQueryClient } from "@tanstack/react-query"
+import { createRootRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { AppSidebar, type FeatureKey } from "@web/components/app-sidebar"
 import { Button } from "@web/components/ui/button"
 import {
@@ -35,7 +36,7 @@ import {
   useAuthStatus,
 } from "@web/hooks/use-auth-status"
 import { ArrowLeft } from "lucide-react"
-import { useEffect, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useSyncExternalStore } from "react"
 
 const FEATURE_KEYS: readonly FeatureKey[] = [
   "overview",
@@ -57,74 +58,67 @@ const FEATURE_KEYS: readonly FeatureKey[] = [
   "ai-call",
 ]
 
-const featureFromUrl = (): FeatureKey => {
-  if (typeof window === "undefined") return "overview"
-  const value = new URL(window.location.href).searchParams.get("feature")
-  return value && FEATURE_KEYS.includes(value as FeatureKey)
-    ? (value as FeatureKey)
-    : "overview"
-}
-
-const featureUrl = (feature: FeatureKey, piTab?: string) => {
-  const url = new URL(window.location.href)
-  if (feature === "overview") url.searchParams.delete("feature")
-  else url.searchParams.set("feature", feature)
-  // 子标签只在明确指定时保留；切到别的功能时清掉，避免留下无意义的定位。
-  if (feature === "pi" && piTab) url.searchParams.set("piTab", piTab)
-  else url.searchParams.delete("piTab")
-  return url
-}
-
-const isAppFeatureHistory = (state: unknown): boolean =>
-  typeof state === "object" &&
-  state !== null &&
-  "computerManagerFeature" in state &&
-  (state as { computerManagerFeature?: boolean }).computerManagerFeature ===
-    true
-
-const featureNavigationSnapshot = (): string =>
-  `${featureFromUrl()}:${isAppFeatureHistory(window.history.state)}`
-
-const subscribeFeatureNavigation = (onChange: () => void): (() => void) => {
-  window.addEventListener("popstate", onChange)
-  return () => window.removeEventListener("popstate", onChange)
-}
+/** URL 查询参数的规范化结果：值只能是字符串或删除（undefined）。 */
+export type AppSearch = { feature?: FeatureKey } & Record<
+  string,
+  string | undefined
+>
 
 /**
- * 应用内导航的统一出口：写 URL 并派发 popstate，所有订阅者（页面、分区 hook）由此同步。
- * selectFeature 与跨页定位（如打开 AI 助手设置）都走这里，不再各自手写 pushState + 派发。
+ * 规范化 ?feature=：合法值原样保留；缺失或非法时删除该参数（渲染时回落概览），
+ * 不把默认值写回 URL，保持「概览页 URL 不带 feature」的既有形态。
  */
-const navigateToUrl = (url: URL): void => {
-  window.history.pushState({ computerManagerFeature: true }, "", url)
-  window.dispatchEvent(
-    new PopStateEvent("popstate", { state: window.history.state })
-  )
+export const parseFeatureSearch = (
+  search: Record<string, unknown>
+): AppSearch => {
+  const { feature, ...rest } = search
+  // URL 查询参数的值只会是字符串；非字符串值（不应出现）按未知参数丢弃。
+  const stringRest = Object.fromEntries(
+    Object.entries(rest).filter(([, value]) => typeof value === "string")
+  ) as Record<string, string | undefined>
+  if (typeof feature !== "string") return stringRest
+  return FEATURE_KEYS.includes(feature as FeatureKey)
+    ? { ...stringRest, feature: feature as FeatureKey }
+    : stringRest
 }
 
 const useFeatureNavigation = () => {
-  const snapshot = useSyncExternalStore(
-    subscribeFeatureNavigation,
-    featureNavigationSnapshot,
-    () => "overview:false"
+  const search = rootRoute.useSearch()
+  const navigate = useNavigate()
+  const router = useRouter()
+  const feature = search.feature ?? "overview"
+
+  // 返回按钮只在「当前历史条目由应用内导航产生」时出现：router 导航与未迁移的
+  // 分区 hook 都会留下非空 history state，直接打开链接或回到首条时是 null。
+  const subscribeHistory = useCallback(
+    (onStoreChange: () => void) => router.history.subscribe(onStoreChange),
+    [router]
   )
-  const [featureValue, canGoBackValue] = snapshot.split(":")
-  const feature = featureValue as FeatureKey
+  const canGoBack = useSyncExternalStore(
+    subscribeHistory,
+    () => window.history.state !== null,
+    () => false
+  )
 
   const selectFeature = (next: FeatureKey): void => {
     if (next === feature) return
-    navigateToUrl(featureUrl(next))
+    void navigate({
+      to: ".",
+      search: (prev: AppSearch) => ({
+        ...prev,
+        feature: next === "overview" ? undefined : next,
+        // 切换功能时清掉 Pi 子页定位，避免留下无意义的深链。
+        piTab: undefined,
+      }),
+    })
   }
 
-  return { feature, canGoBack: canGoBackValue === "true", selectFeature }
-}
-
-/** 定位到 Pi 页的「AI助手」子标签；即使已在 Pi 页，也要改写 piTab 参数。 */
-const openAiAssistantSettings = (): void => {
-  navigateToUrl(featureUrl("pi", "assistant"))
+  return { feature, canGoBack, selectFeature }
 }
 
 export const App = () => {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { feature, canGoBack, selectFeature } = useFeatureNavigation()
   const { status: authStatus, error: authError } = useAuthStatus()
 
@@ -172,6 +166,21 @@ export const App = () => {
 
   const goBack = (): void => {
     window.history.back()
+  }
+
+  /** 定位到 Pi 页的「AI助手」子标签；即使已在 Pi 页，也要改写 piTab 参数。 */
+  const openAiAssistantSettings = (): void => {
+    void navigate({
+      to: ".",
+      search: (prev: AppSearch) => ({
+        ...prev,
+        feature: "pi",
+        piTab: "assistant",
+      }),
+    }).then(() => {
+      // Pi 页分区仍走自管的 popstate 订阅，而 router 导航不派发该事件，这里补一次通知。
+      window.dispatchEvent(new PopStateEvent("popstate"))
+    })
   }
 
   // 认证是无状态的：清掉密码 cookie 后整页刷新即可回到登录页。
@@ -230,3 +239,9 @@ export const App = () => {
     </SidebarProvider>
   )
 }
+
+/** 根路由只负责把 ?feature= 规范化为类型安全的搜索状态，页面分发仍由 App 承担。 */
+export const rootRoute = createRootRoute({
+  validateSearch: parseFeatureSearch,
+  component: App,
+})
