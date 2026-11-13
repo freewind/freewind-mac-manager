@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react"
+import { useUrlTab } from "@web/hooks/use-url-tab"
 
 /** Clash 页的主体分区：状态（含代理组与活动连接）、订阅信息、合并订阅、域名规则、规则数据库与配置详解。 */
 export const CLASH_TABS = [
@@ -13,31 +13,9 @@ export const CLASH_TABS = [
 
 export type ClashTab = (typeof CLASH_TABS)[number]["key"]
 
-export const DEFAULT_CLASH_TAB: ClashTab = "status"
+const DEFAULT_CLASH_TAB: ClashTab = "status"
 
-const TAB_KEYS: readonly string[] = CLASH_TABS.map((item) => item.key)
-
-export const clashTabFromUrl = (): ClashTab => {
-  if (typeof window === "undefined") return DEFAULT_CLASH_TAB
-  const value = new URL(window.location.href).searchParams.get("clashTab")
-  return value && TAB_KEYS.includes(value)
-    ? (value as ClashTab)
-    : DEFAULT_CLASH_TAB
-}
-
-const clashTabUrl = (tab: ClashTab): URL => {
-  const url = new URL(window.location.href)
-  if (tab === DEFAULT_CLASH_TAB) url.searchParams.delete("clashTab")
-  else url.searchParams.set("clashTab", tab)
-  return url
-}
-
-const subscribe = (onChange: () => void): (() => void) => {
-  window.addEventListener("popstate", onChange)
-  return () => window.removeEventListener("popstate", onChange)
-}
-
-const snapshot = (): string => clashTabFromUrl()
+const TAB_KEYS: readonly ClashTab[] = CLASH_TABS.map((item) => item.key)
 
 /**
  * 分区状态放 URL，而不是全局 store：
@@ -47,24 +25,4 @@ const snapshot = (): string => clashTabFromUrl()
 export const useClashTab = (): {
   tab: ClashTab
   selectTab: (tab: ClashTab) => void
-} => {
-  const tab = useSyncExternalStore(
-    subscribe,
-    snapshot,
-    () => DEFAULT_CLASH_TAB
-  ) as ClashTab
-
-  return {
-    tab,
-    selectTab: (next: ClashTab): void => {
-      if (next === tab) return
-      // 保留已有历史状态标记，App 的返回按钮才认得这是应用内导航
-      window.history.pushState(
-        { ...window.history.state, computerManagerFeature: true },
-        "",
-        clashTabUrl(next)
-      )
-      window.dispatchEvent(new PopStateEvent("popstate"))
-    },
-  }
-}
+} => useUrlTab("clashTab", TAB_KEYS, DEFAULT_CLASH_TAB)

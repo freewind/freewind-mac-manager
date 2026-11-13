@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react"
+import { useUrlTab } from "@web/hooks/use-url-tab"
 
 /** 数据库页的两个视图：数据是主从浏览，备份是备份列表、创建导入下载与恢复入口。 */
 export const DATABASE_TABS = [
@@ -8,31 +8,9 @@ export const DATABASE_TABS = [
 
 export type DatabaseTab = (typeof DATABASE_TABS)[number]["key"]
 
-export const DEFAULT_DATABASE_TAB: DatabaseTab = "data"
+const DEFAULT_DATABASE_TAB: DatabaseTab = "data"
 
-const TAB_KEYS: readonly string[] = DATABASE_TABS.map((item) => item.key)
-
-export const databaseTabFromUrl = (): DatabaseTab => {
-  if (typeof window === "undefined") return DEFAULT_DATABASE_TAB
-  const value = new URL(window.location.href).searchParams.get("tab")
-  return value && TAB_KEYS.includes(value)
-    ? (value as DatabaseTab)
-    : DEFAULT_DATABASE_TAB
-}
-
-const databaseTabUrl = (tab: DatabaseTab): URL => {
-  const url = new URL(window.location.href)
-  if (tab === DEFAULT_DATABASE_TAB) url.searchParams.delete("tab")
-  else url.searchParams.set("tab", tab)
-  return url
-}
-
-const subscribe = (onChange: () => void): (() => void) => {
-  window.addEventListener("popstate", onChange)
-  return () => window.removeEventListener("popstate", onChange)
-}
-
-const snapshot = (): string => databaseTabFromUrl()
+const TAB_KEYS: readonly DatabaseTab[] = DATABASE_TABS.map((item) => item.key)
 
 /**
  * 视图状态放 URL，而不是全局 store：
@@ -42,24 +20,4 @@ const snapshot = (): string => databaseTabFromUrl()
 export const useDatabaseTab = (): {
   tab: DatabaseTab
   selectTab: (tab: DatabaseTab) => void
-} => {
-  const tab = useSyncExternalStore(
-    subscribe,
-    snapshot,
-    () => DEFAULT_DATABASE_TAB
-  ) as DatabaseTab
-
-  return {
-    tab,
-    selectTab: (next: DatabaseTab): void => {
-      if (next === tab) return
-      // 保留已有历史状态标记，App 的返回按钮才认得这是应用内导航
-      window.history.pushState(
-        { ...window.history.state, computerManagerFeature: true },
-        "",
-        databaseTabUrl(next)
-      )
-      window.dispatchEvent(new PopStateEvent("popstate"))
-    },
-  }
-}
+} => useUrlTab("tab", TAB_KEYS, DEFAULT_DATABASE_TAB)
