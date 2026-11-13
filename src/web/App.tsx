@@ -90,6 +90,17 @@ const subscribeFeatureNavigation = (onChange: () => void): (() => void) => {
   return () => window.removeEventListener("popstate", onChange)
 }
 
+/**
+ * 应用内导航的统一出口：写 URL 并派发 popstate，所有订阅者（页面、分区 hook）由此同步。
+ * selectFeature 与跨页定位（如打开 AI 助手设置）都走这里，不再各自手写 pushState + 派发。
+ */
+const navigateToUrl = (url: URL): void => {
+  window.history.pushState({ computerManagerFeature: true }, "", url)
+  window.dispatchEvent(
+    new PopStateEvent("popstate", { state: window.history.state })
+  )
+}
+
 const useFeatureNavigation = () => {
   const snapshot = useSyncExternalStore(
     subscribeFeatureNavigation,
@@ -101,33 +112,15 @@ const useFeatureNavigation = () => {
 
   const selectFeature = (next: FeatureKey): void => {
     if (next === feature) return
-    window.history.pushState(
-      { computerManagerFeature: true },
-      "",
-      featureUrl(next)
-    )
-    window.dispatchEvent(
-      new PopStateEvent("popstate", { state: window.history.state })
-    )
+    navigateToUrl(featureUrl(next))
   }
 
   return { feature, canGoBack: canGoBackValue === "true", selectFeature }
 }
 
-/**
- * 定位到 Pi 页的「AI助手」子标签。
- * 已经在 Pi 页时 selectFeature 会因功能未变而直接返回，所以这里直接写 URL
- * 并派发 popstate：PiPage 订阅该事件后能切到正确子标签。
- */
+/** 定位到 Pi 页的「AI助手」子标签；即使已在 Pi 页，也要改写 piTab 参数。 */
 const openAiAssistantSettings = (): void => {
-  window.history.pushState(
-    { computerManagerFeature: true },
-    "",
-    featureUrl("pi", "assistant")
-  )
-  window.dispatchEvent(
-    new PopStateEvent("popstate", { state: window.history.state })
-  )
+  navigateToUrl(featureUrl("pi", "assistant"))
 }
 
 export const App = () => {
