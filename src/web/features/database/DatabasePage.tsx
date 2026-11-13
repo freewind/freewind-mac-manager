@@ -1,11 +1,5 @@
-import type {
-  DatabaseRecord,
-  DatabaseScope,
-  DatabaseTable,
-  SqliteWritableValue,
-} from "@shared/api-contract"
+import type { DatabaseScope, DatabaseTable } from "@shared/api-contract"
 import { describeError } from "@shared/format"
-import { useQueryClient } from "@tanstack/react-query"
 import { PageHeader } from "@web/components/PageHeader"
 import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert"
 import { Button } from "@web/components/ui/button"
@@ -48,22 +42,16 @@ import { useEditProtection } from "@web/hooks/use-edit-protection"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { Plus, RefreshCw } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { BackupsPanel } from "./backups/BackupsPanel"
-import { DeleteRecordsDialog, type DeleteTarget } from "./DeleteRecordsDialog"
-import {
-  emptyRecordForm,
-  hasFormChanges,
-  type RecordFormState,
-  recordFormFromRecord,
-} from "./form-values"
-import { formatReadAt, formatRecordKey, recordKeyFingerprint } from "./format"
-import { databaseKeys } from "./queries"
+import { DeleteRecordsDialog } from "./DeleteRecordsDialog"
+import { formatReadAt, formatRecordKey } from "./format"
 import { RecordDetails } from "./RecordDetails"
 import { RecordFormDialog } from "./RecordFormDialog"
 import { RecordList, type RecordListProps } from "./RecordList"
 import { TableStructure } from "./TableStructure"
-import { DATABASE_OFFLINE_NOTICE, useDatabase } from "./useDatabase"
+import { useDatabaseEditing } from "./use-database-editing"
+import { useDatabase } from "./useDatabase"
 import {
   DATABASE_TABS,
   type DatabaseTab,
@@ -73,221 +61,48 @@ import {
 /** 记录列表需要的数据与动作；表本身由外层按当前选中表传入。 */
 type ListModel = Omit<RecordListProps, "table">
 
-type FormDraft = { initial: RecordFormState; current: RecordFormState }
-
-/** 同一时刻只挂载一套对话框；signature 是打开时看到的结构签名。 */
-type DialogState =
-  | { kind: "insert"; signature: string }
-  | { kind: "edit"; record: DatabaseRecord; signature: string }
-  | { kind: "delete"; targets: DeleteTarget[]; signature: string }
-  | null
-
 /**
  * 数据库浏览与编辑页：选表、看结构、筛选排序分页、看记录详情，以及新增/修改/删除。
  *
- * 这是应用自身 SQLite 的真实内容，页面一直提醒「直接操作底层数据」；
- * 写入全部走 useDatabase 的同步锁动作：失败保留草稿，结果未知只允许重新读取核实。
+ * 编辑会话（勾选、草稿、弹窗、提交拦截）由 useDatabaseEditing 编排；
+ * 这里负责布局：桌面主从两列、手机列表加详情 Sheet。
  */
 export const DatabasePage = () => {
   const model = useDatabase()
-  const queryClient = useQueryClient()
   const isDesktop = useIsDesktop()
   const { tab, selectTab } = useDatabaseTab()
+  const editing = useDatabaseEditing(model)
+  const { dialog, draft, dirty, pageNotice } = editing
+  const tableDetail = model.tableDetail
   // 表结构默认收起：记录列表才是主体，展开后也不超过固定高度
   const [structureOpen, setStructureOpen] = useState(false)
-  const [dialog, setDialog] = useState<DialogState>(null)
-  const [draft, setDraft] = useState<FormDraft | null>(null)
-  const [checked, setChecked] = useState<Map<string, DeleteTarget>>(new Map())
-  const [pageNotice, setPageNotice] = useState<string | null>(null)
 
-  const tableDetail = model.tableDetail
-  const dirty = draft !== null && hasFormChanges(draft.initial, draft.current)
   // 有未保存草稿时阻止 PWA 更新刷新页面（复用公共 hook，不改它）
   useEditProtection(dirty)
-
-  const closeDialog = (): void => {
-    setDialog(null)
-    setDraft(null)
-  }
 
   const detailsOpen = model.selectedKey !== null
   // 窄屏用 Sheet 展示详情，返回键先关浮层（统一走 useHistoryOverlay）；
   // 桌面详情常驻右列，不占历史栈，否则按返回会莫名清掉选中。
   useHistoryOverlay(!isDesktop && detailsOpen, () => model.selectRecord(null))
-  useHistoryOverlay(dialog !== null, closeDialog)
-
-  const capabilityHint = (
-    operation: "insert" | "update" | "delete"
-  ): string | null => {
-    const capability = tableDetail?.capabilities.find(
-      (item) => item.operation === operation
-    )
-    if (!capability || capability.allowed) return null
-    return capability.message
-  }
-
-  /** 提交前的统一检查：离线、结构过期、表不支持都拒绝。 */
-  const blockReason = (
-    operation: "insert" | "update" | "delete"
-  ): string | null => {
-    if (!model.online) return DATABASE_OFFLINE_NOTICE
-    if (tableDetail === null) return "表结构还没读取完成，请稍后再试"
-    if (dialog !== null && dialog.signature !== tableDetail.signature) {
-      return "表结构已变化，请重新读取后再提交"
-    }
-    return capabilityHint(operation)
-  }
-
-  /** 当前页勾选：只认还在列表里的记录，切页后旧勾选不会带着签名乱用。 */
-  const checkedFingerprints = useMemo(() => {
-    const visible = new Set(
-      model.records.map((record) => recordKeyFingerprint(record.key))
-    )
-    return new Set([...checked.keys()].filter((key) => visible.has(key)))
-  }, [checked, model.records])
-
-  const checkedTargets = useMemo(() => {
-    const byFingerprint = new Map(
-      model.records.map((record) => [recordKeyFingerprint(record.key), record])
-    )
-    const targets: DeleteTarget[] = []
-    for (const fingerprint of checkedFingerprints) {
-      const record = byFingerprint.get(fingerprint)
-      if (record) {
-        targets.push({
-          key: record.key,
-          expectedSignature: record.signature,
-        })
-      }
-    }
-    return targets
-  }, [checkedFingerprints, model.records])
-
-  const toggleChecked = (record: DatabaseRecord, checkedNow: boolean): void => {
-    setChecked((previous) => {
-      const next = new Map(previous)
-      const fingerprint = recordKeyFingerprint(record.key)
-      if (checkedNow) {
-        next.set(fingerprint, {
-          key: record.key,
-          expectedSignature: record.signature,
-        })
-      } else {
-        next.delete(fingerprint)
-      }
-      return next
-    })
-  }
-
-  const openInsert = (): void => {
-    if (tableDetail === null) return
-    setPageNotice(null)
-    const initial = emptyRecordForm(tableDetail)
-    setDraft({ initial, current: initial })
-    setDialog({ kind: "insert", signature: tableDetail.signature })
-  }
-
-  const openEdit = (record: DatabaseRecord): void => {
-    if (tableDetail === null) return
-    setPageNotice(null)
-    const initial = recordFormFromRecord(tableDetail, record)
-    setDraft({ initial, current: initial })
-    setDialog({ kind: "edit", record, signature: tableDetail.signature })
-  }
-
-  const openDelete = (targets: DeleteTarget[]): void => {
-    if (tableDetail === null || targets.length === 0) return
-    setPageNotice(null)
-    setDraft(null)
-    setDialog({ kind: "delete", targets, signature: tableDetail.signature })
-  }
-
-  /** 成功后关浮层并清勾选；数据靠失效重新读取，不做乐观隐藏。 */
-  const finishAction = (options: { closeDetails?: boolean } = {}): void => {
-    setDialog(null)
-    setDraft(null)
-    setChecked(new Map())
-    setPageNotice(null)
-    if (options.closeDetails === true) model.selectRecord(null)
-  }
-
-  const submitInsert = async (
-    values: Record<string, SqliteWritableValue>
-  ): Promise<void> => {
-    const reason = blockReason("insert")
-    if (reason !== null) {
-      setPageNotice(reason)
-      return
-    }
-    if (await model.createRecord(values)) finishAction()
-  }
-
-  const submitUpdate = async (
-    record: DatabaseRecord,
-    values: Record<string, SqliteWritableValue>
-  ): Promise<void> => {
-    const reason = blockReason("update")
-    if (reason !== null) {
-      setPageNotice(reason)
-      return
-    }
-    if (await model.updateRecord(record.key, record.signature, values)) {
-      finishAction()
-    }
-  }
-
-  const submitDelete = async (targets: DeleteTarget[]): Promise<void> => {
-    const reason = blockReason("delete")
-    if (reason !== null) {
-      setPageNotice(reason)
-      return
-    }
-    if (await model.deleteRecords(targets)) {
-      finishAction({ closeDetails: true })
-    }
-  }
-
-  /**
-   * 结果未知后只重新读取核实：不重发写入，也不因为看到相似值就宣称成功，
-   * 清掉提示由用户显式确认。
-   */
-  const verifyAfterUnknown = (): void => {
-    void queryClient.refetchQueries({
-      queryKey: databaseKeys.all,
-      type: "active",
-    })
-  }
-
-  const refreshAll = (): void => {
-    void queryClient.refetchQueries({
-      queryKey: databaseKeys.all,
-      type: "active",
-    })
-  }
+  useHistoryOverlay(dialog !== null, editing.closeDialog)
 
   /** 切表前先处理未保存草稿，不默默丢弃。 */
   const selectTable = (next: string | null): void => {
     if (dirty) {
-      setPageNotice("有未保存的草稿：请先保存或取消，再切换表")
+      editing.setPageNotice("有未保存的草稿：请先保存或取消，再切换表")
       return
     }
-    setDialog(null)
-    setDraft(null)
-    setChecked(new Map())
-    setPageNotice(null)
+    editing.resetEditState()
     model.selectTable(next)
   }
 
   /** 换库同样先处理未保存草稿：两个库的同名表不是同一个对象。 */
   const selectDatabase = (next: DatabaseScope): void => {
     if (dirty) {
-      setPageNotice("有未保存的草稿：请先保存或取消，再切换库")
+      editing.setPageNotice("有未保存的草稿：请先保存或取消，再切换库")
       return
     }
-    setDialog(null)
-    setDraft(null)
-    setChecked(new Map())
-    setPageNotice(null)
+    editing.resetEditState()
     model.selectDatabase(next)
   }
 
@@ -297,8 +112,8 @@ export const DatabasePage = () => {
       record={model.recordDetail}
       pending={model.recordPending}
       error={model.recordError}
-      canEdit={model.online && capabilityHint("update") === null}
-      canDelete={model.online && capabilityHint("delete") === null}
+      canEdit={model.online && editing.capabilityHint("update") === null}
+      canDelete={model.online && editing.capabilityHint("delete") === null}
       busy={model.busy}
       // 切换记录时重建字段滚动容器，滚动位置回到顶部
       resetKey={
@@ -307,11 +122,11 @@ export const DatabasePage = () => {
           : `${model.table ?? ""}:${formatRecordKey(model.selectedKey)}`
       }
       onEdit={() => {
-        if (model.recordDetail !== null) openEdit(model.recordDetail)
+        if (model.recordDetail !== null) editing.openEdit(model.recordDetail)
       }}
       onDelete={() => {
         if (model.recordDetail !== null) {
-          openDelete([
+          editing.openDelete([
             {
               key: model.recordDetail.key,
               expectedSignature: model.recordDetail.signature,
@@ -332,12 +147,12 @@ export const DatabasePage = () => {
     filters: model.filters,
     sorts: model.sorts,
     selectedKey: model.selectedKey,
-    checkedFingerprints,
-    canDelete: model.online && capabilityHint("delete") === null,
+    checkedFingerprints: editing.checkedFingerprints,
+    canDelete: model.online && editing.capabilityHint("delete") === null,
     deleteBusy: model.busy,
-    onToggleChecked: toggleChecked,
-    onClearChecked: () => setChecked(new Map()),
-    onRequestDeleteChecked: () => openDelete(checkedTargets),
+    onToggleChecked: editing.toggleChecked,
+    onClearChecked: editing.clearChecked,
+    onRequestDeleteChecked: () => editing.openDelete(editing.checkedTargets),
     onSelectRecord: model.selectRecord,
     onFiltersChange: model.setFilters,
     onSortsChange: model.setSorts,
@@ -373,7 +188,7 @@ export const DatabasePage = () => {
     </>
   )
 
-  const insertHint = capabilityHint("insert")
+  const insertHint = editing.capabilityHint("insert")
   const failureNotice = dialog === null ? model.actionFailure : null
 
   /**
@@ -429,7 +244,10 @@ export const DatabasePage = () => {
                 <AlertDescription className="space-y-2">
                   <span>{model.unknownNotice}</span>
                   <span className="flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={verifyAfterUnknown}>
+                    <Button
+                      variant="outline"
+                      onClick={editing.verifyAfterUnknown}
+                    >
                       重新读取核实
                     </Button>
                     <Button
@@ -495,14 +313,14 @@ export const DatabasePage = () => {
               </div>
               <Button
                 variant="outline"
-                onClick={refreshAll}
+                onClick={editing.refreshAll}
                 disabled={model.tablesPending}
               >
                 <RefreshCw aria-hidden="true" />
                 刷新
               </Button>
               <Button
-                onClick={openInsert}
+                onClick={editing.openInsert}
                 disabled={
                   tableDetail === null || insertHint !== null || !model.online
                 }
@@ -628,14 +446,14 @@ export const DatabasePage = () => {
         <RecordFormDialog
           open
           onOpenChange={(open) => {
-            if (!open) closeDialog()
+            if (!open) editing.closeDialog()
           }}
           table={tableDetail}
           record={null}
           initial={draft.initial}
           state={draft.current}
           onChangeColumn={(name, next) =>
-            setDraft((previous) =>
+            editing.setDraftState((previous) =>
               previous === null
                 ? previous
                 : {
@@ -648,9 +466,9 @@ export const DatabasePage = () => {
           preventOutsideDismiss={dirty}
           failure={model.actionFailure}
           unknownNotice={model.unknownNotice}
-          onVerify={verifyAfterUnknown}
+          onVerify={editing.verifyAfterUnknown}
           onDismissUnknown={model.dismissUnknownResult}
-          onSubmit={(values) => void submitInsert(values)}
+          onSubmit={(values) => void editing.submitInsert(values)}
         />
       ) : null}
 
@@ -658,14 +476,14 @@ export const DatabasePage = () => {
         <RecordFormDialog
           open
           onOpenChange={(open) => {
-            if (!open) closeDialog()
+            if (!open) editing.closeDialog()
           }}
           table={tableDetail}
           record={dialog.record}
           initial={draft.initial}
           state={draft.current}
           onChangeColumn={(name, next) =>
-            setDraft((previous) =>
+            editing.setDraftState((previous) =>
               previous === null
                 ? previous
                 : {
@@ -678,9 +496,11 @@ export const DatabasePage = () => {
           preventOutsideDismiss={dirty}
           failure={model.actionFailure}
           unknownNotice={model.unknownNotice}
-          onVerify={verifyAfterUnknown}
+          onVerify={editing.verifyAfterUnknown}
           onDismissUnknown={model.dismissUnknownResult}
-          onSubmit={(values) => void submitUpdate(dialog.record, values)}
+          onSubmit={(values) =>
+            void editing.submitUpdate(dialog.record, values)
+          }
         />
       ) : null}
 
@@ -688,16 +508,16 @@ export const DatabasePage = () => {
         <DeleteRecordsDialog
           open
           onOpenChange={(open) => {
-            if (!open) closeDialog()
+            if (!open) editing.closeDialog()
           }}
           table={tableDetail}
           targets={dialog.targets}
           busy={model.busy}
           failure={model.actionFailure}
           unknownNotice={model.unknownNotice}
-          onVerify={verifyAfterUnknown}
+          onVerify={editing.verifyAfterUnknown}
           onDismissUnknown={model.dismissUnknownResult}
-          onConfirm={() => void submitDelete(dialog.targets)}
+          onConfirm={() => void editing.submitDelete(dialog.targets)}
         />
       ) : null}
     </div>
