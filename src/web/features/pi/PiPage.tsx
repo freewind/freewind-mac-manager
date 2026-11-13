@@ -71,7 +71,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react"
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { toast } from "sonner"
 import { BenchmarkHistoryTab } from "./BenchmarkHistoryTab"
 import { LabTab } from "./LabTab"
@@ -1029,7 +1029,7 @@ export const PiPage = () => {
                     const rows: ((typeof models)[number] | null)[] =
                       models.length > 0 ? models : [null]
                     return (
-                      <>
+                      <Fragment key={entry.id}>
                         {rows.map((model, index) => (
                           <tr
                             key={`${entry.id}/${model?.id ?? "none"}`}
@@ -1163,7 +1163,7 @@ export const PiPage = () => {
                             </Button>
                           </td>
                         </tr>
-                      </>
+                      </Fragment>
                     )
                   })}
                 </tbody>
