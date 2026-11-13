@@ -1,55 +1,22 @@
 import {
-  type GrowthEntry,
   type ScanTaskResult,
   TASK_KINDS,
   type TaskRecord,
 } from "@shared/api-contract"
 import { triggerScan } from "@shared/client-api"
-import {
-  describeError,
-  formatBytes,
-  formatSignedBytes,
-  formatTimestamp,
-} from "@shared/format"
+import { formatBytes, formatSignedBytes } from "@shared/format"
 import { scanTaskTarget } from "@shared/task-targets"
 import { useQueryClient } from "@tanstack/react-query"
 import { ActionButton } from "@web/components/ActionButton"
 import { PageHeader } from "@web/components/PageHeader"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@web/components/ui/alert-dialog"
-import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
-import { Checkbox } from "@web/components/ui/checkbox"
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@web/components/ui/context-menu"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@web/components/ui/dropdown-menu"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@web/components/ui/empty"
 import { Input } from "@web/components/ui/input"
-import { Progress } from "@web/components/ui/progress"
-import { ScrollArea } from "@web/components/ui/scroll-area"
 import {
   Sheet,
   SheetContent,
@@ -58,31 +25,19 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@web/components/ui/sheet"
-import { Skeleton } from "@web/components/ui/skeleton"
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@web/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@web/components/ui/toggle-group"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@web/components/ui/tooltip"
 import { IcicleChart } from "@web/features/disk-growth/IcicleChart"
 import {
   diskGrowthKeys,
-  useChildren,
-  useDeleteScans,
-  useRevealEntry,
-  useSearch,
   useSelectionRange,
   useSnapshots,
-  useTrashEntry,
 } from "@web/features/disk-growth/queries"
 import { useDiskGrowthLocalStore } from "@web/features/disk-growth/store"
 import { registerTaskCompletion } from "@web/features/tasks/completion"
@@ -90,33 +45,18 @@ import { taskStatusLabel } from "@web/features/tasks/labels"
 import { useHistoryOverlay } from "@web/hooks/use-history-overlay"
 import { useIsDesktop } from "@web/hooks/use-is-desktop"
 import { useTaskAction } from "@web/hooks/use-task-action"
-import { cn } from "@web/lib/utils"
 import {
-  ArrowDown,
-  ArrowRight,
   Clock,
-  Copy,
-  File,
-  Folder,
-  FolderOpen,
-  GitMerge,
   LoaderCircle,
-  type LucideIcon,
   MoreHorizontal,
   RefreshCw,
   Search,
-  SquareCheck,
-  Trash2,
 } from "lucide-react"
-import {
-  type ComponentType,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
+import { SearchResultTable } from "./search-result-table"
+import { SnapshotSidebar } from "./snapshot-sidebar"
+import { SortableHead, TreeBranch } from "./tree-branch"
 
 /** 手动扫描没有新快照，提示只需说明与基线的差值。 */
 const describeScanComparison = (result: ScanTaskResult): string => {
@@ -129,8 +69,6 @@ const describeScanComparison = (result: ScanTaskResult): string => {
     files === 0 ? "文件数不变" : `文件 ${files > 0 ? "+" : ""}${files}`
   return `与快照 #${result.baselineSnapshotId} 对比：${size}，${fileText}`
 }
-
-const INDENT = 14
 
 /** 顶部只报一句话扫描进度，完整任务详情在任务中心。 */
 const scanProgressText = (task: TaskRecord): string => {
@@ -256,7 +194,6 @@ export const DiskGrowthPage = () => {
                 <SnapshotSidebar
                   snapshots={snapshots}
                   isLoading={isLoading}
-                  onNotice={notify}
                   busiest={scan.busy}
                 />
               </SheetContent>
@@ -314,7 +251,6 @@ export const DiskGrowthPage = () => {
           <SnapshotSidebar
             snapshots={snapshots}
             isLoading={isLoading}
-            onNotice={notify}
             busiest={scan.busy}
           />
         ) : null}
@@ -382,652 +318,5 @@ export const DiskGrowthPage = () => {
         )}
       </div>
     </div>
-  )
-}
-
-type BranchProps = {
-  path: string
-  depth: number
-  scanId: number | null
-  baselineScanId: number | null
-  view: "growth" | "size"
-  onNotice: (message: string | null) => void
-}
-
-const TreeBranch = (props: BranchProps) => {
-  const { path, depth, view, onNotice } = props
-  const { entries, isLoading } = useChildren({
-    scanId: props.scanId,
-    baselineScanId: props.baselineScanId,
-    path,
-  })
-  const expanded = useDiskGrowthLocalStore((state) => state.expanded)
-  const sortKey = useDiskGrowthLocalStore((state) => state.sortKey)
-  const descending = useDiskGrowthLocalStore((state) => state.descending)
-  const toggleExpanded = useDiskGrowthLocalStore(
-    (state) => state.toggleExpanded
-  )
-
-  const sorted = useMemo(() => {
-    const factor = descending ? -1 : 1
-    return [...entries].sort((left, right) => {
-      if (sortKey === "name")
-        return left.name.localeCompare(right.name) * factor
-      const leftValue = sortKey === "size" ? left.size : left.delta
-      const rightValue = sortKey === "size" ? right.size : right.delta
-      return (leftValue - rightValue) * factor
-    })
-  }, [entries, sortKey, descending])
-
-  const total = useMemo(
-    () => sorted.reduce((sum, entry) => sum + entry.size, 0),
-    [sorted]
-  )
-
-  if (isLoading && entries.length === 0) {
-    return (
-      <TableRow>
-        <TableCell colSpan={5}>
-          <Skeleton className="h-5 w-full" />
-        </TableCell>
-      </TableRow>
-    )
-  }
-
-  if (depth === 0 && sorted.length === 0) {
-    return (
-      <TableRow>
-        <TableCell colSpan={5} className="py-10">
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>还没有快照数据</EmptyTitle>
-              <EmptyDescription>
-                点右上角「立即扫描」生成第一份快照。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        </TableCell>
-      </TableRow>
-    )
-  }
-
-  return (
-    <>
-      {sorted.map((entry) => {
-        const isExpandable = entry.kind === "dir" && !entry.folded
-        const open = isExpandable && expanded.includes(entry.path)
-        return (
-          <BranchRow
-            key={entry.path}
-            entry={entry}
-            depth={depth}
-            open={open}
-            view={view}
-            ratio={total > 0 ? entry.size / total : 0}
-            onToggle={() => toggleExpanded(entry.path)}
-            onNotice={onNotice}
-          >
-            {open ? (
-              <TreeBranch {...props} path={entry.path} depth={depth + 1} />
-            ) : null}
-          </BranchRow>
-        )
-      })}
-    </>
-  )
-}
-
-type SearchProps = {
-  scanId: number | null
-  baselineScanId: number | null
-  keyword: string
-  view: "growth" | "size"
-  onNotice: (message: string | null) => void
-}
-
-const SearchResultTable = (props: SearchProps) => {
-  const { results } = useSearch({
-    scanId: props.scanId,
-    baselineScanId: props.baselineScanId,
-    keyword: props.keyword,
-  })
-  const total = results.reduce((sum, entry) => sum + entry.size, 0)
-  return (
-    <div className="min-h-0 flex-1 overflow-auto">
-      <Table>
-        <TableHeader className="sticky top-0 z-10 bg-background">
-          <TableRow>
-            <TableHead className="min-w-72">名称</TableHead>
-            <TableHead className="w-[1%] text-right whitespace-nowrap">
-              大小
-            </TableHead>
-            {props.view === "size" ? (
-              <TableHead className="w-[1%] text-right whitespace-nowrap">
-                占比
-              </TableHead>
-            ) : (
-              <TableHead className="w-[1%] text-right whitespace-nowrap">
-                增长
-              </TableHead>
-            )}
-            <TableHead className="w-1/3">路径</TableHead>
-            <TableHead className="w-[1%] whitespace-nowrap text-right">
-              操作
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {results.map((entry) => (
-            <BranchRow
-              key={entry.path}
-              entry={entry}
-              depth={0}
-              open={false}
-              view={props.view}
-              ratio={total > 0 ? entry.size / total : 0}
-              onToggle={() => undefined}
-              onNotice={props.onNotice}
-            />
-          ))}
-          {results.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={5} className="py-10">
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyTitle>没有匹配的路径</EmptyTitle>
-                    <EmptyDescription>换个关键字试试。</EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              </TableCell>
-            </TableRow>
-          ) : null}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-type BranchRowProps = {
-  entry: GrowthEntry
-  depth: number
-  open: boolean
-  view: "growth" | "size"
-  ratio: number
-  onToggle: () => void
-  onNotice: (message: string | null, type?: "success" | "error") => void
-  children?: ReactNode
-}
-
-const BranchRow = ({
-  entry,
-  depth,
-  open,
-  view,
-  ratio,
-  onToggle,
-  onNotice,
-  children,
-}: BranchRowProps) => {
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const reveal = useRevealEntry()
-  const trash = useTrashEntry()
-  const isExpandable = entry.kind === "dir" && !entry.folded
-
-  const copyRow = async (): Promise<void> => {
-    const text = [
-      entry.path,
-      `大小 ${formatBytes(entry.size)}`,
-      `增长 ${formatSignedBytes(entry.delta)}`,
-      entry.kind === "dir" ? "目录" : "文件",
-    ].join("\t")
-    try {
-      await navigator.clipboard.writeText(text)
-      onNotice(`已复制：${entry.path}`)
-    } catch (error) {
-      onNotice(`复制失败：${describeError(error)}`, "error")
-    }
-  }
-
-  return (
-    <>
-      <TableRow className={cn(isExpandable ? "cursor-pointer" : undefined)}>
-        <TableCell onClick={() => isExpandable && onToggle()}>
-          <span
-            className="flex items-center gap-1.5"
-            style={{ paddingLeft: depth * INDENT }}
-          >
-            {isExpandable ? (
-              open ? (
-                <ArrowDown className="size-3 text-muted-foreground" />
-              ) : (
-                <ArrowRight className="size-3 text-muted-foreground" />
-              )
-            ) : (
-              <span className="w-3" />
-            )}
-            {entry.kind === "dir" ? (
-              <Folder className="size-3.5 text-muted-foreground" />
-            ) : (
-              <File className="size-3.5 text-muted-foreground" />
-            )}
-            {/* 名称可能很长：外层格子继续省略，悬停看全文。 */}
-            <span className="min-w-0 truncate">
-              <Tooltip>
-                <TooltipTrigger
-                  render={<span className="block truncate">{entry.name}</span>}
-                />
-                <TooltipContent className="max-w-lg break-all">
-                  {entry.name}
-                </TooltipContent>
-              </Tooltip>
-            </span>
-            {entry.folded ? <Badge variant="secondary">已折叠</Badge> : null}
-          </span>
-        </TableCell>
-        <TableCell className="text-right tabular-nums">
-          {formatBytes(entry.size)}
-        </TableCell>
-        {view === "size" ? (
-          <TableCell>
-            <span className="flex items-center justify-end gap-2">
-              <span className="text-muted-foreground tabular-nums">
-                {(ratio * 100).toFixed(ratio >= 0.1 ? 0 : 1)}%
-              </span>
-              <Progress value={Math.min(100, ratio * 100)} className="w-24" />
-            </span>
-          </TableCell>
-        ) : (
-          <TableCell
-            className={cn(
-              "text-right tabular-nums",
-              entry.delta > 0 ? "text-destructive" : "text-muted-foreground"
-            )}
-          >
-            {formatSignedBytes(entry.delta)}
-          </TableCell>
-        )}
-        <TableCell className="truncate text-xs text-muted-foreground">
-          {/* 路径可能很长：格子继续负责省略，悬停看全文。 */}
-          <Tooltip>
-            <TooltipTrigger
-              render={<span className="block truncate">{entry.path}</span>}
-            />
-            <TooltipContent className="max-w-lg break-all">
-              {entry.path}
-            </TooltipContent>
-          </Tooltip>
-        </TableCell>
-        <TableCell className="text-right">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="ghost" size="icon-xs" aria-label="更多操作">
-                  <MoreHorizontal />
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => void copyRow()}>
-                <Copy />
-                复制本行信息
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={reveal.busy}
-                onClick={() => void reveal.run(entry.path)}
-              >
-                <FolderOpen />
-                在访达中打开
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => setConfirmOpen(true)}
-              >
-                <Trash2 />
-                移到废纸篓
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>移到废纸篓？</AlertDialogTitle>
-                <AlertDialogDescription>{entry.path}</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>取消</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  disabled={trash.busy}
-                  onClick={() => {
-                    setConfirmOpen(false)
-                    void trash.run(entry.path)
-                  }}
-                >
-                  移到废纸篓
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </TableCell>
-      </TableRow>
-      {children}
-    </>
-  )
-}
-
-const SortableHead = (props: {
-  label: string
-  sortKey: "name" | "size" | "delta"
-  className?: string
-}) => {
-  const sortKey = useDiskGrowthLocalStore((state) => state.sortKey)
-  const descending = useDiskGrowthLocalStore((state) => state.descending)
-  const setSort = useDiskGrowthLocalStore((state) => state.setSort)
-  const active = sortKey === props.sortKey
-  return (
-    <TableHead className={props.className}>
-      <Button
-        variant="ghost"
-        size="xs"
-        className="px-0 hover:bg-transparent"
-        onClick={() => setSort(props.sortKey)}
-      >
-        {props.label}
-        {active ? <span>{descending ? "↓" : "↑"}</span> : null}
-      </Button>
-    </TableHead>
-  )
-}
-
-type SnapshotAction = {
-  key: string
-  label: string
-  icon: LucideIcon
-  run: () => void
-  destructive?: boolean
-  disabled?: boolean
-}
-
-type MenuItemComponent = ComponentType<{
-  children?: ReactNode
-  onClick?: () => void
-  variant?: "default" | "destructive"
-  disabled?: boolean
-}>
-
-const SnapshotDropdownItem = DropdownMenuItem as unknown as MenuItemComponent
-const SnapshotContextItem = ContextMenuItem as unknown as MenuItemComponent
-
-const renderActions = (actions: SnapshotAction[]): ReactNode => (
-  <>
-    {actions.map((action) => (
-      <SnapshotDropdownItem
-        key={action.key}
-        onClick={action.run}
-        variant={action.destructive ? "destructive" : "default"}
-        disabled={action.disabled}
-      >
-        <action.icon />
-        {action.label}
-      </SnapshotDropdownItem>
-    ))}
-  </>
-)
-
-const renderContextActions = (actions: SnapshotAction[]): ReactNode => (
-  <>
-    {actions.map((action) => (
-      <SnapshotContextItem
-        key={action.key}
-        onClick={action.run}
-        variant={action.destructive ? "destructive" : "default"}
-        disabled={action.disabled}
-      >
-        <action.icon />
-        {action.label}
-      </SnapshotContextItem>
-    ))}
-  </>
-)
-
-type SidebarProps = {
-  snapshots: ReturnType<typeof useSnapshots>["snapshots"]
-  isLoading: boolean
-  onNotice: (message: string | null) => void
-  busiest: boolean
-}
-
-const SnapshotSidebar = ({ snapshots, isLoading, busiest }: SidebarProps) => {
-  const store = useDiskGrowthLocalStore()
-  const deleteScans = useDeleteScans()
-  const [pending, setPending] = useState<
-    { kind: "delete"; id: number; label: string } | { kind: "merge" } | null
-  >(null)
-
-  const rangeIds = useMemo(() => {
-    if (snapshots.length === 0) return []
-    const checked = store.checked
-    if (checked.length === 0) return []
-    const indexes = checked
-      .map((id) => snapshots.findIndex((snapshot) => snapshot.id === id))
-      .filter((index) => index >= 0)
-    if (indexes.length === 0) return []
-    return snapshots
-      .slice(Math.min(...indexes), Math.max(...indexes) + 1)
-      .map((snapshot) => snapshot.id)
-  }, [snapshots, store.checked])
-
-  const selectRange = (index: number) => {
-    const anchor = store.anchorIndex ?? index
-    const from = Math.min(anchor, index)
-    const to = Math.max(anchor, index)
-    const ids = snapshots.slice(from, to + 1).map((snapshot) => snapshot.id)
-    store.setAnchorIndex(anchor)
-    store.setChecked(ids)
-    store.setSelection(ids)
-  }
-
-  const runDelete = (ids: number[]): void => {
-    void deleteScans.run(ids)
-  }
-
-  return (
-    <aside className="flex min-h-0 w-full flex-1 flex-col border-b md:w-56 md:flex-none md:border-r md:border-b-0">
-      <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
-        快照
-      </div>
-      {store.multiSelect ? (
-        <div className="flex items-center gap-1 px-2 pb-2">
-          <span className="text-xs text-muted-foreground">
-            已选 {store.checked.length}
-          </span>
-          <Button
-            variant="outline"
-            size="xs"
-            className="ml-auto"
-            disabled={store.checked.length < 2}
-            onClick={() => setPending({ kind: "merge" })}
-          >
-            合并所选
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => store.setMultiSelect(false)}
-          >
-            退出
-          </Button>
-        </div>
-      ) : null}
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-0.5 px-2 pb-2">
-          {isLoading
-            ? [0, 1, 2].map((index) => (
-                <Skeleton key={index} className="h-9 w-full" />
-              ))
-            : snapshots.map((snapshot, index) => {
-                const earlier = snapshots[index + 1]
-                const delta = earlier
-                  ? snapshot.totalSize - earlier.totalSize
-                  : null
-                const checked = store.checked.includes(snapshot.id)
-                const selected = store.selection.includes(snapshot.id)
-                const actions: SnapshotAction[] = [
-                  {
-                    key: "multi",
-                    label: store.multiSelect ? "退出多选" : "选择",
-                    icon: SquareCheck,
-                    run: () => {
-                      if (store.multiSelect) {
-                        store.setMultiSelect(false)
-                        return
-                      }
-                      store.setMultiSelect(true)
-                      store.setAnchorIndex(index)
-                      store.setChecked([snapshot.id])
-                      store.setSelection([snapshot.id])
-                    },
-                  },
-                  {
-                    key: "merge",
-                    label: "合并所选",
-                    icon: GitMerge,
-                    disabled: store.checked.length < 2,
-                    run: () => setPending({ kind: "merge" }),
-                  },
-                  {
-                    key: "delete",
-                    label: "删除这份",
-                    icon: Trash2,
-                    destructive: true,
-                    run: () =>
-                      setPending({
-                        kind: "delete",
-                        id: snapshot.id,
-                        label: formatTimestamp(snapshot.startedAt),
-                      }),
-                  },
-                ]
-                return (
-                  <ContextMenu key={snapshot.id}>
-                    <ContextMenuTrigger
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs select-text",
-                        selected
-                          ? "bg-accent text-accent-foreground"
-                          : "hover:bg-accent/60"
-                      )}
-                      onClick={() => {
-                        if (store.multiSelect) {
-                          selectRange(index)
-                          return
-                        }
-                        store.setSelection([snapshot.id])
-                        store.setChecked([snapshot.id])
-                      }}
-                    >
-                      {store.multiSelect ? (
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => selectRange(index)}
-                          onClick={(event) => event.stopPropagation()}
-                        />
-                      ) : null}
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="font-medium">
-                          {formatTimestamp(snapshot.startedAt)}
-                        </span>
-                        <span
-                          className={cn(
-                            "text-muted-foreground",
-                            store.view === "growth" &&
-                              delta !== null &&
-                              delta > 0
-                              ? "text-destructive"
-                              : undefined
-                          )}
-                        >
-                          {store.view === "size"
-                            ? formatBytes(snapshot.totalSize)
-                            : delta === null
-                              ? "—"
-                              : formatSignedBytes(delta)}
-                        </span>
-                      </span>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              aria-label="快照操作"
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <MoreHorizontal />
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end">
-                          {renderActions(actions)}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      {renderContextActions(actions)}
-                    </ContextMenuContent>
-                  </ContextMenu>
-                )
-              })}
-          {!isLoading && snapshots.length === 0 ? (
-            <p className="px-2 py-2 text-xs text-muted-foreground">
-              还没有快照，点「立即扫描」生成第一份。
-            </p>
-          ) : null}
-        </div>
-      </ScrollArea>
-
-      <AlertDialog
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) setPending(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pending?.kind === "merge" ? "合并这些快照？" : "删除这份快照？"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pending?.kind === "merge"
-                ? `保留区间最新的一份，删除其余 ${Math.max(0, rangeIds.length - 1)} 份；被删区间的时间跨度会落到保留的那份上。`
-                : pending?.kind === "delete"
-                  ? `${pending.label} 这份快照将被删除，无法恢复。它前后两份快照的差值会自动跨过被删时段。`
-                  : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={busiest || deleteScans.busy}
-              onClick={() => {
-                const action = pending
-                setPending(null)
-                if (action?.kind === "merge") {
-                  runDelete(rangeIds.slice(1))
-                  store.setMultiSelect(false)
-                }
-                if (action?.kind === "delete") {
-                  void runDelete([action.id])
-                }
-              }}
-            >
-              {pending?.kind === "merge" ? "合并" : "删除"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </aside>
   )
 }
