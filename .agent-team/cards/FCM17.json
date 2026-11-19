@@ -1,48 +1,40 @@
 {
   "id": "FCM17",
-  "title": "feat: 配置 Pi Provider 与模型",
-  "requirement": "让用户查看和维护 Pi Provider、模型及运行设置，并使用 Playground 或能力探测验证选定配置。",
-  "description": "**前置卡**：FCM1、FCM2。\n\n提供 Provider/模型列表、搜索、详情与表单、复制、删除、测速历史、设置、Playground 和能力探测。发起模型请求可能产生费用，验收使用受控测试端点并将外部费用场景明确隔离。",
+  "title": "feat: 维护 Pi Provider 和模型目录",
+  "requirement": "让用户查看、搜索并维护已配置的 Provider 和模型资料。",
+  "description": "**前置卡**：FCM1、FCM22。\n\n本卡负责 Provider/模型清单、表单增改删、复制和视图，不负责 Pi 全局运行设置、对话或测速。敏感密钥不回显，复制 Provider 不复制密钥。",
   "worktree": false,
   "judgement": [
     {
-      "question": "复制 Provider 时是否复制密钥？",
-      "answer": "不复制密钥；复制模型配置时保留可用模型定义并报告已存在标识。",
-      "note": "代码中的复制行为不应将凭据带到新配置。"
-    },
-    {
-      "question": "用户选择的模型不支持指定思考档位时如何处理？",
-      "answer": "使用该模型支持的档位并展示实际发送的档位；请求失败时显示可理解原因。",
-      "note": "需针对能力探测和 Playground 分别验收。"
+      "question": "复制 Provider 是否复制密钥？",
+      "answer": "不复制密钥；复制模型资料时保留配置语义，冲突 ID 明确提示，不覆盖原 Provider。",
+      "note": ""
     }
   ],
   "implementation": [
-    "以卡片或行视图查看 Provider 与模型，支持搜索、查看和编辑 Provider、复制 Provider、增删改模型及复制模型信息。",
-    "提供配置设置、测速确认与历史记录，并如实显示错误和测速状态。",
-    "提供可选择 Provider/模型的 Playground 与能力探测，支持请求过程、结果和中止状态展示。",
-    "设置或详情中的密钥默认不回显；复制新 Provider 时不包含密钥。"
+    "以卡片/行视图呈现 Provider、URL、协议、模型及可用上下文信息，并支持搜索。",
+    "支持 Provider 增改/删除/复制；支持模型新增、编辑、删除和复制模型信息。",
+    "以可编辑详情表单显示非密钥配置；密钥默认遮蔽，复制新 Provider 时不含密钥。"
   ],
   "unit-tests": [
     {
-      "scene": "Provider 复制",
-      "description": "复制 Provider 后新项不含密钥、保留预期模型配置；目标 ID 已存在时提示冲突。"
+      "scene": "复制字段",
+      "description": "复制 Provider 时模型配置一致且密钥为空；已有目标 ID 时不修改原 Provider。"
     },
     {
-      "scene": "Playground 档位",
-      "description": "选择不支持当前思考档位的模型后使用其支持档位，并在请求摘要显示实际档位。"
+      "scene": "模型表单",
+      "description": "模型字段输入及粘贴 JSON 优先关系可预测，非法/重复 ID 显示错误。"
     }
   ],
   "e2e": [
     {
-      "scene": "浏览并编辑模型配置",
-      "description": "用户搜索一个测试 Provider，打开详情调整一个模型的展示字段并保存，列表显示更新后的信息；密钥保持遮蔽。"
+      "scene": "维护 Provider 与安全复制",
+      "description": "隔离 Pi 配置含两个合成 Provider 与假密钥，不连接任何外部模型，用户已登录 Provider 页。用户搜索 A、打开详情修改非密钥字段并保存，再复制成新 ID；列表应有更新的 A 和新副本，副本不含密钥，原 A 模型及密钥不因复制而变化。密钥明文暴露、覆盖原 ID 或复制携带密钥均失败。"
     },
     {
-      "scene": "使用受控 Playground",
-      "description": "用户选择测试 Provider 和模型，提交隔离测试请求，查看返回内容与完成状态；不向真实商业模型发请求。"
+      "scene": "模型新增、编辑和删除",
+      "description": "隔离 Provider A 初始只有模型 M1，用户已登录模型页。用户粘贴有效合成模型 JSON 新增 M2，编辑 M2 非 ID 字段并保存，再提交重复 M1 ID，应提示冲突且目录不变；复制 M2 信息后删除 M2 并确认，重读只保留 M1。模型错归 Provider、重复覆盖或删错模型均失败。"
     }
   ],
-  "notes": [
-    "真实 API 请求和测速可能产生费用；任何费用测试必须单独授权并使用明确的成本上限。"
-  ]
+  "notes": []
 }
