@@ -1,0 +1,48 @@
+{
+  "id": "FCM17",
+  "title": "feat: 配置 Pi Provider 与模型",
+  "requirement": "让用户查看和维护 Pi Provider、模型及运行设置，并使用 Playground 或能力探测验证选定配置。",
+  "description": "**前置卡**：FCM1、FCM2。\n\n提供 Provider/模型列表、搜索、详情与表单、复制、删除、测速历史、设置、Playground 和能力探测。发起模型请求可能产生费用，验收使用受控测试端点并将外部费用场景明确隔离。",
+  "worktree": false,
+  "judgement": [
+    {
+      "question": "复制 Provider 时是否复制密钥？",
+      "answer": "不复制密钥；复制模型配置时保留可用模型定义并报告已存在标识。",
+      "note": "代码中的复制行为不应将凭据带到新配置。"
+    },
+    {
+      "question": "用户选择的模型不支持指定思考档位时如何处理？",
+      "answer": "使用该模型支持的档位并展示实际发送的档位；请求失败时显示可理解原因。",
+      "note": "需针对能力探测和 Playground 分别验收。"
+    }
+  ],
+  "implementation": [
+    "以卡片或行视图查看 Provider 与模型，支持搜索、查看和编辑 Provider、复制 Provider、增删改模型及复制模型信息。",
+    "提供配置设置、测速确认与历史记录，并如实显示错误和测速状态。",
+    "提供可选择 Provider/模型的 Playground 与能力探测，支持请求过程、结果和中止状态展示。",
+    "设置或详情中的密钥默认不回显；复制新 Provider 时不包含密钥。"
+  ],
+  "unit-tests": [
+    {
+      "scene": "Provider 复制",
+      "description": "复制 Provider 后新项不含密钥、保留预期模型配置；目标 ID 已存在时提示冲突。"
+    },
+    {
+      "scene": "Playground 档位",
+      "description": "选择不支持当前思考档位的模型后使用其支持档位，并在请求摘要显示实际档位。"
+    }
+  ],
+  "e2e": [
+    {
+      "scene": "浏览并编辑模型配置",
+      "description": "用户搜索一个测试 Provider，打开详情调整一个模型的展示字段并保存，列表显示更新后的信息；密钥保持遮蔽。"
+    },
+    {
+      "scene": "使用受控 Playground",
+      "description": "用户选择测试 Provider 和模型，提交隔离测试请求，查看返回内容与完成状态；不向真实商业模型发请求。"
+    }
+  ],
+  "notes": [
+    "真实 API 请求和测速可能产生费用；任何费用测试必须单独授权并使用明确的成本上限。"
+  ]
+}
