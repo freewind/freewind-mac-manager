@@ -2,7 +2,7 @@
   "id": "FCM41",
   "title": "feat: 设置 Pi 默认运行参数",
   "requirement": "让用户配置 Pi 的默认 Provider、模型、思考档位及重试/上下文压缩设置。",
-  "description": "**前置卡**：FCM17。\n\n本卡负责 Pi 设置页中可编辑的默认参数，不负责模型目录维护或实验室请求。超出表单能力的配置不列为需求。",
+  "description": "本卡负责 Pi 设置页中可编辑的默认参数，不负责模型目录维护或实验室请求。超出表单能力的配置不列为需求。",
   "worktree": false,
   "judgement": [
     {

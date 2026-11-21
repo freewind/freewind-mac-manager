@@ -2,7 +2,7 @@
   "id": "FCM46",
   "title": "feat: 在 AI 话题线程中对话",
   "requirement": "让用户在选定话题线程里发送消息、跟踪执行活动并查看持久化回复。",
-  "description": "**前置卡**：FCM19、FCM2。\n\n本卡负责线程消息运行及已核实的话题内 Agent 工具结果，不负责用户侧话题/线程管理或专属设置。断线时服务端执行可能继续，恢复时读取同一执行结果而不重发。助手工具限当前话题内 list_threads、create_thread、reply_thread、rename_thread、archive_thread；不含删除线程，也不赋予本机文件、服务或配置操作权限。",
+  "description": "本卡负责线程消息运行及已核实的话题内 Agent 工具结果，不负责用户侧话题/线程管理或专属设置。断线时服务端执行可能继续，恢复时读取同一执行结果而不重发。助手工具限当前话题内 list_threads、create_thread、reply_thread、rename_thread、archive_thread；不含删除线程，也不赋予本机文件、服务或配置操作权限。",
   "worktree": false,
   "judgement": [
     {

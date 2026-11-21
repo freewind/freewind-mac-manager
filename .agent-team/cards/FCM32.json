@@ -2,7 +2,7 @@
   "id": "FCM32",
   "title": "feat: 查看和控制 Colima 运行环境",
   "requirement": "让用户查看 Colima 状态并在当前可用条件下启动或停止 Docker 运行环境。",
-  "description": "**前置卡**：FCM1、FCM22、FCM2。\n\n只负责 Colima 安装/运行状态及启动、停止、重启；容器生命周期另卡。停止/重启影响全部运行容器，必须告知数量和影响；验收只使用一次性测试环境。",
+  "description": "只负责 Colima 安装/运行状态及启动、停止、重启；容器生命周期另卡。停止/重启影响全部运行容器，必须告知数量和影响；验收只使用一次性测试环境。",
   "worktree": false,
   "judgement": [
     {

@@ -2,7 +2,7 @@
   "id": "FCM13",
   "title": "feat: 创建与管理 Docker 容器",
   "requirement": "让用户查看、创建和控制容器，并查看容器日志与操作结果。",
-  "description": "**前置卡**：FCM32、FCM2。\n\n本卡负责容器列表及 create/start/stop/restart/kill/remove 和日志。kill/remove 为危险动作；运行中删除是否允许 force 必须明确确认，不自动强制删除。",
+  "description": "本卡负责容器列表及 create/start/stop/restart/kill/remove 和日志。kill/remove 为危险动作；运行中删除是否允许 force 必须明确确认，不自动强制删除。",
   "worktree": false,
   "judgement": [
     {

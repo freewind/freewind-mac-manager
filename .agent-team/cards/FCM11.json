@@ -2,7 +2,7 @@
   "id": "FCM11",
   "title": "feat: 浏览应用数据库结构和记录",
   "requirement": "让用户检查应用数据库、表结构和记录，并使用筛选排序定位数据。",
-  "description": "**前置卡**：FCM1、FCM22。\n\n本卡只交付只读浏览与导航；记录写入由后续独立卡负责。数据库页不能提供任意 SQL/DDL。",
+  "description": "本卡只交付只读浏览与导航；记录写入由后续独立卡负责。数据库页不能提供任意 SQL/DDL。",
   "worktree": false,
   "judgement": [
     {

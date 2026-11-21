@@ -2,7 +2,7 @@
   "id": "FCM17",
   "title": "feat: 维护 Pi Provider 和模型目录",
   "requirement": "让用户查看、搜索并维护已配置的 Provider 和模型资料。",
-  "description": "**前置卡**：FCM1、FCM22。\n\n本卡负责 Provider/模型清单、表单增改删、复制和视图，不负责 Pi 全局运行设置、对话或测速。敏感密钥不回显，复制 Provider 不复制密钥。",
+  "description": "本卡负责 Provider/模型清单、表单增改删、复制和视图，不负责 Pi 全局运行设置、对话或测速。敏感密钥不回显，复制 Provider 不复制密钥。",
   "worktree": false,
   "judgement": [
     {

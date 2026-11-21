@@ -2,7 +2,7 @@
   "id": "FCM21",
   "title": "feat: 配置并连接 MCP Server",
   "requirement": "让用户添加或导入 MCP Server 配置，查看连接状态并按需连接/断开服务器。",
-  "description": "**前置卡**：FCM1、FCM22。\n\n本卡负责 Server 配置和连接状态，不负责工具/资源/提示词的具体调用。stdio 命令会启动本机进程，HTTP 会访问网络；必须清楚呈现并只用隔离测试服务。",
+  "description": "本卡负责 Server 配置和连接状态，不负责工具/资源/提示词的具体调用。stdio 命令会启动本机进程，HTTP 会访问网络；必须清楚呈现并只用隔离测试服务。",
   "worktree": false,
   "judgement": [
     {

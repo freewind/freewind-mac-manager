@@ -2,7 +2,7 @@
   "id": "FCM42",
   "title": "feat: 在 Pi Playground 对话并查看历史",
   "requirement": "让用户选择 Pi 模型发起测试对话、查看历史结果和控制请求状态。",
-  "description": "**前置卡**：FCM17。\n\n本卡负责聊天模式的 Playground，不负责能力探测或基准测速。请求可能产生外部 API 费用，默认验收使用本地受控模拟端点。",
+  "description": "本卡负责聊天模式的 Playground，不负责能力探测或基准测速。请求可能产生外部 API 费用，默认验收使用本地受控模拟端点。",
   "worktree": false,
   "judgement": [
     {

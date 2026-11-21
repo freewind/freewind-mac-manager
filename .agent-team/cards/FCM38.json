@@ -2,7 +2,7 @@
   "id": "FCM38",
   "title": "feat: 浏览 Clash GEO 规则数据库",
   "requirement": "查看域名分类和 IP 国家/自治系统规则数据，判断分流依据及预览范围。",
-  "description": "**前置卡**：FCM16。\n\n只读浏览已存在的 geosite.dat、geoip.dat、Country.mmdb、ASN.mmdb；不更新数据库、不编辑规则、不提供任意 IP 在线查询。预览截断不能冒充完整数据库。",
+  "description": "只读浏览已存在的 geosite.dat、geoip.dat、Country.mmdb、ASN.mmdb；不更新数据库、不编辑规则、不提供任意 IP 在线查询。预览截断不能冒充完整数据库。",
   "worktree": false,
   "judgement": [
     {

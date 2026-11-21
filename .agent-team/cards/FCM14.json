@@ -2,7 +2,7 @@
   "id": "FCM14",
   "title": "feat: 编辑并导入 Caddy 转发规则",
   "requirement": "让用户维护结构化的受管转发规则并查看其相对于配置文件的接管状态。",
-  "description": "**前置卡**：FCM1、FCM22。\n\n本卡负责规则草稿 CRUD、启停、删除、导入和状态展示，不写 Caddyfile 或执行 reload；任意指令编辑不在范围。",
+  "description": "本卡负责规则草稿 CRUD、启停、删除、导入和状态展示，不写 Caddyfile 或执行 reload；任意指令编辑不在范围。",
   "worktree": false,
   "judgement": [
     {
